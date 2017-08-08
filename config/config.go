@@ -9,12 +9,50 @@ import (
 	"strings"
 )
 
+var (
+	DefaultConfig = Config{
+		Cluster: DefaultCluster,
+		Users: DefaultUsers,
+	}
+
+	DefaultCluster = Cluster{
+		Scheme: "http",
+	}
+
+	DefaultUsers = []User{
+		DefaultUser,
+	}
+
+	DefaultUser = User{
+		Name: "default",
+	}
+)
+
 type Config struct {
 	Cluster Cluster  `yaml:"cluster"`
-	Users []*User  `yaml:"users,omitempty"`
+	Users []User  `yaml:"users,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultConfig
+
+	// We want to set c to the defaults and then overwrite it with the input.
+	// To make unmarshal fill the plain data struct rather than calling UnmarshalYAML
+	// again, we have to hide it using a type indirection.
+	type plain Config
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+
+	if len(c.Users) == 0 {
+		return fmt.Errorf("field `users` must contain at least 1 user")
+	}
+
+	return checkOverflow(c.XXX, "config")
 }
 
 type Cluster struct {
@@ -24,6 +62,28 @@ type Cluster struct {
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *Cluster) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain Cluster
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+
+	if c.Name == "" {
+		return fmt.Errorf("field `cluster_name` must be filled")
+	}
+
+	if len(c.Shards) == 0 {
+		return fmt.Errorf("field `shards` for cluster %q must contain at least 1 address", c.Name)
+	}
+
+	if c.Scheme != "http" && c.Scheme != "https" {
+		return fmt.Errorf("field `scheme` for cluster %q must be `http` or `https`. Got %q instead", c.Name, c.Scheme)
+	}
+
+	return checkOverflow(c.XXX, "cluster")
 }
 
 type User struct {
@@ -38,8 +98,17 @@ type User struct {
 	XXX map[string]interface{} `yaml:",inline"`
 }
 
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (u *User) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain User
+	if err := unmarshal((*plain)(u)); err != nil {
+		return err
+	}
 
-func Load(filename string) (*Config, error) {
+	return checkOverflow(u.XXX, "users")
+}
+
+func LoadFile(filename string) (*Config, error) {
 	if stat, err := os.Stat(filename); err != nil {
 		return nil, fmt.Errorf("cannot get file info: %s", err)
 	} else if stat.IsDir() {
@@ -50,50 +119,13 @@ func Load(filename string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	cfg, err := newConfig(string(content))
-	if err != nil {
-		return nil, err
-	}
 
-	err = cfg.validate()
-	return cfg, nil
-}
-
-func newConfig(s string) (*Config, error) {
 	cfg := &Config{}
-	if err := yaml.Unmarshal([]byte(s), cfg); err != nil {
+	if err := yaml.Unmarshal([]byte(content), cfg); err != nil {
 		return nil, err
-	}
-
-	if err := checkOverflow(cfg.XXX, "config"); err != nil {
-		return nil, err
-	}
-
-	if err := checkOverflow(cfg.Cluster.XXX, "cluster"); err != nil {
-		return nil, err
-	}
-
-	for _, user := range cfg.Users {
-		if err := checkOverflow(user.XXX, "user"); err != nil {
-			return nil, err
-		}
-
-		if err := checkOverflow(user.XXX); err != nil {
-			return nil, err
-		}
-
 	}
 
 	return cfg, nil
-}
-
-func (u *User) validate() error {
-	_, err := time.ParseDuration(u.MaxExecutionTime)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func checkOverflow(m map[string]interface{}, ctx string) error {

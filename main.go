@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"flag"
 	"github.com/hagen1778/chproxy/config"
+	"fmt"
 )
 
 var (
@@ -20,7 +21,11 @@ func main() {
 		log.Fatal(err)
 	}
 
-	cfg, err := config.Load(*configFile)
+	cfg, err := config.LoadFile(*configFile)
+	if err != nil {
+		log.Fatalf("can't load config %q: %s", *configFile, err)
+	}
+	fmt.Println(cfg)
 
 	handler := NewReverseProxy(proxyURL)
 	handler.ApplyConfig(cfg)

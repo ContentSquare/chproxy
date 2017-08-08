@@ -1,0 +1,12 @@
+cluster:
+  cluster_name: "default cluster"
+  scheme: 'http'
+  shards: ['localhost:8123']
+
+users:
+  - user_name: "web"
+    max_concurrent_queries: 4
+    max_execution_time: 1m
+  - user_name: "olap"
+    max_concurrent_queries: 2
+    max_execution_time: 30s
