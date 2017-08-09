@@ -10,69 +10,161 @@ import (
 	"strings"
 	"sync"
 	"github.com/hagen1778/chproxy/config"
+	"fmt"
 )
 
 type reverseProxy struct {
 	*httputil.ReverseProxy
 
 	sync.Mutex
-	users []*user
+	scheme string
+	users map[string]*limits
 	targets []*target
 }
 
-type user struct{}
-type target struct{}
+type limits struct{
+	maxConcurrentQueries uint32
+	maxExecutionTime time.Duration
 
-func (rp *reverseProxy) ApplyConfig(cfg *config.Config) {
-
+	sync.Mutex
+	runningQueries uint32
 }
 
-var deadline = time.Second*3
+func (l *limits) Inc() error {
+	l.Lock()
+	defer l.Unlock()
 
-func (rp reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	startTime := time.Now()
+	if l.maxConcurrentQueries > 0 && l.runningQueries >= l.maxConcurrentQueries {
+		return fmt.Errorf("maxConcurrentQueries limit exceeded: %d", l.maxConcurrentQueries)
+	}
+
+	l.runningQueries++
+	return nil
+}
+
+func (l *limits) Dec() {
+	l.Lock()
+	l.runningQueries--
+	l.Unlock()
+}
+
+type target struct{
+	addr *url.URL
+
+	sync.Mutex
+	runningQueries uint32
+}
+
+// todo: bench with race
+func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	uname := extractUserFromRequest(req)
+	limits, err := rp.getUserLimits(uname)
+	if err != nil {
+		log.Printf("proxy failed: %s", err)
+		rw.WriteHeader(http.StatusInternalServerError)
+		rw.Write([]byte(err.Error()))
+		return
+	}
+
+	if err := limits.Inc(); err != nil {
+		rw.WriteHeader(http.StatusInternalServerError)
+		rw.Write([]byte(err.Error()))
+		return
+	}
 
 	ctx := context.Background()
-	ctx, cancel := context.WithTimeout(ctx, deadline)
-	defer cancel()
-
+	if limits.maxExecutionTime != 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, limits.maxExecutionTime)
+		defer cancel()
+	}
 	req = req.WithContext(ctx)
 
-	uname := extractUserFromRequest(req)
-	log.Println("user:", uname)
-
-	rp.ServeHTTP(rw, req)
-
+	rp.ReverseProxy.ServeHTTP(rw, req)
 	if ctx.Err() != nil {
-		if err := killQuery(uname, deadline.Seconds()); err != nil {
+		if err := killQuery(uname, limits.maxExecutionTime.Seconds()); err != nil {
 			log.Println("Can't kill query:", err)
 		}
 		rw.Write([]byte(ctx.Err().Error()))
-	} else {
-		log.Println("Request took", time.Since(startTime))
 	}
+	limits.Dec()
 }
 
-func NewReverseProxy(target *url.URL) *reverseProxy {
-	targetQuery := target.RawQuery
+func (rp *reverseProxy) getUserLimits(name string) (*limits, error) {
+	rp.Lock()
+	defer rp.Unlock()
+
+	user, ok := rp.users[name]
+	if !ok {
+		return nil, fmt.Errorf("unknown username %q", name)
+	}
+
+	return user, nil
+}
+
+func (rp *reverseProxy) getTarget() *target {
+	rp.Lock()
+	defer rp.Unlock()
+
+	//if len(rp.targets) == 1 {
+		return rp.targets[0]
+	//}
+}
+
+func NewReverseProxy(cfg *config.Config) (*reverseProxy, error) {
+	rp := &reverseProxy{}
+	if err := rp.ApplyConfig(cfg); err != nil {
+		return nil, err
+	}
+
 	director := func(req *http.Request) {
-		req.URL.Scheme = target.Scheme
-		req.URL.Host = target.Host
-		req.URL.Path = singleJoiningSlash(target.Path, req.URL.Path)
-		if targetQuery == "" || req.URL.RawQuery == "" {
-			req.URL.RawQuery = targetQuery + req.URL.RawQuery
-		} else {
-			req.URL.RawQuery = targetQuery + "&" + req.URL.RawQuery
-		}
+		target := rp.getTarget()
+		fmt.Println(target.addr)
+		req.URL.Scheme = target.addr.Scheme
+		req.URL.Host = target.addr.Host
+		req.URL.Path = singleJoiningSlash(target.addr.Path, req.URL.Path)
+
 		if _, ok := req.Header["User-Agent"]; !ok {
 			// explicitly disable User-Agent so it's not set to default value
 			req.Header.Set("User-Agent", "")
 		}
 	}
 
-	return &reverseProxy{
-		ReverseProxy: &httputil.ReverseProxy{Director: director},
+	rp.ReverseProxy = &httputil.ReverseProxy{Director: director}
+	initMetrics()
+
+	return rp, nil
+}
+
+func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
+	rp.Lock()
+	defer rp.Unlock()
+
+	targets := make([]*target, len(cfg.Cluster.Shards))
+	for i, t := range cfg.Cluster.Shards {
+		addr, err := url.Parse(fmt.Sprintf("%s://%s", cfg.Cluster.Scheme, t))
+		if err != nil {
+			return err
+		}
+
+		addr.Scheme = cfg.Cluster.Scheme
+		targets[i] = &target{
+			addr:  addr,
+		}
 	}
+
+	users := make(map[string]*limits, len(cfg.Users))
+	for _, user := range cfg.Users {
+		users[user.Name] = &limits{
+			maxConcurrentQueries: user.MaxConcurrentQueries,
+			maxExecutionTime: user.MaxExecutionTime,
+		}
+	}
+
+	rp.targets = targets
+	rp.users = users
+
+	return nil
 }
 
 func singleJoiningSlash(a, b string) string {

@@ -90,7 +90,7 @@ type User struct {
 	// User name in ClickHouse users.xml config
 	Name                 string `yaml:"user_name"`
 	// Maximum number of concurrently running queries for user
-	MaxConcurrentQueries int `yaml:"max_concurrent_queries,omitempty"`
+	MaxConcurrentQueries uint32 `yaml:"max_concurrent_queries,omitempty"`
 	// Maximum duration of query executing for user
 	MaxExecutionTime     time.Duration `yaml:"max_execution_time,omitempty"`
 
