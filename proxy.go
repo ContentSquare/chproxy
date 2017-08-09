@@ -11,6 +11,7 @@ import (
 	"sync"
 	"github.com/hagen1778/chproxy/config"
 	"fmt"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type reverseProxy struct {
@@ -57,6 +58,7 @@ type target struct{
 
 // todo: bench with race
 func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	fmt.Println("Serve: ", req.URL.Host)
 	uname := extractUserFromRequest(req)
 	limits, err := rp.getUserLimits(uname)
 	if err != nil {
@@ -65,6 +67,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		rw.Write([]byte(err.Error()))
 		return
 	}
+	//label := prometheus.Labels{"user": uname}
 
 	if err := limits.Inc(); err != nil {
 		rw.WriteHeader(http.StatusInternalServerError)
@@ -80,13 +83,17 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 	req = req.WithContext(ctx)
 
+	//requestSum.With(label).Inc()
 	rp.ReverseProxy.ServeHTTP(rw, req)
 	if ctx.Err() != nil {
 		if err := killQuery(uname, limits.maxExecutionTime.Seconds()); err != nil {
 			log.Println("Can't kill query:", err)
 		}
 		rw.Write([]byte(ctx.Err().Error()))
+		//errors.With(label).Inc()
 	}
+
+	//requestSuccess.With(label).Inc()
 	limits.Dec()
 }
 
@@ -118,16 +125,17 @@ func NewReverseProxy(cfg *config.Config) (*reverseProxy, error) {
 	}
 
 	director := func(req *http.Request) {
+
 		target := rp.getTarget()
-		fmt.Println(target.addr)
 		req.URL.Scheme = target.addr.Scheme
 		req.URL.Host = target.addr.Host
 		req.URL.Path = singleJoiningSlash(target.addr.Path, req.URL.Path)
-
+		fmt.Println("Director: ", req.URL.Host)
 		if _, ok := req.Header["User-Agent"]; !ok {
 			// explicitly disable User-Agent so it's not set to default value
 			req.Header.Set("User-Agent", "")
 		}
+		requestSum.With(prometheus.Labels{"target": req.URL.Host}).Inc()
 	}
 
 	rp.ReverseProxy = &httputil.ReverseProxy{Director: director}
