@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"flag"
 	"github.com/hagen1778/chproxy/config"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
@@ -19,13 +20,14 @@ func main() {
 		log.Fatalf("can't load config %q: %s", *configFile, err)
 	}
 
-	handler, err := NewReverseProxy(cfg)
+	proxy, err := NewReverseProxy(cfg)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	http.HandleFunc("/favicon.ico", serveFavicon)
-	http.HandleFunc("/", handler.ServeHTTP)
+	http.HandleFunc("/metrics", promhttp.Handler().ServeHTTP)
+	http.HandleFunc("/", proxy.ServeHTTP)
 	log.Fatal(http.ListenAndServe(*port, nil))
 }
 

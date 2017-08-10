@@ -5,13 +5,11 @@ import (
 	"net/http"
 	"net/url"
 	"io/ioutil"
-	"log"
 )
 
 // We don't use query_id because for distributed processing, the query ID is not passed to remote servers
 func killQuery(uname string, elapsed float64) error {
 	q := fmt.Sprintf("KILL QUERY WHERE initial_user = '%s' AND elapsed >= %d", uname, int(elapsed))
-	log.Println(q)
 	return doQuery(q)
 }
 

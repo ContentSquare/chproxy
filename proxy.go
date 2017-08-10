@@ -35,11 +35,13 @@ func (l *limits) Inc() error {
 	l.Lock()
 	defer l.Unlock()
 
+	fmt.Println(l.maxConcurrentQueries, " >> ", l.runningQueries)
 	if l.maxConcurrentQueries > 0 && l.runningQueries >= l.maxConcurrentQueries {
 		return fmt.Errorf("maxConcurrentQueries limit exceeded: %d", l.maxConcurrentQueries)
 	}
 
 	l.runningQueries++
+	fmt.Println(l.runningQueries)
 	return nil
 }
 
@@ -56,22 +58,27 @@ type target struct{
 	runningQueries uint32
 }
 
+func respondWIthErr(rw http.ResponseWriter, err error) {
+	log.Printf("proxy failed: %s", err)
+	rw.WriteHeader(http.StatusInternalServerError)
+	rw.Write([]byte(err.Error()))
+}
+
 // todo: bench with race
+func (rp *reverseProxy) ServeHTTP2(rw http.ResponseWriter, req *http.Request) {
+	fmt.Println(">>>")
+	rp.ReverseProxy.ServeHTTP(rw, req)
+}
 func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	fmt.Println("Serve: ", req.URL.Host)
-	uname := extractUserFromRequest(req)
-	limits, err := rp.getUserLimits(uname)
+	user := extractUserFromRequest(req)
+	limits, err := rp.getUserLimits(user)
 	if err != nil {
-		log.Printf("proxy failed: %s", err)
-		rw.WriteHeader(http.StatusInternalServerError)
-		rw.Write([]byte(err.Error()))
+		respondWIthErr(rw, err)
 		return
 	}
-	//label := prometheus.Labels{"user": uname}
 
 	if err := limits.Inc(); err != nil {
-		rw.WriteHeader(http.StatusInternalServerError)
-		rw.Write([]byte(err.Error()))
+		respondWIthErr(rw, err)
 		return
 	}
 
@@ -83,17 +90,19 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 	req = req.WithContext(ctx)
 
-	//requestSum.With(label).Inc()
 	rp.ReverseProxy.ServeHTTP(rw, req)
+
+	label := prometheus.Labels{"user": user, "target": req.URL.Host}
+	requestSum.With(label).Inc()
 	if ctx.Err() != nil {
-		if err := killQuery(uname, limits.maxExecutionTime.Seconds()); err != nil {
-			log.Println("Can't kill query:", err)
+		if err := killQuery(user, limits.maxExecutionTime.Seconds()); err != nil {
+			log.Printf("error while killing %q's queries: %s", user, err)
 		}
-		rw.Write([]byte(ctx.Err().Error()))
-		//errors.With(label).Inc()
+		errors.With(label).Inc()
+	} else {
+		requestSuccess.With(label).Inc()
 	}
 
-	//requestSuccess.With(label).Inc()
 	limits.Dec()
 }
 
@@ -125,17 +134,10 @@ func NewReverseProxy(cfg *config.Config) (*reverseProxy, error) {
 	}
 
 	director := func(req *http.Request) {
-
 		target := rp.getTarget()
 		req.URL.Scheme = target.addr.Scheme
 		req.URL.Host = target.addr.Host
 		req.URL.Path = singleJoiningSlash(target.addr.Path, req.URL.Path)
-		fmt.Println("Director: ", req.URL.Host)
-		if _, ok := req.Header["User-Agent"]; !ok {
-			// explicitly disable User-Agent so it's not set to default value
-			req.Header.Set("User-Agent", "")
-		}
-		requestSum.With(prometheus.Labels{"target": req.URL.Host}).Inc()
 	}
 
 	rp.ReverseProxy = &httputil.ReverseProxy{Director: director}
