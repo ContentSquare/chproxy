@@ -1,0 +1,3 @@
+cluster:
+  shards: ['localhost:8123']
+  unknown_field:

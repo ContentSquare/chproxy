@@ -30,7 +30,7 @@ func NewReverseProxy(cfg *config.Config) (*reverseProxy, error) {
 
 // Serves incoming requests according to config
 func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	log.Debugf("Accepting request: %v", req)
+	//log.Debugf("Accepting request: %v", req.Header)
 	scope, err := rp.getRequestScope(req)
 	if err != nil {
 		respondWIthErr(rw, err)
@@ -38,7 +38,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 	log.Debugf("Request scope is: %s", scope)
 
-	if err = scope.Inc(); err != nil {
+	if err = scope.inc(); err != nil {
 		log.Errorf("unable to process request: %s", err)
 	}
 
@@ -54,7 +54,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		requestSuccess.With(label).Inc()
 	}
 
-	scope.Dec()
+	scope.dec()
 	log.Debugf("Request for scope %s successfully proxied", scope)
 }
 
@@ -157,6 +157,37 @@ func (rp *reverseProxy) getTarget() *target {
 	return idle
 }
 
+
+type scope struct {
+	user *user
+	target *target
+}
+
+func (s *scope) String() string {
+	return fmt.Sprintf("[User: %s, running queries: %d => Host: %s, running queries: %d]",
+		s.user.name, s.user.limits.runningQueries,
+		s.target.addr.Host, s.target.runningQueries)
+}
+
+func (s *scope) inc() error {
+	if err := s.user.limits.Inc(); err != nil {
+		return fmt.Errorf("limits for user %q are exceeded: %s", s.user.name, err)
+	}
+	s.target.Inc()
+	return nil
+}
+
+func (s *scope) dec() {
+	s.user.limits.Dec()
+	s.target.Dec()
+}
+
+
+type user struct {
+	name string
+	limits *limits
+}
+
 type limits struct{
 	maxConcurrentQueries uint32
 	maxExecutionTime time.Duration
@@ -183,6 +214,7 @@ func (l *limits) Dec() {
 	l.Unlock()
 }
 
+
 type target struct{
 	addr *url.URL
 
@@ -202,36 +234,6 @@ func (t *target) Dec() {
 	t.Unlock()
 }
 
-
-
-type scope struct {
-	user *user
-	target *target
-}
-
-func (s *scope) String() string {
-	return fmt.Sprintf("[User: %s, running queries: %d;   Host: %s, running queries: %d]",
-		s.user.name, s.user.limits.runningQueries,
-		s.target.addr.Host, s.target.runningQueries)
-}
-
-func (s *scope) Inc() error {
-	if err := s.user.limits.Inc(); err != nil {
-		return fmt.Errorf("limits for user %q are exceeded: %s", s.user.name, err)
-	}
-	s.target.Inc()
-	return nil
-}
-
-func (s *scope) Dec() {
-	s.user.limits.Dec()
-	s.target.Dec()
-}
-
-type user struct {
-	name string
-	limits *limits
-}
 
 func respondWIthErr(rw http.ResponseWriter, err error) {
 	log.Errorf("proxy failed: %s", err)

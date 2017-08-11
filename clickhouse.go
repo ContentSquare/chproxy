@@ -10,11 +10,11 @@ import (
 // We don't use query_id because for distributed processing, the query ID is not passed to remote servers
 func killQuery(uname string, elapsed float64) error {
 	q := fmt.Sprintf("KILL QUERY WHERE initial_user = '%s' AND elapsed >= %d", uname, int(elapsed))
-	return doQuery(q)
+	return postQuery(q)
 }
 
 
-func doQuery(q string) error {
+func postQuery(q string) error {
 	resp, err := http.Post(fmt.Sprintf("%s/?query=%s", *addr, url.QueryEscape(q)), "", nil)
 	if err != nil {
 		return fmt.Errorf("error in clickhouse query %q at %q: %s", q, *addr, err)
