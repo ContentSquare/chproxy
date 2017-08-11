@@ -136,7 +136,3 @@ func TestBadConfig(t *testing.T) {
 		})
 	}
 }
-
-func TestApplyConfig(t *testing.T) {
-
-}
