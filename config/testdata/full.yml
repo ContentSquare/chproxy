@@ -1,5 +1,4 @@
 cluster:
-  cluster_name: "default cluster"
   scheme: 'http'
   shards: ['localhost:8123']
 

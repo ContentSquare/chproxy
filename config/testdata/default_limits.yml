@@ -1,5 +1,4 @@
 cluster:
-  cluster_name: "default cluster"
   shards: ['localhost:8123']
 
 users:

@@ -56,7 +56,6 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 type Cluster struct {
-	Name string `yaml:"cluster_name"`
 	Scheme string `yaml:"scheme,omitempty"`
 	Shards []string `yaml:"shards"`
 
@@ -71,16 +70,12 @@ func (c *Cluster) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 
-	if c.Name == "" {
-		return fmt.Errorf("field `cluster_name` must be filled")
-	}
-
 	if len(c.Shards) == 0 {
-		return fmt.Errorf("field `shards` for cluster %q must contain at least 1 address", c.Name)
+		return fmt.Errorf("field `shards` must contain at least 1 address")
 	}
 
 	if c.Scheme != "http" && c.Scheme != "https" {
-		return fmt.Errorf("field `scheme` for cluster %q must be `http` or `https`. Got %q instead", c.Name, c.Scheme)
+		return fmt.Errorf("field `scheme` must be `http` or `https`. Got %q instead", c.Scheme)
 	}
 
 	return checkOverflow(c.XXX, "cluster")
