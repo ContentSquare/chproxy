@@ -1,17 +1,17 @@
 package config
 
 import (
+	"bytes"
 	"gopkg.in/yaml.v2"
 	"testing"
 	"time"
-	"bytes"
 )
 
 func TestLoadConfig(t *testing.T) {
 	var testCases = []struct {
 		name string
 		file string
-		cfg Config
+		cfg  Config
 	}{
 		{
 			"full description",
@@ -71,7 +71,7 @@ func TestLoadConfig(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T){
+		t.Run(tc.name, func(t *testing.T) {
 			c, err := LoadFile(tc.file)
 			if err != nil {
 				t.Fatalf("Error parsing %s: %s", tc.file, err)
@@ -96,8 +96,8 @@ func TestLoadConfig(t *testing.T) {
 
 func TestBadConfig(t *testing.T) {
 	var testCases = []struct {
-		name string
-		file string
+		name  string
+		file  string
 		error string
 	}{
 		{
@@ -128,7 +128,7 @@ func TestBadConfig(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T){
+		t.Run(tc.name, func(t *testing.T) {
 			_, err := LoadFile(tc.file)
 			if err.Error() != tc.error {
 				t.Fatalf("expected: %q; got: %q", tc.error, err)

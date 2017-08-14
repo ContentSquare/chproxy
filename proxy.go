@@ -1,17 +1,17 @@
 package main
 
 import (
-	"net/url"
-	"net/http"
-	"time"
-	"net/http/httputil"
 	"context"
+	"fmt"
+	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"strings"
 	"sync"
-	"fmt"
+	"time"
 
-	"github.com/hagen1778/chproxy/log"
 	"github.com/hagen1778/chproxy/config"
+	"github.com/hagen1778/chproxy/log"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -19,7 +19,7 @@ import (
 func NewReverseProxy(cfg *config.Config) (*reverseProxy, error) {
 	rp := &reverseProxy{}
 	rp.ReverseProxy = &httputil.ReverseProxy{
-		Director: func(*http.Request){},
+		Director: func(*http.Request) {},
 	}
 	if err := rp.ApplyConfig(cfg); err != nil {
 		return nil, err
@@ -30,7 +30,7 @@ func NewReverseProxy(cfg *config.Config) (*reverseProxy, error) {
 
 // Serves incoming requests according to config
 func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	//log.Debugf("Accepting request: %v", req.Header)
+	log.Debugf("Accepting request: %v", req.Header)
 	scope, err := rp.getRequestScope(req)
 	if err != nil {
 		respondWIthErr(rw, err)
@@ -39,13 +39,23 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	log.Debugf("Request scope is: %s", scope)
 
 	if err = scope.inc(); err != nil {
-		log.Errorf("unable to process request: %s", err)
+		respondWIthErr(rw, err)
+		return
 	}
+
+	ctx := context.Background()
+	if scope.user.limits.maxExecutionTime != 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, scope.user.limits.maxExecutionTime)
+		defer cancel()
+	}
+	req = req.WithContext(ctx)
 
 	rp.ReverseProxy.ServeHTTP(rw, req)
 	label := prometheus.Labels{"user": scope.user.name, "target": scope.target.addr.Host}
 	requestSum.With(label).Inc()
 	if req.Context().Err() != nil {
+		respondWIthErr(rw, req.Context().Err())
 		if err := killQuery(scope.user.name, scope.user.limits.maxExecutionTime.Seconds()); err != nil {
 			log.Errorf("error while killing %q's queries: %s", scope.user.name, err)
 		}
@@ -61,6 +71,10 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 // Applies provided config to reverseProxy
 // New config will be applied only if non-nil error returned
 func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
+
 	rp.Lock()
 	defer rp.Unlock()
 
@@ -72,7 +86,7 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 		}
 
 		targets[i] = &target{
-			addr:  addr,
+			addr: addr,
 		}
 	}
 
@@ -80,7 +94,7 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 	for _, user := range cfg.Users {
 		users[user.Name] = &limits{
 			maxConcurrentQueries: user.MaxConcurrentQueries,
-			maxExecutionTime: user.MaxExecutionTime,
+			maxExecutionTime:     user.MaxExecutionTime,
 		}
 	}
 
@@ -93,7 +107,7 @@ type reverseProxy struct {
 	*httputil.ReverseProxy
 
 	sync.Mutex
-	users map[string]*limits
+	users   map[string]*limits
 	targets []*target
 }
 
@@ -103,21 +117,13 @@ func (rp *reverseProxy) getRequestScope(req *http.Request) (*scope, error) {
 		return nil, err
 	}
 
-	ctx := context.Background()
-	if user.limits.maxExecutionTime != 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, user.limits.maxExecutionTime)
-		defer cancel()
-	}
-	req = req.WithContext(ctx)
-
 	target := rp.getTarget()
 	req.URL.Scheme = target.addr.Scheme
 	req.URL.Host = target.addr.Host
 	req.URL.Path = singleJoiningSlash(target.addr.Path, req.URL.Path)
 
 	return &scope{
-		user: user,
+		user:   user,
 		target: target,
 	}, nil
 }
@@ -134,7 +140,7 @@ func (rp *reverseProxy) getUser(req *http.Request) (*user, error) {
 	}
 
 	return &user{
-		name: name,
+		name:   name,
 		limits: limits,
 	}, nil
 }
@@ -149,7 +155,7 @@ func (rp *reverseProxy) getTarget() *target {
 			return t
 		}
 
-		if idle == nil || idle.runningQueries > t.runningQueries  {
+		if idle == nil || idle.runningQueries > t.runningQueries {
 			idle = t
 		}
 	}
@@ -157,9 +163,8 @@ func (rp *reverseProxy) getTarget() *target {
 	return idle
 }
 
-
 type scope struct {
-	user *user
+	user   *user
 	target *target
 }
 
@@ -182,15 +187,14 @@ func (s *scope) dec() {
 	s.target.Dec()
 }
 
-
 type user struct {
-	name string
+	name   string
 	limits *limits
 }
 
-type limits struct{
+type limits struct {
 	maxConcurrentQueries uint32
-	maxExecutionTime time.Duration
+	maxExecutionTime     time.Duration
 
 	sync.Mutex
 	runningQueries uint32
@@ -214,15 +218,14 @@ func (l *limits) Dec() {
 	l.Unlock()
 }
 
-
-type target struct{
+type target struct {
 	addr *url.URL
 
 	sync.Mutex
 	runningQueries uint32
 }
 
-func (t *target) Inc()  {
+func (t *target) Inc() {
 	t.Lock()
 	t.runningQueries++
 	t.Unlock()
@@ -233,7 +236,6 @@ func (t *target) Dec() {
 	t.runningQueries--
 	t.Unlock()
 }
-
 
 func respondWIthErr(rw http.ResponseWriter, err error) {
 	log.Errorf("proxy failed: %s", err)

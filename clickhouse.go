@@ -2,9 +2,9 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/url"
-	"io/ioutil"
 )
 
 // We don't use query_id because for distributed processing, the query ID is not passed to remote servers
@@ -12,7 +12,6 @@ func killQuery(uname string, elapsed float64) error {
 	q := fmt.Sprintf("KILL QUERY WHERE initial_user = '%s' AND elapsed >= %d", uname, int(elapsed))
 	return postQuery(q)
 }
-
 
 func postQuery(q string) error {
 	resp, err := http.Post(fmt.Sprintf("%s/?query=%s", *addr, url.QueryEscape(q)), "", nil)
@@ -27,4 +26,3 @@ func postQuery(q string) error {
 	}
 	return nil
 }
-

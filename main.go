@@ -1,16 +1,16 @@
 package main
 
 import (
-	"net/http"
 	"flag"
-	"github.com/hagen1778/chproxy/log"
 	"github.com/hagen1778/chproxy/config"
+	"github.com/hagen1778/chproxy/log"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"net/http"
 )
 
 var (
-	addr = flag.String("h", "http://localhost:8123", "ClickHouse web-interface host:port address with scheme")
-	port = flag.String("p", ":8080", "Proxy addr to listen to for incoming requests")
+	addr       = flag.String("h", "http://localhost:8123", "ClickHouse web-interface host:port address with scheme")
+	port       = flag.String("p", ":8080", "Proxy addr to listen to for incoming requests")
 	configFile = flag.String("config", "proxy.yml", "Proxy configuration filename")
 )
 

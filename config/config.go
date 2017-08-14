@@ -1,18 +1,18 @@
 package config
 
 import (
-	"time"
-	"os"
 	"fmt"
-	"io/ioutil"
 	"gopkg.in/yaml.v2"
+	"io/ioutil"
+	"os"
 	"strings"
+	"time"
 )
 
 var (
 	DefaultConfig = Config{
 		Cluster: DefaultCluster,
-		Users: DefaultUsers,
+		Users:   DefaultUsers,
 	}
 
 	DefaultCluster = Cluster{
@@ -29,11 +29,21 @@ var (
 )
 
 type Config struct {
-	Cluster Cluster  `yaml:"cluster"`
-	Users []User  `yaml:"users,omitempty"`
+	Cluster Cluster `yaml:"cluster"`
+	Users   []User  `yaml:"users,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
+}
+
+func (c *Config) Validate() error {
+	content, err := yaml.Marshal(c)
+	if err != nil {
+		return fmt.Errorf("error while marshalling config: %s", err)
+	}
+
+	cfg := &Config{}
+	return yaml.Unmarshal([]byte(content), cfg)
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -56,7 +66,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 type Cluster struct {
-	Scheme string `yaml:"scheme,omitempty"`
+	Scheme string   `yaml:"scheme,omitempty"`
 	Shards []string `yaml:"shards"`
 
 	// Catches all undefined fields and must be empty after parsing.
@@ -83,11 +93,11 @@ func (c *Cluster) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 type User struct {
 	// User name in ClickHouse users.xml config
-	Name                 string `yaml:"user_name"`
+	Name string `yaml:"user_name"`
 	// Maximum number of concurrently running queries for user
 	MaxConcurrentQueries uint32 `yaml:"max_concurrent_queries,omitempty"`
 	// Maximum duration of query executing for user
-	MaxExecutionTime     time.Duration `yaml:"max_execution_time,omitempty"`
+	MaxExecutionTime time.Duration `yaml:"max_execution_time,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
