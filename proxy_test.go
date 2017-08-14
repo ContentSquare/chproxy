@@ -96,55 +96,40 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 
-	var testCases = []struct {
-		name    string
-		message string
-	}{
-		{
-			"Ok response",
-			"Ok\n",
-		},
-		{
-			"max concurrent queries",
-			"limits for user \"default\" are exceeded: maxConcurrentQueries limit exceeded: 1",
-		},
-		{
-			"max execution time",
-			"context deadline exceeded",
-		},
-	}
+	t.Run("Ok response", func(t *testing.T) {
+		expected := "Ok\n"
+		resp := makeRequest(proxy, fakeServer.URL)
+		if resp != expected {
+			t.Fatalf("expected response: %q; got: %q", expected, resp)
+		}
+	})
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			switch tc.name {
-			case "Ok response":
-				resp := makeRequest(proxy, fakeServer.URL)
-				if resp != tc.message {
-					t.Fatalf("expected response: %q; got: %q", tc.message, resp)
-				}
-			case "max concurrent queries":
-				go makeRequest(proxy, fakeServer.URL)
-				time.Sleep(time.Millisecond * 10)
-				resp := makeRequest(proxy, fakeServer.URL)
-				if resp != tc.message {
-					t.Fatalf("expected response: %q; got: %q", tc.message, resp)
-				}
-				time.Sleep(time.Millisecond * 50)
-			case "max execution time":
-				goodCfg.Users = []config.User{
-					{
-						Name:             "default",
-						MaxExecutionTime: time.Millisecond * 10,
-					},
-				}
-				proxy.ApplyConfig(goodCfg)
-				resp := makeRequest(proxy, fakeServer.URL)
-				if resp != tc.message {
-					t.Fatalf("expected response: %q; got: %q", tc.message, resp)
-				}
-			}
-		})
-	}
+	t.Run("max concurrent queries", func(t *testing.T) {
+		expected := "limits for user \"default\" are exceeded: maxConcurrentQueries limit exceeded: 1"
+		go makeRequest(proxy, fakeServer.URL)
+		time.Sleep(time.Millisecond * 10)
+		resp := makeRequest(proxy, fakeServer.URL)
+		if resp != expected {
+			t.Fatalf("expected response: %q; got: %q", expected, resp)
+		}
+
+		time.Sleep(time.Millisecond * 40)
+	})
+
+	t.Run("max execution time", func(t *testing.T) {
+		expected := "timeout for user \"default\" exceeded: 10ms"
+		goodCfg.Users = []config.User{
+			{
+				Name:             "default",
+				MaxExecutionTime: time.Millisecond * 10,
+			},
+		}
+		proxy.ApplyConfig(goodCfg)
+		resp := makeRequest(proxy, fakeServer.URL)
+		if resp != expected {
+			t.Fatalf("expected response: %q; got: %q", expected, resp)
+		}
+	})
 }
 
 func makeRequest(p *reverseProxy, addr string) string {

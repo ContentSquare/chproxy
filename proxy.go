@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"strings"
 	"sync"
 	"time"
 
@@ -56,7 +55,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	label := prometheus.Labels{"user": scope.user.name, "target": scope.target.addr.Host}
 	requestSum.With(label).Inc()
 	if req.Context().Err() != nil {
-		respondWIthErr(rw, req.Context().Err())
+		fmt.Fprint(rw, fmt.Sprintf("timeout for user %q exceeded: %v", scope.user.name, scope.user.limits.maxExecutionTime))
 		if err := killQuery(scope.user.name, scope.user.limits.maxExecutionTime.Seconds()); err != nil {
 			log.Errorf("error while killing %q's queries: %s", scope.user.name, err)
 		}
@@ -151,13 +150,16 @@ func (rp *reverseProxy) getTarget() *target {
 
 	var idle *target
 	for _, t := range rp.targets {
+		t.Lock()
 		if t.runningQueries == 0 {
+			t.Unlock()
 			return t
 		}
 
 		if idle == nil || idle.runningQueries > t.runningQueries {
 			idle = t
 		}
+		t.Unlock()
 	}
 
 	return idle
