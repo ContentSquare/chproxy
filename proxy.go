@@ -19,6 +19,7 @@ func NewReverseProxy(cfg *config.Config) (*reverseProxy, error) {
 	rp := &reverseProxy{}
 	rp.ReverseProxy = &httputil.ReverseProxy{
 		Director: func(*http.Request) {},
+		ErrorLog: log.ErrorLogger,
 	}
 	if err := rp.ApplyConfig(cfg); err != nil {
 		return nil, err
