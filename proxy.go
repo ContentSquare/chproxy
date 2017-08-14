@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"strings"
 	"sync"
 	"time"
 
@@ -42,29 +41,30 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		respondWIthErr(rw, err)
 		return
 	}
+	label := prometheus.Labels{"user": scope.user.name, "target": scope.target.addr.Host}
 
 	ctx := context.Background()
-	if scope.user.limits.maxExecutionTime != 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, scope.user.limits.maxExecutionTime)
-		defer cancel()
-	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	req = req.WithContext(ctx)
 
 	rp.ReverseProxy.ServeHTTP(rw, req)
-	label := prometheus.Labels{"user": scope.user.name, "target": scope.target.addr.Host}
-	requestSum.With(label).Inc()
-	if req.Context().Err() != nil {
-		respondWIthErr(rw, req.Context().Err())
+
+	select {
+	case <- time.After(scope.user.limits.maxExecutionTime):
+		cancel()
+		respondWIthErr(rw, fmt.Errorf("Some err"))
 		if err := killQuery(scope.user.name, scope.user.limits.maxExecutionTime.Seconds()); err != nil {
 			log.Errorf("error while killing %q's queries: %s", scope.user.name, err)
 		}
 		errors.With(label).Inc()
-	} else {
+	case <- ctx.Done():
+		fmt.Println("succ")
 		requestSuccess.With(label).Inc()
 	}
 
 	scope.dec()
+	requestSum.With(label).Inc()
 	log.Debugf("Request for scope %s successfully proxied", scope)
 }
 
@@ -120,7 +120,6 @@ func (rp *reverseProxy) getRequestScope(req *http.Request) (*scope, error) {
 	target := rp.getTarget()
 	req.URL.Scheme = target.addr.Scheme
 	req.URL.Host = target.addr.Host
-	req.URL.Path = singleJoiningSlash(target.addr.Path, req.URL.Path)
 
 	return &scope{
 		user:   user,
@@ -241,18 +240,6 @@ func respondWIthErr(rw http.ResponseWriter, err error) {
 	log.Errorf("proxy failed: %s", err)
 	rw.WriteHeader(http.StatusInternalServerError)
 	rw.Write([]byte(err.Error()))
-}
-
-func singleJoiningSlash(a, b string) string {
-	aslash := strings.HasSuffix(a, "/")
-	bslash := strings.HasPrefix(b, "/")
-	switch {
-	case aslash && bslash:
-		return a + b[1:]
-	case !aslash && !bslash:
-		return a + "/" + b
-	}
-	return a + b
 }
 
 func extractUserFromRequest(req *http.Request) string {
