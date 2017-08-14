@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -41,30 +42,30 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		respondWIthErr(rw, err)
 		return
 	}
-	label := prometheus.Labels{"user": scope.user.name, "target": scope.target.addr.Host}
 
 	ctx := context.Background()
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	if scope.user.limits.maxExecutionTime != 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, scope.user.limits.maxExecutionTime)
+		defer cancel()
+	}
 	req = req.WithContext(ctx)
 
 	rp.ReverseProxy.ServeHTTP(rw, req)
 
-	select {
-	case <- time.After(scope.user.limits.maxExecutionTime):
-		cancel()
-		respondWIthErr(rw, fmt.Errorf("Some err"))
+	label := prometheus.Labels{"user": scope.user.name, "target": scope.target.addr.Host}
+	requestSum.With(label).Inc()
+	if req.Context().Err() != nil {
+		respondWIthErr(rw, req.Context().Err())
 		if err := killQuery(scope.user.name, scope.user.limits.maxExecutionTime.Seconds()); err != nil {
 			log.Errorf("error while killing %q's queries: %s", scope.user.name, err)
 		}
 		errors.With(label).Inc()
-	case <- ctx.Done():
-		fmt.Println("succ")
+	} else {
 		requestSuccess.With(label).Inc()
 	}
 
 	scope.dec()
-	requestSum.With(label).Inc()
 	log.Debugf("Request for scope %s successfully proxied", scope)
 }
 
