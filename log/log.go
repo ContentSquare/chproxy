@@ -6,9 +6,6 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"os/signal"
-	"syscall"
-	"time"
 )
 
 var (
@@ -22,17 +19,6 @@ var (
 
 	debug = flag.Bool("debug", false, "Whether print debug messages")
 )
-
-func init() {
-	go func() {
-		c := make(chan os.Signal, 1)
-		signal.Notify(c, syscall.SIGTERM, syscall.SIGINT)
-		s := <-c
-		Infof("Obtained signal %q. Terminating...", s)
-		time.Sleep(time.Second)
-		os.Exit(0)
-	}()
-}
 
 func SuppressOutput(suppress bool) {
 	if suppress {
@@ -68,4 +54,5 @@ func Errorf(format string, args ...interface{}) {
 func Fatalf(format string, args ...interface{}) {
 	s := fmt.Sprintf(format, args...)
 	FatalLogger.Output(outputCallDepth, s)
+	os.Exit(1)
 }

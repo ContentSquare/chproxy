@@ -10,7 +10,7 @@ test: build
 	go test -race -v $(pkgs)
 
 bench: build
-	go test -race -v -bench=. $(pkgs)
+	go test -race -v -bench=. $(pkgs) -benchmem
 
 run: build
 	./chproxy --debug=true

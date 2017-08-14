@@ -2,10 +2,15 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"github.com/hagen1778/chproxy/config"
 	"github.com/hagen1778/chproxy/log"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 )
 
 var (
@@ -26,6 +31,26 @@ func main() {
 	if err != nil {
 		log.Fatalf("error while creating proxy: %s", err)
 	}
+
+	c := make(chan os.Signal)
+	signal.Notify(c, syscall.SIGHUP, syscall.SIGTERM, syscall.SIGINT)
+	go func() {
+		for {
+			s := <-c
+			switch s {
+			case syscall.SIGHUP:
+				log.Infof("SIGHUP received. Going to reload config...")
+				if err := proxy.ReloadConfig(*configFile); err != nil {
+					log.Errorf("error while reloading config: %s", err)
+				}
+				log.Infof("successfully reloaded")
+			case syscall.SIGTERM, syscall.SIGINT:
+				log.Infof("Obtained signal %q. Terminating...", s)
+				time.Sleep(time.Second)
+				os.Exit(0)
+			}
+		}
+	}()
 
 	http.HandleFunc("/favicon.ico", serveFavicon)
 	http.HandleFunc("/metrics", promhttp.Handler().ServeHTTP)

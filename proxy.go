@@ -69,6 +69,18 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	log.Debugf("Request for scope %s successfully proxied", scope)
 }
 
+// Reloads configuartion from passed file
+// return error if configuration is invalid
+// configuration will stay the same if error occured
+func (rp *reverseProxy) ReloadConfig(file string) error {
+	cfg, err := config.LoadFile(file)
+	if err != nil {
+		return fmt.Errorf("can't load config %q: %s", file, err)
+	}
+
+	return rp.ApplyConfig(cfg)
+}
+
 // Applies provided config to reverseProxy
 // New config will be applied only if non-nil error returned
 func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
