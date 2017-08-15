@@ -2,15 +2,15 @@ package main
 
 import (
 	"flag"
-	"fmt"
-	"github.com/hagen1778/chproxy/config"
-	"github.com/hagen1778/chproxy/log"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/hagen1778/chproxy/config"
+	"github.com/hagen1778/chproxy/log"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (

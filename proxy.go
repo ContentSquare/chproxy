@@ -44,9 +44,9 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	ctx := context.Background()
-	if scope.user.limits.maxExecutionTime != 0 {
+	if scope.user.maxExecutionTime != 0 {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, scope.user.limits.maxExecutionTime)
+		ctx, cancel = context.WithTimeout(ctx, scope.user.maxExecutionTime)
 		defer cancel()
 	}
 	req = req.WithContext(ctx)
@@ -56,8 +56,8 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	label := prometheus.Labels{"user": scope.user.name, "target": scope.target.addr.Host}
 	requestSum.With(label).Inc()
 	if req.Context().Err() != nil {
-		fmt.Fprint(rw, fmt.Sprintf("timeout for user %q exceeded: %v", scope.user.name, scope.user.limits.maxExecutionTime))
-		if err := killQuery(scope.user.name, scope.user.limits.maxExecutionTime.Seconds()); err != nil {
+		fmt.Fprint(rw, fmt.Sprintf("timeout for user %q exceeded: %v", scope.user.name, scope.user.maxExecutionTime))
+		if err := killQuery(scope.user.name, scope.user.maxExecutionTime.Seconds()); err != nil {
 			log.Errorf("error while killing %q's queries: %s", scope.user.name, err)
 		}
 		errors.With(label).Inc()
@@ -69,9 +69,8 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	log.Debugf("Request for scope %s successfully proxied", scope)
 }
 
-// Reloads configuartion from passed file
+// Reloads configuration from passed file
 // return error if configuration is invalid
-// configuration will stay the same if error occured
 func (rp *reverseProxy) ReloadConfig(file string) error {
 	cfg, err := config.LoadFile(file)
 	if err != nil {
@@ -103,11 +102,12 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 		}
 	}
 
-	users := make(map[string]*limits, len(cfg.Users))
-	for _, user := range cfg.Users {
-		users[user.Name] = &limits{
-			maxConcurrentQueries: user.MaxConcurrentQueries,
-			maxExecutionTime:     user.MaxExecutionTime,
+	users := make(map[string]*user, len(cfg.Users))
+	for _, u := range cfg.Users {
+		users[u.Name] = &user{
+			name:                 u.Name,
+			maxConcurrentQueries: u.MaxConcurrentQueries,
+			maxExecutionTime:     u.MaxExecutionTime,
 		}
 	}
 
@@ -120,7 +120,7 @@ type reverseProxy struct {
 	*httputil.ReverseProxy
 
 	sync.Mutex
-	users   map[string]*limits
+	users   map[string]*user
 	targets []*target
 }
 
@@ -146,15 +146,12 @@ func (rp *reverseProxy) getUser(req *http.Request) (*user, error) {
 	rp.Lock()
 	defer rp.Unlock()
 
-	limits, ok := rp.users[name]
+	user, ok := rp.users[name]
 	if !ok {
 		return nil, fmt.Errorf("unknown username %q", name)
 	}
 
-	return &user{
-		name:   name,
-		limits: limits,
-	}, nil
+	return user, nil
 }
 
 func (rp *reverseProxy) getTarget() *target {
@@ -185,12 +182,12 @@ type scope struct {
 
 func (s *scope) String() string {
 	return fmt.Sprintf("[User: %s, running queries: %d => Host: %s, running queries: %d]",
-		s.user.name, s.user.limits.runningQueries,
+		s.user.name, s.user.runningQueries,
 		s.target.addr.Host, s.target.runningQueries)
 }
 
 func (s *scope) inc() error {
-	if err := s.user.limits.Inc(); err != nil {
+	if err := s.user.Inc(); err != nil {
 		return fmt.Errorf("limits for user %q are exceeded: %s", s.user.name, err)
 	}
 	s.target.Inc()
@@ -198,39 +195,35 @@ func (s *scope) inc() error {
 }
 
 func (s *scope) dec() {
-	s.user.limits.Dec()
+	s.user.Dec()
 	s.target.Dec()
 }
 
 type user struct {
-	name   string
-	limits *limits
-}
-
-type limits struct {
-	maxConcurrentQueries uint32
-	maxExecutionTime     time.Duration
+	name string
 
 	sync.Mutex
-	runningQueries uint32
+	maxConcurrentQueries uint32
+	maxExecutionTime     time.Duration
+	runningQueries       uint32
 }
 
-func (l *limits) Inc() error {
-	l.Lock()
-	defer l.Unlock()
+func (u *user) Inc() error {
+	u.Lock()
+	defer u.Unlock()
 
-	if l.maxConcurrentQueries > 0 && l.runningQueries >= l.maxConcurrentQueries {
-		return fmt.Errorf("maxConcurrentQueries limit exceeded: %d", l.maxConcurrentQueries)
+	if u.maxConcurrentQueries > 0 && u.runningQueries >= u.maxConcurrentQueries {
+		return fmt.Errorf("maxConcurrentQueries limit exceeded: %d", u.maxConcurrentQueries)
 	}
 
-	l.runningQueries++
+	u.runningQueries++
 	return nil
 }
 
-func (l *limits) Dec() {
-	l.Lock()
-	l.runningQueries--
-	l.Unlock()
+func (u *user) Dec() {
+	u.Lock()
+	u.runningQueries--
+	u.Unlock()
 }
 
 type target struct {
