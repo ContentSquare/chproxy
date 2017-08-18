@@ -44,7 +44,7 @@ func TestNewReverseProxy(t *testing.T) {
 	}
 
 	if proxy.targets[0].addr.Host != "localhost:8123" {
-		t.Fatalf("got %d host; expected: %d", proxy.targets[0].addr.Host, "localhost:8123")
+		t.Fatalf("got %s host; expected: %d", proxy.targets[0].addr.Host, "localhost:8123")
 	}
 
 	if len(proxy.users) != 1 {

@@ -54,7 +54,9 @@ func main() {
 	http.HandleFunc("/favicon.ico", serveFavicon)
 	http.HandleFunc("/metrics", promhttp.Handler().ServeHTTP)
 	http.HandleFunc("/", proxy.ServeHTTP)
-	log.Fatalf("error while listening at %d: %s", *port, http.ListenAndServe(*port, nil))
+
+	log.Infof("Start listening on %s", *port)
+	log.Fatalf("error while listening at %s: %s", *port, http.ListenAndServe(*port, nil))
 }
 
 func serveFavicon(w http.ResponseWriter, r *http.Request) {}
