@@ -7,6 +7,8 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"sync"
+	"net"
+	"time"
 
 	"github.com/hagen1778/chproxy/config"
 	"github.com/hagen1778/chproxy/log"
@@ -19,6 +21,19 @@ func NewReverseProxy(cfg *config.Config) (*reverseProxy, error) {
 	rp.ReverseProxy = &httputil.ReverseProxy{
 		Director: func(*http.Request) {},
 		ErrorLog: log.ErrorLogger,
+		Transport: &observableTransport{
+			http.Transport{
+				Proxy: http.ProxyFromEnvironment,
+				DialContext: (&net.Dialer{
+					KeepAlive: 30 * time.Second,
+					DualStack: true,
+				}).DialContext,
+				MaxIdleConns:          100,
+				IdleConnTimeout:       90 * time.Second,
+				TLSHandshakeTimeout:   10 * time.Second,
+				ExpectContinueTimeout: 1 * time.Second,
+			},
+		},
 	}
 	if err := rp.ApplyConfig(cfg); err != nil {
 		return nil, err
@@ -50,14 +65,14 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 	req = req.WithContext(ctx)
 
-	rp.ReverseProxy.ServeHTTP(rw, req)
-
 	label := prometheus.Labels{"user": scope.user.name, "target": scope.target.addr.Host}
 	requestSum.With(label).Inc()
-	if req.Context().Err() != nil {
-		errors.With(label).Inc()
-		rp.killQueries(scope.user.name, scope.user.maxExecutionTime.Seconds())
 
+	rp.ReverseProxy.ServeHTTP(rw, req)
+
+	if req.Context().Err() != nil {
+		timeouts.With(label).Inc()
+		rp.killQueries(scope.user.name, scope.user.maxExecutionTime.Seconds())
 		message := fmt.Sprintf("timeout for user %q exceeded: %v", scope.user.name, scope.user.maxExecutionTime)
 		fmt.Fprint(rw, message)
 	} else {
@@ -179,14 +194,36 @@ func (rp *reverseProxy) killQueries(user string, elapsed float64) {
 	rp.Lock()
 	addrs := make([]string, len(rp.targets))
 	for i, target := range rp.targets {
-		addrs[i] = target.addr.Host
+		addrs[i] = target.addr.String()
 	}
 	rp.Unlock()
 
 	q := fmt.Sprintf("KILL QUERY WHERE initial_user = '%s' AND elapsed >= %d", user, int(elapsed))
 	for _, addr := range addrs {
-		if err := doQuery(addr, q); err != nil {
-			log.Errorf("error while killing queries older %.2fs than for user %q", elapsed, user)
+		if err := doQuery(q, addr); err != nil {
+			log.Errorf("error while killing queries older %.2fs than for user %q: %s", elapsed, user, err)
 		}
 	}
+}
+
+type observableTransport struct {
+	http.Transport
+}
+
+func (pt *observableTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	response, err := pt.Transport.RoundTrip(r)
+
+	if response != nil {
+		statusCodes.With(
+			prometheus.Labels{"target": r.Host, "code": response.Status},
+		).Inc()
+	}
+
+	if err != nil {
+		errors.With(
+			prometheus.Labels{"target": r.Host, "message": err.Error()},
+		).Inc()
+	}
+
+	return response, err
 }

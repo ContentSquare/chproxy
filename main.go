@@ -19,6 +19,8 @@ var (
 )
 
 func main() {
+	flag.Parse()
+
 	log.Debugf("Loading config file from %s", *configFile)
 	cfg, err := config.LoadFile(*configFile)
 	if err != nil {

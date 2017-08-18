@@ -20,6 +20,8 @@ var (
 	debug = flag.Bool("debug", false, "Whether print debug messages")
 )
 
+// Suppresses all output from logs if `suppress` is true
+// used while testing
 func SuppressOutput(suppress bool) {
 	if suppress {
 		DebugLogger.SetOutput(ioutil.Discard)

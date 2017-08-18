@@ -5,9 +5,7 @@ import (
 )
 
 var (
-	connOpen       *prometheus.GaugeVec
 	statusCodes    *prometheus.CounterVec
-	errorMessages  *prometheus.CounterVec
 	timeouts       *prometheus.CounterVec
 	errors         *prometheus.CounterVec
 	requestSum     *prometheus.CounterVec
@@ -15,28 +13,12 @@ var (
 )
 
 func init() {
-	connOpen = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "conn_open",
-			Help: "Number of open connections",
-		},
-		[]string{"user", "target"},
-	)
-
 	statusCodes = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "status_codes",
 			Help: "Distribution by status codes counter",
 		},
-		[]string{"user", "target", "code"},
-	)
-
-	errorMessages = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "errors",
-			Help: "Distribution by error messages",
-		},
-		[]string{"user", "target", "message"},
+		[]string{"target", "code"},
 	)
 
 	timeouts = prometheus.NewCounterVec(
@@ -52,7 +34,7 @@ func init() {
 			Name: "request_errors",
 			Help: "Number of errors returned by target. Including amount of timeouts",
 		},
-		[]string{"user", "target"},
+		[]string{"target", "message"},
 	)
 
 	requestSum = prometheus.NewCounterVec(
@@ -71,6 +53,6 @@ func init() {
 		[]string{"user", "target"},
 	)
 
-	prometheus.MustRegister(connOpen, statusCodes, errorMessages, timeouts, errors,
+	prometheus.MustRegister(statusCodes, timeouts, errors,
 		requestSum, requestSuccess)
 }
