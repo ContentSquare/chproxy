@@ -10,32 +10,38 @@ import (
 )
 
 var (
-	DefaultConfig = Config{
-		Cluster: DefaultCluster,
-		Users:   DefaultUsers,
+	defaultConfig = Config{
+		Cluster: defaultCluster,
+		Users:   defaultUsers,
 	}
 
-	DefaultCluster = Cluster{
+	defaultCluster = Cluster{
 		Scheme: "http",
 	}
 
-	DefaultUsers = []User{
-		DefaultUser,
+	defaultUsers = []User{
+		defaultUser,
 	}
 
-	DefaultUser = User{
+	defaultUser = User{
 		Name: "default",
 	}
 )
 
+// Config is an structure to describe CH cluster configuration
+// The simplest configuration consists of:
+// 	cluster description - see <remote_servers> section in CH config.xml
+// 	and users - see <users> section in CH users.xml
 type Config struct {
 	Cluster Cluster `yaml:"cluster"`
 	Users   []User  `yaml:"users,omitempty"`
 
-	// Catches all undefined fields and must be empty after parsing.
+	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
 }
 
+// Validates passed configuration by additional marshalling
+// to ensure that all rules and checks were applied
 func (c *Config) Validate() error {
 	content, err := yaml.Marshal(c)
 	if err != nil {
@@ -48,11 +54,9 @@ func (c *Config) Validate() error {
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	*c = DefaultConfig
+	*c = defaultConfig
 
-	// We want to set c to the defaults and then overwrite it with the input.
-	// To make unmarshal fill the plain data struct rather than calling UnmarshalYAML
-	// again, we have to hide it using a type indirection.
+	// set c to the defaults and then overwrite it with the input.
 	type plain Config
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
@@ -65,11 +69,16 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return checkOverflow(c.XXX, "config")
 }
 
+// Cluster struct descrbes simplest <remote_servers> configuration
 type Cluster struct {
+	// Scheme: `http` or `https`; would be applied to all shards
+	// default value is `http`
 	Scheme string   `yaml:"scheme,omitempty"`
+
+	// Shards - list of shards addresses
 	Shards []string `yaml:"shards"`
 
-	// Catches all undefined fields and must be empty after parsing.
+	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
 }
 
@@ -91,15 +100,20 @@ func (c *Cluster) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return checkOverflow(c.XXX, "cluster")
 }
 
+// User struct descrbes simplest <users> configuration
 type User struct {
 	// User name in ClickHouse users.xml config
 	Name string `yaml:"user_name"`
+
 	// Maximum number of concurrently running queries for user
+	// if omitted or zero - no limits would be applied
 	MaxConcurrentQueries uint32 `yaml:"max_concurrent_queries,omitempty"`
+
 	// Maximum duration of query executing for user
+	// if omitted or zero - no limits would be applied
 	MaxExecutionTime time.Duration `yaml:"max_execution_time,omitempty"`
 
-	// Catches all undefined fields and must be empty after parsing.
+	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
 }
 
@@ -113,6 +127,7 @@ func (u *User) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return checkOverflow(u.XXX, "users")
 }
 
+// Loads and validates configuration from provided .yml file
 func LoadFile(filename string) (*Config, error) {
 	if stat, err := os.Stat(filename); err != nil {
 		return nil, fmt.Errorf("cannot get file info: %s", err)
