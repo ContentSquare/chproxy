@@ -212,16 +212,15 @@ type observableTransport struct {
 
 func (pt *observableTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	response, err := pt.Transport.RoundTrip(r)
-
 	if response != nil {
 		statusCodes.With(
-			prometheus.Labels{"target": r.Host, "code": response.Status},
+			prometheus.Labels{"target": r.URL.Host, "code": response.Status},
 		).Inc()
 	}
 
 	if err != nil {
 		errors.With(
-			prometheus.Labels{"target": r.Host, "message": err.Error()},
+			prometheus.Labels{"target": r.URL.Host, "message": err.Error()},
 		).Inc()
 	}
 
