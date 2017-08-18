@@ -7,7 +7,6 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"sync"
-	"time"
 
 	"github.com/hagen1778/chproxy/config"
 	"github.com/hagen1778/chproxy/log"
@@ -56,11 +55,11 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	label := prometheus.Labels{"user": scope.user.name, "target": scope.target.addr.Host}
 	requestSum.With(label).Inc()
 	if req.Context().Err() != nil {
-		fmt.Fprint(rw, fmt.Sprintf("timeout for user %q exceeded: %v", scope.user.name, scope.user.maxExecutionTime))
-		if err := killQuery(scope.user.name, scope.user.maxExecutionTime.Seconds()); err != nil {
-			log.Errorf("error while killing %q's queries: %s", scope.user.name, err)
-		}
 		errors.With(label).Inc()
+		rp.killQueries(scope.user.name, scope.user.maxExecutionTime.Seconds())
+
+		message := fmt.Sprintf("timeout for user %q exceeded: %v", scope.user.name, scope.user.maxExecutionTime)
+		fmt.Fprint(rw, message)
 	} else {
 		requestSuccess.With(label).Inc()
 	}
@@ -175,90 +174,19 @@ func (rp *reverseProxy) getTarget() *target {
 	return idle
 }
 
-type scope struct {
-	user   *user
-	target *target
-}
-
-func (s *scope) String() string {
-	return fmt.Sprintf("[User: %s, running queries: %d => Host: %s, running queries: %d]",
-		s.user.name, s.user.runningQueries,
-		s.target.addr.Host, s.target.runningQueries)
-}
-
-func (s *scope) inc() error {
-	if err := s.user.Inc(); err != nil {
-		return fmt.Errorf("limits for user %q are exceeded: %s", s.user.name, err)
+// We don't use query_id because of distributed processing, the query ID is not passed to remote servers
+func (rp *reverseProxy) killQueries(user string, elapsed float64) {
+	rp.Lock()
+	addrs := make([]string, len(rp.targets))
+	for i, target := range rp.targets {
+		addrs[i] = target.addr.Host
 	}
-	s.target.Inc()
-	return nil
-}
+	rp.Unlock()
 
-func (s *scope) dec() {
-	s.user.Dec()
-	s.target.Dec()
-}
-
-type user struct {
-	name string
-
-	sync.Mutex
-	maxConcurrentQueries uint32
-	maxExecutionTime     time.Duration
-	runningQueries       uint32
-}
-
-func (u *user) Inc() error {
-	u.Lock()
-	defer u.Unlock()
-
-	if u.maxConcurrentQueries > 0 && u.runningQueries >= u.maxConcurrentQueries {
-		return fmt.Errorf("maxConcurrentQueries limit exceeded: %d", u.maxConcurrentQueries)
+	q := fmt.Sprintf("KILL QUERY WHERE initial_user = '%s' AND elapsed >= %d", user, int(elapsed))
+	for _, addr := range addrs {
+		if err := doQuery(addr, q); err != nil {
+			log.Errorf("error while killing queries older %.2fs than for user %q", elapsed, user)
+		}
 	}
-
-	u.runningQueries++
-	return nil
-}
-
-func (u *user) Dec() {
-	u.Lock()
-	u.runningQueries--
-	u.Unlock()
-}
-
-type target struct {
-	addr *url.URL
-
-	sync.Mutex
-	runningQueries uint32
-}
-
-func (t *target) Inc() {
-	t.Lock()
-	t.runningQueries++
-	t.Unlock()
-}
-
-func (t *target) Dec() {
-	t.Lock()
-	t.runningQueries--
-	t.Unlock()
-}
-
-func respondWIthErr(rw http.ResponseWriter, err error) {
-	log.Errorf("proxy failed: %s", err)
-	rw.WriteHeader(http.StatusInternalServerError)
-	rw.Write([]byte(err.Error()))
-}
-
-func extractUserFromRequest(req *http.Request) string {
-	if name, _, ok := req.BasicAuth(); ok {
-		return name
-	}
-
-	if name := req.Form.Get("user"); name != "" {
-		return name
-	}
-
-	return "default"
 }

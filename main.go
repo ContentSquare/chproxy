@@ -14,7 +14,6 @@ import (
 )
 
 var (
-	addr       = flag.String("h", "http://localhost:8123", "ClickHouse web-interface host:port address with scheme")
 	port       = flag.String("p", ":8080", "Proxy addr to listen to for incoming requests")
 	configFile = flag.String("config", "proxy.yml", "Proxy configuration filename")
 )
