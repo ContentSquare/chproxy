@@ -1,10 +1,10 @@
 package main
 
 import (
-	"net/http"
 	"fmt"
-	"net/url"
 	"io/ioutil"
+	"net/http"
+	"net/url"
 
 	"github.com/hagen1778/chproxy/log"
 )
@@ -40,4 +40,3 @@ func extractUserFromRequest(req *http.Request) string {
 
 	return "default"
 }
-

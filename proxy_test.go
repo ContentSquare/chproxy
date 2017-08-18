@@ -2,8 +2,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/hagen1778/chproxy/config"
-	"github.com/hagen1778/chproxy/log"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +9,9 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	"github.com/hagen1778/chproxy/config"
+	"github.com/hagen1778/chproxy/log"
 )
 
 func TestMain(m *testing.M) {

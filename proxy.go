@@ -3,11 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"sync"
-	"net"
 	"time"
 
 	"github.com/hagen1778/chproxy/config"

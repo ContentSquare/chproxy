@@ -73,7 +73,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 type Cluster struct {
 	// Scheme: `http` or `https`; would be applied to all shards
 	// default value is `http`
-	Scheme string   `yaml:"scheme,omitempty"`
+	Scheme string `yaml:"scheme,omitempty"`
 
 	// Shards - list of shards addresses
 	Shards []string `yaml:"shards"`
