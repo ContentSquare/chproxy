@@ -3,12 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"sync"
+	"time"
+
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"sync"
-	"time"
 
 	"github.com/hagen1778/chproxy/config"
 	"github.com/hagen1778/chproxy/log"
@@ -35,52 +36,57 @@ func NewReverseProxy(cfg *config.Config) (*reverseProxy, error) {
 			},
 		},
 	}
-	if err := rp.ApplyConfig(cfg); err != nil {
-		return nil, err
-	}
+	err := rp.ApplyConfig(cfg)
 
-	return rp, nil
+	return rp, err
 }
 
 // Serves incoming requests according to config
 func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	log.Debugf("Accepting request: %v", req.Header)
-	scope, err := rp.getRequestScope(req)
+	log.Debugf("Accepting request from %s: %s", req.RemoteAddr, req.URL.String())
+	s, err := rp.scopeRequest(req)
 	if err != nil {
-		respondWIthErr(rw, err)
+		respondWithErr(rw, err)
 		return
 	}
-	log.Debugf("Request scope is: %s", scope)
+	log.Debugf("Request scope %s", s)
 
-	if err = scope.inc(); err != nil {
-		respondWIthErr(rw, err)
+	if err = s.inc(); err != nil {
+		respondWithErr(rw, err)
 		return
 	}
 
-	ctx := context.Background()
-	if scope.user.maxExecutionTime != 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, scope.user.maxExecutionTime)
-		defer cancel()
-	}
-	req = req.WithContext(ctx)
-
-	label := prometheus.Labels{"user": scope.user.name, "target": scope.target.addr.Host}
+	label := prometheus.Labels{"user": s.user.name, "target": s.target.addr.Host}
 	requestSum.With(label).Inc()
 
+	req = decorateRequest(req, s)
 	rp.ReverseProxy.ServeHTTP(rw, req)
 
 	if req.Context().Err() != nil {
 		timeouts.With(label).Inc()
-		rp.killQueries(scope.user.name, scope.user.maxExecutionTime.Seconds())
-		message := fmt.Sprintf("timeout for user %q exceeded: %v", scope.user.name, scope.user.maxExecutionTime)
-		fmt.Fprint(rw, message)
+		rp.killQueries(s.user.name, s.user.maxExecutionTime.Seconds())
+		message := fmt.Sprintf("timeout for user %q exceeded: %v", s.user.name, s.user.maxExecutionTime)
+		rw.Write([]byte(message))
 	} else {
 		requestSuccess.With(label).Inc()
 	}
 
-	scope.dec()
-	log.Debugf("Request for scope %s successfully proxied", scope)
+	s.dec()
+	log.Debugf("Request scope %s successfully proxied", s)
+}
+
+func decorateRequest(req *http.Request, s *scope) *http.Request {
+	req.URL.Scheme = s.target.addr.Scheme
+	req.URL.Host = s.target.addr.Host
+
+	ctx := context.Background()
+	if s.user.maxExecutionTime != 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, s.user.maxExecutionTime)
+		defer cancel()
+	}
+
+	return req.WithContext(ctx)
 }
 
 // Reloads configuration from passed file
@@ -138,19 +144,15 @@ type reverseProxy struct {
 	targets []*target
 }
 
-func (rp *reverseProxy) getRequestScope(req *http.Request) (*scope, error) {
+func (rp *reverseProxy) scopeRequest(req *http.Request) (*scope, error) {
 	user, err := rp.getUser(req)
 	if err != nil {
 		return nil, err
 	}
 
-	target := rp.getTarget()
-	req.URL.Scheme = target.addr.Scheme
-	req.URL.Host = target.addr.Host
-
 	return &scope{
 		user:   user,
-		target: target,
+		target: rp.getTarget(),
 	}, nil
 }
 

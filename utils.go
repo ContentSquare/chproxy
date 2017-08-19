@@ -23,7 +23,7 @@ func doQuery(query, addr string) error {
 	return nil
 }
 
-func respondWIthErr(rw http.ResponseWriter, err error) {
+func respondWithErr(rw http.ResponseWriter, err error) {
 	log.Errorf("proxy failed: %s", err)
 	rw.WriteHeader(http.StatusInternalServerError)
 	rw.Write([]byte(err.Error()))

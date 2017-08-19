@@ -2,12 +2,13 @@ package main
 
 import (
 	"fmt"
-	"github.com/hagen1778/chproxy/config"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"testing"
+
+	"github.com/hagen1778/chproxy/config"
 )
 
 func BenchmarkReverseProxy_ServeHTTP(b *testing.B) {
@@ -43,7 +44,6 @@ func BenchmarkReverseProxy_ServeHTTP(b *testing.B) {
 			}
 		})
 	})
-
 }
 
 func newConfig() *config.Config {

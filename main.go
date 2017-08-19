@@ -21,7 +21,7 @@ var (
 func main() {
 	flag.Parse()
 
-	log.Debugf("Loading config file from %s", *configFile)
+	log.Debugf("Loading config: %s", *configFile)
 	cfg, err := config.LoadFile(*configFile)
 	if err != nil {
 		log.Fatalf("can't load config %q: %s", *configFile, err)
@@ -40,11 +40,11 @@ func main() {
 			s := <-c
 			switch s {
 			case syscall.SIGHUP:
-				log.Infof("SIGHUP received. Going to reload config...")
+				log.Infof("SIGHUP received. Going to reload config %s ...", *configFile)
 				if err := proxy.ReloadConfig(*configFile); err != nil {
 					log.Errorf("error while reloading config: %s", err)
 				}
-				log.Infof("successfully reloaded")
+				log.Infof("Config successfully reloaded")
 			case syscall.SIGTERM, syscall.SIGINT:
 				log.Infof("Obtained signal %q. Terminating...", s)
 				time.Sleep(time.Second)
@@ -58,7 +58,7 @@ func main() {
 	http.HandleFunc("/", proxy.ServeHTTP)
 
 	log.Infof("Start listening on %s", *port)
-	log.Fatalf("error while listening at %s: %s", *port, http.ListenAndServe(*port, nil))
+	log.Fatalf("error while listening on %s: %s", *port, http.ListenAndServe(*port, nil))
 }
 
 func serveFavicon(w http.ResponseWriter, r *http.Request) {}
