@@ -59,7 +59,17 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	label := prometheus.Labels{"user": s.user.name, "target": s.target.addr.Host}
 	requestSum.With(label).Inc()
 
-	req = decorateRequest(req, s)
+	req.URL.Scheme = s.target.addr.Scheme
+	req.URL.Host = s.target.addr.Host
+
+	ctx := context.Background()
+	if s.user.maxExecutionTime != 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, s.user.maxExecutionTime)
+		defer cancel()
+	}
+
+	req = req.WithContext(ctx)
 	rp.ReverseProxy.ServeHTTP(rw, req)
 
 	if req.Context().Err() != nil {
@@ -73,20 +83,6 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	s.dec()
 	log.Debugf("Request scope %s successfully proxied", s)
-}
-
-func decorateRequest(req *http.Request, s *scope) *http.Request {
-	req.URL.Scheme = s.target.addr.Scheme
-	req.URL.Host = s.target.addr.Host
-
-	ctx := context.Background()
-	if s.user.maxExecutionTime != 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, s.user.maxExecutionTime)
-		defer cancel()
-	}
-
-	return req.WithContext(ctx)
 }
 
 // Reloads configuration from passed file
