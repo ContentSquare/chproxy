@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
-	"os"
 	"strings"
 	"time"
 )
@@ -129,12 +128,6 @@ func (u *User) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // Loads and validates configuration from provided .yml file
 func LoadFile(filename string) (*Config, error) {
-	if stat, err := os.Stat(filename); err != nil {
-		return nil, fmt.Errorf("cannot get file info: %s", err)
-	} else if stat.IsDir() {
-		return nil, fmt.Errorf("is a directory")
-	}
-
 	content, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return nil, err

@@ -103,7 +103,7 @@ func TestBadConfig(t *testing.T) {
 		{
 			"no file",
 			"testdata/nofile.yml",
-			"cannot get file info: stat testdata/nofile.yml: no such file or directory",
+			"open testdata/nofile.yml: no such file or directory",
 		},
 		{
 			"extra fields",
