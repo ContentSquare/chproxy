@@ -34,7 +34,7 @@ func main() {
 	}
 
 	c := make(chan os.Signal)
-	signal.Notify(c, syscall.SIGHUP, syscall.SIGTERM, syscall.SIGINT)
+	signal.Notify(c, syscall.SIGHUP)
 	go func() {
 		for {
 			s := <-c
@@ -45,10 +45,6 @@ func main() {
 					log.Errorf("error while reloading config: %s", err)
 				}
 				log.Infof("Config successfully reloaded")
-			case syscall.SIGTERM, syscall.SIGINT:
-				log.Infof("Obtained signal %q. Terminating...", s)
-				time.Sleep(time.Second)
-				os.Exit(0)
 			}
 		}
 	}()
