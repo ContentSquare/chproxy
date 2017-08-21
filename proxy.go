@@ -199,7 +199,7 @@ func (rp *reverseProxy) killQueries(user string, elapsed float64) {
 	q := fmt.Sprintf("KILL QUERY WHERE initial_user = '%s' AND elapsed >= %d", user, int(elapsed))
 	for _, addr := range addrs {
 		if err := doQuery(q, addr); err != nil {
-			log.Errorf("error while killing queries older %.2fs than for user %q: %s", elapsed, user, err)
+			log.Errorf("error while killing queries older than %.2fs for user %q: %s", elapsed, user, err)
 		}
 	}
 }
