@@ -1,2 +1,2 @@
 cluster:
-  shards: ['localhost:8123']
+  nodes: ['localhost:8123']

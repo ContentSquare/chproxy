@@ -70,12 +70,12 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // Cluster struct descrbes simplest <remote_servers> configuration
 type Cluster struct {
-	// Scheme: `http` or `https`; would be applied to all shards
+	// Scheme: `http` or `https`; would be applied to all nodes
 	// default value is `http`
 	Scheme string `yaml:"scheme,omitempty"`
 
-	// Shards - list of shards addresses
-	Shards []string `yaml:"shards"`
+	// Nodes - list of nodes addresses
+	Nodes []string `yaml:"nodes"`
 
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
@@ -88,8 +88,8 @@ func (c *Cluster) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 
-	if len(c.Shards) == 0 {
-		return fmt.Errorf("field `shards` must contain at least 1 address")
+	if len(c.Nodes) == 0 {
+		return fmt.Errorf("field `nodes` must contain at least 1 address")
 	}
 
 	if c.Scheme != "http" && c.Scheme != "https" {

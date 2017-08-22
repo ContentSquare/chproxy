@@ -106,8 +106,8 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 	rp.Lock()
 	defer rp.Unlock()
 
-	targets := make([]*target, len(cfg.Cluster.Shards))
-	for i, t := range cfg.Cluster.Shards {
+	targets := make([]*target, len(cfg.Cluster.Nodes))
+	for i, t := range cfg.Cluster.Nodes {
 		addr, err := url.Parse(fmt.Sprintf("%s://%s", cfg.Cluster.Scheme, t))
 		if err != nil {
 			return err

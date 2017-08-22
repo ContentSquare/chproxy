@@ -1,6 +1,6 @@
 cluster:
   scheme: 'http'
-  shards: ['localhost:8123']
+  nodes: ['localhost:8123']
 
 users:
   - user_name: "web"

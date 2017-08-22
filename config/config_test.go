@@ -19,7 +19,7 @@ func TestLoadConfig(t *testing.T) {
 			Config{
 				Cluster: Cluster{
 					Scheme: "http",
-					Shards: []string{"localhost:8123"},
+					Nodes: []string{"localhost:8123"},
 				},
 				Users: []User{
 					{
@@ -41,7 +41,7 @@ func TestLoadConfig(t *testing.T) {
 			Config{
 				Cluster: Cluster{
 					Scheme: "http",
-					Shards: []string{"localhost:8123"},
+					Nodes: []string{"localhost:8123"},
 				},
 				Users: []User{
 					{
@@ -59,7 +59,7 @@ func TestLoadConfig(t *testing.T) {
 			Config{
 				Cluster: Cluster{
 					Scheme: "http",
-					Shards: []string{"localhost:8123"},
+					Nodes: []string{"localhost:8123"},
 				},
 				Users: []User{
 					{
@@ -116,9 +116,9 @@ func TestBadConfig(t *testing.T) {
 			"field `users` must contain at least 1 user",
 		},
 		{
-			"empty shards",
-			"testdata/bad.empty_shards.yml",
-			"field `shards` must contain at least 1 address",
+			"empty nodes",
+			"testdata/bad.empty_nodes.yml",
+			"field `nodes` must contain at least 1 address",
 		},
 		{
 			"wrong scheme",
