@@ -19,7 +19,7 @@ func TestLoadConfig(t *testing.T) {
 			Config{
 				Cluster: Cluster{
 					Scheme: "http",
-					Nodes: []string{"127.0.0.1:8123", "127.0.0.2:8123", "127.0.0.3:8123"},
+					Nodes:  []string{"127.0.0.1:8123", "127.0.0.2:8123", "127.0.0.3:8123"},
 				},
 				Users: []User{
 					{
@@ -41,7 +41,7 @@ func TestLoadConfig(t *testing.T) {
 			Config{
 				Cluster: Cluster{
 					Scheme: "http",
-					Nodes: []string{"localhost:8123"},
+					Nodes:  []string{"localhost:8123"},
 				},
 				Users: []User{
 					{
@@ -59,7 +59,7 @@ func TestLoadConfig(t *testing.T) {
 			Config{
 				Cluster: Cluster{
 					Scheme: "http",
-					Nodes: []string{"localhost:8123"},
+					Nodes:  []string{"localhost:8123"},
 				},
 				Users: []User{
 					{

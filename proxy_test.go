@@ -24,7 +24,7 @@ func TestMain(m *testing.M) {
 var goodCfg = &config.Config{
 	Cluster: config.Cluster{
 		Scheme: "http",
-		Nodes: []string{"localhost:8123"},
+		Nodes:  []string{"localhost:8123"},
 	},
 	Users: []config.User{
 		{
@@ -66,7 +66,7 @@ func TestApplyConfig(t *testing.T) {
 	badCfg := &config.Config{
 		Cluster: config.Cluster{
 			Scheme: "udp",
-			Nodes: []string{"127.0.0.1:8123", "127.0.0.2:8123"},
+			Nodes:  []string{"127.0.0.1:8123", "127.0.0.2:8123"},
 		},
 	}
 

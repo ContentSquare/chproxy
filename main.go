@@ -13,8 +13,8 @@ import (
 )
 
 var (
-	port       = flag.String("p", ":8080", "Proxy addr to listen to for incoming requests")
-	configFile = flag.String("config", "proxy.yml", "Proxy configuration filename")
+	listenAddr = flag.String("listenAddr", ":8080", "Proxy addr to listen to for incoming requests")
+	configFile    = flag.String("config", "proxy.yml", "Proxy configuration filename")
 )
 
 func main() {
@@ -52,8 +52,8 @@ func main() {
 	http.HandleFunc("/metrics", promhttp.Handler().ServeHTTP)
 	http.HandleFunc("/", proxy.ServeHTTP)
 
-	log.Infof("Start listening on %s", *port)
-	log.Fatalf("error while listening on %s: %s", *port, http.ListenAndServe(*port, nil))
+	log.Infof("Start listening on %s", *listenAddr)
+	log.Fatalf("error while listening on %s: %s", *listenAddr, http.ListenAndServe(*listenAddr, nil))
 }
 
 func serveFavicon(w http.ResponseWriter, r *http.Request) {}
