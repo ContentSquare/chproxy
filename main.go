@@ -14,8 +14,10 @@ import (
 
 var (
 	listenAddr = flag.String("listenAddr", ":8080", "Proxy addr to listen to for incoming requests")
-	configFile    = flag.String("config", "proxy.yml", "Proxy configuration filename")
+	configFile = flag.String("config", "proxy.yml", "Proxy configuration filename")
 )
+
+var proxy *reverseProxy
 
 func main() {
 	flag.Parse()
@@ -27,7 +29,7 @@ func main() {
 	}
 	log.Debugf("Loading config: %s", "success")
 
-	proxy, err := NewReverseProxy(cfg)
+	proxy, err = NewReverseProxy(cfg)
 	if err != nil {
 		log.Fatalf("error while creating proxy: %s", err)
 	}
@@ -48,12 +50,22 @@ func main() {
 		}
 	}()
 
-	http.HandleFunc("/favicon.ico", serveFavicon)
-	http.HandleFunc("/metrics", promhttp.Handler().ServeHTTP)
-	http.HandleFunc("/", proxy.ServeHTTP)
-
+	handler := &httpHandler{}
+	server := &http.Server{Addr: *listenAddr, Handler: handler}
 	log.Infof("Start listening on %s", *listenAddr)
-	log.Fatalf("error while listening on %s: %s", *listenAddr, http.ListenAndServe(*listenAddr, nil))
+	server.ListenAndServe()
 }
 
-func serveFavicon(w http.ResponseWriter, r *http.Request) {}
+type httpHandler struct{}
+
+func (h *httpHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+	switch r.URL.Path {
+	case "/favicon.ico":
+	case "/metrics":
+		promhttp.Handler().ServeHTTP(rw, r)
+	case "/":
+		proxy.ServeHTTP(rw, r)
+	}
+}
+
+
