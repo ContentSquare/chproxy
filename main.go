@@ -13,7 +13,6 @@ import (
 )
 
 var (
-	listenAddr = flag.String("listenAddr", ":8080", "Proxy addr to listen to for incoming requests")
 	configFile = flag.String("config", "proxy.yml", "Proxy configuration filename")
 )
 
@@ -22,12 +21,12 @@ var proxy *reverseProxy
 func main() {
 	flag.Parse()
 
-	log.Debugf("Loading config: %s", *configFile)
+	log.Infof("Loading config: %s", *configFile)
 	cfg, err := config.LoadFile(*configFile)
 	if err != nil {
 		log.Fatalf("can't load config %q: %s", *configFile, err)
 	}
-	log.Debugf("Loading config: %s", "success")
+	log.Infof("Loading config: %s", "success")
 
 	proxy, err = NewReverseProxy(cfg)
 	if err != nil {
@@ -51,8 +50,8 @@ func main() {
 	}()
 
 	handler := &httpHandler{}
-	server := &http.Server{Addr: *listenAddr, Handler: handler}
-	log.Infof("Start listening on %s", *listenAddr)
+	server := &http.Server{Addr: cfg.ListenAddr, Handler: handler}
+	log.Infof("Start listening on %s", cfg.ListenAddr)
 	server.ListenAndServe()
 }
 
@@ -68,4 +67,5 @@ func (h *httpHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func applyConfig() {}
 

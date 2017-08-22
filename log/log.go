@@ -6,55 +6,87 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"sync"
+	"io"
 )
 
 var (
 	stdLogFlags     = log.LstdFlags | log.Lshortfile | log.LUTC
 	outputCallDepth = 2
 
-	DebugLogger = log.New(os.Stderr, "DEBUG: ", stdLogFlags)
-	InfoLogger  = log.New(os.Stderr, "INFO: ", stdLogFlags)
-	ErrorLogger = log.New(os.Stderr, "ERROR: ", stdLogFlags)
-	FatalLogger = log.New(os.Stderr, "FATAL: ", log.LstdFlags|log.Llongfile|log.LUTC)
+	debugLogger = newDebugLogger(os.Stderr, "DEBUG: ", stdLogFlags)
+	infoLogger  = log.New(os.Stderr, "INFO: ", stdLogFlags)
+	errorLogger = log.New(os.Stderr, "ERROR: ", stdLogFlags)
+	fatalLogger = log.New(os.Stderr, "FATAL: ", log.LstdFlags|log.Llongfile|log.LUTC)
 
-	debug = flag.Bool("debug", false, "Whether print debug messages")
 )
+
 
 // Suppresses all output from logs if `suppress` is true
 // used while testing
 func SuppressOutput(suppress bool) {
 	if suppress {
-		DebugLogger.SetOutput(ioutil.Discard)
-		InfoLogger.SetOutput(ioutil.Discard)
-		ErrorLogger.SetOutput(ioutil.Discard)
+		debugLogger.SetOutput(ioutil.Discard)
+		infoLogger.SetOutput(ioutil.Discard)
+		errorLogger.SetOutput(ioutil.Discard)
 	} else {
-		DebugLogger.SetOutput(os.Stderr)
-		InfoLogger.SetOutput(os.Stderr)
-		ErrorLogger.SetOutput(os.Stderr)
+		debugLogger.SetOutput(os.Stderr)
+		infoLogger.SetOutput(os.Stderr)
+		errorLogger.SetOutput(os.Stderr)
 	}
 }
 
+func SetDebug(debug bool) {
+	debugLogger.set(debug)
+}
+
 func Debugf(format string, args ...interface{}) {
-	if !*debug {
+	if !debugLogger.enabled() {
 		return
 	}
 
 	s := fmt.Sprintf(format, args...)
-	DebugLogger.Output(outputCallDepth, s)
+	debugLogger.Output(outputCallDepth, s)
 }
 
 func Infof(format string, args ...interface{}) {
 	s := fmt.Sprintf(format, args...)
-	InfoLogger.Output(outputCallDepth, s)
+	infoLogger.Output(outputCallDepth, s)
 }
 
 func Errorf(format string, args ...interface{}) {
 	s := fmt.Sprintf(format, args...)
-	ErrorLogger.Output(outputCallDepth, s)
+	errorLogger.Output(outputCallDepth, s)
 }
 
 func Fatalf(format string, args ...interface{}) {
 	s := fmt.Sprintf(format, args...)
-	FatalLogger.Output(outputCallDepth, s)
+	fatalLogger.Output(outputCallDepth, s)
 	os.Exit(1)
+}
+
+
+type debugLog struct {
+	*log.Logger
+
+	sync.Mutex
+	debug bool
+}
+
+func (dl *debugLog) set(debug bool) {
+	dl.Lock()
+	dl.debug = debug
+	dl.Unlock()
+}
+
+func (dl *debugLog) enabled() bool {
+	dl.Lock()
+	defer dl.Unlock()
+	return dl.debug
+}
+
+func newDebugLogger(out io.Writer, prefix string, flag int) *debugLogger {
+	return &debugLog {
+		Logger: log.New(out, prefix, flag),
+	}
 }

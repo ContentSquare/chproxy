@@ -129,6 +129,10 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 
 	rp.targets = targets
 	rp.users = users
+
+	// Next statement looks here a bit weird. Still don't know where it must be placed
+	log.SetDebug(cfg.Debug)
+
 	return nil
 }
 
