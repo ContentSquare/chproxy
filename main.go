@@ -68,4 +68,3 @@ func (h *httpHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 }
 
 func applyConfig() {}
-

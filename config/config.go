@@ -10,30 +10,37 @@ import (
 
 var (
 	defaultConfig = Config{
-		Cluster: defaultCluster,
-		Users:   defaultUsers,
+		ListenAddr:  ":8080",
+		Clusters:    []Cluster{defaultCluster},
 	}
 
 	defaultCluster = Cluster{
-		Scheme: "http",
+		Scheme:   "http",
+		OutUsers: []OutUser{defaultOutUser},
 	}
 
-	defaultUsers = []User{
-		defaultUser,
-	}
-
-	defaultUser = User{
+	defaultOutUser = OutUser{
 		Name: "default",
 	}
 )
 
-// Config is an structure to describe CH cluster configuration
+// Config is an structure to describe access and proxy rules
 // The simplest configuration consists of:
-// 	cluster description - see <remote_servers> section in CH config.xml
-// 	and users - see <users> section in CH users.xml
+// 	 cluster description - see <remote_servers> section in CH config.xml
+// 	 and users - who allowed to access proxy
+// Users requests are mapped to CH-cluster via `to_cluster` option
+// with credentials of cluster user from `to_user` option
 type Config struct {
-	Cluster Cluster `yaml:"cluster"`
-	Users   []User  `yaml:"users,omitempty"`
+	// At which address and port to listen for incoming requests
+	// Default is `localhost:8080`
+	ListenAddr string `yaml:"listen_addr,omitempty"`
+
+	// Whether to print debug logs
+	LogDebug bool `yaml:"log_debug,omitempty"`
+
+	Clusters []Cluster `yaml:"clusters"`
+
+	GlobalUsers []GlobalUser `yaml:"global_users"`
 
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
@@ -49,6 +56,7 @@ func (c *Config) Validate() error {
 
 	cfg := &Config{}
 	return yaml.Unmarshal([]byte(content), cfg)
+	// TODO: check listen addr, consistency of global and out users
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -61,15 +69,21 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 
-	if len(c.Users) == 0 {
-		return fmt.Errorf("field `users` must contain at least 1 user")
+	if len(c.GlobalUsers) == 0 {
+		return fmt.Errorf("field `global_users` must contain at least 1 user")
 	}
 
 	return checkOverflow(c.XXX, "config")
 }
 
-// Cluster struct descrbes simplest <remote_servers> configuration
+// Cluster is an structure to describe CH cluster configuration
+// The simplest configuration consists of:
+// 	 cluster description - see <remote_servers> section in CH config.xml
+// 	 and users - see <users> section in CH users.xml
 type Cluster struct {
+	// Name of ClickHouse cluster
+	Name string `yaml:"name"`
+
 	// Scheme: `http` or `https`; would be applied to all nodes
 	// default value is `http`
 	Scheme string `yaml:"scheme,omitempty"`
@@ -77,17 +91,23 @@ type Cluster struct {
 	// Nodes - list of nodes addresses
 	Nodes []string `yaml:"nodes"`
 
+	// OutUsers - list of ClickHouse users
+	OutUsers []OutUser `yaml:"out_users"`
+
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (c *Cluster) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = defaultCluster
+
 	type plain Cluster
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
 
+	// TODO: check if it is already checked by Unmarshall
 	if len(c.Nodes) == 0 {
 		return fmt.Errorf("field `nodes` must contain at least 1 address")
 	}
@@ -99,10 +119,57 @@ func (c *Cluster) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return checkOverflow(c.XXX, "cluster")
 }
 
-// User struct descrbes simplest <users> configuration
-type User struct {
+// GlobalUser struct describes list of allowed users
+// which requests will be proxied to ClickHouse
+type GlobalUser struct {
+	// User name
+	Name string `yaml:"name"`
+
+	// User password to access proxy with basic auth
+	Password string `yaml:"password,omitempty"`
+
+	// ToCluster is the name of cluster where requests
+	// will be proxied
+	ToCluster string `yaml:"to_cluster"`
+
+	// ToUser is the name of out_user from cluster ToCluster whom credentials
+	// will be used for proxying request to CH
+	ToUser string `yaml:"to_user"`
+
+	// Maximum number of concurrently running queries for user
+	// if omitted or zero - no limits would be applied
+	MaxConcurrentQueries uint32 `yaml:"max_concurrent_queries,omitempty"`
+
+	// Maximum duration of query execution for user
+	// if omitted or zero - no limits would be applied
+	MaxExecutionTime time.Duration `yaml:"max_execution_time,omitempty"`
+
+	// List of networks that access is allowed from
+	// Each list item could be IP address or subnet mask
+	// if omitted or zero - no limits would be applied
+	AllowedNetworks []string `yaml:"allowed_networks,omitempty"`
+
+	// Catches all undefined fields
+	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (u *GlobalUser) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain GlobalUser
+	if err := unmarshal((*plain)(u)); err != nil {
+		return err
+	}
+
+	return checkOverflow(u.XXX, "out_users")
+}
+
+// User struct describes simplest <users> configuration
+type OutUser struct {
 	// User name in ClickHouse users.xml config
-	Name string `yaml:"user_name"`
+	Name string `yaml:"name"`
+
+	// User password in ClickHouse users.xml config
+	Password string `yaml:"password,omitempty"`
 
 	// Maximum number of concurrently running queries for user
 	// if omitted or zero - no limits would be applied
@@ -117,13 +184,13 @@ type User struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (u *User) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	type plain User
+func (u *OutUser) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain OutUser
 	if err := unmarshal((*plain)(u)); err != nil {
 		return err
 	}
 
-	return checkOverflow(u.XXX, "users")
+	return checkOverflow(u.XXX, "out_users")
 }
 
 // Loads and validates configuration from provided .yml file

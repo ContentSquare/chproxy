@@ -5,5 +5,4 @@ global_users:
 
 clusters:
   - name: "second cluster"
-    scheme: "tcp"
     nodes: ["127.0.1.1:8123"]

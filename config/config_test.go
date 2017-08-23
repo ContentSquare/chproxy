@@ -17,53 +17,80 @@ func TestLoadConfig(t *testing.T) {
 			"full description",
 			"testdata/full.yml",
 			Config{
-				Cluster: Cluster{
-					Scheme: "http",
-					Nodes:  []string{"127.0.0.1:8123", "127.0.0.2:8123", "127.0.0.3:8123"},
-				},
-				Users: []User{
+				ListenAddr: ":9090",
+				LogDebug: true,
+				Clusters: []Cluster{
 					{
-						Name:                 "web",
+						Name: "first cluster",
+						Scheme: "http",
+						Nodes: []string{"127.0.0.1:8123", "127.0.0.2:8123", "127.0.0.3:8123"},
+						OutUsers: []OutUser{
+							{
+								Name: "web",
+								Password: "password",
+								MaxConcurrentQueries: 4,
+								MaxExecutionTime:     time.Duration(time.Minute),
+							},
+						},
+					},
+					{
+						Name: "second cluster",
+						Scheme: "https",
+						Nodes: []string{"127.0.1.1:8123", "127.0.1.2:8123"},
+						OutUsers: []OutUser{
+							{
+								Name: "default",
+								MaxConcurrentQueries: 4,
+								MaxExecutionTime:     time.Duration(time.Minute),
+							},
+							{
+								Name: "web",
+								MaxConcurrentQueries: 4,
+								MaxExecutionTime:     time.Duration(time.Second * 10),
+							},
+						},
+					},
+				},
+				GlobalUsers: []GlobalUser {
+					{
+						Name: "web",
+						Password: "password",
+						AllowedNetworks: []string{"127.0.0.1", "1.2.3.0/24"},
+						ToCluster: "second cluster",
+						ToUser: "web",
+					},
+					{
+						Name: "default",
+						ToCluster: "second cluster",
+						ToUser: "default",
 						MaxConcurrentQueries: 4,
 						MaxExecutionTime:     time.Duration(time.Minute),
 					},
-					{
-						Name:                 "olap",
-						MaxConcurrentQueries: 2,
-						MaxExecutionTime:     time.Duration(30 * time.Second),
-					},
 				},
 			},
 		},
 		{
-			"default limits value",
-			"testdata/default_limits.yml",
+			"default values",
+			"testdata/default_values.yml",
 			Config{
-				Cluster: Cluster{
-					Scheme: "http",
-					Nodes:  []string{"localhost:8123"},
-				},
-				Users: []User{
+				ListenAddr: ":8080",
+				Clusters: []Cluster{
 					{
-						Name: "web",
-					},
-					{
-						Name: "olap",
+						Name: "second cluster",
+						Scheme: "http",
+						Nodes: []string{"127.0.1.1:8123"},
+						OutUsers: []OutUser{
+							{
+								Name: "default",
+							},
+						},
 					},
 				},
-			},
-		},
-		{
-			"default value",
-			"testdata/default_user.yml",
-			Config{
-				Cluster: Cluster{
-					Scheme: "http",
-					Nodes:  []string{"localhost:8123"},
-				},
-				Users: []User{
+				GlobalUsers: []GlobalUser {
 					{
 						Name: "default",
+						ToCluster: "second cluster",
+						ToUser: "default",
 					},
 				},
 			},
@@ -113,7 +140,7 @@ func TestBadConfig(t *testing.T) {
 		{
 			"empty users",
 			"testdata/bad.empty_users.yml",
-			"field `users` must contain at least 1 user",
+			"field `global_users` must contain at least 1 user",
 		},
 		{
 			"empty nodes",

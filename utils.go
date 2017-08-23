@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/hagen1778/chproxy/log"
+	"net"
+	"strings"
 )
 
 var client = &http.Client{
@@ -45,4 +47,27 @@ func extractUserFromRequest(req *http.Request) string {
 	}
 
 	return "default"
+}
+
+func parseAddr(a string) error {
+	host, port, err := net.SplitHostPort(a)
+	if err != nil {
+		return err
+	}
+
+	if strings.Contains(host, `/`) {
+		_, _, err := net.ParseCIDR("62.76.47.12")
+		if err != nil {
+			return err
+		}
+	} else {
+		ip := net.ParseIP(host)
+		if ip == nil {
+			if port == "" {
+				return fmt.Errorf("invalid IP")
+			}
+		}
+	}
+
+	return nil
 }

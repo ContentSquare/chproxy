@@ -1,29 +1,35 @@
-listenAddr: ":8080"
+listen_addr: ":9090"
+log_debug: true
 
-
-clusters:
-  - cluster_name: 'first cluster'
-    scheme: 'http'
-    nodes: ['127.0.0.1:8123', '127.0.0.2:8123', '127.0.0.3:8123']
-    users:
-      - user_name: "web"
-        max_concurrent_queries: 4
-        max_execution_time: 1m
-        password: "password"
-
-  - cluster_name: 'second cluster'
-    scheme: 'http'
-    nodes: ['127.0.1.1:8123', '127.0.1.2:8123']
-    users:
-      - user_name: "default"
-        max_concurrent_queries: 4
-        max_execution_time: 1m
-      - user_name: "web"
-        max_concurrent_queries: 4
-        max_execution_time: 1m
-
+# TODO: find a better name to distinguish in-users and out-users
 global_users:
-  - user_name: "web"
-    allowed_networks: ['127.0.0.1', '1.2.3.0/24']
+  - name: "web"
+    password: "password"
+    allowed_networks: ["127.0.0.1", "1.2.3.0/24"]
     to_cluster: "second cluster"
     to_user: "web"
+  - name: "default"
+    to_cluster: "second cluster"
+    to_user: "default"
+    max_concurrent_queries: 4
+    max_execution_time: 1m
+
+clusters:
+  - name: "first cluster"
+    scheme: "http"
+    nodes: ["127.0.0.1:8123", "127.0.0.2:8123", "127.0.0.3:8123"]
+    out_users:
+      - name: "web"
+        password: "password"
+        max_concurrent_queries: 4
+        max_execution_time: 1m
+  - name: "second cluster"
+    scheme: "https"
+    nodes: ["127.0.1.1:8123", "127.0.1.2:8123"]
+    out_users:
+      - name: "default"
+        max_concurrent_queries: 4
+        max_execution_time: 1m
+      - name: "web"
+        max_concurrent_queries: 4
+        max_execution_time: 10s

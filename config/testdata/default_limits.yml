@@ -1,6 +1,0 @@
-cluster:
-  nodes: ['localhost:8123']
-
-users:
-  - user_name: "web"
-  - user_name: "olap"

@@ -1,3 +1,9 @@
-cluster:
-  nodes: ['localhost:8123']
-  unknown_field:
+global_users:
+  - name: "default"
+    to_cluster: "second cluster"
+    to_user: "default"
+
+clusters:
+  - name: "second cluster"
+    nodes: ["127.0.1.1:8123"]
+    unknown_field:

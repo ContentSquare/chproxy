@@ -8,27 +8,27 @@ import (
 )
 
 type scope struct {
-	user   *user
-	target *target
+	user *user
+	host *host
 }
 
 func (s *scope) String() string {
 	return fmt.Sprintf("[User: %s, running queries: %d => Host: %s, running queries: %d]",
 		s.user.name, s.user.runningQueries,
-		s.target.addr.Host, s.target.runningQueries)
+		s.host.addr.Host, s.host.runningQueries)
 }
 
 func (s *scope) inc() error {
 	if err := s.user.Inc(); err != nil {
 		return fmt.Errorf("limits for user %q are exceeded: %s", s.user.name, err)
 	}
-	s.target.Inc()
+	s.host.Inc()
 	return nil
 }
 
 func (s *scope) dec() {
 	s.user.Dec()
-	s.target.Dec()
+	s.host.Dec()
 }
 
 type user struct {
@@ -58,20 +58,20 @@ func (u *user) Dec() {
 	u.Unlock()
 }
 
-type target struct {
+type host struct {
 	addr *url.URL
 
 	sync.Mutex
 	runningQueries uint32
 }
 
-func (t *target) Inc() {
+func (t *host) Inc() {
 	t.Lock()
 	t.runningQueries++
 	t.Unlock()
 }
 
-func (t *target) Dec() {
+func (t *host) Dec() {
 	t.Lock()
 	t.runningQueries--
 	t.Unlock()

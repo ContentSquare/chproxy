@@ -56,11 +56,11 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	label := prometheus.Labels{"user": s.user.name, "target": s.target.addr.Host}
+	label := prometheus.Labels{"user": s.user.name, "host": s.host.addr.Host}
 	requestSum.With(label).Inc()
 
-	req.URL.Scheme = s.target.addr.Scheme
-	req.URL.Host = s.target.addr.Host
+	req.URL.Scheme = s.host.addr.Scheme
+	req.URL.Host = s.host.addr.Host
 
 	ctx := context.Background()
 	if s.user.maxExecutionTime != 0 {
@@ -106,14 +106,14 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 	rp.Lock()
 	defer rp.Unlock()
 
-	targets := make([]*target, len(cfg.Cluster.Nodes))
+	hosts := make([]*host, len(cfg.Cluster.Nodes))
 	for i, t := range cfg.Cluster.Nodes {
 		addr, err := url.Parse(fmt.Sprintf("%s://%s", cfg.Cluster.Scheme, t))
 		if err != nil {
 			return err
 		}
 
-		targets[i] = &target{
+		hosts[i] = &host{
 			addr: addr,
 		}
 	}
@@ -127,10 +127,10 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 		}
 	}
 
-	rp.targets = targets
+	rp.hosts = hosts
 	rp.users = users
 
-	// Next statement looks here a bit weird. Still don't know where it must be placed
+	// Next statement looks a bit outplaced. Still don't know where it must be placed
 	log.SetDebug(cfg.Debug)
 
 	return nil
@@ -140,8 +140,8 @@ type reverseProxy struct {
 	*httputil.ReverseProxy
 
 	sync.Mutex
-	users   map[string]*user
-	targets []*target
+	users map[string]*user
+	hosts []*host
 }
 
 func (rp *reverseProxy) scopeRequest(req *http.Request) (*scope, error) {
@@ -151,8 +151,8 @@ func (rp *reverseProxy) scopeRequest(req *http.Request) (*scope, error) {
 	}
 
 	return &scope{
-		user:   user,
-		target: rp.getTarget(),
+		user: user,
+		host: rp.gethost(),
 	}, nil
 }
 
@@ -170,12 +170,12 @@ func (rp *reverseProxy) getUser(req *http.Request) (*user, error) {
 	return user, nil
 }
 
-func (rp *reverseProxy) getTarget() *target {
+func (rp *reverseProxy) gethost() *host {
 	rp.Lock()
 	defer rp.Unlock()
 
-	var idle *target
-	for _, t := range rp.targets {
+	var idle *host
+	for _, t := range rp.hosts {
 		t.Lock()
 		if t.runningQueries == 0 {
 			t.Unlock()
@@ -194,9 +194,9 @@ func (rp *reverseProxy) getTarget() *target {
 // We don't use query_id because of distributed processing, the query ID is not passed to remote servers
 func (rp *reverseProxy) killQueries(user string, elapsed float64) {
 	rp.Lock()
-	addrs := make([]string, len(rp.targets))
-	for i, target := range rp.targets {
-		addrs[i] = target.addr.String()
+	addrs := make([]string, len(rp.hosts))
+	for i, host := range rp.hosts {
+		addrs[i] = host.addr.String()
 	}
 	rp.Unlock()
 
@@ -216,13 +216,13 @@ func (pt *observableTransport) RoundTrip(r *http.Request) (*http.Response, error
 	response, err := pt.Transport.RoundTrip(r)
 	if response != nil {
 		statusCodes.With(
-			prometheus.Labels{"target": r.URL.Host, "code": response.Status},
+			prometheus.Labels{"host": r.URL.Host, "code": response.Status},
 		).Inc()
 	}
 
 	if err != nil {
 		errors.With(
-			prometheus.Labels{"target": r.URL.Host, "message": err.Error()},
+			prometheus.Labels{"host": r.URL.Host, "message": err.Error()},
 		).Inc()
 	}
 

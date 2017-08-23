@@ -1,4 +1,3 @@
-cluster:
-  nodes: ['localhost:8123']
-
-users:
+clusters:
+  - name: "second cluster"
+    nodes: ["127.0.1.1:8123"]
