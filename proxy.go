@@ -80,14 +80,14 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}()
 
 	select {
-	case <-time.After(s.initialUser.maxExecutionTime):
+	case <-s.initialUser.after():
 		cancel()
 		timeouts.With(label).Inc()
 		condition := fmt.Sprintf("http_user_agent = '%s'", ua)
 		s.cluster.killQueries(condition, s.initialUser.maxExecutionTime.Seconds())
 		message := fmt.Sprintf("timeout for initial user %q exceeded: %v", s.initialUser.name, s.initialUser.maxExecutionTime)
 		rw.Write([]byte(message))
-	case <-time.After(s.executionUser.maxExecutionTime):
+	case <-s.initialUser.after():
 		cancel()
 		timeouts.With(label).Inc()
 		condition := fmt.Sprintf("initial_user = '%s'", s.executionUser.name)
@@ -176,7 +176,7 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 	rp.clusters = clusters
 	rp.users = initialUsers
 
-	// Next statement looks a bit outplaced. Still don't know where it must be placed
+	// Next statement looks a bit outplaced. Still not sure where it must be placed
 	log.SetDebug(cfg.LogDebug)
 
 	return nil
@@ -221,51 +221,6 @@ func (rp *reverseProxy) getRequestScope(req *http.Request) (*scope, error) {
 		cluster:       c,
 		host:          c.getHost(),
 	}, nil
-}
-
-type cluster struct {
-	sync.Mutex
-	hosts []*host
-	users map[string]*executionUser
-}
-
-// We don't use query_id because of distributed processing, the query ID is not passed to remote servers
-func (c *cluster) killQueries(condition string, elapsed float64) {
-	c.Lock()
-	addrs := make([]string, len(c.hosts))
-	for i, host := range c.hosts {
-		addrs[i] = host.addr.String()
-	}
-	c.Unlock()
-
-	q := fmt.Sprintf("KILL QUERY WHERE %s AND elapsed >= %d", condition, int(elapsed))
-	log.Debugf("ExecutionTime exceeded. Going to call query %q for hosts %v", q, addrs)
-	for _, addr := range addrs {
-		if err := doQuery(q, addr); err != nil {
-			log.Errorf("error while killing queries older than %.2fs with condition %q: %s", elapsed, condition, err)
-		}
-	}
-}
-
-func (c *cluster) getHost() *host {
-	c.Lock()
-	defer c.Unlock()
-
-	var idle *host
-	for _, t := range c.hosts {
-		t.Lock()
-		if t.runningQueries == 0 {
-			t.Unlock()
-			return t
-		}
-
-		if idle == nil || idle.runningQueries > t.runningQueries {
-			idle = t
-		}
-		t.Unlock()
-	}
-
-	return idle
 }
 
 type observableTransport struct {
