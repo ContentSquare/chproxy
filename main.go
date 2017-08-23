@@ -12,9 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-var (
-	configFile = flag.String("config", "proxy.yml", "Proxy configuration filename")
-)
+var configFile = flag.String("config", "proxy.yml", "Proxy configuration filename")
 
 var proxy *reverseProxy
 
@@ -49,8 +47,8 @@ func main() {
 		}
 	}()
 
-	handler := &httpHandler{}
-	server := &http.Server{Addr: cfg.ListenAddr, Handler: handler}
+	h := &httpHandler{}
+	server := &http.Server{Addr: cfg.ListenAddr, Handler: h}
 	log.Infof("Start listening on %s", cfg.ListenAddr)
 	server.ListenAndServe()
 }
@@ -66,5 +64,3 @@ func (h *httpHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		proxy.ServeHTTP(rw, r)
 	}
 }
-
-func applyConfig() {}

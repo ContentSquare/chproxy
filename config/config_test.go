@@ -18,51 +18,51 @@ func TestLoadConfig(t *testing.T) {
 			"testdata/full.yml",
 			Config{
 				ListenAddr: ":9090",
-				LogDebug: true,
+				LogDebug:   true,
 				Clusters: []Cluster{
 					{
-						Name: "first cluster",
+						Name:   "first cluster",
 						Scheme: "http",
-						Nodes: []string{"127.0.0.1:8123", "127.0.0.2:8123", "127.0.0.3:8123"},
+						Nodes:  []string{"127.0.0.1:8123", "127.0.0.2:8123", "127.0.0.3:8123"},
 						OutUsers: []OutUser{
 							{
-								Name: "web",
-								Password: "password",
+								Name:                 "web",
+								Password:             "password",
 								MaxConcurrentQueries: 4,
 								MaxExecutionTime:     time.Duration(time.Minute),
 							},
 						},
 					},
 					{
-						Name: "second cluster",
+						Name:   "second cluster",
 						Scheme: "https",
-						Nodes: []string{"127.0.1.1:8123", "127.0.1.2:8123"},
+						Nodes:  []string{"127.0.1.1:8123", "127.0.1.2:8123"},
 						OutUsers: []OutUser{
 							{
-								Name: "default",
+								Name:                 "default",
 								MaxConcurrentQueries: 4,
 								MaxExecutionTime:     time.Duration(time.Minute),
 							},
 							{
-								Name: "web",
+								Name:                 "web",
 								MaxConcurrentQueries: 4,
 								MaxExecutionTime:     time.Duration(time.Second * 10),
 							},
 						},
 					},
 				},
-				GlobalUsers: []GlobalUser {
+				GlobalUsers: []GlobalUser{
 					{
-						Name: "web",
-						Password: "password",
+						Name:            "web",
+						Password:        "password",
 						AllowedNetworks: []string{"127.0.0.1", "1.2.3.0/24"},
-						ToCluster: "second cluster",
-						ToUser: "web",
+						ToCluster:       "second cluster",
+						ToUser:          "web",
 					},
 					{
-						Name: "default",
-						ToCluster: "second cluster",
-						ToUser: "default",
+						Name:                 "default",
+						ToCluster:            "second cluster",
+						ToUser:               "default",
 						MaxConcurrentQueries: 4,
 						MaxExecutionTime:     time.Duration(time.Minute),
 					},
@@ -76,9 +76,9 @@ func TestLoadConfig(t *testing.T) {
 				ListenAddr: ":8080",
 				Clusters: []Cluster{
 					{
-						Name: "second cluster",
+						Name:   "second cluster",
 						Scheme: "http",
-						Nodes: []string{"127.0.1.1:8123"},
+						Nodes:  []string{"127.0.1.1:8123"},
 						OutUsers: []OutUser{
 							{
 								Name: "default",
@@ -86,11 +86,11 @@ func TestLoadConfig(t *testing.T) {
 						},
 					},
 				},
-				GlobalUsers: []GlobalUser {
+				GlobalUsers: []GlobalUser{
 					{
-						Name: "default",
+						Name:      "default",
 						ToCluster: "second cluster",
-						ToUser: "default",
+						ToUser:    "default",
 					},
 				},
 			},

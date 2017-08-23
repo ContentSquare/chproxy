@@ -1,13 +1,10 @@
 package log
 
 import (
-	"flag"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"os"
-	"sync"
 )
 
 var (

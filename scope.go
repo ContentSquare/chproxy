@@ -8,31 +8,46 @@ import (
 )
 
 type scope struct {
-	user *user
-	host *host
+	initialUser   *initialUser
+	executionUser *executionUser
+	cluster       *cluster
+	host          *host
 }
 
 func (s *scope) String() string {
-	return fmt.Sprintf("[User: %s, running queries: %d => Host: %s, running queries: %d]",
-		s.user.name, s.user.runningQueries,
+	return fmt.Sprintf("[ InitialUser %q(%d) matched to ExecutionUser %q(%d) => %q(%d) ]",
+		s.initialUser.name, s.initialUser.runningQueries,
+		s.executionUser.name, s.executionUser.runningQueries,
 		s.host.addr.Host, s.host.runningQueries)
 }
 
 func (s *scope) inc() error {
-	if err := s.user.Inc(); err != nil {
-		return fmt.Errorf("limits for user %q are exceeded: %s", s.user.name, err)
+	if err := s.initialUser.inc(); err != nil {
+		return fmt.Errorf("limits for initial user %q are exceeded: %s", s.initialUser.name, err)
 	}
-	s.host.Inc()
+
+	if err := s.executionUser.inc(); err != nil {
+		return fmt.Errorf("limits for execution user %q are exceeded: %s", s.executionUser.name, err)
+	}
+
+	s.host.inc()
 	return nil
 }
 
 func (s *scope) dec() {
-	s.user.Dec()
-	s.host.Dec()
+	s.initialUser.dec()
+	s.executionUser.dec()
+	s.host.dec()
 }
 
-type user struct {
-	name string
+type initialUser struct {
+	executionUser
+
+	toCluster, toUser string
+}
+
+type executionUser struct {
+	name, password string
 
 	sync.Mutex
 	maxConcurrentQueries uint32
@@ -40,7 +55,7 @@ type user struct {
 	runningQueries       uint32
 }
 
-func (u *user) Inc() error {
+func (u *executionUser) inc() error {
 	u.Lock()
 	defer u.Unlock()
 
@@ -52,7 +67,7 @@ func (u *user) Inc() error {
 	return nil
 }
 
-func (u *user) Dec() {
+func (u *executionUser) dec() {
 	u.Lock()
 	u.runningQueries--
 	u.Unlock()
@@ -65,13 +80,13 @@ type host struct {
 	runningQueries uint32
 }
 
-func (t *host) Inc() {
+func (t *host) inc() {
 	t.Lock()
 	t.runningQueries++
 	t.Unlock()
 }
 
-func (t *host) Dec() {
+func (t *host) dec() {
 	t.Lock()
 	t.runningQueries--
 	t.Unlock()

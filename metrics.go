@@ -26,7 +26,7 @@ func init() {
 			Name: "request_timeouts",
 			Help: "Number of timeouts",
 		},
-		[]string{"user", "target"},
+		[]string{"initial_user", "execution_user", "host"},
 	)
 
 	errors = prometheus.NewCounterVec(
@@ -34,7 +34,7 @@ func init() {
 			Name: "request_errors",
 			Help: "Number of errors returned by target. Including amount of timeouts",
 		},
-		[]string{"target", "message"},
+		[]string{"host", "message"},
 	)
 
 	requestSum = prometheus.NewCounterVec(
@@ -42,7 +42,7 @@ func init() {
 			Name: "request_sum",
 			Help: "Total number of sent requests",
 		},
-		[]string{"user", "target"},
+		[]string{"initial_user", "execution_user", "host"},
 	)
 
 	requestSuccess = prometheus.NewCounterVec(
@@ -50,7 +50,7 @@ func init() {
 			Name: "request_success",
 			Help: "Total number of sent success requests",
 		},
-		[]string{"user", "target"},
+		[]string{"initial_user", "execution_user", "host"},
 	)
 
 	prometheus.MustRegister(statusCodes, timeouts, errors,

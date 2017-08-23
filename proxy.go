@@ -44,7 +44,7 @@ func NewReverseProxy(cfg *config.Config) (*reverseProxy, error) {
 // Serves incoming requests according to config
 func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	log.Debugf("Accepting request from %s: %s", req.RemoteAddr, req.URL.String())
-	s, err := rp.scopeRequest(req)
+	s, err := rp.getRequestScope(req)
 	if err != nil {
 		respondWithErr(rw, err)
 		return
@@ -56,28 +56,45 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	label := prometheus.Labels{"user": s.user.name, "host": s.host.addr.Host}
+	label := prometheus.Labels{
+		"initial_user":   s.initialUser.name,
+		"execution_user": s.executionUser.name,
+		"host":           s.host.addr.Host,
+	}
 	requestSum.With(label).Inc()
 
 	req.URL.Scheme = s.host.addr.Scheme
 	req.URL.Host = s.host.addr.Host
+	// set custom User-Agent for proper handling of killQuery func
+	ua := fmt.Sprintf("ClickHouseProxy: %s", s.initialUser.name)
+	req.Header.Set("User-Agent", ua)
 
 	ctx := context.Background()
-	if s.user.maxExecutionTime != 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, s.user.maxExecutionTime)
-		defer cancel()
-	}
-
+	ctx, cancel := context.WithCancel(ctx)
 	req = req.WithContext(ctx)
-	rp.ReverseProxy.ServeHTTP(rw, req)
 
-	if req.Context().Err() != nil {
+	c := make(chan struct{})
+	go func() {
+		rp.ReverseProxy.ServeHTTP(rw, req)
+		c <- struct{}{}
+	}()
+
+	select {
+	case <-time.After(s.initialUser.maxExecutionTime):
+		cancel()
 		timeouts.With(label).Inc()
-		rp.killQueries(s.user.name, s.user.maxExecutionTime.Seconds())
-		message := fmt.Sprintf("timeout for user %q exceeded: %v", s.user.name, s.user.maxExecutionTime)
+		condition := fmt.Sprintf("http_user_agent = '%s'", ua)
+		s.cluster.killQueries(condition, s.initialUser.maxExecutionTime.Seconds())
+		message := fmt.Sprintf("timeout for initial user %q exceeded: %v", s.initialUser.name, s.initialUser.maxExecutionTime)
 		rw.Write([]byte(message))
-	} else {
+	case <-time.After(s.executionUser.maxExecutionTime):
+		cancel()
+		timeouts.With(label).Inc()
+		condition := fmt.Sprintf("initial_user = '%s'", s.executionUser.name)
+		s.cluster.killQueries(condition, s.executionUser.maxExecutionTime.Seconds())
+		message := fmt.Sprintf("timeout for execution user %q exceeded: %v", s.executionUser.name, s.executionUser.maxExecutionTime)
+		rw.Write([]byte(message))
+	case <-c:
 		requestSuccess.With(label).Inc()
 	}
 
@@ -106,32 +123,61 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 	rp.Lock()
 	defer rp.Unlock()
 
-	hosts := make([]*host, len(cfg.Cluster.Nodes))
-	for i, t := range cfg.Cluster.Nodes {
-		addr, err := url.Parse(fmt.Sprintf("%s://%s", cfg.Cluster.Scheme, t))
-		if err != nil {
-			return err
+	clusters := make(map[string]*cluster)
+	for _, c := range cfg.Clusters {
+		hosts := make([]*host, len(c.Nodes))
+		for i, node := range c.Nodes {
+			addr, err := url.Parse(fmt.Sprintf("%s://%s", c.Scheme, node))
+			if err != nil {
+				return err
+			}
+
+			hosts[i] = &host{
+				addr: addr,
+			}
 		}
 
-		hosts[i] = &host{
-			addr: addr,
+		users := make(map[string]*executionUser, len(c.OutUsers))
+		for _, user := range c.OutUsers {
+			users[user.Name] = &executionUser{
+				name:     user.Name,
+				password: user.Password,
+			}
+		}
+
+		clusters[c.Name] = &cluster{
+			hosts: hosts,
+			users: users,
 		}
 	}
 
-	users := make(map[string]*user, len(cfg.Users))
-	for _, u := range cfg.Users {
-		users[u.Name] = &user{
-			name:                 u.Name,
-			maxConcurrentQueries: u.MaxConcurrentQueries,
-			maxExecutionTime:     u.MaxExecutionTime,
+	initialUsers := make(map[string]*initialUser, len(cfg.GlobalUsers))
+	for _, u := range cfg.GlobalUsers {
+		c, ok := clusters[u.ToCluster]
+		if !ok {
+			return fmt.Errorf("error while mapping user %q to cluster %q: no such cluster", u.Name, u.ToCluster)
+		}
+
+		if _, ok := c.users[u.ToUser]; !ok {
+			return fmt.Errorf("error while mapping user %q to cluster's %q user %q: no such user", u.Name, u.ToCluster, u.ToUser)
+		}
+
+		initialUsers[u.Name] = &initialUser{
+			executionUser: executionUser{
+				name:                 u.Name,
+				maxConcurrentQueries: u.MaxConcurrentQueries,
+				maxExecutionTime:     u.MaxExecutionTime,
+			},
+			toCluster: u.ToCluster,
+			toUser:    u.ToUser,
 		}
 	}
 
-	rp.hosts = hosts
-	rp.users = users
+	rp.clusters = clusters
+	rp.users = initialUsers
 
 	// Next statement looks a bit outplaced. Still don't know where it must be placed
-	log.SetDebug(cfg.Debug)
+	log.SetDebug(cfg.LogDebug)
 
 	return nil
 }
@@ -140,42 +186,73 @@ type reverseProxy struct {
 	*httputil.ReverseProxy
 
 	sync.Mutex
-	users map[string]*user
-	hosts []*host
+	users    map[string]*initialUser
+	clusters map[string]*cluster
 }
 
-func (rp *reverseProxy) scopeRequest(req *http.Request) (*scope, error) {
-	user, err := rp.getUser(req)
-	if err != nil {
-		return nil, err
+func (rp *reverseProxy) getRequestScope(req *http.Request) (*scope, error) {
+	name, password := basicAuth(req)
+
+	rp.Lock()
+	defer rp.Unlock()
+
+	iu, ok := rp.users[name]
+	if !ok {
+		return nil, fmt.Errorf("invalid username or password for user %q", name)
+	}
+
+	if iu.password != password {
+		return nil, fmt.Errorf("invalid username or password for user %q", name)
+	}
+
+	c, ok := rp.clusters[iu.toCluster]
+	if !ok {
+		return nil, fmt.Errorf("BUG: user %q matches to unknown cluster %q", iu.name, iu.toCluster)
+	}
+
+	eu, ok := c.users[iu.toUser]
+	if !ok {
+		return nil, fmt.Errorf("BUG: user %q matches to unknown user %q at cluster %q", iu.name, iu.toUser, iu.toCluster)
 	}
 
 	return &scope{
-		user: user,
-		host: rp.gethost(),
+		initialUser:   iu,
+		executionUser: eu,
+		cluster:       c,
+		host:          c.getHost(),
 	}, nil
 }
 
-func (rp *reverseProxy) getUser(req *http.Request) (*user, error) {
-	name := extractUserFromRequest(req)
-
-	rp.Lock()
-	defer rp.Unlock()
-
-	user, ok := rp.users[name]
-	if !ok {
-		return nil, fmt.Errorf("unknown username %q", name)
-	}
-
-	return user, nil
+type cluster struct {
+	sync.Mutex
+	hosts []*host
+	users map[string]*executionUser
 }
 
-func (rp *reverseProxy) gethost() *host {
-	rp.Lock()
-	defer rp.Unlock()
+// We don't use query_id because of distributed processing, the query ID is not passed to remote servers
+func (c *cluster) killQueries(condition string, elapsed float64) {
+	c.Lock()
+	addrs := make([]string, len(c.hosts))
+	for i, host := range c.hosts {
+		addrs[i] = host.addr.String()
+	}
+	c.Unlock()
+
+	q := fmt.Sprintf("KILL QUERY WHERE %s AND elapsed >= %d", condition, int(elapsed))
+	log.Debugf("ExecutionTime exceeded. Going to call query %q for hosts %v", q, addrs)
+	for _, addr := range addrs {
+		if err := doQuery(q, addr); err != nil {
+			log.Errorf("error while killing queries older than %.2fs with condition %q: %s", elapsed, condition, err)
+		}
+	}
+}
+
+func (c *cluster) getHost() *host {
+	c.Lock()
+	defer c.Unlock()
 
 	var idle *host
-	for _, t := range rp.hosts {
+	for _, t := range c.hosts {
 		t.Lock()
 		if t.runningQueries == 0 {
 			t.Unlock()
@@ -189,23 +266,6 @@ func (rp *reverseProxy) gethost() *host {
 	}
 
 	return idle
-}
-
-// We don't use query_id because of distributed processing, the query ID is not passed to remote servers
-func (rp *reverseProxy) killQueries(user string, elapsed float64) {
-	rp.Lock()
-	addrs := make([]string, len(rp.hosts))
-	for i, host := range rp.hosts {
-		addrs[i] = host.addr.String()
-	}
-	rp.Unlock()
-
-	q := fmt.Sprintf("KILL QUERY WHERE initial_user = '%s' AND elapsed >= %d", user, int(elapsed))
-	for _, addr := range addrs {
-		if err := doQuery(q, addr); err != nil {
-			log.Errorf("error while killing queries older than %.2fs for user %q: %s", elapsed, user, err)
-		}
-	}
 }
 
 type observableTransport struct {

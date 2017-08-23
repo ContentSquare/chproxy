@@ -10,8 +10,8 @@ import (
 
 var (
 	defaultConfig = Config{
-		ListenAddr:  ":8080",
-		Clusters:    []Cluster{defaultCluster},
+		ListenAddr: ":8080",
+		Clusters:   []Cluster{defaultCluster},
 	}
 
 	defaultCluster = Cluster{

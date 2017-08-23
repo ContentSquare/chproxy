@@ -37,16 +37,18 @@ func respondWithErr(rw http.ResponseWriter, err error) {
 	rw.Write([]byte(err.Error()))
 }
 
-func extractUserFromRequest(req *http.Request) string {
-	if name, _, ok := req.BasicAuth(); ok {
-		return name
+func basicAuth(req *http.Request) (string, string) {
+	if name, pass, ok := req.BasicAuth(); ok {
+		return name, pass
 	}
 
 	if name := req.Form.Get("user"); name != "" {
-		return name
+		if pass := req.Form.Get("password"); name != "" {
+			return name, pass
+		}
 	}
 
-	return "default"
+	return "default", ""
 }
 
 func parseAddr(a string) error {
