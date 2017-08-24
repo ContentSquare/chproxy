@@ -1,10 +1,7 @@
 package main
 
 import (
-	"fmt"
 	"math/rand"
-	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"testing"
 
@@ -12,11 +9,6 @@ import (
 )
 
 func BenchmarkReverseProxy_ServeHTTP(b *testing.B) {
-	fakeServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, "Ok")
-	}))
-	defer fakeServer.Close()
-
 	addr, err := url.Parse(fakeServer.URL)
 	if err != nil {
 		b.Fatalf("unexpected error: %s", err)
@@ -31,7 +23,7 @@ func BenchmarkReverseProxy_ServeHTTP(b *testing.B) {
 	b.Run("parallel requests", func(b *testing.B) {
 		b.RunParallel(func(pb *testing.PB) {
 			for pb.Next() {
-				makeRequest(proxy, fakeServer.URL)
+				makeRequest(proxy)
 			}
 		})
 	})
@@ -40,7 +32,7 @@ func BenchmarkReverseProxy_ServeHTTP(b *testing.B) {
 		b.RunParallel(func(pb *testing.PB) {
 			for pb.Next() {
 				go proxy.ApplyConfig(newConfig())
-				makeRequest(proxy, fakeServer.URL)
+				makeRequest(proxy)
 			}
 		})
 	})

@@ -73,9 +73,8 @@ type executionUser struct {
 }
 
 func (u *executionUser) inc() error {
-	fmt.Println(">>>", u.name, u.maxConcurrentQueries,  u.runningQueries())
 	if u.maxConcurrentQueries > 0 && u.runningQueries() >= u.maxConcurrentQueries {
-		return fmt.Errorf("maxConcurrentQueries limit exceeded: %d", u.maxConcurrentQueries)
+		return fmt.Errorf("maxConcurrentQueries limit: %d", u.maxConcurrentQueries)
 	}
 
 	u.queryCounter.inc()
