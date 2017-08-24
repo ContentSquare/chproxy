@@ -2,25 +2,40 @@ package main
 
 import (
 	"fmt"
+	"github.com/hagen1778/chproxy/log"
+	"math/rand"
 	"net/url"
 	"sync"
 	"time"
-	"github.com/hagen1778/chproxy/log"
 )
 
 func (s *scope) String() string {
-	return fmt.Sprintf("[ InitialUser %q(%d) matched to ExecutionUser %q(%d) => %q(%d) ]",
-		s.initialUser.name, s.initialUser.runningQueries,
-		s.executionUser.name, s.executionUser.runningQueries,
-		s.host.addr.Host, s.host.runningQueries)
+	return fmt.Sprintf("[ Id: %d; InitialUser %q(%d) matched to ExecutionUser %q(%d) => %q(%d) ]",
+		s.id,
+		s.initialUser.name, s.initialUser.runningQueries(),
+		s.executionUser.name, s.executionUser.runningQueries(),
+		s.host.addr.Host, s.host.runningQueries())
 }
 
 // TODO: rethink scope because it looks weird
 type scope struct {
+	id            uint64
 	initialUser   *initialUser
 	executionUser *executionUser
 	cluster       *cluster
 	host          *host
+}
+
+var r = rand.New(rand.NewSource(time.Now().UnixNano()))
+
+func newScope(iu *initialUser, eu *executionUser, c *cluster) *scope {
+	return &scope{
+		id:            r.Uint64(),
+		initialUser:   iu,
+		executionUser: eu,
+		cluster:       c,
+		host:          c.getHost(),
+	}
 }
 
 func (s *scope) inc() error {
@@ -43,33 +58,29 @@ func (s *scope) dec() {
 }
 
 type initialUser struct {
-	executionUser
-
 	toCluster, toUser string
+
+	executionUser
 }
 
 type executionUser struct {
-	name, password string
+	name, password       string
 	maxExecutionTime     time.Duration
-
-	sync.Mutex
 	maxConcurrentQueries uint32
-	runningQueries       uint32
+
+	queryCounter
 }
 
 func (u *executionUser) inc() error {
-	u.Lock()
-	defer u.Unlock()
-
-	if u.maxConcurrentQueries > 0 && u.runningQueries >= u.maxConcurrentQueries {
+	if u.maxConcurrentQueries > 0 && u.runningQueries() >= u.maxConcurrentQueries {
 		return fmt.Errorf("maxConcurrentQueries limit exceeded: %d", u.maxConcurrentQueries)
 	}
 
-	u.runningQueries++
+	u.queryCounter.inc()
 	return nil
 }
 
-func (u *executionUser) after() <- chan time.Time {
+func (u *executionUser) timeout() <-chan time.Time {
 	if u.maxExecutionTime > 0 {
 		return time.After(u.maxExecutionTime)
 	}
@@ -77,29 +88,10 @@ func (u *executionUser) after() <- chan time.Time {
 	return nil
 }
 
-func (u *executionUser) dec() {
-	u.Lock()
-	u.runningQueries--
-	u.Unlock()
-}
-
 type host struct {
 	addr *url.URL
 
-	sync.Mutex
-	runningQueries uint32
-}
-
-func (t *host) inc() {
-	t.Lock()
-	t.runningQueries++
-	t.Unlock()
-}
-
-func (t *host) dec() {
-	t.Lock()
-	t.runningQueries--
-	t.Unlock()
+	queryCounter
 }
 
 type cluster struct {
@@ -132,17 +124,38 @@ func (c *cluster) getHost() *host {
 
 	var idle *host
 	for _, t := range c.hosts {
-		t.Lock()
-		if t.runningQueries == 0 {
-			t.Unlock()
+		if t.runningQueries() == 0 {
 			return t
 		}
 
-		if idle == nil || idle.runningQueries > t.runningQueries {
+		if idle == nil || idle.runningQueries() > t.runningQueries() {
 			idle = t
 		}
-		t.Unlock()
 	}
 
 	return idle
+}
+
+type queryCounter struct {
+	sync.Mutex
+	value uint32
+}
+
+func (qc *queryCounter) runningQueries() uint32 {
+	qc.Lock()
+	defer qc.Unlock()
+
+	return qc.value
+}
+
+func (qc *queryCounter) inc() {
+	qc.Lock()
+	qc.value++
+	qc.Unlock()
+}
+
+func (qc *queryCounter) dec() {
+	qc.Lock()
+	qc.value--
+	qc.Unlock()
 }

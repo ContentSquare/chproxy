@@ -18,7 +18,7 @@ func init() {
 			Name: "status_codes",
 			Help: "Distribution by status codes counter",
 		},
-		[]string{"target", "code"},
+		[]string{"host", "code"},
 	)
 
 	timeouts = prometheus.NewCounterVec(

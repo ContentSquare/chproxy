@@ -73,28 +73,28 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	ctx, cancel := context.WithCancel(ctx)
 	req = req.WithContext(ctx)
 
-	c := make(chan struct{})
+	done := make(chan struct{})
 	go func() {
 		rp.ReverseProxy.ServeHTTP(rw, req)
-		c <- struct{}{}
+		done <- struct{}{}
 	}()
 
 	select {
-	case <-s.initialUser.after():
+	case <-s.initialUser.timeout():
 		cancel()
 		timeouts.With(label).Inc()
 		condition := fmt.Sprintf("http_user_agent = '%s'", ua)
 		s.cluster.killQueries(condition, s.initialUser.maxExecutionTime.Seconds())
 		message := fmt.Sprintf("timeout for initial user %q exceeded: %v", s.initialUser.name, s.initialUser.maxExecutionTime)
 		rw.Write([]byte(message))
-	case <-s.initialUser.after():
+	case <-s.initialUser.timeout():
 		cancel()
 		timeouts.With(label).Inc()
 		condition := fmt.Sprintf("initial_user = '%s'", s.executionUser.name)
 		s.cluster.killQueries(condition, s.executionUser.maxExecutionTime.Seconds())
 		message := fmt.Sprintf("timeout for execution user %q exceeded: %v", s.executionUser.name, s.executionUser.maxExecutionTime)
 		rw.Write([]byte(message))
-	case <-c:
+	case <-done:
 		requestSuccess.With(label).Inc()
 	}
 
@@ -215,12 +215,7 @@ func (rp *reverseProxy) getRequestScope(req *http.Request) (*scope, error) {
 		return nil, fmt.Errorf("BUG: user %q matches to unknown user %q at cluster %q", iu.name, iu.toUser, iu.toCluster)
 	}
 
-	return &scope{
-		initialUser:   iu,
-		executionUser: eu,
-		cluster:       c,
-		host:          c.getHost(),
-	}, nil
+	return newScope(iu, eu, c), nil
 }
 
 type observableTransport struct {
