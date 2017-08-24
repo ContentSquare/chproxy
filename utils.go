@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"net/url"
 	"time"
-
-	"github.com/hagen1778/chproxy/log"
 	"net"
 	"strings"
+
+	"github.com/hagen1778/chproxy/log"
 )
 
 var client = &http.Client{

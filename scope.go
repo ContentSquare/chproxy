@@ -2,11 +2,12 @@ package main
 
 import (
 	"fmt"
-	"github.com/hagen1778/chproxy/log"
 	"math/rand"
 	"net/url"
 	"sync"
 	"time"
+
+	"github.com/hagen1778/chproxy/log"
 )
 
 func (s *scope) String() string {
@@ -72,6 +73,7 @@ type executionUser struct {
 }
 
 func (u *executionUser) inc() error {
+	fmt.Println(">>>", u.name, u.maxConcurrentQueries,  u.runningQueries())
 	if u.maxConcurrentQueries > 0 && u.runningQueries() >= u.maxConcurrentQueries {
 		return fmt.Errorf("maxConcurrentQueries limit exceeded: %d", u.maxConcurrentQueries)
 	}

@@ -135,14 +135,11 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 	})
 
 	t.Run("max concurrent queries for execution user", func(t *testing.T) {
-		expected := "limits for execution user \"web\" are exceeded: maxConcurrentQueries limit exceeded: 1"
-		goodCfg.Clusters[0].OutUsers[0].MaxConcurrentQueries = 1
-		if err := proxy.ApplyConfig(goodCfg); err != nil {
-			t.Fatalf("unexpected error: %s", err)
-		}
-
+		proxy.clusters["cluster"].users["web"].maxConcurrentQueries = 1
 		go makeRequest(proxy, fakeServer.URL)
 		time.Sleep(time.Millisecond * 20)
+
+		expected := "limits for execution user \"web\" are exceeded: maxConcurrentQueries limit exceeded: 1"
 		resp := makeRequest(proxy, fakeServer.URL)
 		if resp != expected {
 			t.Fatalf("expected response: %q; got: %q", expected, resp)
@@ -151,11 +148,9 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 
 	time.Sleep(time.Millisecond * 50)
 	t.Run("max execution time for execution user", func(t *testing.T) {
+		proxy.clusters["cluster"].users["web"].maxExecutionTime = time.Millisecond * 10
+
 		expected := "timeout for execution user \"web\" exceeded: 10ms"
-		goodCfg.Clusters[0].OutUsers[0].MaxExecutionTime = time.Millisecond * 10
-		if err := proxy.ApplyConfig(goodCfg); err != nil {
-			t.Fatalf("unexpected error: %s", err)
-		}
 		resp := makeRequest(proxy, fakeServer.URL)
 		if resp != expected {
 			t.Fatalf("expected response: %q; got: %q", expected, resp)

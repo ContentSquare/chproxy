@@ -41,7 +41,6 @@ func NewReverseProxy(cfg *config.Config) (*reverseProxy, error) {
 	return rp, err
 }
 
-// Serves incoming requests according to config
 func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	log.Debugf("Accepting request from %s: %s", req.RemoteAddr, req.URL.String())
 	s, err := rp.getRequestScope(req)
