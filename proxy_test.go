@@ -186,17 +186,18 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 		proxy.clusters["cluster"].users["web"].maxExecutionTime = 0
 	})
 
-	//t.Run("max concurrent queries for initial user", func(t *testing.T) {
-	//	proxy.users["default"].maxConcurrentQueries = 1
-	//	go makeHeavyRequest(proxy, time.Millisecond * 20)
-	//	time.Sleep(time.Millisecond * 10)
-	//
-	//	expected := "limits for initial user \"default\" are exceeded: maxConcurrentQueries limit: 1"
-	//	resp := makeRequest(proxy)
-	//	if resp != expected {
-	//		t.Fatalf("expected response: %q; got: %q", expected, resp)
-	//	}
-	//})
+	t.Run("max concurrent queries for initial user", func(t *testing.T) {
+		proxy.users["default"].maxConcurrentQueries = 1
+		go makeHeavyRequest(proxy, time.Millisecond * 20)
+		time.Sleep(time.Millisecond * 10)
+
+		expected := "limits for initial user \"default\" are exceeded: maxConcurrentQueries limit: 1"
+		resp := makeRequest(proxy)
+		if resp != expected {
+			t.Fatalf("expected response: %q; got: %q", expected, resp)
+		}
+		proxy.users["default"].maxConcurrentQueries = 0
+	})
 
 	time.Sleep(time.Millisecond * 50)
 	t.Run("max execution time for initial user", func(t *testing.T) {
@@ -208,7 +209,6 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 			t.Fatalf("expected response: %q; got: %q", expected, resp)
 		}
 	})
-	time.Sleep(time.Millisecond*20)
 }
 
 
