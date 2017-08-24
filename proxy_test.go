@@ -22,14 +22,23 @@ func TestMain(m *testing.M) {
 }
 
 var goodCfg = &config.Config{
-	Cluster: config.Cluster{
-		Scheme: "http",
-		Nodes:  []string{"localhost:8123"},
-	},
-	Users: []config.User{
+	Clusters: []config.Cluster{
 		{
-			Name:                 "default",
-			MaxConcurrentQueries: 1,
+			Name:   "cluster",
+			Scheme: "http",
+			Nodes:  []string{"localhost:8123"},
+			OutUsers: []config.OutUser{
+				{
+					Name: "web",
+				},
+			},
+		},
+	},
+	GlobalUsers: []config.GlobalUser{
+		{
+			Name:      "default",
+			ToCluster: "cluster",
+			ToUser:    "web",
 		},
 	},
 }
@@ -40,12 +49,17 @@ func TestNewReverseProxy(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 
-	if len(proxy.targets) != 1 {
-		t.Fatalf("got %d targets; expected: %d", len(proxy.targets), 1)
+	if len(proxy.clusters) != 1 {
+		t.Fatalf("got %d hosts; expected: %d", len(proxy.clusters), 1)
 	}
 
-	if proxy.targets[0].addr.Host != "localhost:8123" {
-		t.Fatalf("got %s host; expected: %d", proxy.targets[0].addr.Host, "localhost:8123")
+	c := proxy.clusters["cluster"]
+	if len(c.hosts) != 1 {
+		t.Fatalf("got %d hosts; expected: %d", len(c.hosts), 1)
+	}
+
+	if c.hosts[0].addr.Host != "localhost:8123" {
+		t.Fatalf("got %s host; expected: %s", c.hosts[0].addr.Host, "localhost:8123")
 	}
 
 	if len(proxy.users) != 1 {
@@ -57,24 +71,39 @@ func TestNewReverseProxy(t *testing.T) {
 	}
 }
 
+var badCfg = &config.Config{
+	Clusters: []config.Cluster{
+		{
+			Name:   "badCfg",
+			Scheme: "udp",
+			Nodes:  []string{"localhost:8123"},
+			OutUsers: []config.OutUser{
+				{
+					Name: "default",
+				},
+			},
+		},
+	},
+	GlobalUsers: []config.GlobalUser{
+		{
+			Name:      "default",
+			ToCluster: "cluster",
+			ToUser:    "default",
+		},
+	},
+}
+
 func TestApplyConfig(t *testing.T) {
 	proxy, err := NewReverseProxy(goodCfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
 
-	badCfg := &config.Config{
-		Cluster: config.Cluster{
-			Scheme: "udp",
-			Nodes:  []string{"127.0.0.1:8123", "127.0.0.2:8123"},
-		},
-	}
-
 	if err = proxy.ApplyConfig(badCfg); err == nil {
 		t.Fatalf("error expected; got nil")
 	}
 
-	if len(proxy.targets) != 1 {
+	if _, ok := proxy.clusters["badCfg"]; ok {
 		t.Fatalf("bad config applied; expected previous config")
 	}
 }
@@ -91,7 +120,7 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 
-	goodCfg.Cluster.Nodes = []string{addr.Host}
+	goodCfg.Clusters[0].Nodes = []string{addr.Host}
 	proxy, err := NewReverseProxy(goodCfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
@@ -105,27 +134,58 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 		}
 	})
 
-	t.Run("max concurrent queries", func(t *testing.T) {
-		expected := "limits for user \"default\" are exceeded: maxConcurrentQueries limit exceeded: 1"
+	t.Run("max concurrent queries for execution user", func(t *testing.T) {
+		expected := "limits for execution user \"web\" are exceeded: maxConcurrentQueries limit exceeded: 1"
+		goodCfg.Clusters[0].OutUsers[0].MaxConcurrentQueries = 1
+		if err := proxy.ApplyConfig(goodCfg); err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
+
 		go makeRequest(proxy, fakeServer.URL)
-		time.Sleep(time.Millisecond * 10)
+		time.Sleep(time.Millisecond * 20)
 		resp := makeRequest(proxy, fakeServer.URL)
 		if resp != expected {
 			t.Fatalf("expected response: %q; got: %q", expected, resp)
 		}
-
-		time.Sleep(time.Millisecond * 40)
 	})
 
-	t.Run("max execution time", func(t *testing.T) {
-		expected := "timeout for user \"default\" exceeded: 10ms"
-		goodCfg.Users = []config.User{
-			{
-				Name:             "default",
-				MaxExecutionTime: time.Millisecond * 10,
-			},
+	time.Sleep(time.Millisecond * 50)
+	t.Run("max execution time for execution user", func(t *testing.T) {
+		expected := "timeout for execution user \"web\" exceeded: 10ms"
+		goodCfg.Clusters[0].OutUsers[0].MaxExecutionTime = time.Millisecond * 10
+		if err := proxy.ApplyConfig(goodCfg); err != nil {
+			t.Fatalf("unexpected error: %s", err)
 		}
-		proxy.ApplyConfig(goodCfg)
+		resp := makeRequest(proxy, fakeServer.URL)
+		if resp != expected {
+			t.Fatalf("expected response: %q; got: %q", expected, resp)
+		}
+	})
+
+	t.Run("max concurrent queries for initial user", func(t *testing.T) {
+		expected := "limits for initial user \"default\" are exceeded: maxConcurrentQueries limit exceeded: 1"
+		goodCfg.Clusters[0].OutUsers[0].MaxConcurrentQueries = 0
+		goodCfg.GlobalUsers[0].MaxConcurrentQueries = 1
+		if err := proxy.ApplyConfig(goodCfg); err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
+
+		go makeRequest(proxy, fakeServer.URL)
+		time.Sleep(time.Millisecond * 20)
+		resp := makeRequest(proxy, fakeServer.URL)
+		if resp != expected {
+			t.Fatalf("expected response: %q; got: %q", expected, resp)
+		}
+	})
+
+	time.Sleep(time.Millisecond * 50)
+	t.Run("max execution time for initial user", func(t *testing.T) {
+		expected := "timeout for initial user \"default\" exceeded: 10ms"
+		goodCfg.Clusters[0].OutUsers[0].MaxExecutionTime = 0
+		goodCfg.GlobalUsers[0].MaxExecutionTime = time.Millisecond * 10
+		if err := proxy.ApplyConfig(goodCfg); err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
 		resp := makeRequest(proxy, fakeServer.URL)
 		if resp != expected {
 			t.Fatalf("expected response: %q; got: %q", expected, resp)

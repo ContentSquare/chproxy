@@ -22,7 +22,7 @@ func BenchmarkReverseProxy_ServeHTTP(b *testing.B) {
 		b.Fatalf("unexpected error: %s", err)
 	}
 
-	goodCfg.Cluster.Nodes = []string{addr.Host}
+	goodCfg.Clusters[0].Nodes = []string{addr.Host}
 	proxy, err := NewReverseProxy(goodCfg)
 	if err != nil {
 		b.Fatalf("unexpected error: %s", err)
@@ -48,7 +48,7 @@ func BenchmarkReverseProxy_ServeHTTP(b *testing.B) {
 
 func newConfig() *config.Config {
 	newCfg := *goodCfg
-	newCfg.Users = []config.User{
+	newCfg.GlobalUsers = []config.GlobalUser{
 		{
 			Name:                 "default",
 			MaxConcurrentQueries: rand.Uint32(),

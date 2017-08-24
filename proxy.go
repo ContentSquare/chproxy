@@ -71,6 +71,8 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	req = req.WithContext(ctx)
 
 	done := make(chan struct{})
@@ -82,13 +84,17 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	select {
 	case <-s.initialUser.timeout():
 		cancel()
+		<-done
+
 		timeouts.With(label).Inc()
 		condition := fmt.Sprintf("http_user_agent = '%s'", ua)
 		s.cluster.killQueries(condition, s.initialUser.maxExecutionTime.Seconds())
 		message := fmt.Sprintf("timeout for initial user %q exceeded: %v", s.initialUser.name, s.initialUser.maxExecutionTime)
 		rw.Write([]byte(message))
-	case <-s.initialUser.timeout():
+	case <-s.executionUser.timeout():
 		cancel()
+		<-done
+
 		timeouts.With(label).Inc()
 		condition := fmt.Sprintf("initial_user = '%s'", s.executionUser.name)
 		s.cluster.killQueries(condition, s.executionUser.maxExecutionTime.Seconds())
@@ -138,10 +144,12 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 		}
 
 		users := make(map[string]*executionUser, len(c.OutUsers))
-		for _, user := range c.OutUsers {
-			users[user.Name] = &executionUser{
-				name:     user.Name,
-				password: user.Password,
+		for _, u := range c.OutUsers {
+			users[u.Name] = &executionUser{
+				name:     u.Name,
+				password: u.Password,
+				maxConcurrentQueries: u.MaxConcurrentQueries,
+				maxExecutionTime:     u.MaxExecutionTime,
 			}
 		}
 
