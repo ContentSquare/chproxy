@@ -3,11 +3,11 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
-	"time"
-	"net"
 	"strings"
+	"time"
 
 	"github.com/hagen1778/chproxy/log"
 )
@@ -42,8 +42,8 @@ func basicAuth(req *http.Request) (string, string) {
 		return name, pass
 	}
 
-	if name := req.Form.Get("user"); name != "" {
-		if pass := req.Form.Get("password"); name != "" {
+	if name := req.URL.Query().Get("user"); name != "" {
+		if pass := req.URL.Query().Get("password"); name != "" {
 			return name, pass
 		}
 	}

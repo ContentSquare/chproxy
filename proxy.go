@@ -145,8 +145,8 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 		users := make(map[string]*executionUser, len(c.OutUsers))
 		for _, u := range c.OutUsers {
 			users[u.Name] = &executionUser{
-				name:     u.Name,
-				password: u.Password,
+				name:                 u.Name,
+				password:             u.Password,
 				maxConcurrentQueries: u.MaxConcurrentQueries,
 				maxExecutionTime:     u.MaxExecutionTime,
 			}
@@ -172,6 +172,7 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 		initialUsers[u.Name] = &initialUser{
 			executionUser: executionUser{
 				name:                 u.Name,
+				password:             u.Password,
 				maxConcurrentQueries: u.MaxConcurrentQueries,
 				maxExecutionTime:     u.MaxExecutionTime,
 			},
