@@ -98,6 +98,7 @@ type host struct {
 
 type cluster struct {
 	sync.Mutex
+	nextIdx uint32
 	hosts []*host
 	users map[string]*executionUser
 }
@@ -120,18 +121,38 @@ func (c *cluster) killQueries(condition string, elapsed float64) {
 	}
 }
 
+// get least loaded + round-robin host from cluster
 func (c *cluster) getHost() *host {
 	c.Lock()
 	defer c.Unlock()
 
-	var idle *host
-	for _, t := range c.hosts {
-		if t.runningQueries() == 0 {
-			return t
-		}
+	c.nextIdx++
 
-		if idle == nil || idle.runningQueries() > t.runningQueries() {
-			idle = t
+	idx := c.nextIdx % uint32(len(c.hosts))
+	idle := c.hosts[idx]
+	idleN := idle.runningQueries()
+
+	if idleN == 0 {
+		return idle
+	}
+
+	for _, h := range c.hosts[idx+1:] {
+		n := h.runningQueries()
+		if n == 0 {
+			return h
+		}
+		if n < idleN {
+			idle, idleN = h, n
+		}
+	}
+
+	for _, h := range c.hosts[:idx] {
+		n := h.runningQueries()
+		if n == 0 {
+			return h
+		}
+		if n < idleN {
+			idle, idleN = h, n
 		}
 	}
 

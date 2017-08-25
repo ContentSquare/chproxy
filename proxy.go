@@ -155,6 +155,7 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 		clusters[c.Name] = &cluster{
 			hosts: hosts,
 			users: users,
+			nextIdx:  uint32(time.Now().UnixNano()),
 		}
 	}
 
