@@ -152,9 +152,9 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 		}
 
 		clusters[c.Name] = &cluster{
-			hosts: hosts,
-			users: users,
-			nextIdx:  uint32(time.Now().UnixNano()),
+			hosts:   hosts,
+			users:   users,
+			nextIdx: uint32(time.Now().UnixNano()),
 		}
 	}
 
@@ -181,8 +181,8 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 				maxConcurrentQueries: u.MaxConcurrentQueries,
 				maxExecutionTime:     u.MaxExecutionTime,
 			},
-			toCluster: u.ToCluster,
-			toUser:    u.ToUser,
+			toCluster:  u.ToCluster,
+			toUser:     u.ToUser,
 			allowedIPs: allowedIPs,
 		}
 	}

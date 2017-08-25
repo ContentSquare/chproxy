@@ -1,8 +1,8 @@
 package main
 
 import (
-	"testing"
 	"net/url"
+	"testing"
 )
 
 func BenchmarkScope_RunningQueries(b *testing.B) {

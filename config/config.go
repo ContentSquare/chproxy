@@ -31,10 +31,15 @@ var (
 // Users requests are mapped to CH-cluster via `to_cluster` option
 // with credentials of cluster user from `to_user` option
 type Config struct {
-	// At which address and port to listen for incoming requests
+	// TCP address to listen to for http
 	// Default is `localhost:8080`
 	ListenAddr string `yaml:"listen_addr,omitempty"`
+
+	// TCP address to listen to for https
 	ListenTLSAddr string `yaml:"listen_tls_addr,omitempty"`
+
+	// Path to the directory where letsencrypt certs are cache
+	CertCacheDir string `yaml:"cert_cache_dir,omitempty"`
 
 	// Whether to print debug logs
 	LogDebug bool `yaml:"log_debug,omitempty"`

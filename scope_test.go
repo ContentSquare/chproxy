@@ -1,8 +1,8 @@
 package main
 
 import (
-	"testing"
 	"net/url"
+	"testing"
 )
 
 func TestScope_RunningQueries(t *testing.T) {

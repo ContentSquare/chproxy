@@ -273,29 +273,29 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 
 func TestReverseProxy_ServeHTTP2(t *testing.T) {
 	testCases := []struct {
-		name string
+		name            string
 		allowedNetworks []string
-		expected string
+		expected        string
 	}{
 		{
-			name: "empty allowed networks",
+			name:            "empty allowed networks",
 			allowedNetworks: []string{},
-			expected: "Ok\n",
+			expected:        "Ok\n",
 		},
 		{
-			name: "allow addr",
+			name:            "allow addr",
 			allowedNetworks: []string{"192.0.2.1"},
-			expected: "Ok\n",
+			expected:        "Ok\n",
 		},
 		{
-			name: "allow addr by mask",
+			name:            "allow addr by mask",
 			allowedNetworks: []string{"192.0.2.1/32"},
-			expected: "Ok\n",
+			expected:        "Ok\n",
 		},
 		{
-			name: "disallow addr",
+			name:            "disallow addr",
 			allowedNetworks: []string{"192.0.2.2/32", "192.0.2.2"},
-			expected: "user \"default\" is not allowed to access from 192.0.2.1",
+			expected:        "user \"default\" is not allowed to access from 192.0.2.1",
 		},
 	}
 

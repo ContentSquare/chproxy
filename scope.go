@@ -60,7 +60,7 @@ func (s *scope) dec() {
 
 type initialUser struct {
 	toCluster, toUser string
-	allowedIPs map[string]struct{}
+	allowedIPs        map[string]struct{}
 
 	executionUser
 }
@@ -99,8 +99,8 @@ type host struct {
 type cluster struct {
 	sync.Mutex
 	nextIdx uint32
-	hosts []*host
-	users map[string]*executionUser
+	hosts   []*host
+	users   map[string]*executionUser
 }
 
 // We don't use query_id because of distributed processing, the query ID is not passed to remote servers

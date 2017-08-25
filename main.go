@@ -1,7 +1,9 @@
 package main
 
 import (
+	"crypto/tls"
 	"flag"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -10,6 +12,7 @@ import (
 	"github.com/hagen1778/chproxy/config"
 	"github.com/hagen1778/chproxy/log"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"golang.org/x/crypto/acme/autocert"
 )
 
 var configFile = flag.String("config", "proxy.yml", "Proxy configuration filename")
@@ -47,12 +50,16 @@ func main() {
 		}
 	}()
 
-	//TODO: add TLS support
-	h := &httpHandler{}
-	server := &http.Server{Addr: cfg.ListenAddr, Handler: h}
-	log.Infof("Start listening on %s", cfg.ListenAddr)
+	if cfg.ListenTLSAddr != "" {
+		startTLS(cfg.ListenTLSAddr, cfg.CertCacheDir)
+	}
+
+	server := &http.Server{Addr: cfg.ListenAddr, Handler: handler}
+	log.Infof("Serving http on %q", cfg.ListenAddr)
 	server.ListenAndServe()
 }
+
+var handler = &httpHandler{}
 
 type httpHandler struct{}
 
@@ -64,4 +71,30 @@ func (h *httpHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	case "/":
 		proxy.ServeHTTP(rw, r)
 	}
+}
+
+func startTLS(tlsAddr, dir string) {
+	ln, err := net.Listen("tcp4", tlsAddr)
+	if err != nil {
+		log.Fatalf("cannot listen for -tlsAddr=%q: %s", tlsAddr, err)
+	}
+
+	tlsConfig := tls.Config{
+		PreferServerCipherSuites: true,
+		CurvePreferences: []tls.CurveID{
+			tls.CurveP256,
+			tls.X25519,
+		},
+	}
+
+	m := autocert.Manager{
+		Prompt: autocert.AcceptTOS,
+		Cache:  autocert.DirCache(dir),
+	}
+	tlsConfig.GetCertificate = m.GetCertificate
+
+	tlsLn := tls.NewListener(ln, &tlsConfig)
+
+	log.Infof("Serving https on %q", tlsAddr)
+	go http.Serve(tlsLn, handler)
 }
