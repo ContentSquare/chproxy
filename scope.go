@@ -11,7 +11,7 @@ import (
 )
 
 func (s *scope) String() string {
-	return fmt.Sprintf("[ Id: %d; InitialUser %q(%d) matched to ExecutionUser %q(%d) => %q(%d) ]",
+	return fmt.Sprintf("[ Id: %d; User %q(%d) proxying as %q(%d) to %q(%d) ]",
 		s.id,
 		s.initialUser.name, s.initialUser.runningQueries(),
 		s.executionUser.name, s.executionUser.runningQueries(),

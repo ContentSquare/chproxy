@@ -77,7 +77,7 @@ var badCfg = &config.Config{
 	Clusters: []config.Cluster{
 		{
 			Name:   "badCfg",
-			Scheme: "udp",
+			Scheme: "http",
 			Nodes:  []string{"localhost:8123"},
 			OutUsers: []config.OutUser{
 				{
@@ -90,7 +90,7 @@ var badCfg = &config.Config{
 		{
 			Name:      "default",
 			ToCluster: "cluster",
-			ToUser:    "default",
+			ToUser:    "foo",
 		},
 	},
 }

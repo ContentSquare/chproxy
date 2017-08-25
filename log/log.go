@@ -8,10 +8,11 @@ import (
 )
 
 var (
-	stdLogFlags     = log.LstdFlags | log.Lshortfile | log.LUTC
-	outputCallDepth = 2
+	stdLogFlags      = log.LstdFlags | log.LUTC
+	stdDebugLogFlags = log.LstdFlags | log.Lshortfile | log.LUTC
+	outputCallDepth  = 2
 
-	DebugLogger = log.New(os.Stderr, "DEBUG: ", stdLogFlags)
+	DebugLogger = log.New(os.Stderr, "DEBUG: ", stdDebugLogFlags)
 	InfoLogger  = log.New(os.Stderr, "INFO: ", stdLogFlags)
 	ErrorLogger = log.New(os.Stderr, "ERROR: ", stdLogFlags)
 	FatalLogger = log.New(os.Stderr, "FATAL: ", log.LstdFlags|log.Llongfile|log.LUTC)
@@ -34,8 +35,12 @@ func SuppressOutput(suppress bool) {
 func SetDebug(debug bool) {
 	if debug {
 		DebugLogger.SetOutput(os.Stderr)
+		InfoLogger.SetFlags(stdDebugLogFlags)
+		ErrorLogger.SetFlags(stdDebugLogFlags)
 	} else {
 		DebugLogger.SetOutput(ioutil.Discard)
+		InfoLogger.SetFlags(stdLogFlags)
+		ErrorLogger.SetFlags(stdLogFlags)
 	}
 }
 
