@@ -271,6 +271,47 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 	})
 }
 
+func TestReverseProxy_ServeHTTP2(t *testing.T) {
+	testCases := []struct {
+		name string
+		allowedNetworks []string
+		expected string
+	}{
+		{
+			name: "empty allowed networks",
+			allowedNetworks: []string{},
+			expected: "Ok\n",
+		},
+		{
+			name: "allow addr",
+			allowedNetworks: []string{"192.0.2.1"},
+			expected: "Ok\n",
+		},
+		{
+			name: "allow addr by mask",
+			allowedNetworks: []string{"192.0.2.1/32"},
+			expected: "Ok\n",
+		},
+		{
+			name: "disallow addr",
+			allowedNetworks: []string{"192.0.2.2/32", "192.0.2.2"},
+			expected: "user \"default\" is not allowed to access from 192.0.2.1",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			goodCfg.GlobalUsers[0].AllowedNetworks = tc.allowedNetworks
+			proxy := getProxy(t, goodCfg)
+			resp := makeRequest(proxy)
+
+			if resp != tc.expected {
+				t.Fatalf("expected response: %q; got: %q", tc.expected, resp)
+			}
+		})
+	}
+}
+
 var fakeServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {

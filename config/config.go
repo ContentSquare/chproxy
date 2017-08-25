@@ -34,6 +34,7 @@ type Config struct {
 	// At which address and port to listen for incoming requests
 	// Default is `localhost:8080`
 	ListenAddr string `yaml:"listen_addr,omitempty"`
+	ListenTLSAddr string `yaml:"listen_tls_addr,omitempty"`
 
 	// Whether to print debug logs
 	LogDebug bool `yaml:"log_debug,omitempty"`

@@ -60,6 +60,7 @@ func (s *scope) dec() {
 
 type initialUser struct {
 	toCluster, toUser string
+	allowedIPs map[string]struct{}
 
 	executionUser
 }

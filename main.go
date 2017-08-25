@@ -47,6 +47,7 @@ func main() {
 		}
 	}()
 
+	//TODO: add TLS support
 	h := &httpHandler{}
 	server := &http.Server{Addr: cfg.ListenAddr, Handler: h}
 	log.Infof("Start listening on %s", cfg.ListenAddr)
