@@ -5,11 +5,12 @@ import (
 )
 
 var (
-	statusCodes    *prometheus.CounterVec
-	timeouts       *prometheus.CounterVec
-	errors         *prometheus.CounterVec
-	requestSum     *prometheus.CounterVec
-	requestSuccess *prometheus.CounterVec
+	statusCodes       *prometheus.CounterVec
+	initialTimeouts   *prometheus.CounterVec
+	executionTimeouts *prometheus.CounterVec
+	errors            *prometheus.CounterVec
+	requestSum        *prometheus.CounterVec
+	requestSuccess    *prometheus.CounterVec
 )
 
 func init() {
@@ -21,12 +22,20 @@ func init() {
 		[]string{"host", "code"},
 	)
 
-	timeouts = prometheus.NewCounterVec(
+	initialTimeouts = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "request_timeouts",
 			Help: "Number of timeouts",
 		},
-		[]string{"initial_user", "execution_user", "host"},
+		[]string{"initial_user", "host"},
+	)
+
+	executionTimeouts = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "request_timeouts",
+			Help: "Number of timeouts",
+		},
+		[]string{"execution_user", "host"},
 	)
 
 	errors = prometheus.NewCounterVec(
@@ -53,6 +62,6 @@ func init() {
 		[]string{"initial_user", "execution_user", "host"},
 	)
 
-	prometheus.MustRegister(statusCodes, timeouts, errors,
+	prometheus.MustRegister(statusCodes, initialTimeouts, executionTimeouts, errors,
 		requestSum, requestSuccess)
 }

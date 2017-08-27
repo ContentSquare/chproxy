@@ -84,7 +84,10 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		cancel()
 		<-done
 
-		timeouts.With(label).Inc()
+		initialTimeouts.With(prometheus.Labels{
+			"initial_user": s.initialUser.name,
+			"host":         s.host.addr.Host,
+		}).Inc()
 		condition := fmt.Sprintf("http_user_agent = '%s'", ua)
 		s.cluster.killQueries(condition, s.initialUser.maxExecutionTime.Seconds())
 		message := fmt.Sprintf("timeout for initial user %q exceeded: %v", s.initialUser.name, s.initialUser.maxExecutionTime)
@@ -93,7 +96,10 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		cancel()
 		<-done
 
-		timeouts.With(label).Inc()
+		executionTimeouts.With(prometheus.Labels{
+			"execution_user": s.executionUser.name,
+			"host":           s.host.addr.Host,
+		}).Inc()
 		condition := fmt.Sprintf("initial_user = '%s'", s.executionUser.name)
 		s.cluster.killQueries(condition, s.executionUser.maxExecutionTime.Seconds())
 		message := fmt.Sprintf("timeout for execution user %q exceeded: %v", s.executionUser.name, s.executionUser.maxExecutionTime)
