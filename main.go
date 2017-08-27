@@ -54,9 +54,9 @@ func main() {
 		startTLS(cfg.ListenTLSAddr, cfg.CertCacheDir)
 	}
 
-	server := &http.Server{Addr: cfg.ListenAddr, Handler: handler}
 	log.Infof("Serving http on %q", cfg.ListenAddr)
-	server.ListenAndServe()
+	server := &http.Server{Addr: cfg.ListenAddr, Handler: handler}
+	log.Fatalf("Server error: %s", server.ListenAndServe())
 }
 
 var handler = &httpHandler{}

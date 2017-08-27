@@ -1,4 +1,4 @@
-global_users:
+initial_users:
   - name: "default"
     to_cluster: "second cluster"
     to_user: "default"

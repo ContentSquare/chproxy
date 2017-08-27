@@ -54,6 +54,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		respondWithErr(rw, err)
 		return
 	}
+	defer s.dec()
 
 	label := prometheus.Labels{
 		"initial_user":   s.initialUser.name,
@@ -68,8 +69,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	ua := fmt.Sprintf("ClickHouseProxy: %s", s.initialUser.name)
 	req.Header.Set("User-Agent", ua)
 
-	ctx := context.Background()
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	req = req.WithContext(ctx)
 
@@ -102,7 +102,6 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		requestSuccess.With(label).Inc()
 	}
 
-	s.dec()
 	log.Debugf("Request scope %s successfully proxied", s)
 }
 
@@ -141,8 +140,8 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 			}
 		}
 
-		users := make(map[string]*executionUser, len(c.OutUsers))
-		for _, u := range c.OutUsers {
+		users := make(map[string]*executionUser, len(c.ExecutionUsers))
+		for _, u := range c.ExecutionUsers {
 			users[u.Name] = &executionUser{
 				name:                 u.Name,
 				password:             u.Password,
@@ -158,8 +157,8 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 		}
 	}
 
-	initialUsers := make(map[string]*initialUser, len(cfg.GlobalUsers))
-	for _, u := range cfg.GlobalUsers {
+	initialUsers := make(map[string]*initialUser, len(cfg.InitialUsers))
+	for _, u := range cfg.InitialUsers {
 		c, ok := clusters[u.ToCluster]
 		if !ok {
 			return fmt.Errorf("error while mapping user %q to cluster %q: no such cluster", u.Name, u.ToCluster)

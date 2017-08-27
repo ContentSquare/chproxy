@@ -29,14 +29,14 @@ var goodCfg = &config.Config{
 			Name:   "cluster",
 			Scheme: "http",
 			Nodes:  []string{"localhost:8123"},
-			OutUsers: []config.OutUser{
+			ExecutionUsers: []config.ExecutionUser{
 				{
 					Name: "web",
 				},
 			},
 		},
 	},
-	GlobalUsers: []config.GlobalUser{
+	InitialUsers: []config.InitialUser{
 		{
 			Name:      "default",
 			ToCluster: "cluster",
@@ -79,14 +79,14 @@ var badCfg = &config.Config{
 			Name:   "badCfg",
 			Scheme: "http",
 			Nodes:  []string{"localhost:8123"},
-			OutUsers: []config.OutUser{
+			ExecutionUsers: []config.ExecutionUser{
 				{
 					Name: "default",
 				},
 			},
 		},
 	},
-	GlobalUsers: []config.GlobalUser{
+	InitialUsers: []config.InitialUser{
 		{
 			Name:      "default",
 			ToCluster: "cluster",
@@ -116,14 +116,14 @@ var authCfg = &config.Config{
 			Name:   "cluster",
 			Scheme: "http",
 			Nodes:  []string{"localhost:8123"},
-			OutUsers: []config.OutUser{
+			ExecutionUsers: []config.ExecutionUser{
 				{
 					Name: "web",
 				},
 			},
 		},
 	},
-	GlobalUsers: []config.GlobalUser{
+	InitialUsers: []config.InitialUser{
 		{
 			Name:      "foo",
 			Password:  "bar",
@@ -301,7 +301,7 @@ func TestReverseProxy_ServeHTTP2(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			goodCfg.GlobalUsers[0].AllowedNetworks = tc.allowedNetworks
+			goodCfg.InitialUsers[0].AllowedNetworks = tc.allowedNetworks
 			proxy := getProxy(t, goodCfg)
 			resp := makeRequest(proxy)
 

@@ -16,10 +16,10 @@ var (
 
 	defaultCluster = Cluster{
 		Scheme:   "http",
-		OutUsers: []OutUser{defaultOutUser},
+		ExecutionUsers: []ExecutionUser{defaultExecutionUser},
 	}
 
-	defaultOutUser = OutUser{
+	defaultExecutionUser = ExecutionUser{
 		Name: "default",
 	}
 )
@@ -46,7 +46,7 @@ type Config struct {
 
 	Clusters []Cluster `yaml:"clusters"`
 
-	GlobalUsers []GlobalUser `yaml:"global_users"`
+	InitialUsers []InitialUser `yaml:"initial_users"`
 
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
@@ -74,13 +74,14 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 
-	if len(c.GlobalUsers) == 0 {
-		return fmt.Errorf("field `global_users` must contain at least 1 user")
+	if len(c.InitialUsers) == 0 {
+		return fmt.Errorf("field `initial_users` must contain at least 1 user")
 	}
 
 	if len(c.ListenTLSAddr) > 0 && len(c.CertCacheDir) == 0 {
 		return fmt.Errorf("field `cert_cache_dir` must be set for TLS")
 	}
+
 
 	return checkOverflow(c.XXX, "config")
 }
@@ -100,8 +101,8 @@ type Cluster struct {
 	// Nodes - list of nodes addresses
 	Nodes []string `yaml:"nodes"`
 
-	// OutUsers - list of ClickHouse users
-	OutUsers []OutUser `yaml:"out_users"`
+	// ExecutionUsers - list of ClickHouse users
+	ExecutionUsers []ExecutionUser `yaml:"execution_users"`
 
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
@@ -127,9 +128,9 @@ func (c *Cluster) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return checkOverflow(c.XXX, "cluster")
 }
 
-// GlobalUser struct describes list of allowed users
+// InitialUser struct describes list of allowed users
 // which requests will be proxied to ClickHouse
-type GlobalUser struct {
+type InitialUser struct {
 	// User name
 	Name string `yaml:"name"`
 
@@ -162,17 +163,17 @@ type GlobalUser struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (u *GlobalUser) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	type plain GlobalUser
+func (u *InitialUser) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain InitialUser
 	if err := unmarshal((*plain)(u)); err != nil {
 		return err
 	}
 
-	return checkOverflow(u.XXX, "out_users")
+	return checkOverflow(u.XXX, "execution_users")
 }
 
 // User struct describes simplest <users> configuration
-type OutUser struct {
+type ExecutionUser struct {
 	// User name in ClickHouse users.xml config
 	Name string `yaml:"name"`
 
@@ -192,13 +193,13 @@ type OutUser struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (u *OutUser) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	type plain OutUser
+func (u *ExecutionUser) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain ExecutionUser
 	if err := unmarshal((*plain)(u)); err != nil {
 		return err
 	}
 
-	return checkOverflow(u.XXX, "out_users")
+	return checkOverflow(u.XXX, "execution_users")
 }
 
 // Loads and validates configuration from provided .yml file
