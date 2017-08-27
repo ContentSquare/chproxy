@@ -15,7 +15,7 @@ var (
 	}
 
 	defaultCluster = Cluster{
-		Scheme:   "http",
+		Scheme:         "http",
 		ExecutionUsers: []ExecutionUser{defaultExecutionUser},
 	}
 
@@ -81,7 +81,6 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if len(c.ListenTLSAddr) > 0 && len(c.CertCacheDir) == 0 {
 		return fmt.Errorf("field `cert_cache_dir` must be set for TLS")
 	}
-
 
 	return checkOverflow(c.XXX, "config")
 }
