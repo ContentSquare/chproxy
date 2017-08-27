@@ -62,7 +62,6 @@ func (c *Config) Validate() error {
 
 	cfg := &Config{}
 	return yaml.Unmarshal([]byte(content), cfg)
-	// TODO: check listen addr, consistency of global and out users
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -77,6 +76,10 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	if len(c.GlobalUsers) == 0 {
 		return fmt.Errorf("field `global_users` must contain at least 1 user")
+	}
+
+	if len(c.ListenTLSAddr) > 0 && len(c.CertCacheDir) == 0 {
+		return fmt.Errorf("field `cert_cache_dir` must be set for TLS")
 	}
 
 	return checkOverflow(c.XXX, "config")
@@ -113,7 +116,6 @@ func (c *Cluster) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 
-	// TODO: check if it is already checked by Unmarshall
 	if len(c.Nodes) == 0 {
 		return fmt.Errorf("field `nodes` must contain at least 1 address")
 	}
