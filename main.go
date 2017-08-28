@@ -42,8 +42,9 @@ func main() {
 				log.Infof("SIGHUP received. Going to reload config %s ...", *configFile)
 				if err := proxy.ReloadConfig(*configFile); err != nil {
 					log.Errorf("error while reloading config: %s", err)
+				} else {
+					log.Infof("Config successfully reloaded")
 				}
-				log.Infof("Config successfully reloaded")
 			}
 		}
 	}()
