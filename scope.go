@@ -103,6 +103,14 @@ type cluster struct {
 	users   map[string]*executionUser
 }
 
+func newCluster(h []*host, u map[string]*executionUser) *cluster {
+	return &cluster{
+		hosts: h,
+		users: u,
+		nextIdx: uint32(time.Now().UnixNano()),
+	}
+}
+
 // We don't use query_id because of distributed processing, the query ID is not passed to remote servers
 func (c *cluster) killQueries(condition string, elapsed float64) {
 	c.Lock()
