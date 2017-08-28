@@ -25,11 +25,6 @@ var (
 )
 
 // Config is an structure to describe access and proxy rules
-// The simplest configuration consists of:
-// 	 cluster description - see <remote_servers> section in CH config.xml
-// 	 and users - who allowed to access proxy
-// Users requests are mapped to CH-cluster via `to_cluster` option
-// with credentials of cluster user from `to_user` option
 type Config struct {
 	// TCP address to listen to for http
 	// Default is `localhost:8080`
@@ -38,7 +33,7 @@ type Config struct {
 	// TCP address to listen to for https
 	ListenTLSAddr string `yaml:"listen_tls_addr,omitempty"`
 
-	// Path to the directory where letsencrypt certs are cache
+	// Path to the directory where letsencrypt certs are cached
 	CertCacheDir string `yaml:"cert_cache_dir,omitempty"`
 
 	// Whether to print debug logs
@@ -76,6 +71,10 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	if len(c.InitialUsers) == 0 {
 		return fmt.Errorf("field `initial_users` must contain at least 1 user")
+	}
+
+	if len(c.Clusters) == 0 {
+		return fmt.Errorf("field `clusters` must contain at least 1 cluster")
 	}
 
 	if len(c.ListenTLSAddr) > 0 && len(c.CertCacheDir) == 0 {
@@ -120,6 +119,10 @@ func (c *Cluster) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("field `nodes` must contain at least 1 address")
 	}
 
+	if len(c.ExecutionUsers) == 0 {
+		return fmt.Errorf("field `execution_users` must contain at least 1 user")
+	}
+
 	if c.Scheme != "http" && c.Scheme != "https" {
 		return fmt.Errorf("field `scheme` must be `http` or `https`. Got %q instead", c.Scheme)
 	}
@@ -140,8 +143,8 @@ type InitialUser struct {
 	// will be proxied
 	ToCluster string `yaml:"to_cluster"`
 
-	// ToUser is the name of out_user from cluster ToCluster whom credentials
-	// will be used for proxying request to CH
+	// ToUser is the name of execution_user from cluster's ToCluster
+	// whom credentials will be used for proxying request to CH
 	ToUser string `yaml:"to_user"`
 
 	// Maximum number of concurrently running queries for user
@@ -168,7 +171,19 @@ func (u *InitialUser) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 
-	return checkOverflow(u.XXX, "execution_users")
+	if len(u.Name) == 0 {
+		return fmt.Errorf("field `initial_users.name` cannot be empty")
+	}
+
+	if len(u.ToUser) == 0 {
+		return fmt.Errorf("field `initial_users.to_user` cannot be empty")
+	}
+
+	if len(u.ToCluster) == 0 {
+		return fmt.Errorf("field `initial_users.to_cluster` cannot be empty")
+	}
+
+	return checkOverflow(u.XXX, "initial_user")
 }
 
 // User struct describes simplest <users> configuration
@@ -196,6 +211,10 @@ func (u *ExecutionUser) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	type plain ExecutionUser
 	if err := unmarshal((*plain)(u)); err != nil {
 		return err
+	}
+
+	if len(u.Name) == 0 {
+		return fmt.Errorf("field `execution_users.name` cannot be empty")
 	}
 
 	return checkOverflow(u.XXX, "execution_users")
