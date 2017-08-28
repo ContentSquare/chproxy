@@ -21,10 +21,10 @@ func (s *scope) String() string {
 // TODO: rethink scope because it looks weird
 type scope struct {
 	id            uint64
+	host          *host
+	cluster       *cluster
 	initialUser   *initialUser
 	executionUser *executionUser
-	cluster       *cluster
-	host          *host
 }
 
 var r = rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -32,10 +32,10 @@ var r = rand.New(rand.NewSource(time.Now().UnixNano()))
 func newScope(iu *initialUser, eu *executionUser, c *cluster) *scope {
 	return &scope{
 		id:            r.Uint64(),
+		host:          c.getHost(),
+		cluster:       c,
 		initialUser:   iu,
 		executionUser: eu,
-		cluster:       c,
-		host:          c.getHost(),
 	}
 }
 
@@ -53,14 +53,15 @@ func (s *scope) inc() error {
 }
 
 func (s *scope) dec() {
+	s.host.dec()
 	s.initialUser.dec()
 	s.executionUser.dec()
-	s.host.dec()
 }
 
 type initialUser struct {
-	toCluster, toUser string
-	allowedIPs        map[string]struct{}
+	toUser     string
+	toCluster  string
+	allowedIPs map[string]struct{}
 
 	executionUser
 }
@@ -105,8 +106,8 @@ type cluster struct {
 
 func newCluster(h []*host, u map[string]*executionUser) *cluster {
 	return &cluster{
-		hosts: h,
-		users: u,
+		hosts:   h,
+		users:   u,
 		nextIdx: uint32(time.Now().UnixNano()),
 	}
 }
@@ -136,7 +137,8 @@ func (c *cluster) getHost() *host {
 
 	c.nextIdx++
 
-	idx := c.nextIdx % uint32(len(c.hosts))
+	l := uint32(len(c.hosts))
+	idx := c.nextIdx % l
 	idle := c.hosts[idx]
 	idleN := idle.runningQueries()
 
@@ -144,17 +146,8 @@ func (c *cluster) getHost() *host {
 		return idle
 	}
 
-	for _, h := range c.hosts[idx+1:] {
-		n := h.runningQueries()
-		if n == 0 {
-			return h
-		}
-		if n < idleN {
-			idle, idleN = h, n
-		}
-	}
-
-	for _, h := range c.hosts[:idx] {
+	for i := (idx + 1) % l; i != idx; i = (i + 1) % l {
+		h := c.hosts[i]
 		n := h.runningQueries()
 		if n == 0 {
 			return h

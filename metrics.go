@@ -5,12 +5,12 @@ import (
 )
 
 var (
-	statusCodes    *prometheus.CounterVec
-	initialTimeouts       *prometheus.CounterVec
-	executionTimeouts       *prometheus.CounterVec
-	errors         *prometheus.CounterVec
-	requestSum     *prometheus.CounterVec
-	requestSuccess *prometheus.CounterVec
+	statusCodes       *prometheus.CounterVec
+	initialTimeouts   *prometheus.CounterVec
+	executionTimeouts *prometheus.CounterVec
+	errors            *prometheus.CounterVec
+	requestSum        *prometheus.CounterVec
+	requestSuccess    *prometheus.CounterVec
 )
 
 func init() {

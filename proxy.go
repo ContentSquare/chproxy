@@ -85,8 +85,8 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		<-done
 
 		initialTimeouts.With(prometheus.Labels{
-			"initial_user":   s.initialUser.name,
-			"host":           s.host.addr.Host,
+			"initial_user": s.initialUser.name,
+			"host":         s.host.addr.Host,
 		}).Inc()
 		condition := fmt.Sprintf("http_user_agent = '%s'", ua)
 		s.cluster.killQueries(condition, s.initialUser.maxExecutionTime.Seconds())
