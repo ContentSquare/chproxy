@@ -129,10 +129,7 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 		return err
 	}
 
-	rp.Lock()
-	defer rp.Unlock()
-
-	clusters := make(map[string]*cluster)
+	clusters := make(map[string]*cluster, len(cfg.Clusters))
 	for _, c := range cfg.Clusters {
 		hosts := make([]*host, len(c.Nodes))
 		for i, node := range c.Nodes {
@@ -156,11 +153,7 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 			}
 		}
 
-		clusters[c.Name] = &cluster{
-			hosts:   hosts,
-			users:   users,
-			nextIdx: uint32(time.Now().UnixNano()),
-		}
+		clusters[c.Name] = newCluster(hosts, users)
 	}
 
 	initialUsers := make(map[string]*initialUser, len(cfg.InitialUsers))
@@ -192,8 +185,10 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 		}
 	}
 
+	rp.Lock()
 	rp.clusters = clusters
 	rp.users = initialUsers
+	rp.Unlock()
 
 	// Next statement looks a bit outplaced. Still not sure where it must be placed
 	log.SetDebug(cfg.LogDebug)

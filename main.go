@@ -29,8 +29,7 @@ func main() {
 	}
 	log.Infof("Loading config: %s", "success")
 
-	proxy, err = NewReverseProxy(cfg)
-	if err != nil {
+	if proxy, err = NewReverseProxy(cfg); err != nil {
 		log.Fatalf("error while creating proxy: %s", err)
 	}
 
@@ -38,14 +37,14 @@ func main() {
 	signal.Notify(c, syscall.SIGHUP)
 	go func() {
 		for {
-			s := <-c
-			switch s {
+			switch <-c {
 			case syscall.SIGHUP:
 				log.Infof("SIGHUP received. Going to reload config %s ...", *configFile)
 				if err := proxy.ReloadConfig(*configFile); err != nil {
 					log.Errorf("error while reloading config: %s", err)
+				} else {
+					log.Infof("Config successfully reloaded")
 				}
-				log.Infof("Config successfully reloaded")
 			}
 		}
 	}()
