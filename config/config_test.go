@@ -140,7 +140,7 @@ func TestBadConfig(t *testing.T) {
 		{
 			"empty users",
 			"testdata/bad.empty_users.yml",
-			"field `initial_users` must contain at least 1 user",
+			"field `users` must contain at least 1 user",
 		},
 		{
 			"empty nodes",

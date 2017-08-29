@@ -1,7 +1,7 @@
 listen_addr: ":9090"
 log_debug: true
 
-initial_users:
+users:
   - name: "web"
     password: "password"
     allowed_networks: ["127.0.0.1", "1.2.3.0/24"]
@@ -17,7 +17,7 @@ clusters:
   - name: "first cluster"
     scheme: "http"
     nodes: ["127.0.0.1:8123", "127.0.0.2:8123", "127.0.0.3:8123"]
-    execution_users:
+    users:
       - name: "web"
         password: "password"
         max_concurrent_queries: 4
@@ -25,7 +25,7 @@ clusters:
   - name: "second cluster"
     scheme: "https"
     nodes: ["127.0.1.1:8123", "127.0.1.2:8123"]
-    execution_users:
+    users:
       - name: "default"
         max_concurrent_queries: 4
         max_execution_time: 1m

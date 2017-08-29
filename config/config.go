@@ -41,7 +41,7 @@ type Config struct {
 
 	Clusters []Cluster `yaml:"clusters"`
 
-	InitialUsers []InitialUser `yaml:"initial_users"`
+	InitialUsers []InitialUser `yaml:"users"`
 
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
@@ -70,7 +70,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	if len(c.InitialUsers) == 0 {
-		return fmt.Errorf("field `initial_users` must contain at least 1 user")
+		return fmt.Errorf("field `users` must contain at least 1 user")
 	}
 
 	if len(c.Clusters) == 0 {
@@ -100,7 +100,7 @@ type Cluster struct {
 	Nodes []string `yaml:"nodes"`
 
 	// ExecutionUsers - list of ClickHouse users
-	ExecutionUsers []ExecutionUser `yaml:"execution_users"`
+	ExecutionUsers []ExecutionUser `yaml:"users"`
 
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
@@ -120,7 +120,7 @@ func (c *Cluster) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	if len(c.ExecutionUsers) == 0 {
-		return fmt.Errorf("field `execution_users` must contain at least 1 user")
+		return fmt.Errorf("field `users` must contain at least 1 user")
 	}
 
 	if c.Scheme != "http" && c.Scheme != "https" {
@@ -172,15 +172,15 @@ func (u *InitialUser) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	if len(u.Name) == 0 {
-		return fmt.Errorf("field `initial_users.name` cannot be empty")
+		return fmt.Errorf("field `users.name` cannot be empty")
 	}
 
 	if len(u.ToUser) == 0 {
-		return fmt.Errorf("field `initial_users.to_user` cannot be empty")
+		return fmt.Errorf("field `users.to_user` cannot be empty")
 	}
 
 	if len(u.ToCluster) == 0 {
-		return fmt.Errorf("field `initial_users.to_cluster` cannot be empty")
+		return fmt.Errorf("field `users.to_cluster` cannot be empty")
 	}
 
 	return checkOverflow(u.XXX, "initial_user")
@@ -214,10 +214,10 @@ func (u *ExecutionUser) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	if len(u.Name) == 0 {
-		return fmt.Errorf("field `execution_users.name` cannot be empty")
+		return fmt.Errorf("field `users.name` cannot be empty")
 	}
 
-	return checkOverflow(u.XXX, "execution_users")
+	return checkOverflow(u.XXX, "users")
 }
 
 // Loads and validates configuration from provided .yml file
