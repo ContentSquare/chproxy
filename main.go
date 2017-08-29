@@ -147,7 +147,7 @@ func newListener(laddr string, allowedNetworks []*config.Network) (*netListener,
 }
 
 func (ln *netListener) Accept() (net.Conn, error) {
-	conn, err := ln.Accept()
+	conn, err := ln.Listener.Accept()
 	if err != nil {
 		return nil, err
 	}

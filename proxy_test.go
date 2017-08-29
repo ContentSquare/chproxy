@@ -14,8 +14,8 @@ import (
 
 	"github.com/hagen1778/chproxy/config"
 	"github.com/hagen1778/chproxy/log"
-	"strings"
 	"net"
+	"strings"
 )
 
 func TestMain(m *testing.M) {
