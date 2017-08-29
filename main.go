@@ -74,7 +74,7 @@ func main() {
 	}
 
 	log.Infof("Serving http on %q", cfg.ListenAddr)
-	log.Fatalf("Server error: %s", newServer().Serve(ln))
+	log.Errorf("Server error: %s", newServer().Serve(ln))
 }
 
 func serveHTTP(rw http.ResponseWriter, r *http.Request) {
@@ -147,17 +147,21 @@ func newListener(laddr string, allowedNetworks []*config.Network) (*netListener,
 }
 
 func (ln *netListener) Accept() (net.Conn, error) {
-	conn, err := ln.Listener.Accept()
-	if err != nil {
-		return nil, err
-	}
+	for {
+		conn, err := ln.Listener.Accept()
+		if err != nil {
+			return nil, err
+		}
 
-	remoteAddr := conn.RemoteAddr().String()
-	if !isAllowedAddr(remoteAddr, ln.allowedNetworks) {
-		return nil, fmt.Errorf("connections are not allowed from %s", remoteAddr)
-	}
+		remoteAddr := conn.RemoteAddr().String()
+		if !isAllowedAddr(remoteAddr, ln.allowedNetworks) {
+			log.Errorf("connections are not allowed from %s", remoteAddr)
+			conn.Close()
+			continue
+		}
 
-	return conn, nil
+		return conn, nil
+	}
 }
 
 func newServer() *http.Server {
