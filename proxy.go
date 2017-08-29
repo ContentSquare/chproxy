@@ -129,6 +129,10 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 
 		clusterUsers := make(map[string]*clusterUser, len(c.ClusterUsers))
 		for _, u := range c.ClusterUsers {
+			if _, ok := clusterUsers[u.Name]; ok {
+				return fmt.Errorf("cluster user %q already exists", u.Name)
+			}
+
 			clusterUsers[u.Name] = &clusterUser{
 				name:                 u.Name,
 				password:             u.Password,
@@ -137,6 +141,9 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 			}
 		}
 
+		if _, ok := clusters[c.Name]; ok {
+			return fmt.Errorf("cluster %q already exists", c.Name)
+		}
 		clusters[c.Name] = newCluster(hosts, clusterUsers)
 	}
 
@@ -149,6 +156,10 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 
 		if _, ok := c.users[u.ToUser]; !ok {
 			return fmt.Errorf("error while mapping user %q to cluster's %q user %q: no such user", u.Name, u.ToCluster, u.ToUser)
+		}
+
+		if _, ok := users[u.Name]; ok {
+			return fmt.Errorf("user %q already exists", u.Name)
 		}
 
 		users[u.Name] = &user{
