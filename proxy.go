@@ -111,17 +111,6 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	log.Debugf("Request scope %s successfully proxied", s)
 }
 
-// Reloads configuration from passed file
-// return error if configuration is invalid
-func (rp *reverseProxy) ReloadConfig(file string) error {
-	cfg, err := config.LoadFile(file)
-	if err != nil {
-		return fmt.Errorf("can't load config %q: %s", file, err)
-	}
-
-	return rp.ApplyConfig(cfg)
-}
-
 // Applies provided config to reverseProxy
 // New config will be applied only if non-nil error returned
 func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
@@ -189,9 +178,6 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 	rp.clusters = clusters
 	rp.users = users
 	rp.Unlock()
-
-	// Next statement looks a bit outplaced. Still not sure where it must be placed
-	log.SetDebug(cfg.LogDebug)
 
 	return nil
 }

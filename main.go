@@ -29,6 +29,8 @@ func main() {
 	}
 	log.Infof("Loading config: %s", "success")
 
+	log.SetDebug(cfg.LogDebug)
+
 	if proxy, err = NewReverseProxy(cfg); err != nil {
 		log.Fatalf("error while creating proxy: %s", err)
 	}
@@ -40,11 +42,19 @@ func main() {
 			switch <-c {
 			case syscall.SIGHUP:
 				log.Infof("SIGHUP received. Going to reload config %s ...", *configFile)
-				if err := proxy.ReloadConfig(*configFile); err != nil {
-					log.Errorf("error while reloading config: %s", err)
-				} else {
-					log.Infof("Config successfully reloaded")
+				cfg, err := config.LoadFile(*configFile)
+				if err != nil {
+					log.Errorf("can't load config %q: %s", *configFile, err)
+					return
 				}
+
+				if err := proxy.ApplyConfig(cfg); err != nil {
+					log.Errorf("error while reloading config: %s", err)
+					return
+				}
+
+				log.SetDebug(cfg.LogDebug)
+				log.Infof("Config successfully reloaded")
 			}
 		}
 	}()
