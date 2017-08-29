@@ -24,7 +24,6 @@ func NewReverseProxy(cfg *config.Config) (*reverseProxy, error) {
 		ErrorLog: log.ErrorLogger,
 		Transport: &observableTransport{
 			http.Transport{
-				Proxy: http.ProxyFromEnvironment,
 				DialContext: (&net.Dialer{
 					KeepAlive: 30 * time.Second,
 					DualStack: true,
