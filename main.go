@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"flag"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"regexp"
 	"syscall"
 
 	"github.com/hagen1778/chproxy/config"
@@ -59,20 +62,17 @@ func main() {
 		}
 	}()
 
+	http.HandleFunc("/", serveHTTP)
+
 	if cfg.ListenTLSAddr != "" {
-		startTLS(cfg.ListenTLSAddr, cfg.CertCacheDir)
+		startTLS(cfg)
 	}
 
 	log.Infof("Serving http on %q", cfg.ListenAddr)
-	server := &http.Server{Addr: cfg.ListenAddr, Handler: handler}
-	log.Fatalf("Server error: %s", server.ListenAndServe())
+	log.Fatalf("Server error: %s", newServer(cfg.ListenAddr).ListenAndServe())
 }
 
-var handler = &httpHandler{}
-
-type httpHandler struct{}
-
-func (h *httpHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
 	case "/favicon.ico":
 	case "/metrics":
@@ -82,10 +82,10 @@ func (h *httpHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func startTLS(tlsAddr, dir string) {
-	ln, err := net.Listen("tcp4", tlsAddr)
+func startTLS(cfg *config.Config) {
+	ln, err := net.Listen("tcp4", cfg.ListenTLSAddr)
 	if err != nil {
-		log.Fatalf("cannot listen for -tlsAddr=%q: %s", tlsAddr, err)
+		log.Fatalf("cannot listen for -tlsAddr=%q: %s", cfg.ListenTLSAddr, err)
 	}
 
 	tlsConfig := tls.Config{
@@ -96,14 +96,36 @@ func startTLS(tlsAddr, dir string) {
 		},
 	}
 
+	var hostPolicy autocert.HostPolicy
+	if len(cfg.HostPolicyRegexp) != 0 {
+		hostPolicyRegexp, err := regexp.Compile(cfg.HostPolicyRegexp)
+		if err != nil {
+			log.Fatalf("cannot compile HostPolicyRegexp=%q: %s", cfg.HostPolicyRegexp, err)
+		}
+
+		hostPolicy = func(_ context.Context, host string) error {
+			if hostPolicyRegexp.MatchString(host) {
+				return nil
+			}
+			return fmt.Errorf("host %q doesn't match autocertHostsRegexp %q", host, cfg.HostPolicyRegexp)
+		}
+	}
+
 	m := autocert.Manager{
-		Prompt: autocert.AcceptTOS,
-		Cache:  autocert.DirCache(dir),
+		Prompt:     autocert.AcceptTOS,
+		Cache:      autocert.DirCache(cfg.CertCacheDir),
+		HostPolicy: hostPolicy,
 	}
 	tlsConfig.GetCertificate = m.GetCertificate
-
 	tlsLn := tls.NewListener(ln, &tlsConfig)
 
-	log.Infof("Serving https on %q", tlsAddr)
-	go http.Serve(tlsLn, handler)
+	log.Infof("Serving https on %q", cfg.ListenTLSAddr)
+	go log.Fatalf("TLS Server error: %s", newServer(cfg.ListenTLSAddr).Serve(tlsLn))
+}
+
+func newServer(addr string) *http.Server {
+	return &http.Server{
+		Addr:         addr,
+		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
+	}
 }
