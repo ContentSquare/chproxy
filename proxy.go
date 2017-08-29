@@ -151,11 +151,6 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 			return fmt.Errorf("error while mapping user %q to cluster's %q user %q: no such user", u.Name, u.ToCluster, u.ToUser)
 		}
 
-		allowedIPs, err := parseNetworks(u.AllowedNetworks)
-		if err != nil {
-			return fmt.Errorf("error while parsing user %q `allowed_networks` field: %s", u.Name, err)
-		}
-
 		users[u.Name] = &user{
 			clusterUser: clusterUser{
 				name:                 u.Name,
@@ -163,9 +158,9 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 				maxConcurrentQueries: u.MaxConcurrentQueries,
 				maxExecutionTime:     u.MaxExecutionTime,
 			},
-			toCluster:  u.ToCluster,
-			toUser:     u.ToUser,
-			allowedIPs: allowedIPs,
+			toCluster:       u.ToCluster,
+			toUser:          u.ToUser,
+			allowedNetworks: u.AllowedNetworks,
 		}
 	}
 
@@ -200,7 +195,7 @@ func (rp *reverseProxy) getRequestScope(req *http.Request) (*scope, error) {
 		return nil, fmt.Errorf("invalid username or password for user %q", name)
 	}
 
-	if !u.isAllowedAddr(req.RemoteAddr) {
+	if !isAllowedAddr(req.RemoteAddr, u.allowedNetworks) {
 		return nil, fmt.Errorf("user %q is not allowed to access from %s", name, req.RemoteAddr)
 	}
 

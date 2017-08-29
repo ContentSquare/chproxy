@@ -3,6 +3,7 @@ package config
 import (
 	"bytes"
 	"gopkg.in/yaml.v2"
+	"net"
 	"testing"
 	"time"
 )
@@ -53,11 +54,24 @@ func TestLoadConfig(t *testing.T) {
 				},
 				Users: []User{
 					{
-						Name:            "web",
-						Password:        "password",
-						AllowedNetworks: []string{"127.0.0.1", "1.2.3.0/24"},
-						ToCluster:       "second cluster",
-						ToUser:          "web",
+						Name:     "web",
+						Password: "password",
+						AllowedNetworks: []*Network{
+							{
+								IPNet: &net.IPNet{
+									net.IPv4(127, 0, 0, 1),
+									net.IPMask{255, 255, 255, 255},
+								},
+							},
+							{
+								IPNet: &net.IPNet{
+									net.IPv4(1, 2, 3, 0),
+									net.IPMask{255, 255, 255, 0},
+								},
+							},
+						},
+						ToCluster: "second cluster",
+						ToUser:    "web",
 					},
 					{
 						Name:                 "default",

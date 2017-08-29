@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
+	"net"
 	"strings"
 	"time"
 )
@@ -46,6 +47,11 @@ type Config struct {
 
 	// Whether to print debug logs
 	LogDebug bool `yaml:"log_debug,omitempty"`
+
+	// List of networks that access is allowed from
+	// Each list item could be IP address or subnet mask
+	// if omitted or zero - no limits would be applied
+	AllowedNetworks []*Network `yaml:"allowed_networks,omitempty"`
 
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
@@ -154,7 +160,7 @@ type User struct {
 	// List of networks that access is allowed from
 	// Each list item could be IP address or subnet mask
 	// if omitted or zero - no limits would be applied
-	AllowedNetworks []string `yaml:"allowed_networks,omitempty"`
+	AllowedNetworks []*Network `yaml:"allowed_networks,omitempty"`
 
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
@@ -180,6 +186,30 @@ func (u *User) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	return checkOverflow(u.XXX, "user")
+}
+
+type Network struct {
+	*net.IPNet
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (n *Network) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var s string
+	if err := unmarshal(&s); err != nil {
+		return err
+	}
+
+	if !strings.Contains(s, `/`) {
+		s += "/32"
+	}
+
+	_, ipnet, err := net.ParseCIDR(s)
+	if err != nil {
+		return err
+	}
+
+	n.IPNet = ipnet
+	return nil
 }
 
 // User struct describes simplest <users> configuration

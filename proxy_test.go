@@ -14,6 +14,8 @@ import (
 
 	"github.com/hagen1778/chproxy/config"
 	"github.com/hagen1778/chproxy/log"
+	"strings"
+	"net"
 )
 
 func TestMain(m *testing.M) {
@@ -274,27 +276,27 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 func TestReverseProxy_ServeHTTP2(t *testing.T) {
 	testCases := []struct {
 		name            string
-		allowedNetworks []string
+		allowedNetworks []*config.Network
 		expected        string
 	}{
 		{
 			name:            "empty allowed networks",
-			allowedNetworks: []string{},
+			allowedNetworks: []*config.Network{},
 			expected:        "Ok\n",
 		},
 		{
 			name:            "allow addr",
-			allowedNetworks: []string{"192.0.2.1"},
+			allowedNetworks: []*config.Network{getNetwork("192.0.2.1")},
 			expected:        "Ok\n",
 		},
 		{
 			name:            "allow addr by mask",
-			allowedNetworks: []string{"192.0.2.1/32"},
+			allowedNetworks: []*config.Network{getNetwork("192.0.2.1/32")},
 			expected:        "Ok\n",
 		},
 		{
 			name:            "disallow addr",
-			allowedNetworks: []string{"192.0.2.2/32", "192.0.2.2"},
+			allowedNetworks: []*config.Network{getNetwork("192.0.2.2/32"), getNetwork("192.0.2.2")},
 			expected:        "user \"default\" is not allowed to access from 192.0.2.1:1234",
 		},
 	}
@@ -309,6 +311,18 @@ func TestReverseProxy_ServeHTTP2(t *testing.T) {
 				t.Fatalf("expected response: %q; got: %q", tc.expected, resp)
 			}
 		})
+	}
+}
+
+func getNetwork(s string) *config.Network {
+	if !strings.Contains(s, `/`) {
+		s += "/32"
+	}
+
+	_, ipnet, _ := net.ParseCIDR(s)
+
+	return &config.Network{
+		ipnet,
 	}
 }
 

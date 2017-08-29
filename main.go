@@ -68,8 +68,13 @@ func main() {
 		startTLS(cfg)
 	}
 
+	ln, err := newListener(cfg.ListenAddr, cfg.AllowedNetworks)
+	if err != nil {
+		log.Fatalf("cannot listen for -addr=%q: %s", cfg.ListenAddr, err)
+	}
+
 	log.Infof("Serving http on %q", cfg.ListenAddr)
-	log.Fatalf("Server error: %s", newServer(cfg.ListenAddr).ListenAndServe())
+	log.Fatalf("Server error: %s", newServer().Serve(ln))
 }
 
 func serveHTTP(rw http.ResponseWriter, r *http.Request) {
@@ -83,7 +88,7 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 }
 
 func startTLS(cfg *config.Config) {
-	ln, err := net.Listen("tcp4", cfg.ListenTLSAddr)
+	ln, err := newListener(cfg.ListenTLSAddr, cfg.AllowedNetworks)
 	if err != nil {
 		log.Fatalf("cannot listen for -tlsAddr=%q: %s", cfg.ListenTLSAddr, err)
 	}
@@ -117,15 +122,46 @@ func startTLS(cfg *config.Config) {
 		HostPolicy: hostPolicy,
 	}
 	tlsConfig.GetCertificate = m.GetCertificate
-	tlsLn := tls.NewListener(ln, &tlsConfig)
 
+	tlsLn := tls.NewListener(ln, &tlsConfig)
 	log.Infof("Serving https on %q", cfg.ListenTLSAddr)
-	go log.Fatalf("TLS Server error: %s", newServer(cfg.ListenTLSAddr).Serve(tlsLn))
+	go log.Fatalf("TLS Server error: %s", newServer().Serve(tlsLn))
 }
 
-func newServer(addr string) *http.Server {
+type netListener struct {
+	net.Listener
+
+	allowedNetworks []*config.Network
+}
+
+func newListener(laddr string, allowedNetworks []*config.Network) (*netListener, error) {
+	ln, err := net.Listen("tcp4", laddr)
+	if err != nil {
+		log.Fatalf("cannot listen for %q: %s", laddr, err)
+	}
+
+	return &netListener{
+		Listener:        ln,
+		allowedNetworks: allowedNetworks,
+	}, nil
+}
+
+func (ln *netListener) Accept() (net.Conn, error) {
+	conn, err := ln.Accept()
+	if err != nil {
+		return nil, err
+	}
+
+	remoteAddr := conn.RemoteAddr().String()
+	if !isAllowedAddr(remoteAddr, ln.allowedNetworks) {
+		return nil, fmt.Errorf("connections are not allowed from %s", remoteAddr)
+	}
+
+	return conn, nil
+}
+
+func newServer() *http.Server {
 	return &http.Server{
-		Addr:         addr,
 		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 	}
 }

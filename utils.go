@@ -6,9 +6,9 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
+	"github.com/hagen1778/chproxy/config"
 	"github.com/hagen1778/chproxy/log"
 )
 
@@ -51,24 +51,28 @@ func basicAuth(req *http.Request) (string, string) {
 	return "default", ""
 }
 
-func parseNetworks(networks []string) ([]*net.IPNet, error) {
-	if len(networks) == 0 {
-		return nil, nil
+func isAllowedAddr(addr string, allowedNetworks []*config.Network) bool {
+	if len(allowedNetworks) == 0 {
+		return true
 	}
 
-	ipnets := make([]*net.IPNet, len(networks))
-	for i, network := range networks {
-		if !strings.Contains(network, `/`) {
-			network += "/32"
-		}
-
-		_, ipnet, err := net.ParseCIDR(network)
-		if err != nil {
-			return nil, err
-		}
-
-		ipnets[i] = ipnet
+	h, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		log.Errorf("BUG: unexpected error while parsing RemoteAddr: %s", err)
+		return false
 	}
 
-	return ipnets, nil
+	ip := net.ParseIP(h)
+	if ip == nil {
+		log.Errorf("BUG: unexpected error while parsing IP: %s", h)
+		return false
+	}
+
+	for _, ipnet := range allowedNetworks {
+		if ipnet.Contains(ip) {
+			return true
+		}
+	}
+
+	return false
 }
