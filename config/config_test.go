@@ -145,12 +145,12 @@ func TestBadConfig(t *testing.T) {
 		{
 			"empty nodes",
 			"testdata/bad.empty_nodes.yml",
-			"field `nodes` must contain at least 1 address",
+			"field `cluster.nodes` must contain at least 1 address",
 		},
 		{
 			"wrong scheme",
 			"testdata/bad.wrong_scheme.yml",
-			"field `scheme` must be `http` or `https`. Got \"tcp\" instead",
+			"field `cluster.scheme` must be `http` or `https`. Got \"tcp\" instead",
 		},
 	}
 

@@ -36,12 +36,12 @@ type Config struct {
 	// Path to the directory where letsencrypt certs are cached
 	CertCacheDir string `yaml:"cert_cache_dir,omitempty"`
 
-	// Whether to print debug logs
-	LogDebug bool `yaml:"log_debug,omitempty"`
-
 	Clusters []Cluster `yaml:"clusters"`
 
 	Users []User `yaml:"users"`
+
+	// Whether to print debug logs
+	LogDebug bool `yaml:"log_debug,omitempty"`
 
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
@@ -115,16 +115,20 @@ func (c *Cluster) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 
+	if len(c.Name) == 0 {
+		return fmt.Errorf("field `cluster.name` cannot be empty")
+	}
+
 	if len(c.Nodes) == 0 {
-		return fmt.Errorf("field `nodes` must contain at least 1 address")
+		return fmt.Errorf("field `cluster.nodes` must contain at least 1 address")
 	}
 
 	if len(c.ClusterUsers) == 0 {
-		return fmt.Errorf("field `users` must contain at least 1 user")
+		return fmt.Errorf("field `cluster.users` must contain at least 1 user")
 	}
 
 	if c.Scheme != "http" && c.Scheme != "https" {
-		return fmt.Errorf("field `scheme` must be `http` or `https`. Got %q instead", c.Scheme)
+		return fmt.Errorf("field `cluster.scheme` must be `http` or `https`. Got %q instead", c.Scheme)
 	}
 
 	return checkOverflow(c.XXX, "cluster")
@@ -172,15 +176,15 @@ func (u *User) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	if len(u.Name) == 0 {
-		return fmt.Errorf("field `users.name` cannot be empty")
+		return fmt.Errorf("field `user.name` cannot be empty")
 	}
 
 	if len(u.ToUser) == 0 {
-		return fmt.Errorf("field `users.to_user` cannot be empty")
+		return fmt.Errorf("field `user.to_user` cannot be empty")
 	}
 
 	if len(u.ToCluster) == 0 {
-		return fmt.Errorf("field `users.to_cluster` cannot be empty")
+		return fmt.Errorf("field `user.to_cluster` cannot be empty")
 	}
 
 	return checkOverflow(u.XXX, "user")
@@ -214,10 +218,10 @@ func (u *ClusterUser) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	if len(u.Name) == 0 {
-		return fmt.Errorf("field `users.name` cannot be empty")
+		return fmt.Errorf("field `cluster.user.name` cannot be empty")
 	}
 
-	return checkOverflow(u.XXX, "users")
+	return checkOverflow(u.XXX, "cluster.users")
 }
 
 // Loads and validates configuration from provided .yml file
