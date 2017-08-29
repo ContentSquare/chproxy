@@ -9,8 +9,8 @@ var (
 	requestSum        *prometheus.CounterVec
 	statusCodes       *prometheus.CounterVec
 	requestSuccess    *prometheus.CounterVec
-	initialTimeouts   *prometheus.CounterVec
-	executionTimeouts *prometheus.CounterVec
+	userTimeouts   *prometheus.CounterVec
+	clusterTimeouts *prometheus.CounterVec
 )
 
 func init() {
@@ -22,20 +22,20 @@ func init() {
 		[]string{"host", "code"},
 	)
 
-	initialTimeouts = prometheus.NewCounterVec(
+	userTimeouts = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "initial_timeouts",
 			Help: "Number of timeouts for initial user",
 		},
-		[]string{"initial_user", "host"},
+		[]string{"user", "host"},
 	)
 
-	executionTimeouts = prometheus.NewCounterVec(
+	clusterTimeouts = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "execution_timeouts",
 			Help: "Number of timeouts for execution user",
 		},
-		[]string{"execution_user", "host"},
+		[]string{"cluster_user", "host"},
 	)
 
 	errors = prometheus.NewCounterVec(
@@ -51,7 +51,7 @@ func init() {
 			Name: "request_sum",
 			Help: "Total number of sent requests",
 		},
-		[]string{"initial_user", "execution_user", "host"},
+		[]string{"user", "cluster_user", "host"},
 	)
 
 	requestSuccess = prometheus.NewCounterVec(
@@ -59,9 +59,9 @@ func init() {
 			Name: "request_success",
 			Help: "Total number of sent success requests",
 		},
-		[]string{"initial_user", "execution_user", "host"},
+		[]string{"user", "cluster_user", "host"},
 	)
 
-	prometheus.MustRegister(statusCodes, initialTimeouts, executionTimeouts, errors,
+	prometheus.MustRegister(statusCodes, userTimeouts, clusterTimeouts, errors,
 		requestSum, requestSuccess)
 }

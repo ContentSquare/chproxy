@@ -6,7 +6,7 @@ import (
 )
 
 func TestScope_RunningQueries(t *testing.T) {
-	eu := &executionUser{
+	eu := &clusterUser{
 		maxConcurrentQueries: 1,
 	}
 

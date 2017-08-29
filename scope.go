@@ -13,8 +13,8 @@ import (
 func (s *scope) String() string {
 	return fmt.Sprintf("[ Id: %d; User %q(%d) proxying as %q(%d) to %q(%d) ]",
 		s.id,
-		s.initialUser.name, s.initialUser.runningQueries(),
-		s.executionUser.name, s.executionUser.runningQueries(),
+		s.user.name, s.user.runningQueries(),
+		s.clusterUser.name, s.clusterUser.runningQueries(),
 		s.host.addr.Host, s.host.runningQueries())
 }
 
@@ -23,29 +23,29 @@ type scope struct {
 	id            uint64
 	host          *host
 	cluster       *cluster
-	initialUser   *initialUser
-	executionUser *executionUser
+	user   *user
+	clusterUser *clusterUser
 }
 
 var r = rand.New(rand.NewSource(time.Now().UnixNano()))
 
-func newScope(iu *initialUser, eu *executionUser, c *cluster) *scope {
+func newScope(iu *user, eu *clusterUser, c *cluster) *scope {
 	return &scope{
 		id:            r.Uint64(),
 		host:          c.getHost(),
 		cluster:       c,
-		initialUser:   iu,
-		executionUser: eu,
+		user:   iu,
+		clusterUser: eu,
 	}
 }
 
 func (s *scope) inc() error {
-	if err := s.initialUser.inc(); err != nil {
-		return fmt.Errorf("limits for initial user %q are exceeded: %s", s.initialUser.name, err)
+	if err := s.user.inc(); err != nil {
+		return fmt.Errorf("limits for user %q are exceeded: %s", s.user.name, err)
 	}
 
-	if err := s.executionUser.inc(); err != nil {
-		return fmt.Errorf("limits for execution user %q are exceeded: %s", s.executionUser.name, err)
+	if err := s.clusterUser.inc(); err != nil {
+		return fmt.Errorf("limits for cluster user %q are exceeded: %s", s.clusterUser.name, err)
 	}
 
 	s.host.inc()
@@ -54,19 +54,19 @@ func (s *scope) inc() error {
 
 func (s *scope) dec() {
 	s.host.dec()
-	s.initialUser.dec()
-	s.executionUser.dec()
+	s.user.dec()
+	s.clusterUser.dec()
 }
 
-type initialUser struct {
+type user struct {
 	toUser     string
 	toCluster  string
 	allowedIPs map[string]struct{}
 
-	executionUser
+	clusterUser
 }
 
-type executionUser struct {
+type clusterUser struct {
 	name, password       string
 	maxExecutionTime     time.Duration
 	maxConcurrentQueries uint32
@@ -74,7 +74,7 @@ type executionUser struct {
 	queryCounter
 }
 
-func (u *executionUser) inc() error {
+func (u *clusterUser) inc() error {
 	if u.maxConcurrentQueries > 0 && u.runningQueries() >= u.maxConcurrentQueries {
 		return fmt.Errorf("maxConcurrentQueries limit: %d", u.maxConcurrentQueries)
 	}
@@ -83,7 +83,7 @@ func (u *executionUser) inc() error {
 	return nil
 }
 
-func (u *executionUser) timeout() <-chan time.Time {
+func (u *clusterUser) timeout() <-chan time.Time {
 	if u.maxExecutionTime > 0 {
 		return time.After(u.maxExecutionTime)
 	}
@@ -101,10 +101,10 @@ type cluster struct {
 	sync.Mutex
 	nextIdx uint32
 	hosts   []*host
-	users   map[string]*executionUser
+	users   map[string]*clusterUser
 }
 
-func newCluster(h []*host, u map[string]*executionUser) *cluster {
+func newCluster(h []*host, u map[string]*clusterUser) *cluster {
 	return &cluster{
 		hosts:   h,
 		users:   u,

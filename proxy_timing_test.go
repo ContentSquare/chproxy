@@ -40,7 +40,7 @@ func BenchmarkReverseProxy_ServeHTTP(b *testing.B) {
 
 func newConfig() *config.Config {
 	newCfg := *goodCfg
-	newCfg.InitialUsers = []config.InitialUser{
+	newCfg.Users = []config.User{
 		{
 			Name:                 "default",
 			MaxConcurrentQueries: rand.Uint32(),

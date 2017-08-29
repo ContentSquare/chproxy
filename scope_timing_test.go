@@ -6,7 +6,7 @@ import (
 )
 
 func BenchmarkScope_RunningQueries(b *testing.B) {
-	eu := &executionUser{
+	eu := &clusterUser{
 		maxConcurrentQueries: 10,
 	}
 

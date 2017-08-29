@@ -24,7 +24,7 @@ func TestLoadConfig(t *testing.T) {
 						Name:   "first cluster",
 						Scheme: "http",
 						Nodes:  []string{"127.0.0.1:8123", "127.0.0.2:8123", "127.0.0.3:8123"},
-						ExecutionUsers: []ExecutionUser{
+						ClusterUsers: []ClusterUser{
 							{
 								Name:                 "web",
 								Password:             "password",
@@ -37,7 +37,7 @@ func TestLoadConfig(t *testing.T) {
 						Name:   "second cluster",
 						Scheme: "https",
 						Nodes:  []string{"127.0.1.1:8123", "127.0.1.2:8123"},
-						ExecutionUsers: []ExecutionUser{
+						ClusterUsers: []ClusterUser{
 							{
 								Name:                 "default",
 								MaxConcurrentQueries: 4,
@@ -51,7 +51,7 @@ func TestLoadConfig(t *testing.T) {
 						},
 					},
 				},
-				InitialUsers: []InitialUser{
+				Users: []User{
 					{
 						Name:            "web",
 						Password:        "password",
@@ -79,14 +79,14 @@ func TestLoadConfig(t *testing.T) {
 						Name:   "second cluster",
 						Scheme: "http",
 						Nodes:  []string{"127.0.1.1:8123"},
-						ExecutionUsers: []ExecutionUser{
+						ClusterUsers: []ClusterUser{
 							{
 								Name: "default",
 							},
 						},
 					},
 				},
-				InitialUsers: []InitialUser{
+				Users: []User{
 					{
 						Name:      "default",
 						ToCluster: "second cluster",

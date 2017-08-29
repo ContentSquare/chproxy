@@ -16,10 +16,10 @@ var (
 
 	defaultCluster = Cluster{
 		Scheme:         "http",
-		ExecutionUsers: []ExecutionUser{defaultExecutionUser},
+		ClusterUsers: []ClusterUser{defaultClusterUser},
 	}
 
-	defaultExecutionUser = ExecutionUser{
+	defaultClusterUser = ClusterUser{
 		Name: "default",
 	}
 )
@@ -41,7 +41,7 @@ type Config struct {
 
 	Clusters []Cluster `yaml:"clusters"`
 
-	InitialUsers []InitialUser `yaml:"users"`
+	Users []User `yaml:"users"`
 
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
@@ -69,7 +69,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 
-	if len(c.InitialUsers) == 0 {
+	if len(c.Users) == 0 {
 		return fmt.Errorf("field `users` must contain at least 1 user")
 	}
 
@@ -99,8 +99,8 @@ type Cluster struct {
 	// Nodes - list of nodes addresses
 	Nodes []string `yaml:"nodes"`
 
-	// ExecutionUsers - list of ClickHouse users
-	ExecutionUsers []ExecutionUser `yaml:"users"`
+	// ClusterUsers - list of ClickHouse users
+	ClusterUsers []ClusterUser `yaml:"users"`
 
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
@@ -119,7 +119,7 @@ func (c *Cluster) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("field `nodes` must contain at least 1 address")
 	}
 
-	if len(c.ExecutionUsers) == 0 {
+	if len(c.ClusterUsers) == 0 {
 		return fmt.Errorf("field `users` must contain at least 1 user")
 	}
 
@@ -130,9 +130,9 @@ func (c *Cluster) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return checkOverflow(c.XXX, "cluster")
 }
 
-// InitialUser struct describes list of allowed users
+// User struct describes list of allowed users
 // which requests will be proxied to ClickHouse
-type InitialUser struct {
+type User struct {
 	// User name
 	Name string `yaml:"name"`
 
@@ -143,7 +143,7 @@ type InitialUser struct {
 	// will be proxied
 	ToCluster string `yaml:"to_cluster"`
 
-	// ToUser is the name of execution_user from cluster's ToCluster
+	// ToUser is the name of cluster_user from cluster's ToCluster
 	// whom credentials will be used for proxying request to CH
 	ToUser string `yaml:"to_user"`
 
@@ -165,8 +165,8 @@ type InitialUser struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (u *InitialUser) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	type plain InitialUser
+func (u *User) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain User
 	if err := unmarshal((*plain)(u)); err != nil {
 		return err
 	}
@@ -183,11 +183,11 @@ func (u *InitialUser) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("field `users.to_cluster` cannot be empty")
 	}
 
-	return checkOverflow(u.XXX, "initial_user")
+	return checkOverflow(u.XXX, "user")
 }
 
 // User struct describes simplest <users> configuration
-type ExecutionUser struct {
+type ClusterUser struct {
 	// User name in ClickHouse users.xml config
 	Name string `yaml:"name"`
 
@@ -207,8 +207,8 @@ type ExecutionUser struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (u *ExecutionUser) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	type plain ExecutionUser
+func (u *ClusterUser) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain ClusterUser
 	if err := unmarshal((*plain)(u)); err != nil {
 		return err
 	}

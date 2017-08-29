@@ -29,14 +29,14 @@ var goodCfg = &config.Config{
 			Name:   "cluster",
 			Scheme: "http",
 			Nodes:  []string{"localhost:8123"},
-			ExecutionUsers: []config.ExecutionUser{
+			ClusterUsers: []config.ClusterUser{
 				{
 					Name: "web",
 				},
 			},
 		},
 	},
-	InitialUsers: []config.InitialUser{
+	Users: []config.User{
 		{
 			Name:      "default",
 			ToCluster: "cluster",
@@ -79,14 +79,14 @@ var badCfg = &config.Config{
 			Name:   "badCfg",
 			Scheme: "http",
 			Nodes:  []string{"localhost:8123"},
-			ExecutionUsers: []config.ExecutionUser{
+			ClusterUsers: []config.ClusterUser{
 				{
 					Name: "default",
 				},
 			},
 		},
 	},
-	InitialUsers: []config.InitialUser{
+	Users: []config.User{
 		{
 			Name:      "default",
 			ToCluster: "cluster",
@@ -116,14 +116,14 @@ var authCfg = &config.Config{
 			Name:   "cluster",
 			Scheme: "http",
 			Nodes:  []string{"localhost:8123"},
-			ExecutionUsers: []config.ExecutionUser{
+			ClusterUsers: []config.ClusterUser{
 				{
 					Name: "web",
 				},
 			},
 		},
 	},
-	InitialUsers: []config.InitialUser{
+	Users: []config.User{
 		{
 			Name:      "foo",
 			Password:  "bar",
@@ -144,48 +144,48 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 		}
 	})
 
-	t.Run("max concurrent queries for execution user", func(t *testing.T) {
+	t.Run("max concurrent queries for cluster user", func(t *testing.T) {
 		proxy := getProxy(t, goodCfg)
 		proxy.clusters["cluster"].users["web"].maxConcurrentQueries = 1
 		go makeHeavyRequest(proxy, time.Millisecond*20)
 		time.Sleep(time.Millisecond * 10)
 
-		expected := "limits for execution user \"web\" are exceeded: maxConcurrentQueries limit: 1"
+		expected := "limits for cluster user \"web\" are exceeded: maxConcurrentQueries limit: 1"
 		resp := makeRequest(proxy)
 		if resp != expected {
 			t.Fatalf("expected response: %q; got: %q", expected, resp)
 		}
 	})
 
-	t.Run("max execution time for execution user", func(t *testing.T) {
+	t.Run("max cluster time for cluster user", func(t *testing.T) {
 		proxy := getProxy(t, goodCfg)
 		proxy.clusters["cluster"].users["web"].maxExecutionTime = time.Millisecond * 10
 
-		expected := "timeout for execution user \"web\" exceeded: 10ms"
+		expected := "timeout for cluster user \"web\" exceeded: 10ms"
 		resp := makeHeavyRequest(proxy, time.Millisecond*20)
 		if resp != expected {
 			t.Fatalf("expected response: %q; got: %q", expected, resp)
 		}
 	})
 
-	t.Run("max concurrent queries for initial user", func(t *testing.T) {
+	t.Run("max concurrent queries for user", func(t *testing.T) {
 		proxy := getProxy(t, goodCfg)
 		proxy.users["default"].maxConcurrentQueries = 1
 		go makeHeavyRequest(proxy, time.Millisecond*20)
 		time.Sleep(time.Millisecond * 10)
 
-		expected := "limits for initial user \"default\" are exceeded: maxConcurrentQueries limit: 1"
+		expected := "limits for user \"default\" are exceeded: maxConcurrentQueries limit: 1"
 		resp := makeRequest(proxy)
 		if resp != expected {
 			t.Fatalf("expected response: %q; got: %q", expected, resp)
 		}
 	})
 
-	t.Run("max execution time for initial user", func(t *testing.T) {
+	t.Run("max cluster time for user", func(t *testing.T) {
 		proxy := getProxy(t, goodCfg)
 		proxy.users["default"].maxExecutionTime = time.Millisecond * 10
 
-		expected := "timeout for initial user \"default\" exceeded: 10ms"
+		expected := "timeout for user \"default\" exceeded: 10ms"
 		resp := makeHeavyRequest(proxy, time.Millisecond*20)
 		if resp != expected {
 			t.Fatalf("expected response: %q; got: %q", expected, resp)
@@ -301,7 +301,7 @@ func TestReverseProxy_ServeHTTP2(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			goodCfg.InitialUsers[0].AllowedNetworks = tc.allowedNetworks
+			goodCfg.Users[0].AllowedNetworks = tc.allowedNetworks
 			proxy := getProxy(t, goodCfg)
 			resp := makeRequest(proxy)
 

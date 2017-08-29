@@ -57,8 +57,8 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	defer s.dec()
 
 	label := prometheus.Labels{
-		"initial_user":   s.initialUser.name,
-		"execution_user": s.executionUser.name,
+		"user":   s.user.name,
+		"cluster_user": s.clusterUser.name,
 		"host":           s.host.addr.Host,
 	}
 	requestSum.With(label).Inc()
@@ -66,7 +66,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	req.URL.Scheme = s.host.addr.Scheme
 	req.URL.Host = s.host.addr.Host
 	// set custom User-Agent for proper handling of killQuery func
-	ua := fmt.Sprintf("ClickHouseProxy: %s", s.initialUser.name)
+	ua := fmt.Sprintf("ClickHouseProxy: %s", s.user.name)
 	req.Header.Set("User-Agent", ua)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -80,29 +80,29 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}()
 
 	select {
-	case <-s.initialUser.timeout():
+	case <-s.user.timeout():
 		cancel()
 		<-done
 
-		initialTimeouts.With(prometheus.Labels{
-			"initial_user": s.initialUser.name,
+		userTimeouts.With(prometheus.Labels{
 			"host":         s.host.addr.Host,
+			"user": s.user.name,
 		}).Inc()
 		condition := fmt.Sprintf("http_user_agent = '%s'", ua)
-		s.cluster.killQueries(condition, s.initialUser.maxExecutionTime.Seconds())
-		message := fmt.Sprintf("timeout for initial user %q exceeded: %v", s.initialUser.name, s.initialUser.maxExecutionTime)
+		s.cluster.killQueries(condition, s.user.maxExecutionTime.Seconds())
+		message := fmt.Sprintf("timeout for user %q exceeded: %v", s.user.name, s.user.maxExecutionTime)
 		rw.Write([]byte(message))
-	case <-s.executionUser.timeout():
+	case <-s.clusterUser.timeout():
 		cancel()
 		<-done
 
-		executionTimeouts.With(prometheus.Labels{
-			"execution_user": s.executionUser.name,
+		clusterTimeouts.With(prometheus.Labels{
 			"host":           s.host.addr.Host,
+			"cluster_user": s.clusterUser.name,
 		}).Inc()
-		condition := fmt.Sprintf("initial_user = '%s'", s.executionUser.name)
-		s.cluster.killQueries(condition, s.executionUser.maxExecutionTime.Seconds())
-		message := fmt.Sprintf("timeout for execution user %q exceeded: %v", s.executionUser.name, s.executionUser.maxExecutionTime)
+		condition := fmt.Sprintf("user = '%s'", s.clusterUser.name)
+		s.cluster.killQueries(condition, s.clusterUser.maxExecutionTime.Seconds())
+		message := fmt.Sprintf("timeout for cluster user %q exceeded: %v", s.clusterUser.name, s.clusterUser.maxExecutionTime)
 		rw.Write([]byte(message))
 	case <-done:
 		requestSuccess.With(label).Inc()
@@ -143,9 +143,9 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 			}
 		}
 
-		users := make(map[string]*executionUser, len(c.ExecutionUsers))
-		for _, u := range c.ExecutionUsers {
-			users[u.Name] = &executionUser{
+		clusterUsers := make(map[string]*clusterUser, len(c.ClusterUsers))
+		for _, u := range c.ClusterUsers {
+			clusterUsers[u.Name] = &clusterUser{
 				name:                 u.Name,
 				password:             u.Password,
 				maxConcurrentQueries: u.MaxConcurrentQueries,
@@ -153,11 +153,11 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 			}
 		}
 
-		clusters[c.Name] = newCluster(hosts, users)
+		clusters[c.Name] = newCluster(hosts, clusterUsers)
 	}
 
-	initialUsers := make(map[string]*initialUser, len(cfg.InitialUsers))
-	for _, u := range cfg.InitialUsers {
+	users := make(map[string]*user, len(cfg.Users))
+	for _, u := range cfg.Users {
 		c, ok := clusters[u.ToCluster]
 		if !ok {
 			return fmt.Errorf("error while mapping user %q to cluster %q: no such cluster", u.Name, u.ToCluster)
@@ -172,8 +172,8 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 			return fmt.Errorf("error while parsing user %q `allowed_networks` field: %s", u.Name, err)
 		}
 
-		initialUsers[u.Name] = &initialUser{
-			executionUser: executionUser{
+		users[u.Name] = &user{
+			clusterUser: clusterUser{
 				name:                 u.Name,
 				password:             u.Password,
 				maxConcurrentQueries: u.MaxConcurrentQueries,
@@ -187,7 +187,7 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 
 	rp.Lock()
 	rp.clusters = clusters
-	rp.users = initialUsers
+	rp.users = users
 	rp.Unlock()
 
 	// Next statement looks a bit outplaced. Still not sure where it must be placed
@@ -200,7 +200,7 @@ type reverseProxy struct {
 	*httputil.ReverseProxy
 
 	sync.Mutex
-	users    map[string]*initialUser
+	users    map[string]*user
 	clusters map[string]*cluster
 }
 
@@ -210,12 +210,12 @@ func (rp *reverseProxy) getRequestScope(req *http.Request) (*scope, error) {
 	rp.Lock()
 	defer rp.Unlock()
 
-	iu, ok := rp.users[name]
+	u, ok := rp.users[name]
 	if !ok {
 		return nil, fmt.Errorf("invalid username or password for user %q", name)
 	}
 
-	if iu.password != password {
+	if u.password != password {
 		return nil, fmt.Errorf("invalid username or password for user %q", name)
 	}
 
@@ -224,21 +224,21 @@ func (rp *reverseProxy) getRequestScope(req *http.Request) (*scope, error) {
 		return nil, fmt.Errorf("BUG: unexpected error while parsing RemoteAddr: %s", err)
 	}
 
-	if _, ok := iu.allowedIPs[ip]; !ok && iu.allowedIPs != nil {
+	if _, ok := u.allowedIPs[ip]; !ok && u.allowedIPs != nil {
 		return nil, fmt.Errorf("user %q is not allowed to access from %s", name, ip)
 	}
 
-	c, ok := rp.clusters[iu.toCluster]
+	c, ok := rp.clusters[u.toCluster]
 	if !ok {
-		return nil, fmt.Errorf("BUG: user %q matches to unknown cluster %q", iu.name, iu.toCluster)
+		return nil, fmt.Errorf("BUG: user %q matches to unknown cluster %q", u.name, u.toCluster)
 	}
 
-	eu, ok := c.users[iu.toUser]
+	cu, ok := c.users[u.toUser]
 	if !ok {
-		return nil, fmt.Errorf("BUG: user %q matches to unknown user %q at cluster %q", iu.name, iu.toUser, iu.toCluster)
+		return nil, fmt.Errorf("BUG: user %q matches to unknown user %q at cluster %q", u.name, u.toUser, u.toCluster)
 	}
 
-	return newScope(iu, eu, c), nil
+	return newScope(u, cu, c), nil
 }
 
 type observableTransport struct {
