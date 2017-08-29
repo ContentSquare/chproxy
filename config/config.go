@@ -15,7 +15,7 @@ var (
 	}
 
 	defaultCluster = Cluster{
-		Scheme:         "http",
+		Scheme:       "http",
 		ClusterUsers: []ClusterUser{defaultClusterUser},
 	}
 

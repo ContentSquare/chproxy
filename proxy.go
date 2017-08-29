@@ -57,9 +57,9 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	defer s.dec()
 
 	label := prometheus.Labels{
-		"user":   s.user.name,
+		"user":         s.user.name,
 		"cluster_user": s.clusterUser.name,
-		"host":           s.host.addr.Host,
+		"host":         s.host.addr.Host,
 	}
 	requestSum.With(label).Inc()
 
@@ -85,7 +85,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		<-done
 
 		userTimeouts.With(prometheus.Labels{
-			"host":         s.host.addr.Host,
+			"host": s.host.addr.Host,
 			"user": s.user.name,
 		}).Inc()
 		condition := fmt.Sprintf("http_user_agent = '%s'", ua)
@@ -97,7 +97,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		<-done
 
 		clusterTimeouts.With(prometheus.Labels{
-			"host":           s.host.addr.Host,
+			"host":         s.host.addr.Host,
 			"cluster_user": s.clusterUser.name,
 		}).Inc()
 		condition := fmt.Sprintf("user = '%s'", s.clusterUser.name)

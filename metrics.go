@@ -5,11 +5,11 @@ import (
 )
 
 var (
-	errors            *prometheus.CounterVec
-	requestSum        *prometheus.CounterVec
-	statusCodes       *prometheus.CounterVec
-	requestSuccess    *prometheus.CounterVec
-	userTimeouts   *prometheus.CounterVec
+	errors          *prometheus.CounterVec
+	requestSum      *prometheus.CounterVec
+	statusCodes     *prometheus.CounterVec
+	requestSuccess  *prometheus.CounterVec
+	userTimeouts    *prometheus.CounterVec
 	clusterTimeouts *prometheus.CounterVec
 )
 
