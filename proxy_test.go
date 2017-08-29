@@ -295,7 +295,7 @@ func TestReverseProxy_ServeHTTP2(t *testing.T) {
 		{
 			name:            "disallow addr",
 			allowedNetworks: []string{"192.0.2.2/32", "192.0.2.2"},
-			expected:        "user \"default\" is not allowed to access from 192.0.2.1",
+			expected:        "user \"default\" is not allowed to access from 192.0.2.1:1234",
 		},
 	}
 

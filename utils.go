@@ -51,40 +51,24 @@ func basicAuth(req *http.Request) (string, string) {
 	return "default", ""
 }
 
-func parseNetworks(networks []string) (map[string]struct{}, error) {
+func parseNetworks(networks []string) ([]*net.IPNet, error) {
 	if len(networks) == 0 {
 		return nil, nil
 	}
 
-	ips := make(map[string]struct{})
-	for _, network := range networks {
-		if strings.Contains(network, `/`) {
-			ip, ipnet, err := net.ParseCIDR(network)
-			if err != nil {
-				return nil, err
-			}
-
-			for ip := ip.Mask(ipnet.Mask); ipnet.Contains(ip); inc(ip) {
-				ips[ip.String()] = struct{}{}
-			}
-		} else {
-			ip := net.ParseIP(network)
-			if ip == nil {
-				return nil, fmt.Errorf("invalid IP")
-			}
-
-			ips[ip.String()] = struct{}{}
+	ipnets := make([]*net.IPNet, len(networks))
+	for i, network := range networks {
+		if !strings.Contains(network, `/`) {
+			network += "/32"
 		}
+
+		_, ipnet, err := net.ParseCIDR(network)
+		if err != nil {
+			return nil, err
+		}
+
+		ipnets[i] = ipnet
 	}
 
-	return ips, nil
-}
-
-func inc(ip net.IP) {
-	for j := len(ip) - 1; j >= 0; j-- {
-		ip[j]++
-		if ip[j] > 0 {
-			break
-		}
-	}
+	return ipnets, nil
 }

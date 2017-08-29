@@ -200,13 +200,8 @@ func (rp *reverseProxy) getRequestScope(req *http.Request) (*scope, error) {
 		return nil, fmt.Errorf("invalid username or password for user %q", name)
 	}
 
-	ip, _, err := net.SplitHostPort(req.RemoteAddr)
-	if err != nil {
-		return nil, fmt.Errorf("BUG: unexpected error while parsing RemoteAddr: %s", err)
-	}
-
-	if _, ok := u.allowedIPs[ip]; !ok && u.allowedIPs != nil {
-		return nil, fmt.Errorf("user %q is not allowed to access from %s", name, ip)
+	if !u.isAllowedAddr(req.RemoteAddr) {
+		return nil, fmt.Errorf("user %q is not allowed to access from %s", name, req.RemoteAddr)
 	}
 
 	c, ok := rp.clusters[u.toCluster]

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/hagen1778/chproxy/log"
+	"net"
 )
 
 func (s *scope) String() string {
@@ -61,9 +62,35 @@ func (s *scope) dec() {
 type user struct {
 	toUser     string
 	toCluster  string
-	allowedIPs map[string]struct{}
+	allowedIPs []*net.IPNet
 
 	clusterUser
+}
+
+func (u *user) isAllowedAddr(addr string) bool {
+	if len(u.allowedIPs) == 0 {
+		return true
+	}
+
+	h, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		log.Errorf("BUG: unexpected error while parsing RemoteAddr: %s", err)
+		return false
+	}
+
+	ip := net.ParseIP(h)
+	if ip == nil {
+		log.Errorf("BUG: unexpected error while parsing IP: %s", h)
+		return false
+	}
+
+	for _, ipnet := range u.allowedIPs {
+		if ipnet.Contains(ip) {
+			return true
+		}
+	}
+
+	return false
 }
 
 type clusterUser struct {
