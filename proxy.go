@@ -113,10 +113,6 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 // Applies provided config to reverseProxy
 // New config will be applied only if non-nil error returned
 func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
-	if err := cfg.Validate(); err != nil {
-		return err
-	}
-
 	clusters := make(map[string]*cluster, len(cfg.Clusters))
 	for _, c := range cfg.Clusters {
 		hosts := make([]*host, len(c.Nodes))

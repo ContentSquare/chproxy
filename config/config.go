@@ -47,18 +47,6 @@ type Config struct {
 	XXX map[string]interface{} `yaml:",inline"`
 }
 
-// Validates passed configuration by additional marshalling
-// to ensure that all rules and checks were applied
-func (c *Config) Validate() error {
-	content, err := yaml.Marshal(c)
-	if err != nil {
-		return fmt.Errorf("error while marshalling config: %s", err)
-	}
-
-	cfg := &Config{}
-	return yaml.Unmarshal([]byte(content), cfg)
-}
-
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*c = defaultConfig
