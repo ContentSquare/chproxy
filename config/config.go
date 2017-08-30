@@ -37,7 +37,7 @@ type Config struct {
 	// Path to the directory where letsencrypt certs are cached
 	CertCacheDir string `yaml:"cert_cache_dir,omitempty"`
 
-	// Regexp to validate host names to respond while serving TLS
+	// Regexp to validate which host names are allowed to respond to
 	// see https://godoc.org/golang.org/x/crypto/acme/autocert#HostPolicy
 	HostPolicyRegexp string `yaml:"host_policy_regexp,omitempty"`
 
@@ -51,7 +51,7 @@ type Config struct {
 	// List of networks that access is allowed from
 	// Each list item could be IP address or subnet mask
 	// if omitted or zero - no limits would be applied
-	AllowedNetworks []*Network `yaml:"allowed_networks,omitempty"`
+	Networks Networks `yaml:"allowed_networks,omitempty"`
 
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
@@ -160,7 +160,7 @@ type User struct {
 	// List of networks that access is allowed from
 	// Each list item could be IP address or subnet mask
 	// if omitted or zero - no limits would be applied
-	AllowedNetworks []*Network `yaml:"allowed_networks,omitempty"`
+	Networks Networks `yaml:"allowed_networks,omitempty"`
 
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
@@ -188,28 +188,56 @@ func (u *User) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return checkOverflow(u.XXX, "user")
 }
 
-type Network struct {
-	*net.IPNet
-}
+type Networks []*net.IPNet
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (n *Network) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var s string
-	if err := unmarshal(&s); err != nil {
+func (n *Networks) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var sl []string
+	if err := unmarshal(&sl); err != nil {
 		return err
 	}
 
-	if !strings.Contains(s, `/`) {
-		s += "/32"
+	networks := make(Networks, len(sl))
+	for i, s := range sl {
+		if !strings.Contains(s, `/`) {
+			s += "/32"
+		}
+
+		_, ipnet, err := net.ParseCIDR(s)
+		if err != nil {
+			return err
+		}
+
+		networks[i] = ipnet
 	}
 
-	_, ipnet, err := net.ParseCIDR(s)
-	if err != nil {
-		return err
-	}
+	*n = networks
 
-	n.IPNet = ipnet
 	return nil
+}
+
+func (an Networks) Allowed(addr string) (bool, error) {
+	if len(an) == 0 {
+		return true, nil
+	}
+
+	h, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return false, fmt.Errorf("BUG: unexpected error while parsing RemoteAddr: %s", err)
+	}
+
+	ip := net.ParseIP(h)
+	if ip == nil {
+		return false, fmt.Errorf("BUG: unexpected error while parsing IP: %s", h)
+	}
+
+	for _, ipnet := range an {
+		if ipnet.Contains(ip) {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 // User struct describes simplest <users> configuration

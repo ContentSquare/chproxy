@@ -56,18 +56,14 @@ func TestLoadConfig(t *testing.T) {
 					{
 						Name:     "web",
 						Password: "password",
-						AllowedNetworks: []*Network{
-							{
-								IPNet: &net.IPNet{
-									net.IPv4(127, 0, 0, 1),
-									net.IPMask{255, 255, 255, 255},
-								},
+						Networks: Networks{
+							&net.IPNet{
+								net.IPv4(127, 0, 0, 1),
+								net.IPMask{255, 255, 255, 255},
 							},
-							{
-								IPNet: &net.IPNet{
-									net.IPv4(1, 2, 3, 0),
-									net.IPMask{255, 255, 255, 0},
-								},
+							&net.IPNet{
+								net.IPv4(1, 2, 3, 0),
+								net.IPMask{255, 255, 255, 0},
 							},
 						},
 						ToCluster: "second cluster",

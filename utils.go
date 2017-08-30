@@ -3,12 +3,10 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
-	"net"
 	"net/http"
 	"net/url"
 	"time"
 
-	"github.com/hagen1778/chproxy/config"
 	"github.com/hagen1778/chproxy/log"
 )
 
@@ -49,30 +47,4 @@ func basicAuth(req *http.Request) (string, string) {
 	}
 
 	return "default", ""
-}
-
-func isAllowedAddr(addr string, allowedNetworks []*config.Network) bool {
-	if len(allowedNetworks) == 0 {
-		return true
-	}
-
-	h, _, err := net.SplitHostPort(addr)
-	if err != nil {
-		log.Errorf("BUG: unexpected error while parsing RemoteAddr: %s", err)
-		return false
-	}
-
-	ip := net.ParseIP(h)
-	if ip == nil {
-		log.Errorf("BUG: unexpected error while parsing IP: %s", h)
-		return false
-	}
-
-	for _, ipnet := range allowedNetworks {
-		if ipnet.Contains(ip) {
-			return true
-		}
-	}
-
-	return false
 }

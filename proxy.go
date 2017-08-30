@@ -171,7 +171,7 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 			},
 			toCluster:       u.ToCluster,
 			toUser:          u.ToUser,
-			allowedNetworks: u.AllowedNetworks,
+			allowedNetworks: u.Networks,
 		}
 	}
 
@@ -206,7 +206,12 @@ func (rp *reverseProxy) getRequestScope(req *http.Request) (*scope, error) {
 		return nil, fmt.Errorf("invalid username or password for user %q", name)
 	}
 
-	if !isAllowedAddr(req.RemoteAddr, u.allowedNetworks) {
+	ok, err := u.allowedNetworks.Allowed(req.RemoteAddr)
+	if err != nil {
+		return nil, fmt.Errorf("unexpected allowed networks err: %s", err)
+	}
+
+	if !ok {
 		return nil, fmt.Errorf("user %q is not allowed to access from %s", name, req.RemoteAddr)
 	}
 

@@ -62,7 +62,7 @@ func (s *scope) dec() {
 type user struct {
 	toUser          string
 	toCluster       string
-	allowedNetworks []*config.Network
+	allowedNetworks config.Networks
 
 	clusterUser
 }

@@ -68,13 +68,13 @@ func main() {
 		startTLS(cfg)
 	}
 
-	ln, err := newListener(cfg.ListenAddr, cfg.AllowedNetworks)
+	ln, err := newListener(cfg.ListenAddr, cfg.Networks)
 	if err != nil {
 		log.Fatalf("cannot listen for -addr=%q: %s", cfg.ListenAddr, err)
 	}
 
 	log.Infof("Serving http on %q", cfg.ListenAddr)
-	log.Errorf("Server error: %s", newServer().Serve(ln))
+	log.Fatalf("Server error: %s", newServer().Serve(ln))
 }
 
 func serveHTTP(rw http.ResponseWriter, r *http.Request) {
@@ -88,7 +88,7 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 }
 
 func startTLS(cfg *config.Config) {
-	ln, err := newListener(cfg.ListenTLSAddr, cfg.AllowedNetworks)
+	ln, err := newListener(cfg.ListenTLSAddr, cfg.Networks)
 	if err != nil {
 		log.Fatalf("cannot listen for -tlsAddr=%q: %s", cfg.ListenTLSAddr, err)
 	}
@@ -105,14 +105,15 @@ func startTLS(cfg *config.Config) {
 	if len(cfg.HostPolicyRegexp) != 0 {
 		hostPolicyRegexp, err := regexp.Compile(cfg.HostPolicyRegexp)
 		if err != nil {
-			log.Fatalf("cannot compile HostPolicyRegexp=%q: %s", cfg.HostPolicyRegexp, err)
+			log.Fatalf("cannot compile `host_policy_regexp`=%q: %s", cfg.HostPolicyRegexp, err)
 		}
 
 		hostPolicy = func(_ context.Context, host string) error {
 			if hostPolicyRegexp.MatchString(host) {
 				return nil
 			}
-			return fmt.Errorf("host %q doesn't match autocertHostsRegexp %q", host, cfg.HostPolicyRegexp)
+
+			return fmt.Errorf("host %q doesn't match `host_policy_regexp` %q", host, cfg.HostPolicyRegexp)
 		}
 	}
 
@@ -124,6 +125,7 @@ func startTLS(cfg *config.Config) {
 	tlsConfig.GetCertificate = m.GetCertificate
 
 	tlsLn := tls.NewListener(ln, &tlsConfig)
+
 	log.Infof("Serving https on %q", cfg.ListenTLSAddr)
 	go log.Fatalf("TLS Server error: %s", newServer().Serve(tlsLn))
 }
@@ -131,10 +133,10 @@ func startTLS(cfg *config.Config) {
 type netListener struct {
 	net.Listener
 
-	allowedNetworks []*config.Network
+	allowedNetworks config.Networks
 }
 
-func newListener(laddr string, allowedNetworks []*config.Network) (*netListener, error) {
+func newListener(laddr string, allowedNetworks config.Networks) (*netListener, error) {
 	ln, err := net.Listen("tcp4", laddr)
 	if err != nil {
 		log.Fatalf("cannot listen for %q: %s", laddr, err)
@@ -154,7 +156,14 @@ func (ln *netListener) Accept() (net.Conn, error) {
 		}
 
 		remoteAddr := conn.RemoteAddr().String()
-		if !isAllowedAddr(remoteAddr, ln.allowedNetworks) {
+		ok, err := ln.allowedNetworks.Allowed(remoteAddr)
+		if err != nil {
+			log.Errorf("listener allowed networks err: %s", err)
+			conn.Close()
+			continue
+		}
+
+		if !ok {
 			log.Errorf("connections are not allowed from %s", remoteAddr)
 			conn.Close()
 			continue

@@ -276,34 +276,34 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 func TestReverseProxy_ServeHTTP2(t *testing.T) {
 	testCases := []struct {
 		name            string
-		allowedNetworks []*config.Network
+		allowedNetworks config.Networks
 		expected        string
 	}{
 		{
 			name:            "empty allowed networks",
-			allowedNetworks: []*config.Network{},
+			allowedNetworks: config.Networks{},
 			expected:        "Ok\n",
 		},
 		{
 			name:            "allow addr",
-			allowedNetworks: []*config.Network{getNetwork("192.0.2.1")},
+			allowedNetworks: config.Networks{getNetwork("192.0.2.1")},
 			expected:        "Ok\n",
 		},
 		{
 			name:            "allow addr by mask",
-			allowedNetworks: []*config.Network{getNetwork("192.0.2.1/32")},
+			allowedNetworks: config.Networks{getNetwork("192.0.2.1/32")},
 			expected:        "Ok\n",
 		},
 		{
 			name:            "disallow addr",
-			allowedNetworks: []*config.Network{getNetwork("192.0.2.2/32"), getNetwork("192.0.2.2")},
+			allowedNetworks: config.Networks{getNetwork("192.0.2.2/32"), getNetwork("192.0.2.2")},
 			expected:        "user \"default\" is not allowed to access from 192.0.2.1:1234",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			goodCfg.Users[0].AllowedNetworks = tc.allowedNetworks
+			goodCfg.Users[0].Networks = tc.allowedNetworks
 			proxy := getProxy(t, goodCfg)
 			resp := makeRequest(proxy)
 
@@ -314,16 +314,14 @@ func TestReverseProxy_ServeHTTP2(t *testing.T) {
 	}
 }
 
-func getNetwork(s string) *config.Network {
+func getNetwork(s string) *net.IPNet {
 	if !strings.Contains(s, `/`) {
 		s += "/32"
 	}
 
 	_, ipnet, _ := net.ParseCIDR(s)
 
-	return &config.Network{
-		ipnet,
-	}
+	return ipnet
 }
 
 var fakeServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
