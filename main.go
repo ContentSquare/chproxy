@@ -156,7 +156,7 @@ func (ln *netListener) Accept() (net.Conn, error) {
 		}
 
 		remoteAddr := conn.RemoteAddr().String()
-		ok, err := ln.allowedNetworks.Allowed(remoteAddr)
+		ok, err := ln.allowedNetworks.Contains(remoteAddr)
 		if err != nil {
 			log.Errorf("listener allowed networks err: %s", err)
 			conn.Close()

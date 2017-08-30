@@ -216,7 +216,7 @@ func (n *Networks) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
-func (an Networks) Allowed(addr string) (bool, error) {
+func (an Networks) Contains(addr string) (bool, error) {
 	if len(an) == 0 {
 		return true, nil
 	}

@@ -206,7 +206,7 @@ func (rp *reverseProxy) getRequestScope(req *http.Request) (*scope, error) {
 		return nil, fmt.Errorf("invalid username or password for user %q", name)
 	}
 
-	ok, err := u.allowedNetworks.Allowed(req.RemoteAddr)
+	ok, err := u.allowedNetworks.Contains(req.RemoteAddr)
 	if err != nil {
 		return nil, fmt.Errorf("unexpected allowed networks err: %s", err)
 	}
