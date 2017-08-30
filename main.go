@@ -130,6 +130,12 @@ func startTLS(cfg *config.Config) {
 	go log.Fatalf("TLS Server error: %s", newServer().Serve(tlsLn))
 }
 
+func newServer() *http.Server {
+	return &http.Server{
+		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
+	}
+}
+
 type netListener struct {
 	net.Listener
 
@@ -170,11 +176,5 @@ func (ln *netListener) Accept() (net.Conn, error) {
 		}
 
 		return conn, nil
-	}
-}
-
-func newServer() *http.Server {
-	return &http.Server{
-		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 	}
 }
