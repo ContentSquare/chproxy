@@ -20,6 +20,12 @@ func TestLoadConfig(t *testing.T) {
 			Config{
 				ListenAddr: ":9090",
 				LogDebug:   true,
+				Networks: Networks{
+					&net.IPNet{
+						net.IPv4(127, 0, 0, 0),
+						net.IPMask{255, 255, 255, 0},
+					},
+				},
 				Clusters: []Cluster{
 					{
 						Name:   "first cluster",
