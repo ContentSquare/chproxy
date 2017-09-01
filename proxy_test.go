@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,8 +16,6 @@ import (
 
 	"github.com/hagen1778/chproxy/config"
 	"github.com/hagen1778/chproxy/log"
-	"net"
-	"strings"
 )
 
 func TestMain(m *testing.M) {
