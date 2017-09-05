@@ -216,8 +216,8 @@ func (n *Networks) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
-func (an Networks) Contains(addr string) bool {
-	if len(an) == 0 {
+func (n Networks) Contains(addr string) bool {
+	if len(n) == 0 {
 		return true
 	}
 
@@ -231,7 +231,7 @@ func (an Networks) Contains(addr string) bool {
 		panic(fmt.Sprintf("BUG: unexpected error while parsing IP: %s", h))
 	}
 
-	for _, ipnet := range an {
+	for _, ipnet := range n {
 		if ipnet.Contains(ip) {
 			return true
 		}
