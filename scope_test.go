@@ -46,17 +46,19 @@ func TestScope_RunningQueries(t *testing.T) {
 		}
 	}
 
+	// initial check
 	check(0, 0, 0)
 
 	if err := s.inc(); err != nil {
 		t.Fatalf("unexpected err: %s", err)
 	}
+	// check after first increase
 	check(1, 1, 1)
 
+	// next inc expected to hit limits
 	if err := s.inc(); err == nil {
 		t.Fatalf("error expected while call .inc()")
 	}
-
 	u2 := &user{
 		clusterUser: clusterUser{
 			maxConcurrentQueries: 1,
@@ -66,6 +68,7 @@ func TestScope_RunningQueries(t *testing.T) {
 	if err := s.inc(); err != nil {
 		t.Fatalf("unexpected err: %s", err)
 	}
+	// inc with different user, but with the same cluster
 	check(1, 2, 2)
 
 	s.dec()
