@@ -27,13 +27,13 @@ type scope struct {
 	clusterUser *clusterUser
 }
 
-func newScope(iu *user, eu *clusterUser, c *cluster) *scope {
+func newScope(u *user, cu *clusterUser, c *cluster) *scope {
 	return &scope{
 		id:          rand.Uint64(),
 		host:        c.getHost(),
 		cluster:     c,
-		user:        iu,
-		clusterUser: eu,
+		user:        u,
+		clusterUser: cu,
 	}
 }
 
@@ -95,16 +95,16 @@ type cluster struct {
 	users   map[string]*clusterUser
 }
 
-func newCluster(h []*host, u map[string]*clusterUser) *cluster {
+func newCluster(h []*host, cu map[string]*clusterUser) *cluster {
 	return &cluster{
 		hosts:   h,
-		users:   u,
+		users:   cu,
 		nextIdx: uint32(time.Now().UnixNano()),
 	}
 }
 
 // We don't use query_id because of distributed processing, the query ID is not passed to remote servers
-func (c *cluster) killQueries(condition string, elapsed float64) {
+func (c *cluster) killQueries(ua string, elapsed float64) {
 	c.Lock()
 	addrs := make([]string, len(c.hosts))
 	for i, host := range c.hosts {
@@ -112,7 +112,7 @@ func (c *cluster) killQueries(condition string, elapsed float64) {
 	}
 	c.Unlock()
 
-	q := fmt.Sprintf("KILL QUERY WHERE %s AND elapsed >= %d", condition, int(elapsed))
+	q := fmt.Sprintf("KILL QUERY WHERE http_user_agent = '%s' AND elapsed >= %d", ua, int(elapsed))
 	log.Debugf("ExecutionTime exceeded. Going to call query %q for hosts %v", q, addrs)
 	for _, addr := range addrs {
 		if err := doQuery(q, addr); err != nil {
@@ -154,7 +154,7 @@ func (c *cluster) getHost() *host {
 }
 
 type queryCounter struct {
-	mu sync.Mutex
+	mu    sync.Mutex
 	value uint32
 }
 

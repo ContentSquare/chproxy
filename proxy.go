@@ -69,42 +69,44 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	ua := fmt.Sprintf("ClickHouseProxy: %s", s.user.name)
 	req.Header.Set("User-Agent", ua)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	var (
+		timeout        time.Duration
+		timeoutCounter prometheus.Counter
+		timeoutMessage string
+	)
+	ctx := context.Background()
+	if s.user.maxExecutionTime > 0 || s.clusterUser.maxExecutionTime > 0 {
+		if s.user.maxExecutionTime > 0 {
+			timeout = s.user.maxExecutionTime
+			timeoutCounter = userTimeouts.With(prometheus.Labels{
+				"host": s.host.addr.Host,
+				"user": s.user.name,
+			})
+			timeoutMessage = fmt.Sprintf("timeout for user %q exceeded: %v", s.user.name, timeout)
+		}
+
+		if timeout == 0 || (s.clusterUser.maxExecutionTime > 0 && s.clusterUser.maxExecutionTime < timeout) {
+			timeout = s.clusterUser.maxExecutionTime
+			timeoutCounter = clusterTimeouts.With(prometheus.Labels{
+				"host":         s.host.addr.Host,
+				"cluster_user": s.clusterUser.name,
+			})
+			timeoutMessage = fmt.Sprintf("timeout for cluster user %q exceeded: %v", s.clusterUser.name, timeout)
+		}
+
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
 	req = req.WithContext(ctx)
 
-	done := make(chan struct{})
-	go func() {
-		rp.ReverseProxy.ServeHTTP(rw, req)
-		done <- struct{}{}
-	}()
+	rp.ReverseProxy.ServeHTTP(rw, req)
 
-	select {
-	case <-s.user.timeout():
-		cancel()
-		<-done
-
-		userTimeouts.With(prometheus.Labels{
-			"host": s.host.addr.Host,
-			"user": s.user.name,
-		}).Inc()
-		condition := fmt.Sprintf("http_user_agent = '%s'", ua)
-		s.cluster.killQueries(condition, s.user.maxExecutionTime.Seconds())
-		message := fmt.Sprintf("timeout for user %q exceeded: %v", s.user.name, s.user.maxExecutionTime)
-		rw.Write([]byte(message))
-	case <-s.clusterUser.timeout():
-		cancel()
-		<-done
-
-		clusterTimeouts.With(prometheus.Labels{
-			"host":         s.host.addr.Host,
-			"cluster_user": s.clusterUser.name,
-		}).Inc()
-		condition := fmt.Sprintf("user = '%s'", s.clusterUser.name)
-		s.cluster.killQueries(condition, s.clusterUser.maxExecutionTime.Seconds())
-		message := fmt.Sprintf("timeout for cluster user %q exceeded: %v", s.clusterUser.name, s.clusterUser.maxExecutionTime)
-		rw.Write([]byte(message))
-	case <-done:
+	if req.Context().Err() != nil {
+		timeoutCounter.Inc()
+		s.cluster.killQueries(ua, timeout.Seconds())
+		rw.Write([]byte(timeoutMessage))
+	} else {
 		requestSuccess.With(label).Inc()
 	}
 
@@ -187,7 +189,7 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 type reverseProxy struct {
 	*httputil.ReverseProxy
 
-	mu sync.Mutex
+	mu       sync.Mutex
 	users    map[string]*user
 	clusters map[string]*cluster
 }

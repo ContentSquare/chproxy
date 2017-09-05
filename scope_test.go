@@ -3,28 +3,74 @@ package main
 import (
 	"net/url"
 	"testing"
+	"time"
+)
+
+var (
+	cu = &clusterUser{
+		maxConcurrentQueries: 2,
+	}
+
+	c = &cluster{
+		hosts: []*host{
+			{
+				addr: &url.URL{Host: "127.0.0.1"},
+			},
+		},
+		users: map[string]*clusterUser{
+			"cu": cu,
+		},
+		nextIdx: uint32(time.Now().UnixNano()),
+	}
 )
 
 func TestScope_RunningQueries(t *testing.T) {
-	eu := &clusterUser{
-		maxConcurrentQueries: 1,
+	u1 := &user{
+		clusterUser: clusterUser{
+			maxConcurrentQueries: 1,
+		},
+	}
+	s := newScope(u1, cu, c)
+
+	check := func(uq, cuq, hq uint32) {
+		if s.user.runningQueries() != uq {
+			t.Fatalf("expected runningQueries for user: %d; got: %d", uq, s.user.runningQueries())
+		}
+
+		if s.clusterUser.runningQueries() != cuq {
+			t.Fatalf("expected runningQueries for cluster user: %d; got: %d", cuq, s.clusterUser.runningQueries())
+		}
+
+		if s.host.runningQueries() != hq {
+			t.Fatalf("expected runningQueries for host: %d; got: %d", hq, s.host.runningQueries())
+		}
 	}
 
-	if err := eu.inc(); err != nil {
+	check(0, 0, 0)
+
+	if err := s.inc(); err != nil {
 		t.Fatalf("unexpected err: %s", err)
 	}
+	check(1, 1, 1)
 
-	if eu.runningQueries() != 1 {
-		t.Fatalf("expected runningQueries: 1; got: %d", eu.runningQueries())
-	}
-
-	if err := eu.inc(); err == nil {
+	if err := s.inc(); err == nil {
 		t.Fatalf("error expected while call .inc()")
 	}
 
-	eu.dec()
+	u2 := &user{
+		clusterUser: clusterUser{
+			maxConcurrentQueries: 1,
+		},
+	}
+	s = newScope(u2, cu, c)
+	if err := s.inc(); err != nil {
+		t.Fatalf("unexpected err: %s", err)
+	}
+	check(1, 2, 2)
 
-	if err := eu.inc(); err != nil {
+	s.dec()
+	check(0, 1, 1)
+	if err := s.inc(); err != nil {
 		t.Fatalf("unexpected err: %s", err)
 	}
 }
