@@ -37,7 +37,6 @@ func main() {
 	log.Infof("Loading config: %s", "success")
 
 	networks.Store(cfg.Networks)
-
 	log.SetDebug(cfg.LogDebug)
 
 	if proxy, err = NewReverseProxy(cfg); err != nil {
@@ -86,7 +85,6 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 	case "/metrics":
 		promHandler.ServeHTTP(rw, r)
 	case "/":
-		fmt.Println("HERE")
 		proxy.ServeHTTP(rw, r)
 	}
 }
@@ -114,7 +112,7 @@ func newListener(laddr string) *netListener {
 	}
 
 	return &netListener{
-		Listener: ln,
+		ln,
 	}
 }
 
