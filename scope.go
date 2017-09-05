@@ -39,14 +39,16 @@ func newScope(iu *user, eu *clusterUser, c *cluster) *scope {
 }
 
 func (s *scope) inc() error {
-	if err := s.user.inc(); err != nil {
-		return fmt.Errorf("limits for user %q are exceeded: %s", s.user.name, err)
+	if s.user.maxConcurrentQueries > 0 && s.user.runningQueries() >= s.user.maxConcurrentQueries {
+		return fmt.Errorf("limits for user %q are exceeded: maxConcurrentQueries limit: %d", s.user.name, s.user.maxConcurrentQueries)
 	}
 
-	if err := s.clusterUser.inc(); err != nil {
-		return fmt.Errorf("limits for cluster user %q are exceeded: %s", s.clusterUser.name, err)
+	if s.clusterUser.maxConcurrentQueries > 0 && s.clusterUser.runningQueries() >= s.clusterUser.maxConcurrentQueries {
+		return fmt.Errorf("limits for cluster user %q are exceeded: maxConcurrentQueries limit: %d", s.clusterUser.name, s.clusterUser.maxConcurrentQueries)
 	}
 
+	s.user.inc()
+	s.clusterUser.inc()
 	s.host.inc()
 	return nil
 }
@@ -71,15 +73,6 @@ type clusterUser struct {
 	maxConcurrentQueries uint32
 
 	queryCounter
-}
-
-func (u *clusterUser) inc() error {
-	if u.maxConcurrentQueries > 0 && u.runningQueries() >= u.maxConcurrentQueries {
-		return fmt.Errorf("maxConcurrentQueries limit: %d", u.maxConcurrentQueries)
-	}
-
-	u.queryCounter.inc()
-	return nil
 }
 
 func (u *clusterUser) timeout() <-chan time.Time {
@@ -162,25 +155,24 @@ func (c *cluster) getHost() *host {
 }
 
 type queryCounter struct {
-	sync.Mutex
+	mu sync.Mutex
 	value uint32
 }
 
 func (qc *queryCounter) runningQueries() uint32 {
-	qc.Lock()
-	defer qc.Unlock()
-
+	qc.mu.Lock()
+	defer qc.mu.Unlock()
 	return qc.value
 }
 
 func (qc *queryCounter) inc() {
-	qc.Lock()
+	qc.mu.Lock()
 	qc.value++
-	qc.Unlock()
+	qc.mu.Unlock()
 }
 
 func (qc *queryCounter) dec() {
-	qc.Lock()
+	qc.mu.Lock()
 	qc.value--
-	qc.Unlock()
+	qc.mu.Unlock()
 }

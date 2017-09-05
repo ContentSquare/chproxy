@@ -50,6 +50,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	log.Debugf("Request scope %s", s)
 
 	if err = s.inc(); err != nil {
+		//no need in dec() if we got an error
 		respondWithErr(rw, err)
 		return
 	}
