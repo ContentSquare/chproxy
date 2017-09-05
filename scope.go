@@ -19,7 +19,6 @@ func (s *scope) String() string {
 		s.host.addr.Host, s.host.runningQueries())
 }
 
-// TODO: rethink scope because it looks weird
 type scope struct {
 	id          uint64
 	host        *host
