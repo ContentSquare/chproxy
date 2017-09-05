@@ -62,45 +62,56 @@ func main() {
 		}
 	}()
 
-	http.HandleFunc("/", serveHTTP)
-
 	if cfg.ListenTLSAddr != "" {
-		startTLS(cfg)
-	}
-
-	ln, err := newListener(cfg.ListenAddr, cfg.Networks)
-	if err != nil {
-		log.Fatalf("cannot listen for -addr=%q: %s", cfg.ListenAddr, err)
+		log.Infof("Serving https on %q", cfg.ListenTLSAddr)
+		go listenAndServe(cfg, true)
 	}
 
 	log.Infof("Serving http on %q", cfg.ListenAddr)
-	log.Fatalf("Server error: %s", newServer().Serve(ln))
+	listenAndServe(cfg, false)
 }
+
+var promHandler = promhttp.Handler()
 
 func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
 	case "/favicon.ico":
 	case "/metrics":
-		promhttp.Handler().ServeHTTP(rw, r)
+		promHandler.ServeHTTP(rw, r)
 	case "/":
 		proxy.ServeHTTP(rw, r)
 	}
 }
 
-func startTLS(cfg *config.Config) {
-	ln, err := newListener(cfg.ListenTLSAddr, cfg.Networks)
+func listenAndServe(cfg *config.Config, isTLS bool) {
+	var ln net.Listener
+	if !isTLS {
+		ln = newListener(cfg.ListenAddr, cfg.Networks)
+	} else {
+		ln = newTLSListener(cfg)
+	}
+
+	s := &http.Server{
+		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
+		Handler:      http.HandlerFunc(serveHTTP),
+	}
+
+	log.Fatalf("Server error: %s", s.Serve(ln))
+}
+
+func newListener(laddr string, allowedNetworks config.Networks) *netListener {
+	ln, err := net.Listen("tcp4", laddr)
 	if err != nil {
-		log.Fatalf("cannot listen for -tlsAddr=%q: %s", cfg.ListenTLSAddr, err)
+		log.Fatalf("cannot listen for %q: %s", laddr, err)
 	}
 
-	tlsConfig := tls.Config{
-		PreferServerCipherSuites: true,
-		CurvePreferences: []tls.CurveID{
-			tls.CurveP256,
-			tls.X25519,
-		},
+	return &netListener{
+		Listener:        ln,
+		allowedNetworks: allowedNetworks,
 	}
+}
 
+func newTLSListener(cfg *config.Config) net.Listener {
 	var hostPolicy autocert.HostPolicy
 	if len(cfg.HostPolicyRegexp) != 0 {
 		hostPolicyRegexp, err := regexp.Compile(cfg.HostPolicyRegexp)
@@ -122,36 +133,23 @@ func startTLS(cfg *config.Config) {
 		Cache:      autocert.DirCache(cfg.CertCacheDir),
 		HostPolicy: hostPolicy,
 	}
-	tlsConfig.GetCertificate = m.GetCertificate
 
-	tlsLn := tls.NewListener(ln, &tlsConfig)
-
-	log.Infof("Serving https on %q", cfg.ListenTLSAddr)
-	go log.Fatalf("TLS Server error: %s", newServer().Serve(tlsLn))
-}
-
-func newServer() *http.Server {
-	return &http.Server{
-		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
+	ln := newListener(cfg.ListenTLSAddr, cfg.Networks)
+	tlsConfig := tls.Config{
+		PreferServerCipherSuites: true,
+		CurvePreferences: []tls.CurveID{
+			tls.CurveP256,
+			tls.X25519,
+		},
 	}
+	tlsConfig.GetCertificate = m.GetCertificate
+	return tls.NewListener(ln, &tlsConfig)
 }
 
 type netListener struct {
 	net.Listener
 
 	allowedNetworks config.Networks
-}
-
-func newListener(laddr string, allowedNetworks config.Networks) (*netListener, error) {
-	ln, err := net.Listen("tcp4", laddr)
-	if err != nil {
-		log.Fatalf("cannot listen for %q: %s", laddr, err)
-	}
-
-	return &netListener{
-		Listener:        ln,
-		allowedNetworks: allowedNetworks,
-	}, nil
 }
 
 func (ln *netListener) Accept() (net.Conn, error) {
