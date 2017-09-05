@@ -28,11 +28,9 @@ type scope struct {
 	clusterUser *clusterUser
 }
 
-var r = rand.New(rand.NewSource(time.Now().UnixNano()))
-
 func newScope(iu *user, eu *clusterUser, c *cluster) *scope {
 	return &scope{
-		id:          r.Uint64(),
+		id:          rand.Uint64(),
 		host:        c.getHost(),
 		cluster:     c,
 		user:        iu,
