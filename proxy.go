@@ -88,8 +88,8 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		if timeout == 0 || (s.clusterUser.maxExecutionTime > 0 && s.clusterUser.maxExecutionTime < timeout) {
 			timeout = s.clusterUser.maxExecutionTime
 			timeoutCounter = clusterTimeouts.With(prometheus.Labels{
-				"host":         s.host.addr.Host,
-				"cluster_user": s.clusterUser.name,
+				"host": s.host.addr.Host,
+				"user": s.clusterUser.name,
 			})
 			timeoutMessage = fmt.Sprintf("timeout for cluster user %q exceeded: %v", s.clusterUser.name, timeout)
 		}

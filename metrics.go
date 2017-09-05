@@ -33,7 +33,7 @@ func init() {
 			Name: "execution_timeouts",
 			Help: "Number of timeouts for execution user",
 		},
-		[]string{"cluster_user", "host"},
+		[]string{"user", "host"},
 	)
 
 	errors = prometheus.NewCounterVec(
