@@ -106,10 +106,10 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		timeoutCounter.Inc()
 		s.cluster.killQueries(ua, timeout.Seconds())
 		rw.Write([]byte(timeoutMessage))
-	} else {
-		requestSuccess.With(label).Inc()
+		return
 	}
 
+	requestSuccess.With(label).Inc()
 	log.Debugf("Request scope %s successfully proxied", s)
 }
 
