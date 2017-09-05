@@ -159,8 +159,43 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 		}
 	})
 
-	t.Run("max cluster time for cluster user", func(t *testing.T) {
+	t.Run("max time for cluster user", func(t *testing.T) {
 		proxy := getProxy(t, goodCfg)
+		proxy.clusters["cluster"].users["web"].maxExecutionTime = time.Millisecond * 10
+
+		expected := "timeout for cluster user \"web\" exceeded: 10ms"
+		resp := makeHeavyRequest(proxy, time.Millisecond*20)
+		if resp != expected {
+			t.Fatalf("expected response: %q; got: %q", expected, resp)
+		}
+	})
+
+	t.Run("max time for user", func(t *testing.T) {
+		proxy := getProxy(t, goodCfg)
+		proxy.users["default"].maxExecutionTime = time.Millisecond * 10
+
+		expected := "timeout for user \"default\" exceeded: 10ms"
+		resp := makeHeavyRequest(proxy, time.Millisecond*20)
+		if resp != expected {
+			t.Fatalf("expected response: %q; got: %q", expected, resp)
+		}
+	})
+
+	t.Run("choose max time between users", func(t *testing.T) {
+		proxy := getProxy(t, goodCfg)
+		proxy.users["default"].maxExecutionTime = time.Millisecond * 10
+		proxy.clusters["cluster"].users["web"].maxExecutionTime = time.Millisecond * 15
+
+		expected := "timeout for user \"default\" exceeded: 10ms"
+		resp := makeHeavyRequest(proxy, time.Millisecond*20)
+		if resp != expected {
+			t.Fatalf("expected response: %q; got: %q", expected, resp)
+		}
+	})
+
+	t.Run("choose max time between users2", func(t *testing.T) {
+		proxy := getProxy(t, goodCfg)
+		proxy.users["default"].maxExecutionTime = time.Millisecond * 15
 		proxy.clusters["cluster"].users["web"].maxExecutionTime = time.Millisecond * 10
 
 		expected := "timeout for cluster user \"web\" exceeded: 10ms"
@@ -178,17 +213,6 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 
 		expected := "limits for user \"default\" are exceeded: maxConcurrentQueries limit: 1"
 		resp := makeRequest(proxy)
-		if resp != expected {
-			t.Fatalf("expected response: %q; got: %q", expected, resp)
-		}
-	})
-
-	t.Run("max cluster time for user", func(t *testing.T) {
-		proxy := getProxy(t, goodCfg)
-		proxy.users["default"].maxExecutionTime = time.Millisecond * 10
-
-		expected := "timeout for user \"default\" exceeded: 10ms"
-		resp := makeHeavyRequest(proxy, time.Millisecond*20)
 		if resp != expected {
 			t.Fatalf("expected response: %q; got: %q", expected, resp)
 		}
