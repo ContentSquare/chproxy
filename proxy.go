@@ -175,10 +175,10 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 		}
 	}
 
-	rp.Lock()
+	rp.mu.Lock()
 	rp.clusters = clusters
 	rp.users = users
-	rp.Unlock()
+	rp.mu.Unlock()
 
 	return nil
 }
@@ -186,7 +186,7 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 type reverseProxy struct {
 	*httputil.ReverseProxy
 
-	sync.Mutex
+	mu sync.Mutex
 	users    map[string]*user
 	clusters map[string]*cluster
 }
@@ -194,8 +194,8 @@ type reverseProxy struct {
 func (rp *reverseProxy) getRequestScope(req *http.Request) (*scope, error) {
 	name, password := basicAuth(req)
 
-	rp.Lock()
-	defer rp.Unlock()
+	rp.mu.Lock()
+	defer rp.mu.Unlock()
 
 	u, ok := rp.users[name]
 	if !ok {
