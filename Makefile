@@ -14,3 +14,6 @@ bench: build
 
 run: build
 	./chproxy
+
+reconfigure:
+	kill -HUP `pidof chproxy`

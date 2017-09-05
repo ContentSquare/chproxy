@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+	"sync/atomic"
 	"syscall"
 
 	"github.com/hagen1778/chproxy/config"
@@ -20,7 +21,10 @@ import (
 
 var configFile = flag.String("config", "proxy.yml", "Proxy configuration filename")
 
-var proxy *reverseProxy
+var (
+	proxy    *reverseProxy
+	networks atomic.Value
+)
 
 func main() {
 	flag.Parse()
@@ -31,6 +35,8 @@ func main() {
 		log.Fatalf("can't load config %q: %s", *configFile, err)
 	}
 	log.Infof("Loading config: %s", "success")
+
+	networks.Store(cfg.Networks)
 
 	log.SetDebug(cfg.LogDebug)
 
@@ -56,6 +62,7 @@ func main() {
 					return
 				}
 
+				networks.Store(cfg.Networks)
 				log.SetDebug(cfg.LogDebug)
 				log.Infof("Config successfully reloaded")
 			}
@@ -79,6 +86,7 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 	case "/metrics":
 		promHandler.ServeHTTP(rw, r)
 	case "/":
+		fmt.Println("HERE")
 		proxy.ServeHTTP(rw, r)
 	}
 }
@@ -86,9 +94,9 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 func listenAndServe(cfg *config.Config, isTLS bool) {
 	var ln net.Listener
 	if !isTLS {
-		ln = newListener(cfg.ListenAddr, cfg.Networks)
+		ln = newListener(cfg.ListenAddr)
 	} else {
-		ln = newTLSListener(cfg)
+		ln = newTLSListener(cfg.ListenTLSAddr, cfg.HostPolicyRegexp, cfg.CertCacheDir)
 	}
 
 	s := &http.Server{
@@ -99,24 +107,23 @@ func listenAndServe(cfg *config.Config, isTLS bool) {
 	log.Fatalf("Server error: %s", s.Serve(ln))
 }
 
-func newListener(laddr string, allowedNetworks config.Networks) *netListener {
+func newListener(laddr string) *netListener {
 	ln, err := net.Listen("tcp4", laddr)
 	if err != nil {
 		log.Fatalf("cannot listen for %q: %s", laddr, err)
 	}
 
 	return &netListener{
-		Listener:        ln,
-		allowedNetworks: allowedNetworks,
+		Listener: ln,
 	}
 }
 
-func newTLSListener(cfg *config.Config) net.Listener {
+func newTLSListener(laddr, hostPolicyRegexp, certCacheDir string) net.Listener {
 	var hostPolicy autocert.HostPolicy
-	if len(cfg.HostPolicyRegexp) != 0 {
-		hostPolicyRegexp, err := regexp.Compile(cfg.HostPolicyRegexp)
+	if len(hostPolicyRegexp) != 0 {
+		hostPolicyRegexp, err := regexp.Compile(hostPolicyRegexp)
 		if err != nil {
-			log.Fatalf("cannot compile `host_policy_regexp`=%q: %s", cfg.HostPolicyRegexp, err)
+			log.Fatalf("cannot compile `host_policy_regexp`=%q: %s", hostPolicyRegexp, err)
 		}
 
 		hostPolicy = func(_ context.Context, host string) error {
@@ -124,17 +131,17 @@ func newTLSListener(cfg *config.Config) net.Listener {
 				return nil
 			}
 
-			return fmt.Errorf("host %q doesn't match `host_policy_regexp` %q", host, cfg.HostPolicyRegexp)
+			return fmt.Errorf("host %q doesn't match `host_policy_regexp` %q", host, hostPolicyRegexp)
 		}
 	}
 
 	m := autocert.Manager{
 		Prompt:     autocert.AcceptTOS,
-		Cache:      autocert.DirCache(cfg.CertCacheDir),
+		Cache:      autocert.DirCache(certCacheDir),
 		HostPolicy: hostPolicy,
 	}
 
-	ln := newListener(cfg.ListenTLSAddr, cfg.Networks)
+	ln := newListener(laddr)
 	tlsConfig := tls.Config{
 		PreferServerCipherSuites: true,
 		CurvePreferences: []tls.CurveID{
@@ -148,8 +155,6 @@ func newTLSListener(cfg *config.Config) net.Listener {
 
 type netListener struct {
 	net.Listener
-
-	allowedNetworks config.Networks
 }
 
 func (ln *netListener) Accept() (net.Conn, error) {
@@ -160,14 +165,8 @@ func (ln *netListener) Accept() (net.Conn, error) {
 		}
 
 		remoteAddr := conn.RemoteAddr().String()
-		ok, err := ln.allowedNetworks.Contains(remoteAddr)
-		if err != nil {
-			log.Errorf("listener allowed networks err: %s", err)
-			conn.Close()
-			continue
-		}
-
-		if !ok {
+		allowedNetworks := networks.Load().(config.Networks)
+		if !allowedNetworks.Contains(remoteAddr) {
 			log.Errorf("connections are not allowed from %s", remoteAddr)
 			conn.Close()
 			continue

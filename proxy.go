@@ -206,23 +206,18 @@ func (rp *reverseProxy) getRequestScope(req *http.Request) (*scope, error) {
 		return nil, fmt.Errorf("invalid username or password for user %q", name)
 	}
 
-	ok, err := u.allowedNetworks.Contains(req.RemoteAddr)
-	if err != nil {
-		return nil, fmt.Errorf("unexpected allowed networks err: %s", err)
-	}
-
-	if !ok {
+	if !u.allowedNetworks.Contains(req.RemoteAddr) {
 		return nil, fmt.Errorf("user %q is not allowed to access from %s", name, req.RemoteAddr)
 	}
 
 	c, ok := rp.clusters[u.toCluster]
 	if !ok {
-		return nil, fmt.Errorf("BUG: user %q matches to unknown cluster %q", u.name, u.toCluster)
+		panic(fmt.Sprintf("BUG: user %q matches to unknown cluster %q", u.name, u.toCluster))
 	}
 
 	cu, ok := c.users[u.toUser]
 	if !ok {
-		return nil, fmt.Errorf("BUG: user %q matches to unknown user %q at cluster %q", u.name, u.toUser, u.toCluster)
+		panic(fmt.Sprintf("BUG: user %q matches to unknown user %q at cluster %q", u.name, u.toUser, u.toCluster))
 	}
 
 	return newScope(u, cu, c), nil

@@ -216,28 +216,28 @@ func (n *Networks) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
-func (an Networks) Contains(addr string) (bool, error) {
+func (an Networks) Contains(addr string) bool {
 	if len(an) == 0 {
-		return true, nil
+		return true
 	}
 
 	h, _, err := net.SplitHostPort(addr)
 	if err != nil {
-		return false, fmt.Errorf("BUG: unexpected error while parsing RemoteAddr: %s", err)
+		panic(fmt.Sprintf("BUG: unexpected error while parsing RemoteAddr: %s", err))
 	}
 
 	ip := net.ParseIP(h)
 	if ip == nil {
-		return false, fmt.Errorf("BUG: unexpected error while parsing IP: %s", h)
+		panic(fmt.Sprintf("BUG: unexpected error while parsing IP: %s", h))
 	}
 
 	for _, ipnet := range an {
 		if ipnet.Contains(ip) {
-			return true, nil
+			return true
 		}
 	}
 
-	return false, nil
+	return false
 }
 
 // User struct describes simplest <users> configuration
