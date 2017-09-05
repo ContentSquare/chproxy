@@ -230,8 +230,8 @@ type observableTransport struct {
 	http.Transport
 }
 
-func (pt *observableTransport) RoundTrip(r *http.Request) (*http.Response, error) {
-	response, err := pt.Transport.RoundTrip(r)
+func (ot *observableTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	response, err := ot.Transport.RoundTrip(r)
 	if response != nil {
 		statusCodes.With(
 			prometheus.Labels{"host": r.URL.Host, "code": response.Status},
