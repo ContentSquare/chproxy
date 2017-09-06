@@ -59,6 +59,8 @@ func TestScope_RunningQueries(t *testing.T) {
 	if err := s.inc(); err == nil {
 		t.Fatalf("error expected while call .inc()")
 	}
+
+
 	u2 := &user{
 		clusterUser: clusterUser{
 			maxConcurrentQueries: 1,

@@ -38,17 +38,24 @@ func newScope(u *user, cu *clusterUser, c *cluster) *scope {
 }
 
 func (s *scope) inc() error {
-	if s.user.maxConcurrentQueries > 0 && s.user.runningQueries() >= s.user.maxConcurrentQueries {
-		return fmt.Errorf("limits for user %q are exceeded: maxConcurrentQueries limit: %d", s.user.name, s.user.maxConcurrentQueries)
-	}
-
-	if s.clusterUser.maxConcurrentQueries > 0 && s.clusterUser.runningQueries() >= s.clusterUser.maxConcurrentQueries {
-		return fmt.Errorf("limits for cluster user %q are exceeded: maxConcurrentQueries limit: %d", s.clusterUser.name, s.clusterUser.maxConcurrentQueries)
-	}
-
 	s.user.inc()
 	s.clusterUser.inc()
 	s.host.inc()
+
+	var err error
+	if s.user.maxConcurrentQueries > 0 && s.user.runningQueries() > s.user.maxConcurrentQueries {
+		err = fmt.Errorf("limits for user %q are exceeded: maxConcurrentQueries limit: %d", s.user.name, s.user.maxConcurrentQueries)
+	}
+
+	if s.clusterUser.maxConcurrentQueries > 0 && s.clusterUser.runningQueries() > s.clusterUser.maxConcurrentQueries {
+		err = fmt.Errorf("limits for cluster user %q are exceeded: maxConcurrentQueries limit: %d", s.clusterUser.name, s.clusterUser.maxConcurrentQueries)
+	}
+
+	if err != nil {
+		s.dec()
+		return err
+	}
+
 	return nil
 }
 
