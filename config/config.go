@@ -37,9 +37,9 @@ type Config struct {
 	// Path to the directory where letsencrypt certs are cached
 	CertCacheDir string `yaml:"cert_cache_dir,omitempty"`
 
-	// Regexp to validate which host names are allowed to respond to
+	// List of host names to which proxy is allowed to respond to
 	// see https://godoc.org/golang.org/x/crypto/acme/autocert#HostPolicy
-	HostPolicyRegexp string `yaml:"host_policy_regexp,omitempty"`
+	HostPolicy []string `yaml:"host_policy,omitempty"`
 
 	Clusters []Cluster `yaml:"clusters"`
 

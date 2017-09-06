@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"regexp"
 	"sync/atomic"
 	"syscall"
 
@@ -93,7 +92,7 @@ func listenAndServe(cfg *config.Config, isTLS bool) {
 	if !isTLS {
 		ln = newListener(cfg.ListenAddr)
 	} else {
-		ln = newTLSListener(cfg.ListenTLSAddr, cfg.HostPolicyRegexp, cfg.CertCacheDir)
+		ln = newTLSListener(cfg.ListenTLSAddr, cfg.CertCacheDir, cfg.HostPolicy)
 	}
 
 	log.Infof("Serving on %q", ln.Addr())
@@ -102,38 +101,37 @@ func listenAndServe(cfg *config.Config, isTLS bool) {
 	}
 }
 
-func newListener(laddr string) *netListener {
+func newListener(laddr string) net.Listener {
 	ln, err := net.Listen("tcp4", laddr)
 	if err != nil {
 		log.Fatalf("cannot listen for %q: %s", laddr, err)
 	}
-
 	return &netListener{
 		ln,
 	}
 }
 
-func newTLSListener(laddr, hostPolicyRegexp, certCacheDir string) net.Listener {
-	var hostPolicy autocert.HostPolicy
-	if len(hostPolicyRegexp) != 0 {
-		hostPolicyRegexp, err := regexp.Compile(hostPolicyRegexp)
-		if err != nil {
-			log.Fatalf("cannot compile `host_policy_regexp`=%q: %s", hostPolicyRegexp, err)
+func newTLSListener(laddr, certCacheDir string, hostPolicy []string) net.Listener {
+	var hp autocert.HostPolicy
+	if len(hostPolicy) != 0 {
+		allowedHosts := make(map[string]struct{}, len(hostPolicy))
+		for _, v := range hostPolicy {
+			allowedHosts[v] = struct{}{}
 		}
 
-		hostPolicy = func(_ context.Context, host string) error {
-			if hostPolicyRegexp.MatchString(host) {
+		hp = func(_ context.Context, host string) error {
+			if _, ok := allowedHosts[host]; !ok {
 				return nil
 			}
 
-			return fmt.Errorf("host %q doesn't match `host_policy_regexp` %q", host, hostPolicyRegexp)
+			return fmt.Errorf("host %q doesn't match `host_policy` configuration", host)
 		}
 	}
 
 	m := autocert.Manager{
 		Prompt:     autocert.AcceptTOS,
 		Cache:      autocert.DirCache(certCacheDir),
-		HostPolicy: hostPolicy,
+		HostPolicy: hp,
 	}
 
 	ln := newListener(laddr)

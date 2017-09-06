@@ -1,4 +1,7 @@
 listen_addr: ":9090"
+listen_tls_addr: ":443"
+cert_cache_dir: "certs_dir"
+host_policy: ["example.com"]
 log_debug: true
 allowed_networks: ["127.0.0.1/24"]
 users:

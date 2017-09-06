@@ -47,7 +47,7 @@ var goodCfg = &config.Config{
 	},
 }
 
-func newConfiguredProxy(cfg *config.Config) (*reverseProxy, error){
+func newConfiguredProxy(cfg *config.Config) (*reverseProxy, error) {
 	p := NewReverseProxy()
 	if err := p.ApplyConfig(cfg); err != nil {
 		return p, fmt.Errorf("error while loading config: %s", err)
