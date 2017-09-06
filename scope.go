@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"net/url"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -102,7 +101,6 @@ type host struct {
 }
 
 type cluster struct {
-	sync.Mutex
 	nextIdx uint32
 	hosts   []*host
 	users   map[string]*clusterUser
@@ -118,17 +116,10 @@ func newCluster(h []*host, cu map[string]*clusterUser) *cluster {
 
 // We don't use query_id because of distributed processing, the query ID is not passed to remote servers
 func (c *cluster) killQueries(ua string, elapsed float64) {
-	c.Lock()
-	addrs := make([]string, len(c.hosts))
-	for i, host := range c.hosts {
-		addrs[i] = host.addr.String()
-	}
-	c.Unlock()
-
 	q := fmt.Sprintf("KILL QUERY WHERE http_user_agent = '%s' AND elapsed >= %d", ua, int(elapsed))
-	log.Debugf("ExecutionTime exceeded. Going to call query %q for hosts %v", q, addrs)
-	for _, addr := range addrs {
-		if err := doQuery(q, addr); err != nil {
+	log.Debugf("ExecutionTime exceeded. Going to call query %q for hosts %v", q, c.hosts)
+	for _, host := range c.hosts {
+		if err := doQuery(q, host.addr.String()); err != nil {
 			log.Errorf("error while killing queries older than %.2fs: %s", elapsed, err)
 		}
 	}
@@ -136,13 +127,10 @@ func (c *cluster) killQueries(ua string, elapsed float64) {
 
 // get least loaded + round-robin host from cluster
 func (c *cluster) getHost() *host {
-	c.Lock()
-	defer c.Unlock()
-
-	c.nextIdx++
+	idx := atomic.AddUint32(&c.nextIdx, 1)
 
 	l := uint32(len(c.hosts))
-	idx := c.nextIdx % l
+	idx = idx % l
 	idle := c.hosts[idx]
 	idleN := idle.runningQueries()
 
