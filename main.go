@@ -87,10 +87,10 @@ func listenAndServe(cfg *config.Config, isTLS bool) {
 	s := &http.Server{
 		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 		Handler:      http.HandlerFunc(serveHTTP),
-		ReadTimeout: time.Minute,
+		ReadTimeout:  time.Minute,
 		WriteTimeout: time.Minute,
-		IdleTimeout: time.Minute * 10,
-		ErrorLog: log.ErrorLogger,
+		IdleTimeout:  time.Minute * 10,
+		ErrorLog:     log.ErrorLogger,
 	}
 
 	var ln net.Listener

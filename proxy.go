@@ -72,30 +72,32 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		timeoutCounter prometheus.Counter
 		timeoutMessage string
 	)
+
+	if s.user.maxExecutionTime > 0 {
+		timeout = s.user.maxExecutionTime
+		timeoutCounter = userTimeouts.With(prometheus.Labels{
+			"host": s.host.addr.Host,
+			"user": s.user.name,
+		})
+		timeoutMessage = fmt.Sprintf("timeout for user %q exceeded: %v", s.user.name, timeout)
+	}
+
+	if timeout == 0 || (s.clusterUser.maxExecutionTime > 0 && s.clusterUser.maxExecutionTime < timeout) {
+		timeout = s.clusterUser.maxExecutionTime
+		timeoutCounter = clusterTimeouts.With(prometheus.Labels{
+			"host": s.host.addr.Host,
+			"user": s.clusterUser.name,
+		})
+		timeoutMessage = fmt.Sprintf("timeout for cluster user %q exceeded: %v", s.clusterUser.name, timeout)
+	}
+
 	ctx := context.Background()
-	if s.user.maxExecutionTime > 0 || s.clusterUser.maxExecutionTime > 0 {
-		if s.user.maxExecutionTime > 0 {
-			timeout = s.user.maxExecutionTime
-			timeoutCounter = userTimeouts.With(prometheus.Labels{
-				"host": s.host.addr.Host,
-				"user": s.user.name,
-			})
-			timeoutMessage = fmt.Sprintf("timeout for user %q exceeded: %v", s.user.name, timeout)
-		}
-
-		if timeout == 0 || (s.clusterUser.maxExecutionTime > 0 && s.clusterUser.maxExecutionTime < timeout) {
-			timeout = s.clusterUser.maxExecutionTime
-			timeoutCounter = clusterTimeouts.With(prometheus.Labels{
-				"host": s.host.addr.Host,
-				"user": s.clusterUser.name,
-			})
-			timeoutMessage = fmt.Sprintf("timeout for cluster user %q exceeded: %v", s.clusterUser.name, timeout)
-		}
-
+	if timeout != 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()
 	}
+
 	req = req.WithContext(ctx)
 
 	rp.ReverseProxy.ServeHTTP(rw, req)

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"net/url"
 	"sync"
-	"time"
 	"sync/atomic"
+	"time"
 
 	"github.com/hagen1778/chproxy/config"
 	"github.com/hagen1778/chproxy/log"
