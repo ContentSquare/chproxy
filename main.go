@@ -65,11 +65,9 @@ func main() {
 	}()
 
 	if cfg.ListenTLSAddr != "" {
-		log.Infof("Serving https on %q", cfg.ListenTLSAddr)
 		go listenAndServe(cfg, true)
 	}
 
-	log.Infof("Serving http on %q", cfg.ListenAddr)
 	listenAndServe(cfg, false)
 }
 
@@ -86,6 +84,11 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 }
 
 func listenAndServe(cfg *config.Config, isTLS bool) {
+	s := &http.Server{
+		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
+		Handler:      http.HandlerFunc(serveHTTP),
+	}
+
 	var ln net.Listener
 	if !isTLS {
 		ln = newListener(cfg.ListenAddr)
@@ -93,12 +96,10 @@ func listenAndServe(cfg *config.Config, isTLS bool) {
 		ln = newTLSListener(cfg.ListenTLSAddr, cfg.HostPolicyRegexp, cfg.CertCacheDir)
 	}
 
-	s := &http.Server{
-		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
-		Handler:      http.HandlerFunc(serveHTTP),
+	log.Infof("Serving on %q", ln.Addr())
+	if err := s.Serve(ln); err != nil {
+		log.Fatalf("Server error no %q: %s", ln.Addr(), err)
 	}
-
-	log.Fatalf("Server error: %s", s.Serve(ln))
 }
 
 func newListener(laddr string) *netListener {
