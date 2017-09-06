@@ -164,15 +164,13 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 		}
 
 		users[u.Name] = &user{
-			clusterUser: clusterUser{
-				name:                 u.Name,
-				password:             u.Password,
-				maxConcurrentQueries: u.MaxConcurrentQueries,
-				maxExecutionTime:     u.MaxExecutionTime,
-			},
-			toCluster:       u.ToCluster,
-			toUser:          u.ToUser,
-			allowedNetworks: u.Networks,
+			toCluster:            u.ToCluster,
+			toUser:               u.ToUser,
+			allowedNetworks:      u.Networks,
+			name:                 u.Name,
+			password:             u.Password,
+			maxConcurrentQueries: u.MaxConcurrentQueries,
+			maxExecutionTime:     u.MaxExecutionTime,
 		}
 	}
 

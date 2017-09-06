@@ -9,6 +9,7 @@ import (
 
 	"github.com/hagen1778/chproxy/config"
 	"github.com/hagen1778/chproxy/log"
+	"sync/atomic"
 )
 
 func (s *scope) String() string {
@@ -70,7 +71,11 @@ type user struct {
 	toCluster       string
 	allowedNetworks config.Networks
 
-	clusterUser
+	name, password       string
+	maxExecutionTime     time.Duration
+	maxConcurrentQueries uint32
+
+	queryCounter
 }
 
 type clusterUser struct {
@@ -161,24 +166,17 @@ func (c *cluster) getHost() *host {
 }
 
 type queryCounter struct {
-	mu    sync.Mutex
 	value uint32
 }
 
 func (qc *queryCounter) runningQueries() uint32 {
-	qc.mu.Lock()
-	defer qc.mu.Unlock()
-	return qc.value
+	return atomic.LoadUint32(&qc.value)
 }
 
 func (qc *queryCounter) inc() {
-	qc.mu.Lock()
-	qc.value++
-	qc.mu.Unlock()
+	atomic.AddUint32(&qc.value, 1)
 }
 
 func (qc *queryCounter) dec() {
-	qc.mu.Lock()
-	qc.value--
-	qc.mu.Unlock()
+	atomic.AddUint32(&qc.value, ^uint32(0))
 }

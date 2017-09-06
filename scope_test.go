@@ -26,9 +26,7 @@ var (
 
 func TestScope_RunningQueries(t *testing.T) {
 	u1 := &user{
-		clusterUser: clusterUser{
-			maxConcurrentQueries: 1,
-		},
+		maxConcurrentQueries: 1,
 	}
 	s := newScope(u1, cu, c)
 
@@ -60,11 +58,8 @@ func TestScope_RunningQueries(t *testing.T) {
 		t.Fatalf("error expected while call .inc()")
 	}
 
-
 	u2 := &user{
-		clusterUser: clusterUser{
-			maxConcurrentQueries: 1,
-		},
+		maxConcurrentQueries: 1,
 	}
 	s = newScope(u2, cu, c)
 	if err := s.inc(); err != nil {
