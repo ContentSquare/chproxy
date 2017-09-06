@@ -2,14 +2,13 @@ package main
 
 import (
 	"fmt"
-	"math/rand"
 	"net/url"
 	"sync"
 	"time"
+	"sync/atomic"
 
 	"github.com/hagen1778/chproxy/config"
 	"github.com/hagen1778/chproxy/log"
-	"sync/atomic"
 )
 
 func (s *scope) String() string {
@@ -28,9 +27,10 @@ type scope struct {
 	clusterUser *clusterUser
 }
 
+var scopeId uint64
 func newScope(u *user, cu *clusterUser, c *cluster) *scope {
 	return &scope{
-		id:          rand.Uint64(),
+		id:          atomic.AddUint64(&scopeId, 1),
 		host:        c.getHost(),
 		cluster:     c,
 		user:        u,
