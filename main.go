@@ -168,7 +168,7 @@ func (ln *netListener) Accept() (net.Conn, error) {
 func reloadConfig() (*config.Server, error) {
 	cfg, err := config.LoadFile(*configFile)
 	if err != nil {
-		log.Fatalf("can't load config %q: %s", *configFile, err)
+		return nil, fmt.Errorf("can't load config %q: %s", *configFile, err)
 	}
 
 	if err := proxy.ApplyConfig(cfg); err != nil {
