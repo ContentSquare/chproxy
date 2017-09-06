@@ -28,6 +28,7 @@ type scope struct {
 }
 
 var scopeId uint64
+
 func newScope(u *user, cu *clusterUser, c *cluster) *scope {
 	return &scope{
 		id:          atomic.AddUint64(&scopeId, 1),

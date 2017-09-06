@@ -16,6 +16,7 @@ import (
 	"github.com/hagen1778/chproxy/log"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/crypto/acme/autocert"
+	"time"
 )
 
 var configFile = flag.String("config", "proxy.yml", "Proxy configuration filename")
@@ -33,7 +34,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("can't load config %q: %s", *configFile, err)
 	}
-	log.Infof("Loading config: %s", "success")
+	log.Infof("Loading config %q: success", *configFile)
 
 	proxy = NewReverseProxy()
 	if err := reloadConfig(cfg); err != nil {
@@ -86,18 +87,25 @@ func listenAndServe(cfg *config.Config, isTLS bool) {
 	s := &http.Server{
 		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 		Handler:      http.HandlerFunc(serveHTTP),
+		ReadTimeout: time.Minute,
+		WriteTimeout: time.Minute,
+		IdleTimeout: time.Minute * 10,
+		ErrorLog: log.ErrorLogger,
 	}
 
 	var ln net.Listener
+	var serveInfo string
 	if !isTLS {
 		ln = newListener(cfg.ListenAddr)
+		serveInfo = fmt.Sprintf("http on %q", cfg.ListenAddr)
 	} else {
 		ln = newTLSListener(cfg.ListenTLSAddr, cfg.CertCacheDir, cfg.HostPolicy)
+		serveInfo = fmt.Sprintf("https on %q", cfg.ListenTLSAddr)
 	}
 
-	log.Infof("Serving on %q", ln.Addr())
+	log.Infof("Serving %s", serveInfo)
 	if err := s.Serve(ln); err != nil {
-		log.Fatalf("Server error no %q: %s", ln.Addr(), err)
+		log.Fatalf("Server error %s: %s", serveInfo, err)
 	}
 }
 
@@ -120,7 +128,7 @@ func newTLSListener(laddr, certCacheDir string, hostPolicy []string) net.Listene
 		}
 
 		hp = func(_ context.Context, host string) error {
-			if _, ok := allowedHosts[host]; !ok {
+			if _, ok := allowedHosts[host]; ok {
 				return nil
 			}
 
