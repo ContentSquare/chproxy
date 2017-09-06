@@ -138,8 +138,8 @@ func (c *cluster) getHost() *host {
 		return idle
 	}
 
-	// round checking of hosts in slice
-	// until hits least loaded
+	// round hosts checking
+	// until the least loaded is found
 	for i := (idx + 1) % l; i != idx; i = (i + 1) % l {
 		h := c.hosts[i]
 		n := h.runningQueries()
