@@ -11,8 +11,10 @@ import (
 
 var (
 	defaultConfig = Config{
-		ListenAddr: ":8080",
-		Clusters:   []Cluster{defaultCluster},
+		Server: Server{
+			ListenAddr: ":8080",
+		},
+		Clusters: []Cluster{defaultCluster},
 	}
 
 	defaultCluster = Cluster{
@@ -25,21 +27,9 @@ var (
 	}
 )
 
-// Config is an structure to describe access and proxy rules
+// Config describes access and proxy rules
 type Config struct {
-	// TCP address to listen to for http
-	// Default is `localhost:8080`
-	ListenAddr string `yaml:"listen_addr,omitempty"`
-
-	// TCP address to listen to for https
-	ListenTLSAddr string `yaml:"listen_tls_addr,omitempty"`
-
-	// Path to the directory where letsencrypt certs are cached
-	CertCacheDir string `yaml:"cert_cache_dir,omitempty"`
-
-	// List of host names to which proxy is allowed to respond to
-	// see https://godoc.org/golang.org/x/crypto/acme/autocert#HostPolicy
-	HostPolicy []string `yaml:"host_policy,omitempty"`
+	Server Server `yaml:",inline"`
 
 	Clusters []Cluster `yaml:"clusters"`
 
@@ -75,14 +65,32 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("field `clusters` must contain at least 1 cluster")
 	}
 
-	if len(c.ListenTLSAddr) > 0 && len(c.CertCacheDir) == 0 {
+	if len(c.Server.ListenTLSAddr) > 0 && len(c.Server.CertCacheDir) == 0 {
 		return fmt.Errorf("field `cert_cache_dir` must be set for TLS")
 	}
 
 	return checkOverflow(c.XXX, "config")
 }
 
-// Cluster is an structure to describe CH cluster configuration
+// Server describes configuration of proxy server
+// These settings are immutable and can't be reloaded without restart
+type Server struct {
+	// TCP address to listen to for http
+	// Default is `localhost:8080`
+	ListenAddr string `yaml:"listen_addr,omitempty"`
+
+	// TCP address to listen to for https
+	ListenTLSAddr string `yaml:"listen_tls_addr,omitempty"`
+
+	// Path to the directory where letsencrypt certs are cached
+	CertCacheDir string `yaml:"cert_cache_dir,omitempty"`
+
+	// List of host names to which proxy is allowed to respond to
+	// see https://godoc.org/golang.org/x/crypto/acme/autocert#HostPolicy
+	HostPolicy []string `yaml:"host_policy,omitempty"`
+}
+
+// Cluster describes CH cluster configuration
 // The simplest configuration consists of:
 // 	 cluster description - see <remote_servers> section in CH config.xml
 // 	 and users - see <users> section in CH users.xml
@@ -132,7 +140,7 @@ func (c *Cluster) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return checkOverflow(c.XXX, "cluster")
 }
 
-// User struct describes list of allowed users
+// User describes list of allowed users
 // which requests will be proxied to ClickHouse
 type User struct {
 	// User name
@@ -240,7 +248,7 @@ func (n Networks) Contains(addr string) bool {
 	return false
 }
 
-// User struct describes simplest <users> configuration
+// User describes simplest <users> configuration
 type ClusterUser struct {
 	// User name in ClickHouse users.xml config
 	Name string `yaml:"name"`

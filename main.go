@@ -11,18 +11,18 @@ import (
 	"os/signal"
 	"sync/atomic"
 	"syscall"
+	"time"
 
 	"github.com/hagen1778/chproxy/config"
 	"github.com/hagen1778/chproxy/log"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/crypto/acme/autocert"
-	"time"
 )
 
 var configFile = flag.String("config", "proxy.yml", "Proxy configuration filename")
 
 var (
-	proxy    *reverseProxy
+	proxy    = NewReverseProxy()
 	networks atomic.Value
 )
 
@@ -30,16 +30,11 @@ func main() {
 	flag.Parse()
 
 	log.Infof("Loading config: %s", *configFile)
-	cfg, err := config.LoadFile(*configFile)
+	cfg, err := reloadConfig()
 	if err != nil {
-		log.Fatalf("can't load config %q: %s", *configFile, err)
-	}
-	log.Infof("Loading config %q: success", *configFile)
-
-	proxy = NewReverseProxy()
-	if err := reloadConfig(cfg); err != nil {
 		log.Fatalf("error while loading config: %s", err)
 	}
+	log.Infof("Loading config %s: successful", *configFile)
 
 	c := make(chan os.Signal)
 	signal.Notify(c, syscall.SIGHUP)
@@ -48,18 +43,11 @@ func main() {
 			switch <-c {
 			case syscall.SIGHUP:
 				log.Infof("SIGHUP received. Going to reload config %s ...", *configFile)
-				cfg, err := config.LoadFile(*configFile)
-				if err != nil {
-					log.Errorf("can't load config %q: %s", *configFile, err)
-					continue
-				}
-
-				if err := reloadConfig(cfg); err != nil {
+				if _, err := reloadConfig(); err != nil {
 					log.Errorf("error while reloading config: %s", err)
 					continue
 				}
-
-				log.Infof("Config successfully reloaded")
+				log.Infof("Reloading config %s: successful", *configFile)
 			}
 		}
 	}()
@@ -83,7 +71,7 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func listenAndServe(cfg *config.Config, isTLS bool) {
+func listenAndServe(cfg *config.Server, isTLS bool) {
 	s := &http.Server{
 		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 		Handler:      http.HandlerFunc(serveHTTP),
@@ -177,12 +165,17 @@ func (ln *netListener) Accept() (net.Conn, error) {
 	}
 }
 
-func reloadConfig(cfg *config.Config) error {
+func reloadConfig() (*config.Server, error) {
+	cfg, err := config.LoadFile(*configFile)
+	if err != nil {
+		log.Fatalf("can't load config %q: %s", *configFile, err)
+	}
+
 	if err := proxy.ApplyConfig(cfg); err != nil {
-		return err
+		return nil, err
 	}
 	networks.Store(&cfg.Networks)
 	log.SetDebug(cfg.LogDebug)
 
-	return nil
+	return &cfg.Server, nil
 }

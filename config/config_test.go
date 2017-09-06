@@ -18,11 +18,13 @@ func TestLoadConfig(t *testing.T) {
 			"full description",
 			"testdata/full.yml",
 			Config{
-				ListenAddr:    ":9090",
-				ListenTLSAddr: ":443",
-				CertCacheDir:  "certs_dir",
-				HostPolicy:    []string{"example.com"},
-				LogDebug:      true,
+				Server: Server{
+					ListenAddr:    ":9090",
+					ListenTLSAddr: ":443",
+					CertCacheDir:  "certs_dir",
+					HostPolicy:    []string{"example.com"},
+				},
+				LogDebug: true,
 				Networks: Networks{
 					&net.IPNet{
 						net.IPv4(127, 0, 0, 0),
@@ -92,7 +94,9 @@ func TestLoadConfig(t *testing.T) {
 			"default values",
 			"testdata/default_values.yml",
 			Config{
-				ListenAddr: ":8080",
+				Server: Server{
+					ListenAddr: ":8080",
+				},
 				Clusters: []Cluster{
 					{
 						Name:   "second cluster",
