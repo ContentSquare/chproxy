@@ -1,15 +1,19 @@
-listen_addr: ":9090"
-listen_tls_addr: ":443"
-cert_cache_dir: "certs_dir"
-host_policy: ["example.com"]
 log_debug: true
 allowed_networks: ["127.0.0.1/24"]
+
+server:
+  listen_addr: ":9090"
+  listen_tls_addr: ":443"
+  cert_cache_dir: "certs_dir"
+  host_policy: ["example.com"]
+
 users:
   - name: "web"
     password: "password"
     allowed_networks: ["127.0.0.1", "1.2.3.0/24"]
     to_cluster: "second cluster"
     to_user: "web"
+
   - name: "default"
     to_cluster: "second cluster"
     to_user: "default"
@@ -25,6 +29,7 @@ clusters:
         password: "password"
         max_concurrent_queries: 4
         max_execution_time: 1m
+
   - name: "second cluster"
     scheme: "https"
     nodes: ["127.0.1.1:8123", "127.0.1.2:8123"]
@@ -32,6 +37,7 @@ clusters:
       - name: "default"
         max_concurrent_queries: 4
         max_execution_time: 1m
+
       - name: "web"
         max_concurrent_queries: 4
         max_execution_time: 10s

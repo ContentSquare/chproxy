@@ -66,7 +66,7 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 	case "/favicon.ico":
 	case "/metrics":
 		promHandler.ServeHTTP(rw, r)
-	case "/":
+	default:
 		proxy.ServeHTTP(rw, r)
 	}
 }

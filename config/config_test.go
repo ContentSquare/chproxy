@@ -175,6 +175,11 @@ func TestBadConfig(t *testing.T) {
 			"testdata/bad.wrong_scheme.yml",
 			"field `cluster.scheme` must be `http` or `https`. Got \"tcp\" instead",
 		},
+		{
+			"empty server",
+			"testdata/bad.empty_server.yml",
+			"field `server.listen_addr` cannot be empty",
+		},
 	}
 
 	for _, tc := range testCases {

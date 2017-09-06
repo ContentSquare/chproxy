@@ -11,10 +11,12 @@ import (
 
 var (
 	defaultConfig = Config{
-		Server: Server{
-			ListenAddr: ":8080",
-		},
+		Server: defaultServer,
 		Clusters: []Cluster{defaultCluster},
+	}
+
+	defaultServer = Server{
+		ListenAddr: ":8080",
 	}
 
 	defaultCluster = Cluster{
@@ -29,7 +31,7 @@ var (
 
 // Config describes access and proxy rules
 type Config struct {
-	Server Server `yaml:",inline"`
+	Server Server `yaml:"server,omitempty"`
 
 	Clusters []Cluster `yaml:"clusters"`
 
@@ -65,8 +67,8 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("field `clusters` must contain at least 1 cluster")
 	}
 
-	if len(c.Server.ListenTLSAddr) > 0 && len(c.Server.CertCacheDir) == 0 {
-		return fmt.Errorf("field `cert_cache_dir` must be set for TLS")
+	if len(c.Server.ListenAddr) == 0  {
+		return fmt.Errorf("field `server.listen_addr` cannot be empty")
 	}
 
 	return checkOverflow(c.XXX, "config")
@@ -88,6 +90,25 @@ type Server struct {
 	// List of host names to which proxy is allowed to respond to
 	// see https://godoc.org/golang.org/x/crypto/acme/autocert#HostPolicy
 	HostPolicy []string `yaml:"host_policy,omitempty"`
+
+	// Catches all undefined fields
+	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (s *Server) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*s = defaultServer
+
+	type plain Server
+	if err := unmarshal((*plain)(s)); err != nil {
+		return err
+	}
+
+	if len(s.ListenTLSAddr) > 0 && len(s.CertCacheDir) == 0 {
+		return fmt.Errorf("field `server.cert_cache_dir` must be set for TLS")
+	}
+
+	return checkOverflow(s.XXX, "server")
 }
 
 // Cluster describes CH cluster configuration
