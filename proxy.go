@@ -17,7 +17,7 @@ import (
 )
 
 // Creates new reverseProxy with provided config
-func NewReverseProxy(cfg *config.Config) (*reverseProxy, error) {
+func NewReverseProxy() *reverseProxy {
 	rp := &reverseProxy{}
 	rp.ReverseProxy = &httputil.ReverseProxy{
 		Director: func(*http.Request) {},
@@ -35,9 +35,7 @@ func NewReverseProxy(cfg *config.Config) (*reverseProxy, error) {
 			},
 		},
 	}
-	err := rp.ApplyConfig(cfg)
-
-	return rp, err
+	return rp
 }
 
 func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {

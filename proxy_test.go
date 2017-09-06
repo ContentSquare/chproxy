@@ -47,10 +47,19 @@ var goodCfg = &config.Config{
 	},
 }
 
+func newConfiguredProxy(cfg *config.Config) (*reverseProxy, error){
+	p := NewReverseProxy()
+	if err := p.ApplyConfig(cfg); err != nil {
+		return p, fmt.Errorf("error while loading config: %s", err)
+	}
+
+	return p, nil
+}
+
 func TestNewReverseProxy(t *testing.T) {
-	proxy, err := NewReverseProxy(goodCfg)
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
+	proxy := NewReverseProxy()
+	if err := proxy.ApplyConfig(goodCfg); err != nil {
+		t.Fatalf("error while loading config: %s", err)
 	}
 
 	if len(proxy.clusters) != 1 {
@@ -98,7 +107,7 @@ var badCfg = &config.Config{
 }
 
 func TestApplyConfig(t *testing.T) {
-	proxy, err := NewReverseProxy(goodCfg)
+	proxy, err := newConfiguredProxy(goodCfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -405,7 +414,7 @@ func getProxy(t *testing.T, cfg *config.Config) *reverseProxy {
 	}
 
 	cfg.Clusters[0].Nodes = []string{addr.Host}
-	proxy, err := NewReverseProxy(cfg)
+	proxy, err := newConfiguredProxy(cfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}

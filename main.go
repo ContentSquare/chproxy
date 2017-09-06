@@ -36,11 +36,9 @@ func main() {
 	}
 	log.Infof("Loading config: %s", "success")
 
-	networks.Store(cfg.Networks)
-	log.SetDebug(cfg.LogDebug)
-
-	if proxy, err = NewReverseProxy(cfg); err != nil {
-		log.Fatalf("error while creating proxy: %s", err)
+	proxy = NewReverseProxy()
+	if err := reloadConfig(cfg); err != nil {
+		log.Fatalf("error while loading config: %s", err)
 	}
 
 	c := make(chan os.Signal)
@@ -56,13 +54,11 @@ func main() {
 					continue
 				}
 
-				if err := proxy.ApplyConfig(cfg); err != nil {
+				if err := reloadConfig(cfg); err != nil {
 					log.Errorf("error while reloading config: %s", err)
 					continue
 				}
 
-				networks.Store(cfg.Networks)
-				log.SetDebug(cfg.LogDebug)
 				log.Infof("Config successfully reloaded")
 			}
 		}
@@ -172,4 +168,14 @@ func (ln *netListener) Accept() (net.Conn, error) {
 
 		return conn, nil
 	}
+}
+
+func reloadConfig(cfg *config.Config) error {
+	if err := proxy.ApplyConfig(cfg); err != nil {
+		return err
+	}
+	networks.Store(cfg.Networks)
+	log.SetDebug(cfg.LogDebug)
+
+	return nil
 }

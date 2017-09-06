@@ -15,7 +15,7 @@ func BenchmarkReverseProxy_ServeHTTP(b *testing.B) {
 	}
 
 	goodCfg.Clusters[0].Nodes = []string{addr.Host}
-	proxy, err := NewReverseProxy(goodCfg)
+	proxy, err := newConfiguredProxy(goodCfg)
 	if err != nil {
 		b.Fatalf("unexpected error: %s", err)
 	}
