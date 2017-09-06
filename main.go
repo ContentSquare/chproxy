@@ -53,12 +53,12 @@ func main() {
 				cfg, err := config.LoadFile(*configFile)
 				if err != nil {
 					log.Errorf("can't load config %q: %s", *configFile, err)
-					return
+					continue
 				}
 
 				if err := proxy.ApplyConfig(cfg); err != nil {
 					log.Errorf("error while reloading config: %s", err)
-					return
+					continue
 				}
 
 				networks.Store(cfg.Networks)
