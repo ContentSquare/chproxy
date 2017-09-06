@@ -174,8 +174,8 @@ func reloadConfig() (*config.Server, error) {
 	if err := proxy.ApplyConfig(cfg); err != nil {
 		return nil, err
 	}
+
 	networks.Store(&cfg.Networks)
 	log.SetDebug(cfg.LogDebug)
-
 	return &cfg.Server, nil
 }

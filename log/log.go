@@ -5,7 +5,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"sync"
+	"sync/atomic"
 )
 
 var (
@@ -33,32 +33,24 @@ func SuppressOutput(suppress bool) {
 	}
 }
 
-var (
-	mu    sync.Mutex
-	debug bool
-)
+var debug uint32
 
 func SetDebug(val bool) {
 	if val {
+		atomic.StoreUint32(&debug, 1)
 		InfoLogger.SetFlags(stdDebugLogFlags)
 		ErrorLogger.SetFlags(stdDebugLogFlags)
 	} else {
+		atomic.StoreUint32(&debug, 0)
 		InfoLogger.SetFlags(stdLogFlags)
 		ErrorLogger.SetFlags(stdLogFlags)
 	}
-
-	mu.Lock()
-	debug = val
-	mu.Unlock()
 }
 
 func Debugf(format string, args ...interface{}) {
-	mu.Lock()
-	if !debug {
-		mu.Unlock()
+	if atomic.LoadUint32(&debug) == 0 {
 		return
 	}
-	mu.Unlock()
 
 	s := fmt.Sprintf(format, args...)
 	DebugLogger.Output(outputCallDepth, s)
