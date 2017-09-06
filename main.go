@@ -158,7 +158,7 @@ func (ln *netListener) Accept() (net.Conn, error) {
 		}
 
 		remoteAddr := conn.RemoteAddr().String()
-		allowedNetworks := networks.Load().(config.Networks)
+		allowedNetworks := networks.Load().(*config.Networks)
 		if !allowedNetworks.Contains(remoteAddr) {
 			log.Errorf("connections are not allowed from %s", remoteAddr)
 			conn.Close()
@@ -173,7 +173,7 @@ func reloadConfig(cfg *config.Config) error {
 	if err := proxy.ApplyConfig(cfg); err != nil {
 		return err
 	}
-	networks.Store(cfg.Networks)
+	networks.Store(&cfg.Networks)
 	log.SetDebug(cfg.LogDebug)
 
 	return nil

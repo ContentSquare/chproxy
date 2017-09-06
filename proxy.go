@@ -39,7 +39,7 @@ func NewReverseProxy() *reverseProxy {
 }
 
 func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	log.Debugf("Accepting request from %s: %s", req.RemoteAddr, req.URL.String())
+	log.Debugf("Accepting request from %s: %s", req.RemoteAddr, req.URL)
 	s, err := rp.getRequestScope(req)
 	if err != nil {
 		respondWithErr(rw, err)

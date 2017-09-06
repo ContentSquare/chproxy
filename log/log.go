@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"sync"
 )
 
 var (
@@ -32,19 +33,33 @@ func SuppressOutput(suppress bool) {
 	}
 }
 
-func SetDebug(debug bool) {
-	if debug {
-		DebugLogger.SetOutput(os.Stderr)
+var (
+	mu    sync.Mutex
+	debug bool
+)
+
+func SetDebug(val bool) {
+	if val {
 		InfoLogger.SetFlags(stdDebugLogFlags)
 		ErrorLogger.SetFlags(stdDebugLogFlags)
 	} else {
-		DebugLogger.SetOutput(ioutil.Discard)
 		InfoLogger.SetFlags(stdLogFlags)
 		ErrorLogger.SetFlags(stdLogFlags)
 	}
+
+	mu.Lock()
+	debug = val
+	mu.Unlock()
 }
 
 func Debugf(format string, args ...interface{}) {
+	mu.Lock()
+	if !debug {
+		mu.Unlock()
+		return
+	}
+	mu.Unlock()
+
 	s := fmt.Sprintf(format, args...)
 	DebugLogger.Output(outputCallDepth, s)
 }
