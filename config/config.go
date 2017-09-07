@@ -81,15 +81,10 @@ type Server struct {
 	// Default is `localhost:8080`
 	ListenAddr string `yaml:"listen_addr,omitempty"`
 
-	// TCP address to listen to for https
-	ListenTLSAddr string `yaml:"listen_tls_addr,omitempty"`
+	// Whether serve https at ListenAddr addr
+	IsTLS bool `yaml:"listen_tls_addr,omitempty"`
 
-	// Path to the directory where letsencrypt certs are cached
-	CertCacheDir string `yaml:"cert_cache_dir,omitempty"`
-
-	// List of host names to which proxy is allowed to respond to
-	// see https://godoc.org/golang.org/x/crypto/acme/autocert#HostPolicy
-	HostPolicy []string `yaml:"host_policy,omitempty"`
+	TLSConfig TLSConfig `yaml:"tls_config,omitempty"`
 
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
@@ -104,11 +99,39 @@ func (s *Server) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 
-	if len(s.ListenTLSAddr) > 0 && len(s.CertCacheDir) == 0 {
+	return checkOverflow(s.XXX, "server")
+}
+
+type TLSConfig struct {
+	// The client cert file for the targets.
+	CertFile string `yaml:"cert_file,omitempty"`
+
+	// The client key file for the targets.
+	KeyFile string `yaml:"key_file,omitempty"`
+
+	// Path to the directory where letsencrypt certs are cached
+	CertCacheDir string `yaml:"cert_cache_dir,omitempty"`
+
+	// List of host names to which proxy is allowed to respond to
+	// see https://godoc.org/golang.org/x/crypto/acme/autocert#HostPolicy
+	HostPolicy []string `yaml:"host_policy,omitempty"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *TLSConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain TLSConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+
+	if len(c.ListenTLSAddr) > 0 && len(c.CertCacheDir) == 0 {
 		return fmt.Errorf("field `server.cert_cache_dir` must be set for TLS")
 	}
 
-	return checkOverflow(s.XXX, "server")
+	return checkOverflow(c.XXX, "server")
 }
 
 // Cluster describes CH cluster configuration
