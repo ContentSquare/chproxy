@@ -3,10 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
-	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -16,42 +16,27 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// Creates new reverseProxy with provided config
+// Creates new reverseProxy
 func NewReverseProxy() *reverseProxy {
 	rp := &reverseProxy{}
 	rp.ReverseProxy = &httputil.ReverseProxy{
 		Director: func(*http.Request) {},
 		ErrorLog: log.ErrorLogger,
-		Transport: &observableTransport{
-			http.Transport{
-				DialContext: (&net.Dialer{
-					KeepAlive: 30 * time.Second,
-					DualStack: true,
-				}).DialContext,
-				MaxIdleConns:          100,
-				IdleConnTimeout:       90 * time.Second,
-				TLSHandshakeTimeout:   10 * time.Second,
-				ExpectContinueTimeout: 1 * time.Second,
-			},
-		},
 	}
 	return rp
 }
 
 func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	log.Debugf("Accepting request from %s: %s", req.RemoteAddr, req.URL)
-	cw := newCachedWriter(rw)
 	s, err := rp.getRequestScope(req)
 	if err != nil {
-		log.Errorf("proxy failed: %s", err)
-		cw.WriteError(err, http.StatusInternalServerError)
+		respondWithErr(rw, err)
 		return
 	}
 	log.Debugf("Request scope %s", s)
 
 	if err = s.inc(); err != nil {
-		log.Errorf("proxy failed: %s", err)
-		cw.WriteError(err, http.StatusInternalServerError)
+		respondWithErr(rw, err)
 		return
 	}
 	defer s.dec()
@@ -101,22 +86,30 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	req = req.WithContext(ctx)
+	cw := newCachedWriter(rw)
 	rp.ReverseProxy.ServeHTTP(cw, req)
 
+	status := cw.Status()
 	switch {
 	case req.Context().Err() != nil:
 		timeoutCounter.Inc()
 		s.cluster.killQueries(ua, timeout.Seconds())
-		cw.WriteError(timeoutErrMsg, http.StatusRequestTimeout)
-	case cw.Status() != http.StatusOK:
-		//TODO: counter err inc?
-		err = fmt.Errorf("Proxy error: %s", cw.wbuf.String())
-		cw.WriteError(err, cw.Status())
-	default:
+		respondWithErr(rw, timeoutErrMsg)
+	case status == http.StatusOK:
 		requestSuccess.With(label).Inc()
+		log.Debugf("Request scope %s successfully proxied", s)
+	default:
+		requestErrors.With(label).Inc()
+		b := cw.Bytes()
+		if len(b) == 0 {
+			b = []byte(fmt.Sprintf("unable to reach address: %s", req.URL.Host))
+		}
+		rw.Write(b)
 	}
 
-	log.Debugf("Request scope %s successfully proxied", s)
+	statusCodes.With(
+		prometheus.Labels{"host": req.URL.Host, "code": strconv.Itoa(status)},
+	).Inc()
 }
 
 // Applies provided config to reverseProxy
@@ -228,25 +221,4 @@ func (rp *reverseProxy) getRequestScope(req *http.Request) (*scope, error) {
 	}
 
 	return newScope(u, cu, c), nil
-}
-
-type observableTransport struct {
-	http.Transport
-}
-
-func (ot *observableTransport) RoundTrip(r *http.Request) (*http.Response, error) {
-	response, err := ot.Transport.RoundTrip(r)
-	if response != nil {
-		statusCodes.With(
-			prometheus.Labels{"host": r.URL.Host, "code": response.Status},
-		).Inc()
-	}
-
-	if err != nil {
-		errors.With(
-			prometheus.Labels{"host": r.URL.Host, "message": err.Error()},
-		).Inc()
-	}
-
-	return response, err
 }

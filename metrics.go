@@ -3,9 +3,9 @@ package main
 import "github.com/prometheus/client_golang/prometheus"
 
 var (
-	errors          *prometheus.CounterVec
 	requestSum      *prometheus.CounterVec
 	statusCodes     *prometheus.CounterVec
+	requestErrors   *prometheus.CounterVec
 	requestSuccess  *prometheus.CounterVec
 	userTimeouts    *prometheus.CounterVec
 	clusterTimeouts *prometheus.CounterVec
@@ -36,7 +36,7 @@ func init() {
 		[]string{"user", "host"},
 	)
 
-	errors = prometheus.NewCounterVec(
+	requestErrors = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "request_errors",
 			Help: "Number of errors returned by target. Including amount of timeouts",
@@ -60,6 +60,6 @@ func init() {
 		[]string{"user", "cluster_user", "host"},
 	)
 
-	prometheus.MustRegister(statusCodes, userTimeouts, clusterTimeouts, errors,
+	prometheus.MustRegister(statusCodes, userTimeouts, clusterTimeouts, requestErrors,
 		requestSum, requestSuccess)
 }

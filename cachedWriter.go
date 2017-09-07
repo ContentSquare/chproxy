@@ -49,6 +49,7 @@ func (cw *cachedWriter) WriteHeader(code int) {
 func (cw *cachedWriter) writeHeader(code int) {
 	cw.wroteHeader = true
 	cw.code = code
+	cw.w.WriteHeader(code)
 }
 
 func (cw *cachedWriter) Status() int {
@@ -57,7 +58,8 @@ func (cw *cachedWriter) Status() int {
 	return cw.code
 }
 
-func (cw *cachedWriter) WriteError(err error, code int) {
-	cw.w.WriteHeader(code)
-	cw.w.Write([]byte(err.Error()))
+func (cw *cachedWriter) Bytes() []byte {
+	cw.mu.Lock()
+	defer cw.mu.Unlock()
+	return cw.wbuf.Bytes()
 }
