@@ -11,7 +11,7 @@ import (
 
 var (
 	defaultConfig = Config{
-		Server: defaultServer,
+		Server:   defaultServer,
 		Clusters: []Cluster{defaultCluster},
 	}
 
@@ -67,7 +67,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("field `clusters` must contain at least 1 cluster")
 	}
 
-	if len(c.Server.ListenAddr) == 0  {
+	if len(c.Server.ListenAddr) == 0 {
 		return fmt.Errorf("field `server.listen_addr` cannot be empty")
 	}
 

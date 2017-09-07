@@ -40,16 +40,18 @@ func NewReverseProxy() *reverseProxy {
 
 func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	log.Debugf("Accepting request from %s: %s", req.RemoteAddr, req.URL)
+	cw := newCachedWriter(rw)
 	s, err := rp.getRequestScope(req)
 	if err != nil {
-		respondWithErr(rw, err)
+		log.Errorf("proxy failed: %s", err)
+		cw.WriteError(err, http.StatusInternalServerError)
 		return
 	}
 	log.Debugf("Request scope %s", s)
 
 	if err = s.inc(); err != nil {
-		//no need in dec() if we got an error
-		respondWithErr(rw, err)
+		log.Errorf("proxy failed: %s", err)
+		cw.WriteError(err, http.StatusInternalServerError)
 		return
 	}
 	defer s.dec()
@@ -70,7 +72,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	var (
 		timeout        time.Duration
 		timeoutCounter prometheus.Counter
-		timeoutMessage string
+		timeoutErrMsg  error
 	)
 
 	if s.user.maxExecutionTime > 0 {
@@ -79,7 +81,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			"host": s.host.addr.Host,
 			"user": s.user.name,
 		})
-		timeoutMessage = fmt.Sprintf("timeout for user %q exceeded: %v", s.user.name, timeout)
+		timeoutErrMsg = fmt.Errorf("timeout for user %q exceeded: %v", s.user.name, timeout)
 	}
 
 	if timeout == 0 || (s.clusterUser.maxExecutionTime > 0 && s.clusterUser.maxExecutionTime < timeout) {
@@ -88,7 +90,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			"host": s.host.addr.Host,
 			"user": s.clusterUser.name,
 		})
-		timeoutMessage = fmt.Sprintf("timeout for cluster user %q exceeded: %v", s.clusterUser.name, timeout)
+		timeoutErrMsg = fmt.Errorf("timeout for cluster user %q exceeded: %v", s.clusterUser.name, timeout)
 	}
 
 	ctx := context.Background()
@@ -99,17 +101,21 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	req = req.WithContext(ctx)
+	rp.ReverseProxy.ServeHTTP(cw, req)
 
-	rp.ReverseProxy.ServeHTTP(rw, req)
-
-	if req.Context().Err() != nil {
+	switch {
+	case req.Context().Err() != nil:
 		timeoutCounter.Inc()
 		s.cluster.killQueries(ua, timeout.Seconds())
-		rw.Write([]byte(timeoutMessage))
-		return
+		cw.WriteError(timeoutErrMsg, http.StatusRequestTimeout)
+	case cw.Status() != http.StatusOK:
+		//TODO: counter err inc?
+		err = fmt.Errorf("Proxy error: %s", cw.wbuf.String())
+		cw.WriteError(err, cw.Status())
+	default:
+		requestSuccess.With(label).Inc()
 	}
 
-	requestSuccess.With(label).Inc()
 	log.Debugf("Request scope %s successfully proxied", s)
 }
 
