@@ -41,7 +41,7 @@ func init() {
 			Name: "request_errors",
 			Help: "Number of errors returned by target. Including amount of timeouts",
 		},
-		[]string{"host", "message"},
+		[]string{"user", "cluster_user", "host"},
 	)
 
 	requestSum = prometheus.NewCounterVec(

@@ -51,7 +51,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	req.URL.Scheme = s.host.addr.Scheme
 	req.URL.Host = s.host.addr.Host
 	// set custom User-Agent for proper handling of killQuery func
-	ua := fmt.Sprintf("ClickHouseProxy: %s", s.user.name)
+	ua := fmt.Sprintf("CHProxy; User %s; Scope %d", s.user.name, s.id)
 	req.Header.Set("User-Agent", ua)
 
 	var (

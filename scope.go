@@ -19,18 +19,18 @@ func (s *scope) String() string {
 }
 
 type scope struct {
-	id          uint64
+	id          int64
 	host        *host
 	cluster     *cluster
 	user        *user
 	clusterUser *clusterUser
 }
 
-var scopeId uint64
+var scopeId = time.Now().UnixNano()
 
 func newScope(u *user, cu *clusterUser, c *cluster) *scope {
 	return &scope{
-		id:          atomic.AddUint64(&scopeId, 1),
+		id:          atomic.AddInt64(&scopeId, 1),
 		host:        c.getHost(),
 		cluster:     c,
 		user:        u,
