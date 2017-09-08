@@ -86,14 +86,6 @@ type clusterUser struct {
 	queryCounter
 }
 
-func (u *clusterUser) timeout() <-chan time.Time {
-	if u.maxExecutionTime > 0 {
-		return time.After(u.maxExecutionTime)
-	}
-
-	return nil
-}
-
 type host struct {
 	addr *url.URL
 

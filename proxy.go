@@ -27,7 +27,9 @@ func newReverseProxy() *reverseProxy {
 
 func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	log.Debugf("Accepting request from %s: %s", req.RemoteAddr, req.URL)
-	s, err := rp.getRequestScope(req)
+
+	name, password := getAuth(req)
+	s, err := rp.getRequestScope(req, name, password)
 	if err != nil {
 		respondWithErr(rw, err)
 		return
@@ -49,6 +51,9 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	req.URL.Scheme = s.host.addr.Scheme
 	req.URL.Host = s.host.addr.Host
+
+	// override credentials before proxying request to CH
+	setAuth(req, s.clusterUser.name, s.clusterUser.password)
 
 	// set custom User-Agent for proper handling of killQuery func
 	ua := fmt.Sprintf("CHProxy; User %s; Scope %d", s.user.name, s.id)
@@ -191,9 +196,7 @@ type reverseProxy struct {
 	clusters map[string]*cluster
 }
 
-func (rp *reverseProxy) getRequestScope(req *http.Request) (*scope, error) {
-	name, password := getAuth(req)
-
+func (rp *reverseProxy) getRequestScope(req *http.Request, name, password string) (*scope, error) {
 	rp.mu.Lock()
 	defer rp.mu.Unlock()
 
@@ -219,11 +222,6 @@ func (rp *reverseProxy) getRequestScope(req *http.Request) (*scope, error) {
 	if !ok {
 		panic(fmt.Sprintf("BUG: user %q matches to unknown user %q at cluster %q", u.name, u.toUser, u.toCluster))
 	}
-
-	// override basic-auth before requesting ClickHouse
-	req.SetBasicAuth(cu.name, cu.password)
-	req.URL.Query().Del("user")
-	req.URL.Query().Del("password")
 
 	return newScope(u, cu, c), nil
 }
