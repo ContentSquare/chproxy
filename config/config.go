@@ -166,6 +166,11 @@ type Cluster struct {
 	// ClusterUsers - list of ClickHouse users
 	ClusterUsers []ClusterUser `yaml:"users"`
 
+	// KillQueryUser - user configuration for killing
+	// queries which has exceeded limits
+	// if not specified - killing queries will be omitted
+	KillQueryUser KillQueryUser `yaml:"kill_query_user,omitempty"`
+
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
 }
@@ -196,6 +201,33 @@ func (c *Cluster) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	return checkOverflow(c.XXX, "cluster")
+}
+
+// KillQueryUser - user configuration for killing
+// queries which has exceeded limits
+type KillQueryUser struct {
+	// User name
+	Name string `yaml:"name"`
+
+	// User password to access CH with basic auth
+	Password string `yaml:"password,omitempty"`
+
+	// Catches all undefined fields
+	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (u *KillQueryUser) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain KillQueryUser
+	if err := unmarshal((*plain)(u)); err != nil {
+		return err
+	}
+
+	if len(u.Name) == 0 {
+		return fmt.Errorf("field `cluster.kill_query_user.name` must be specified")
+	}
+
+	return checkOverflow(u.XXX, "kill_query_user")
 }
 
 // User describes list of allowed users

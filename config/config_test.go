@@ -40,6 +40,10 @@ func TestLoadConfig(t *testing.T) {
 						Name:   "first cluster",
 						Scheme: "http",
 						Nodes:  []string{"127.0.0.1:8123", "127.0.0.2:8123", "127.0.0.3:8123"},
+						KillQueryUser: KillQueryUser{
+							Name:     "default",
+							Password: "password",
+						},
 						ClusterUsers: []ClusterUser{
 							{
 								Name:                 "web",

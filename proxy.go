@@ -99,7 +99,10 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	switch {
 	case req.Context().Err() != nil:
 		timeoutCounter.Inc()
-		s.cluster.killQueries(ua, timeout.Seconds())
+		elapsed := timeout.Seconds()
+		if err := s.cluster.killQueries(ua, elapsed); err != nil {
+			log.Errorf("error while killing queries older than %.2fs: %s", elapsed, err)
+		}
 		rw.Write([]byte(timeoutErrMsg.Error()))
 	case cw.statusCode == http.StatusOK:
 		requestSuccess.With(label).Inc()
@@ -151,7 +154,10 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 		if _, ok := clusters[c.Name]; ok {
 			return fmt.Errorf("cluster %q already exists", c.Name)
 		}
-		clusters[c.Name] = newCluster(hosts, clusterUsers)
+		cluster := newCluster(hosts, clusterUsers)
+		cluster.killQueryUserName = c.KillQueryUser.Name
+		cluster.killQueryUserPassword = c.KillQueryUser.Password
+		clusters[c.Name] = cluster
 	}
 
 	users := make(map[string]*user, len(cfg.Users))

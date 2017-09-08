@@ -27,6 +27,9 @@ clusters:
   - name: "first cluster"
     scheme: "http"
     nodes: ["127.0.0.1:8123", "127.0.0.2:8123", "127.0.0.3:8123"]
+    kill_query_user:
+      name: "default"
+      password: "password"
     users:
       - name: "web"
         password: "password"

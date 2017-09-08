@@ -2,7 +2,10 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"net/url"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -93,9 +96,11 @@ type host struct {
 }
 
 type cluster struct {
-	nextIdx uint32
-	hosts   []*host
-	users   map[string]*clusterUser
+	nextIdx               uint32
+	hosts                 []*host
+	users                 map[string]*clusterUser
+	killQueryUserName     string
+	killQueryUserPassword string
 }
 
 func newCluster(h []*host, cu map[string]*clusterUser) *cluster {
@@ -106,15 +111,43 @@ func newCluster(h []*host, cu map[string]*clusterUser) *cluster {
 	}
 }
 
+var client = &http.Client{
+	Timeout: time.Second * 60,
+}
+
 // We don't use query_id because of distributed processing, the query ID is not passed to remote servers
-func (c *cluster) killQueries(ua string, elapsed float64) {
-	q := fmt.Sprintf("KILL QUERY WHERE http_user_agent = '%s' AND elapsed >= %d", ua, int(elapsed))
-	log.Debugf("ExecutionTime exceeded. Going to call query %q for hosts %v", q, c.hosts)
-	for _, host := range c.hosts {
-		if err := doQuery(q, host.addr.String()); err != nil {
-			log.Errorf("error while killing queries older than %.2fs: %s", elapsed, err)
-		}
+func (c *cluster) killQueries(ua string, elapsed float64) error {
+	if len(c.killQueryUserName) == 0 {
+		return nil
 	}
+
+	query := fmt.Sprintf("KILL QUERY WHERE http_user_agent = '%s' AND elapsed >= %d", ua, int(elapsed))
+	log.Debugf("ExecutionTime exceeded. Going to call query %q", query)
+
+	for _, host := range c.hosts {
+		addr := host.addr.String()
+		r := strings.NewReader(query)
+		req, err := http.NewRequest("POST", addr, r)
+		if err != nil {
+			return fmt.Errorf("error while creating kill query request to %s: %s", addr, err)
+		}
+		setAuth(req, c.killQueryUserName, c.killQueryUserPassword)
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return fmt.Errorf("error while executing clickhouse query %q at %q: %s", query, addr, err)
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			responseBody, _ := ioutil.ReadAll(resp.Body)
+			resp.Body.Close()
+			return fmt.Errorf("unexpected status code returned from query %q at %q: %d. Expecting %d. Response body: %q",
+				query, addr, resp.StatusCode, http.StatusOK, responseBody)
+		}
+		resp.Body.Close()
+	}
+
+	return nil
 }
 
 // get least loaded + round-robin host from cluster
