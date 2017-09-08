@@ -77,24 +77,12 @@ func serveTLS(addr string, tlsConfig config.TLSConfig) error {
 	log.Infof("Serving https on %q", addr)
 	return listenAndServe(ln)
 }
+
 func serve(addr string) error {
 	ln := newListener(addr)
 
 	log.Infof("Serving http on %q", addr)
 	return listenAndServe(ln)
-}
-
-func listenAndServe(ln net.Listener) error {
-	s := &http.Server{
-		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
-		Handler:      http.HandlerFunc(serveHTTP),
-		ReadTimeout:  time.Minute,
-		WriteTimeout: time.Minute,
-		IdleTimeout:  time.Minute * 10,
-		ErrorLog:     log.ErrorLogger,
-	}
-
-	return s.Serve(ln)
 }
 
 func newListener(laddr string) net.Listener {
@@ -157,6 +145,19 @@ func newTLSListener(laddr string, tlsConf config.TLSConfig) net.Listener {
 
 	ln := newListener(laddr)
 	return tls.NewListener(ln, &tlsConfig)
+}
+
+func listenAndServe(ln net.Listener) error {
+	s := &http.Server{
+		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
+		Handler:      http.HandlerFunc(serveHTTP),
+		ReadTimeout:  time.Minute,
+		WriteTimeout: time.Minute,
+		IdleTimeout:  time.Minute * 10,
+		ErrorLog:     log.ErrorLogger,
+	}
+
+	return s.Serve(ln)
 }
 
 type netListener struct {

@@ -22,18 +22,18 @@ func (s *scope) String() string {
 }
 
 type scope struct {
-	id          int64
+	id          uint32
 	host        *host
 	cluster     *cluster
 	user        *user
 	clusterUser *clusterUser
 }
 
-var scopeId = time.Now().UnixNano()
+var scopeId = uint32(time.Now().UnixNano())
 
 func newScope(u *user, cu *clusterUser, c *cluster) *scope {
 	return &scope{
-		id:          atomic.AddInt64(&scopeId, 1),
+		id:          atomic.AddUint32(&scopeId, 1),
 		host:        c.getHost(),
 		cluster:     c,
 		user:        u,
@@ -125,8 +125,9 @@ func (c *cluster) killQueries(ua string, elapsed float64) error {
 	log.Debugf("ExecutionTime exceeded. Going to call query %q", query)
 
 	for _, host := range c.hosts {
-		addr := host.addr.String()
 		r := strings.NewReader(query)
+		addr := host.addr.String()
+
 		req, err := http.NewRequest("POST", addr, r)
 		if err != nil {
 			return fmt.Errorf("error while creating kill query request to %s: %s", addr, err)
@@ -141,8 +142,8 @@ func (c *cluster) killQueries(ua string, elapsed float64) error {
 		if resp.StatusCode != http.StatusOK {
 			responseBody, _ := ioutil.ReadAll(resp.Body)
 			resp.Body.Close()
-			return fmt.Errorf("unexpected status code returned from query %q at %q: %d. Expecting %d. Response body: %q",
-				query, addr, resp.StatusCode, http.StatusOK, responseBody)
+			return fmt.Errorf("unexpected status code returned from query %q at %q: %d. Response body: %q",
+				query, addr, resp.StatusCode, responseBody)
 		}
 		resp.Body.Close()
 	}
