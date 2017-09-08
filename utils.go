@@ -35,7 +35,7 @@ func respondWithErr(rw http.ResponseWriter, err error) {
 	rw.Write([]byte(err.Error()))
 }
 
-func basicAuth(req *http.Request) (string, string) {
+func getAuth(req *http.Request) (string, string) {
 	if name, pass, ok := req.BasicAuth(); ok {
 		return name, pass
 	}

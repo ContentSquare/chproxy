@@ -129,7 +129,8 @@ var authCfg = &config.Config{
 			Nodes:  []string{"localhost:8123"},
 			ClusterUsers: []config.ClusterUser{
 				{
-					Name: "web",
+					Name:     "web",
+					Password: "webpass",
 				},
 			},
 		},
@@ -264,6 +265,19 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 		if resp != expected {
 			t.Fatalf("expected response: %q; got: %q", expected, resp)
 		}
+
+		user, pass, ok := req.BasicAuth()
+		if !ok {
+			t.Fatalf("expected to fetch basic auth credentials")
+		}
+
+		if user != authCfg.Clusters[0].ClusterUsers[0].Name {
+			t.Fatalf("user name expected to be %q; got %q", authCfg.Clusters[0].ClusterUsers[0].Name, user)
+		}
+
+		if pass != authCfg.Clusters[0].ClusterUsers[0].Password {
+			t.Fatalf("user password expected to be %q; got %q", authCfg.Clusters[0].ClusterUsers[0].Password, pass)
+		}
 	})
 
 	t.Run("auth wrong name", func(t *testing.T) {
@@ -302,6 +316,19 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 		expected := "Ok\n"
 		if resp != expected {
 			t.Fatalf("expected response: %q; got: %q", expected, resp)
+		}
+
+		user, pass, ok := req.BasicAuth()
+		if !ok {
+			t.Fatalf("expected to fetch basic auth credentials")
+		}
+
+		if user != authCfg.Clusters[0].ClusterUsers[0].Name {
+			t.Fatalf("user name expected to be %q; got %q", authCfg.Clusters[0].ClusterUsers[0].Name, user)
+		}
+
+		if pass != authCfg.Clusters[0].ClusterUsers[0].Password {
+			t.Fatalf("user password expected to be %q; got %q", authCfg.Clusters[0].ClusterUsers[0].Password, pass)
 		}
 	})
 }

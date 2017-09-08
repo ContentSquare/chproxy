@@ -49,6 +49,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	req.URL.Scheme = s.host.addr.Scheme
 	req.URL.Host = s.host.addr.Host
+
 	// set custom User-Agent for proper handling of killQuery func
 	ua := fmt.Sprintf("CHProxy; User %s; Scope %d", s.user.name, s.id)
 	req.Header.Set("User-Agent", ua)
@@ -94,7 +95,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	case req.Context().Err() != nil:
 		timeoutCounter.Inc()
 		s.cluster.killQueries(ua, timeout.Seconds())
-		respondWithErr(rw, timeoutErrMsg)
+		rw.Write([]byte(timeoutErrMsg.Error()))
 	case cw.statusCode == http.StatusOK:
 		requestSuccess.With(label).Inc()
 		log.Debugf("Request scope %s successfully proxied", s)
@@ -191,7 +192,7 @@ type reverseProxy struct {
 }
 
 func (rp *reverseProxy) getRequestScope(req *http.Request) (*scope, error) {
-	name, password := basicAuth(req)
+	name, password := getAuth(req)
 
 	rp.mu.Lock()
 	defer rp.mu.Unlock()
@@ -218,6 +219,9 @@ func (rp *reverseProxy) getRequestScope(req *http.Request) (*scope, error) {
 	if !ok {
 		panic(fmt.Sprintf("BUG: user %q matches to unknown user %q at cluster %q", u.name, u.toUser, u.toCluster))
 	}
+
+	// override basic-auth before requesting ClickHouse
+	req.SetBasicAuth(cu.name, cu.password)
 
 	return newScope(u, cu, c), nil
 }
