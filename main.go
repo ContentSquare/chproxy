@@ -22,7 +22,7 @@ import (
 var configFile = flag.String("config", "proxy.yml", "Proxy configuration filename")
 
 var (
-	proxy    = NewReverseProxy()
+	proxy    = newReverseProxy()
 	networks atomic.Value
 )
 

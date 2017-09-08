@@ -22,7 +22,7 @@ func init() {
 
 	userTimeouts = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "initial_timeouts",
+			Name: "user_timeouts",
 			Help: "Number of timeouts for initial user",
 		},
 		[]string{"user", "host"},
@@ -30,7 +30,7 @@ func init() {
 
 	clusterTimeouts = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "execution_timeouts",
+			Name: "cluster_user_timeouts",
 			Help: "Number of timeouts for execution user",
 		},
 		[]string{"user", "host"},

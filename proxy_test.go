@@ -48,7 +48,7 @@ var goodCfg = &config.Config{
 }
 
 func newConfiguredProxy(cfg *config.Config) (*reverseProxy, error) {
-	p := NewReverseProxy()
+	p := newReverseProxy()
 	if err := p.ApplyConfig(cfg); err != nil {
 		return p, fmt.Errorf("error while loading config: %s", err)
 	}
@@ -57,7 +57,7 @@ func newConfiguredProxy(cfg *config.Config) (*reverseProxy, error) {
 }
 
 func TestNewReverseProxy(t *testing.T) {
-	proxy := NewReverseProxy()
+	proxy := newReverseProxy()
 	if err := proxy.ApplyConfig(goodCfg); err != nil {
 		t.Fatalf("error while loading config: %s", err)
 	}

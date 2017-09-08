@@ -16,14 +16,13 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// Creates new reverseProxy
-func NewReverseProxy() *reverseProxy {
-	rp := &reverseProxy{}
-	rp.ReverseProxy = &httputil.ReverseProxy{
-		Director: func(*http.Request) {},
-		ErrorLog: log.ErrorLogger,
+func newReverseProxy() *reverseProxy {
+	return &reverseProxy{
+		ReverseProxy: &httputil.ReverseProxy{
+			Director: func(*http.Request) {},
+			ErrorLog: log.ErrorLogger,
+		},
 	}
-	return rp
 }
 
 func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -86,29 +85,29 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	req = req.WithContext(ctx)
-	cw := newCachedWriter(rw)
+	cw := &cachedWriter{
+		ResponseWriter: rw,
+	}
 	rp.ReverseProxy.ServeHTTP(cw, req)
 
-	status := cw.Status()
 	switch {
 	case req.Context().Err() != nil:
 		timeoutCounter.Inc()
 		s.cluster.killQueries(ua, timeout.Seconds())
 		respondWithErr(rw, timeoutErrMsg)
-	case status == http.StatusOK:
+	case cw.statusCode == http.StatusOK:
 		requestSuccess.With(label).Inc()
 		log.Debugf("Request scope %s successfully proxied", s)
+	case cw.statusCode == http.StatusBadGateway:
+		requestErrors.With(label).Inc()
+		b := []byte(fmt.Sprintf("unable to reach address: %s", req.URL.Host))
+		rw.Write(b)
 	default:
 		requestErrors.With(label).Inc()
-		b := cw.Bytes()
-		if len(b) == 0 {
-			b = []byte(fmt.Sprintf("unable to reach address: %s", req.URL.Host))
-		}
-		rw.Write(b)
 	}
 
 	statusCodes.With(
-		prometheus.Labels{"host": req.URL.Host, "code": strconv.Itoa(status)},
+		prometheus.Labels{"host": req.URL.Host, "code": strconv.Itoa(cw.statusCode)},
 	).Inc()
 }
 
@@ -221,4 +220,14 @@ func (rp *reverseProxy) getRequestScope(req *http.Request) (*scope, error) {
 	}
 
 	return newScope(u, cu, c), nil
+}
+
+type cachedWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (cw *cachedWriter) WriteHeader(code int) {
+	cw.statusCode = code
+	cw.ResponseWriter.WriteHeader(code)
 }
