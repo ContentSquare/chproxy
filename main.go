@@ -52,7 +52,11 @@ func main() {
 		}
 	}()
 
-	listenAndServe(cfg)
+	if cfg.IsTLS {
+		log.Fatalf("TLS server error on %q: %s", cfg.ListenAddr, serveTLS(cfg.ListenAddr, cfg.TLSConfig))
+	}
+
+	log.Fatalf("Server error on %q: %s", cfg.ListenAddr, serve(cfg.ListenAddr))
 }
 
 var promHandler = promhttp.Handler()
@@ -67,7 +71,20 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func listenAndServe(cfg *config.Server) {
+func serveTLS(addr string, tlsConfig config.TLSConfig) error {
+	ln := newTLSListener(addr, tlsConfig)
+
+	log.Infof("Serving https on %q", addr)
+	return listenAndServe(ln)
+}
+func serve(addr string) error {
+	ln := newListener(addr)
+
+	log.Infof("Serving http on %q", addr)
+	return listenAndServe(ln)
+}
+
+func listenAndServe(ln net.Listener) error {
 	s := &http.Server{
 		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 		Handler:      http.HandlerFunc(serveHTTP),
@@ -77,20 +94,7 @@ func listenAndServe(cfg *config.Server) {
 		ErrorLog:     log.ErrorLogger,
 	}
 
-	var ln net.Listener
-	var serveInfo string
-	if !cfg.IsTLS {
-		ln = newListener(cfg.ListenAddr)
-		serveInfo = fmt.Sprintf("http on %q", cfg.ListenAddr)
-	} else {
-		ln = newTLSListener(cfg.ListenAddr, cfg.TLSConfig)
-		serveInfo = fmt.Sprintf("https on %q", cfg.ListenAddr)
-	}
-
-	log.Infof("Serving %s", serveInfo)
-	if err := s.Serve(ln); err != nil {
-		log.Fatalf("Server error %s: %s", serveInfo, err)
-	}
+	return s.Serve(ln)
 }
 
 func newListener(laddr string) net.Listener {
