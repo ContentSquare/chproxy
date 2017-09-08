@@ -188,6 +188,16 @@ func TestBadConfig(t *testing.T) {
 			"testdata/bad.empty_server.yml",
 			"field `server.listen_addr` cannot be empty",
 		},
+		{
+			"empty tls",
+			"testdata/bad.empty_tls.yml",
+			"configuration `tls_config` is missing. Must be specified `tls_config.cert_cache_dir` for autocert OR `tls_config.key_file` and `tls_config.cert_file` for already existing certs",
+		},
+		{
+			"empty tls cert key",
+			"testdata/bad.empty_tls_cert_key.yml",
+			"field `tls_config.key_file` must be specified",
+		},
 	}
 
 	for _, tc := range testCases {

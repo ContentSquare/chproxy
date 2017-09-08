@@ -1,0 +1,10 @@
+server:
+  listen_addr: ":9090"
+  is_tls: true
+  tls_config:
+    cert_file: "cert_file"
+
+users:
+  - name: "default"
+    to_cluster: "cluster"
+    to_user: "default"
