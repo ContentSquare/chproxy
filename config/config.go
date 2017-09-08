@@ -82,8 +82,10 @@ type Server struct {
 	ListenAddr string `yaml:"listen_addr,omitempty"`
 
 	// Whether serve https at ListenAddr addr
-	IsTLS bool `yaml:"listen_tls_addr,omitempty"`
+	// If no TLSConfig specified than `autocert` will be used
+	IsTLS bool `yaml:"is_tls,omitempty"`
 
+	// Optional TLS configuration
 	TLSConfig TLSConfig `yaml:"tls_config,omitempty"`
 
 	// Catches all undefined fields
@@ -99,18 +101,26 @@ func (s *Server) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 
+	if s.IsTLS == true {
+		if len(s.TLSConfig.CertCacheDir) == 0 && len(s.TLSConfig.CertFile) == 0 && len(s.TLSConfig.KeyFile) == 0 {
+			return fmt.Errorf("configuration `tls_config` is missing. " +
+				"Must be specified `tls_config.cert_cache_dir` for autocert " +
+				"OR `tls_config.key_file` and `tls_config.cert_file` for already existing certs")
+		}
+	}
+
 	return checkOverflow(s.XXX, "server")
 }
 
 type TLSConfig struct {
+	// Path to the directory where letsencrypt certs are cached
+	CertCacheDir string `yaml:"cert_cache_dir,omitempty"`
+
 	// The client cert file for the targets.
 	CertFile string `yaml:"cert_file,omitempty"`
 
 	// The client key file for the targets.
 	KeyFile string `yaml:"key_file,omitempty"`
-
-	// Path to the directory where letsencrypt certs are cached
-	CertCacheDir string `yaml:"cert_cache_dir,omitempty"`
 
 	// List of host names to which proxy is allowed to respond to
 	// see https://godoc.org/golang.org/x/crypto/acme/autocert#HostPolicy
@@ -127,11 +137,15 @@ func (c *TLSConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 
-	if len(c.ListenTLSAddr) > 0 && len(c.CertCacheDir) == 0 {
-		return fmt.Errorf("field `server.cert_cache_dir` must be set for TLS")
+	if len(c.CertFile) > 0 && len(c.KeyFile) == 0 {
+		return fmt.Errorf("field `tls_config.key_file` must be specified")
 	}
 
-	return checkOverflow(c.XXX, "server")
+	if len(c.KeyFile) > 0 && len(c.CertFile) == 0 {
+		return fmt.Errorf("field `tls_config.cert_file` must be specified")
+	}
+
+	return checkOverflow(c.XXX, "tls_config")
 }
 
 // Cluster describes CH cluster configuration

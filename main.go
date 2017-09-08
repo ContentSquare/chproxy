@@ -52,11 +52,7 @@ func main() {
 		}
 	}()
 
-	if cfg.ListenTLSAddr != "" {
-		go listenAndServe(cfg, true)
-	}
-
-	listenAndServe(cfg, false)
+	listenAndServe(cfg)
 }
 
 var promHandler = promhttp.Handler()
@@ -71,7 +67,7 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func listenAndServe(cfg *config.Server, isTLS bool) {
+func listenAndServe(cfg *config.Server) {
 	s := &http.Server{
 		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 		Handler:      http.HandlerFunc(serveHTTP),
@@ -83,12 +79,12 @@ func listenAndServe(cfg *config.Server, isTLS bool) {
 
 	var ln net.Listener
 	var serveInfo string
-	if !isTLS {
+	if !cfg.IsTLS {
 		ln = newListener(cfg.ListenAddr)
 		serveInfo = fmt.Sprintf("http on %q", cfg.ListenAddr)
 	} else {
-		ln = newTLSListener(cfg.ListenTLSAddr, cfg.CertCacheDir, cfg.HostPolicy)
-		serveInfo = fmt.Sprintf("https on %q", cfg.ListenTLSAddr)
+		ln = newTLSListener(cfg.ListenAddr, cfg.TLSConfig)
+		serveInfo = fmt.Sprintf("https on %q", cfg.ListenAddr)
 	}
 
 	log.Infof("Serving %s", serveInfo)
@@ -107,30 +103,7 @@ func newListener(laddr string) net.Listener {
 	}
 }
 
-func newTLSListener(laddr, certCacheDir string, hostPolicy []string) net.Listener {
-	var hp autocert.HostPolicy
-	if len(hostPolicy) != 0 {
-		allowedHosts := make(map[string]struct{}, len(hostPolicy))
-		for _, v := range hostPolicy {
-			allowedHosts[v] = struct{}{}
-		}
-
-		hp = func(_ context.Context, host string) error {
-			if _, ok := allowedHosts[host]; ok {
-				return nil
-			}
-
-			return fmt.Errorf("host %q doesn't match `host_policy` configuration", host)
-		}
-	}
-
-	m := autocert.Manager{
-		Prompt:     autocert.AcceptTOS,
-		Cache:      autocert.DirCache(certCacheDir),
-		HostPolicy: hp,
-	}
-
-	ln := newListener(laddr)
+func newTLSListener(laddr string, tlsConf config.TLSConfig) net.Listener {
 	tlsConfig := tls.Config{
 		PreferServerCipherSuites: true,
 		CurvePreferences: []tls.CurveID{
@@ -138,7 +111,47 @@ func newTLSListener(laddr, certCacheDir string, hostPolicy []string) net.Listene
 			tls.X25519,
 		},
 	}
-	tlsConfig.GetCertificate = m.GetCertificate
+
+	if len(tlsConf.KeyFile) > 0 && len(tlsConf.CertFile) > 0 {
+		cert, err := tls.LoadX509KeyPair(tlsConf.CertFile, tlsConf.KeyFile)
+		if err != nil {
+			log.Fatalf("cannot load cert for `tls_config.cert_file`=%q, `tls_config.key_file`=%q: %s",
+				tlsConf.CertFile, tlsConf.KeyFile, err)
+		}
+		tlsConfig.Certificates = []tls.Certificate{cert}
+	} else {
+		if len(tlsConf.CertCacheDir) > 0 {
+			if _, err := os.Stat(tlsConf.CertCacheDir); os.IsNotExist(err) {
+				log.Fatalf("folder %q does not exist", tlsConf.CertCacheDir)
+			}
+		}
+
+		var hp autocert.HostPolicy
+		if len(tlsConf.HostPolicy) != 0 {
+			allowedHosts := make(map[string]struct{}, len(tlsConf.HostPolicy))
+			for _, v := range tlsConf.HostPolicy {
+				allowedHosts[v] = struct{}{}
+			}
+
+			hp = func(_ context.Context, host string) error {
+				if _, ok := allowedHosts[host]; ok {
+					return nil
+				}
+
+				return fmt.Errorf("host %q doesn't match `host_policy` configuration", host)
+			}
+		}
+
+		m := autocert.Manager{
+			Prompt:     autocert.AcceptTOS,
+			Cache:      autocert.DirCache(tlsConf.CertCacheDir),
+			HostPolicy: hp,
+		}
+
+		tlsConfig.GetCertificate = m.GetCertificate
+	}
+
+	ln := newListener(laddr)
 	return tls.NewListener(ln, &tlsConfig)
 }
 

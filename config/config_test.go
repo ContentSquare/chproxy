@@ -19,10 +19,14 @@ func TestLoadConfig(t *testing.T) {
 			"testdata/full.yml",
 			Config{
 				Server: Server{
-					ListenAddr:    ":9090",
-					ListenTLSAddr: ":443",
-					CertCacheDir:  "certs_dir",
-					HostPolicy:    []string{"example.com"},
+					ListenAddr: ":9090",
+					IsTLS:      true,
+					TLSConfig: TLSConfig{
+						CertCacheDir: "certs_dir",
+						HostPolicy:   []string{"example.com"},
+						CertFile:     "/path/to/cert_file",
+						KeyFile:      "/path/to/key_file",
+					},
 				},
 				LogDebug: true,
 				Networks: Networks{
