@@ -222,6 +222,8 @@ func (rp *reverseProxy) getRequestScope(req *http.Request) (*scope, error) {
 
 	// override basic-auth before requesting ClickHouse
 	req.SetBasicAuth(cu.name, cu.password)
+	req.URL.Query().Del("user")
+	req.URL.Query().Del("password")
 
 	return newScope(u, cu, c), nil
 }
