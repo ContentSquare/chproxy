@@ -59,18 +59,6 @@ func main() {
 	log.Fatalf("Server error on %q: %s", cfg.ListenAddr, serve(cfg.ListenAddr))
 }
 
-var promHandler = promhttp.Handler()
-
-func serveHTTP(rw http.ResponseWriter, r *http.Request) {
-	switch r.URL.Path {
-	case "/favicon.ico":
-	case "/metrics":
-		promHandler.ServeHTTP(rw, r)
-	default:
-		proxy.ServeHTTP(rw, r)
-	}
-}
-
 func serveTLS(addr string, tlsConfig config.TLSConfig) error {
 	ln := newTLSListener(addr, tlsConfig)
 
@@ -158,6 +146,22 @@ func listenAndServe(ln net.Listener) error {
 	}
 
 	return s.Serve(ln)
+}
+
+var promHandler = promhttp.Handler()
+
+func serveHTTP(rw http.ResponseWriter, r *http.Request) {
+	switch r.URL.Path {
+	case "/favicon.ico":
+	case "/metrics":
+		promHandler.ServeHTTP(rw, r)
+	case "/":
+		goodRequest.Inc()
+		proxy.ServeHTTP(rw, r)
+	default:
+		badRequest.Inc()
+		log.Debugf("Unsupported path: %s", r.URL.Path)
+	}
 }
 
 type netListener struct {

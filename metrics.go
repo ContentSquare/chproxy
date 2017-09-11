@@ -9,6 +9,9 @@ var (
 	requestSuccess  *prometheus.CounterVec
 	userTimeouts    *prometheus.CounterVec
 	clusterTimeouts *prometheus.CounterVec
+
+	badRequest  prometheus.Counter
+	goodRequest prometheus.Counter
 )
 
 func init() {
@@ -60,6 +63,16 @@ func init() {
 		[]string{"user", "cluster_user", "host"},
 	)
 
+	badRequest = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "bad_request",
+		Help: "Total number of unsupported requests",
+	})
+
+	goodRequest = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "good_request",
+		Help: "Total number of proxy requests",
+	})
+
 	prometheus.MustRegister(statusCodes, userTimeouts, clusterTimeouts, requestErrors,
-		requestSum, requestSuccess)
+		requestSum, requestSuccess, badRequest, goodRequest)
 }

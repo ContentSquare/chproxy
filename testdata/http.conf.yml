@@ -1,0 +1,8 @@
+users:
+  - name: "web"
+    to_cluster: "default"
+    to_user: "default"
+
+clusters:
+  - name: "default"
+    nodes: ["127.0.1.1:8123"]

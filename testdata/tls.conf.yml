@@ -1,0 +1,17 @@
+server:
+  listen_addr: "127.0.0.1:9090"
+  is_tls: true
+  tls_config:
+      cert_cache_dir: "certs_dir"
+      host_policy: ["example.com"]
+      cert_file: "testdata/example.com.cert"
+      key_file: "testdata/example.com.key"
+
+users:
+  - name: "default"
+    to_cluster: "default"
+    to_user: "default"
+
+clusters:
+  - name: "default"
+    nodes: ["127.0.1.1:8123"]
