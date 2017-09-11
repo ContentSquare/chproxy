@@ -53,7 +53,7 @@ func main() {
 	}()
 
 	if cfg.IsTLS {
-		if err := serveTLS(cfg.ListenAddr, cfg.TLSConfig); err != nil {
+		if err := serveTLS(cfg.ListenAddr, &cfg.TLSConfig); err != nil {
 			log.Fatalf("TLS server error on %q: %s", cfg.ListenAddr, err)
 		}
 	}
@@ -63,7 +63,7 @@ func main() {
 	}
 }
 
-func serveTLS(addr string, tlsConfig config.TLSConfig) error {
+func serveTLS(addr string, tlsConfig *config.TLSConfig) error {
 	ln := newTLSListener(addr, tlsConfig)
 
 	log.Infof("Serving https on %q", addr)
@@ -87,7 +87,7 @@ func newListener(laddr string) net.Listener {
 	}
 }
 
-func newTLSListener(laddr string, tlsConf config.TLSConfig) net.Listener {
+func newTLSListener(laddr string, cfg *config.TLSConfig) net.Listener {
 	tlsConfig := tls.Config{
 		PreferServerCipherSuites: true,
 		CurvePreferences: []tls.CurveID{
@@ -96,24 +96,24 @@ func newTLSListener(laddr string, tlsConf config.TLSConfig) net.Listener {
 		},
 	}
 
-	if len(tlsConf.KeyFile) > 0 && len(tlsConf.CertFile) > 0 {
-		cert, err := tls.LoadX509KeyPair(tlsConf.CertFile, tlsConf.KeyFile)
+	if len(cfg.KeyFile) > 0 && len(cfg.CertFile) > 0 {
+		cert, err := tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)
 		if err != nil {
 			log.Fatalf("cannot load cert for `tls_config.cert_file`=%q, `tls_config.key_file`=%q: %s",
-				tlsConf.CertFile, tlsConf.KeyFile, err)
+				cfg.CertFile, cfg.KeyFile, err)
 		}
 		tlsConfig.Certificates = []tls.Certificate{cert}
 	} else {
-		if len(tlsConf.CertCacheDir) > 0 {
-			if _, err := os.Stat(tlsConf.CertCacheDir); os.IsNotExist(err) {
-				log.Fatalf("folder %q does not exist", tlsConf.CertCacheDir)
+		if len(cfg.CertCacheDir) > 0 {
+			if err := os.MkdirAll(cfg.CertCacheDir, 0700); err != nil {
+				log.Fatalf("error while creating folder %q: %s", cfg.CertCacheDir, err)
 			}
 		}
 
 		var hp autocert.HostPolicy
-		if len(tlsConf.HostPolicy) != 0 {
-			allowedHosts := make(map[string]struct{}, len(tlsConf.HostPolicy))
-			for _, v := range tlsConf.HostPolicy {
+		if len(cfg.HostPolicy) != 0 {
+			allowedHosts := make(map[string]struct{}, len(cfg.HostPolicy))
+			for _, v := range cfg.HostPolicy {
 				allowedHosts[v] = struct{}{}
 			}
 
@@ -128,7 +128,7 @@ func newTLSListener(laddr string, tlsConf config.TLSConfig) net.Listener {
 
 		m := autocert.Manager{
 			Prompt:     autocert.AcceptTOS,
-			Cache:      autocert.DirCache(tlsConf.CertCacheDir),
+			Cache:      autocert.DirCache(cfg.CertCacheDir),
 			HostPolicy: hp,
 		}
 

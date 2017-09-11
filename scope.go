@@ -116,12 +116,12 @@ var client = &http.Client{
 }
 
 // We don't use query_id because of distributed processing, the query ID is not passed to remote servers
-func (c *cluster) killQueries(ua string, elapsed float64) error {
+func (c *cluster) killQuery(ua string) error {
 	if len(c.killQueryUserName) == 0 {
 		return nil
 	}
 
-	query := fmt.Sprintf("KILL QUERY WHERE http_user_agent = '%s' AND elapsed >= %d", ua, int(elapsed))
+	query := fmt.Sprintf("KILL QUERY WHERE http_user_agent = '%s'", ua)
 	log.Debugf("ExecutionTime exceeded. Going to call query %q", query)
 
 	for _, host := range c.hosts {

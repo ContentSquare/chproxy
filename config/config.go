@@ -22,6 +22,11 @@ var (
 	defaultCluster = Cluster{
 		Scheme:       "http",
 		ClusterUsers: []ClusterUser{defaultClusterUser},
+		KillQueryUser: defaultKillQueryUser,
+	}
+
+	defaultKillQueryUser = KillQueryUser{
+		Name: "default",
 	}
 
 	defaultClusterUser = ClusterUser{
@@ -183,6 +188,9 @@ func (c *Cluster) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
+
+	//fmt.Println(c.KillQueryUser)
+	//os.Exit(1)
 
 	if len(c.Name) == 0 {
 		return fmt.Errorf("field `cluster.name` cannot be empty")

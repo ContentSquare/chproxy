@@ -57,6 +57,7 @@ func TestLoadConfig(t *testing.T) {
 						Name:   "second cluster",
 						Scheme: "https",
 						Nodes:  []string{"127.0.1.1:8123", "127.0.1.2:8123"},
+						KillQueryUser: KillQueryUser{Name: "default"},
 						ClusterUsers: []ClusterUser{
 							{
 								Name:                 "default",
@@ -114,6 +115,9 @@ func TestLoadConfig(t *testing.T) {
 							{
 								Name: "default",
 							},
+						},
+						KillQueryUser: KillQueryUser{
+							Name: "default",
 						},
 					},
 				},

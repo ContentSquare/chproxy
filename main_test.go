@@ -14,7 +14,7 @@ func TestServeTLS(t *testing.T) {
 		t.Fatalf("unexpected error while loading config: %s", err)
 	}
 
-	go serveTLS(cfg.ListenAddr, cfg.TLSConfig)
+	go serveTLS(cfg.ListenAddr, &cfg.TLSConfig)
 	time.Sleep(time.Second)
 
 	tr := &http.Transport{

@@ -100,17 +100,16 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	case req.Context().Err() != nil:
 		timeoutCounter.Inc()
 		elapsed := timeout.Seconds()
-		if err := s.cluster.killQueries(ua, elapsed); err != nil {
-			log.Errorf("error while killing queries older than %.2fs: %s", elapsed, err)
+		if err := s.cluster.killQuery(ua); err != nil {
+			log.Errorf("error while killing query: %s", elapsed, err)
 		}
-		rw.Write([]byte(timeoutErrMsg.Error()))
+		fmt.Fprint(rw, timeoutErrMsg.Error())
 	case cw.statusCode == http.StatusOK:
 		requestSuccess.With(label).Inc()
 		log.Debugf("Request scope %s successfully proxied", s)
 	case cw.statusCode == http.StatusBadGateway:
 		requestErrors.With(label).Inc()
-		b := []byte(fmt.Sprintf("unable to reach address: %s", req.URL.Host))
-		rw.Write(b)
+		fmt.Fprintf(rw, "unable to reach address: %s", req.URL.Host)
 	default:
 		requestErrors.With(label).Inc()
 	}
