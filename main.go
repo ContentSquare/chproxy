@@ -53,10 +53,14 @@ func main() {
 	}()
 
 	if cfg.IsTLS {
-		log.Fatalf("TLS server error on %q: %s", cfg.ListenAddr, serveTLS(cfg.ListenAddr, cfg.TLSConfig))
+		if err := serveTLS(cfg.ListenAddr, cfg.TLSConfig); err != nil {
+			log.Fatalf("TLS server error on %q: %s", cfg.ListenAddr, err)
+		}
 	}
 
-	log.Fatalf("Server error on %q: %s", cfg.ListenAddr, serve(cfg.ListenAddr))
+	if err := serve(cfg.ListenAddr); err != nil {
+		log.Fatalf("Server error on %q: %s", cfg.ListenAddr, err)
+	}
 }
 
 func serveTLS(addr string, tlsConfig config.TLSConfig) error {
