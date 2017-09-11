@@ -99,9 +99,8 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	switch {
 	case req.Context().Err() != nil:
 		timeoutCounter.Inc()
-		elapsed := timeout.Seconds()
 		if err := s.cluster.killQuery(ua); err != nil {
-			log.Errorf("error while killing query: %s", elapsed, err)
+			log.Errorf("error while killing query: %s", err)
 		}
 		fmt.Fprint(rw, timeoutErrMsg.Error())
 	case cw.statusCode == http.StatusOK:

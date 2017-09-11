@@ -117,6 +117,9 @@ func (s *Server) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return checkOverflow(s.XXX, "server")
 }
 
+// TLSConfig describes configuration for TLS starting server
+// It can be autocert with letsencrypt
+// or custom certificate
 type TLSConfig struct {
 	// Path to the directory where letsencrypt certs are cached
 	CertCacheDir string `yaml:"cert_cache_dir,omitempty"`
@@ -294,6 +297,7 @@ func (u *User) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return checkOverflow(u.XXX, "user")
 }
 
+// Networks is a list of IPNet entities
 type Networks []*net.IPNet
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -322,6 +326,7 @@ func (n *Networks) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
+// Contains checks whether passed addr is in the range of networks
 func (n Networks) Contains(addr string) bool {
 	if len(n) == 0 {
 		return true
