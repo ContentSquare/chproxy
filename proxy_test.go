@@ -146,116 +146,129 @@ var authCfg = &config.Config{
 }
 
 func TestReverseProxy_ServeHTTP(t *testing.T) {
-	t.Run("Ok response", func(t *testing.T) {
-		proxy := getProxy(t, goodCfg)
+	testCases := []struct {
+		name     string
+		expected string
+		cfg      *config.Config
+		f        func(p *reverseProxy) string
+	}{
+		{
+			name:     "Ok response",
+			expected: "Ok\n",
+			cfg:      goodCfg,
+			f:        func(p *reverseProxy) string { return makeRequest(p) },
+		},
+		{
+			name:     "max concurrent queries for cluster user",
+			expected: "limits for cluster user \"web\" are exceeded: maxConcurrentQueries limit: 1",
+			cfg:      goodCfg,
+			f: func(p *reverseProxy) string {
+				p.clusters["cluster"].users["web"].maxConcurrentQueries = 1
+				go makeHeavyRequest(p, time.Millisecond*20)
+				time.Sleep(time.Millisecond * 10)
+				return makeRequest(p)
+			},
+		},
+		{
+			name:     "max time for cluster user",
+			expected: "timeout for cluster user \"web\" exceeded: 10ms",
+			cfg:      goodCfg,
+			f: func(p *reverseProxy) string {
+				p.clusters["cluster"].users["web"].maxExecutionTime = time.Millisecond * 10
+				return makeHeavyRequest(p, time.Millisecond*20)
+			},
+		},
+		{
+			name:     "choose max time between users",
+			expected: "timeout for user \"default\" exceeded: 10ms",
+			cfg:      goodCfg,
+			f: func(p *reverseProxy) string {
+				p.users["default"].maxExecutionTime = time.Millisecond * 10
+				p.clusters["cluster"].users["web"].maxExecutionTime = time.Millisecond * 15
+				return makeHeavyRequest(p, time.Millisecond*20)
+			},
+		},
+		{
+			name:     "choose max time between users2",
+			expected: "timeout for cluster user \"web\" exceeded: 10ms",
+			cfg:      goodCfg,
+			f: func(p *reverseProxy) string {
+				p.users["default"].maxExecutionTime = time.Millisecond * 15
+				p.clusters["cluster"].users["web"].maxExecutionTime = time.Millisecond * 10
+				return makeHeavyRequest(p, time.Millisecond*20)
+			},
+		},
+		{
+			name:     "max concurrent queries for user",
+			expected: "limits for user \"default\" are exceeded: maxConcurrentQueries limit: 1",
+			cfg:      goodCfg,
+			f: func(p *reverseProxy) string {
+				p.users["default"].maxConcurrentQueries = 1
+				go makeHeavyRequest(p, time.Millisecond*20)
+				time.Sleep(time.Millisecond * 10)
+				return makeRequest(p)
+			},
+		},
+		{
+			name:     "basicauth wrong name",
+			expected: "invalid username or password for user \"fooo\"",
+			cfg:      authCfg,
+			f: func(p *reverseProxy) string {
+				req := httptest.NewRequest("POST", fakeServer.URL, nil)
+				req.SetBasicAuth("fooo", "bar")
+				return makeCustomRequest(p, req)
+			},
+		},
+		{
+			name:     "basicauth wrong pass",
+			expected: "invalid username or password for user \"foo\"",
+			cfg:      authCfg,
+			f: func(p *reverseProxy) string {
+				req := httptest.NewRequest("POST", fakeServer.URL, nil)
+				req.SetBasicAuth("foo", "baar")
+				return makeCustomRequest(p, req)
+			},
+		},
+		{
+			name:     "auth wrong name",
+			expected: "invalid username or password for user \"fooo\"",
+			cfg:      authCfg,
+			f: func(p *reverseProxy) string {
+				uri := fmt.Sprintf("%s?user=fooo&password=bar", fakeServer.URL)
+				req := httptest.NewRequest("POST", uri, nil)
+				return makeCustomRequest(p, req)
+			},
+		},
+		{
+			name:     "auth wrong name",
+			expected: "invalid username or password for user \"foo\"",
+			cfg:      authCfg,
+			f: func(p *reverseProxy) string {
+				uri := fmt.Sprintf("%s?user=foo&password=baar", fakeServer.URL)
+				req := httptest.NewRequest("POST", uri, nil)
+				return makeCustomRequest(p, req)
+			},
+		},
+	}
 
-		expected := "Ok\n"
-		resp := makeRequest(proxy)
-		if resp != expected {
-			t.Fatalf("expected response: %q; got: %q", expected, resp)
-		}
-	})
-
-	t.Run("max concurrent queries for cluster user", func(t *testing.T) {
-		proxy := getProxy(t, goodCfg)
-		proxy.clusters["cluster"].users["web"].maxConcurrentQueries = 1
-		go makeHeavyRequest(proxy, time.Millisecond*20)
-		time.Sleep(time.Millisecond * 10)
-
-		expected := "limits for cluster user \"web\" are exceeded: maxConcurrentQueries limit: 1"
-		resp := makeRequest(proxy)
-		if resp != expected {
-			t.Fatalf("expected response: %q; got: %q", expected, resp)
-		}
-	})
-
-	t.Run("max time for cluster user", func(t *testing.T) {
-		proxy := getProxy(t, goodCfg)
-		proxy.clusters["cluster"].users["web"].maxExecutionTime = time.Millisecond * 10
-
-		expected := "timeout for cluster user \"web\" exceeded: 10ms"
-		resp := makeHeavyRequest(proxy, time.Millisecond*20)
-		if resp != expected {
-			t.Fatalf("expected response: %q; got: %q", expected, resp)
-		}
-	})
-
-	t.Run("max time for user", func(t *testing.T) {
-		proxy := getProxy(t, goodCfg)
-		proxy.users["default"].maxExecutionTime = time.Millisecond * 10
-
-		expected := "timeout for user \"default\" exceeded: 10ms"
-		resp := makeHeavyRequest(proxy, time.Millisecond*20)
-		if resp != expected {
-			t.Fatalf("expected response: %q; got: %q", expected, resp)
-		}
-	})
-
-	t.Run("choose max time between users", func(t *testing.T) {
-		proxy := getProxy(t, goodCfg)
-		proxy.users["default"].maxExecutionTime = time.Millisecond * 10
-		proxy.clusters["cluster"].users["web"].maxExecutionTime = time.Millisecond * 15
-
-		expected := "timeout for user \"default\" exceeded: 10ms"
-		resp := makeHeavyRequest(proxy, time.Millisecond*20)
-		if resp != expected {
-			t.Fatalf("expected response: %q; got: %q", expected, resp)
-		}
-	})
-
-	t.Run("choose max time between users2", func(t *testing.T) {
-		proxy := getProxy(t, goodCfg)
-		proxy.users["default"].maxExecutionTime = time.Millisecond * 15
-		proxy.clusters["cluster"].users["web"].maxExecutionTime = time.Millisecond * 10
-
-		expected := "timeout for cluster user \"web\" exceeded: 10ms"
-		resp := makeHeavyRequest(proxy, time.Millisecond*20)
-		if resp != expected {
-			t.Fatalf("expected response: %q; got: %q", expected, resp)
-		}
-	})
-
-	t.Run("max concurrent queries for user", func(t *testing.T) {
-		proxy := getProxy(t, goodCfg)
-		proxy.users["default"].maxConcurrentQueries = 1
-		go makeHeavyRequest(proxy, time.Millisecond*20)
-		time.Sleep(time.Millisecond * 10)
-
-		expected := "limits for user \"default\" are exceeded: maxConcurrentQueries limit: 1"
-		resp := makeRequest(proxy)
-		if resp != expected {
-			t.Fatalf("expected response: %q; got: %q", expected, resp)
-		}
-	})
-
-	t.Run("basicauth wrong name", func(t *testing.T) {
-		proxy := getProxy(t, authCfg)
-
-		req := httptest.NewRequest("POST", fakeServer.URL, nil)
-		req.SetBasicAuth("fooo", "bar")
-		resp := makeCustomRequest(proxy, req)
-
-		expected := "invalid username or password for user \"fooo\""
-		if resp != expected {
-			t.Fatalf("expected response: %q; got: %q", expected, resp)
-		}
-	})
-
-	t.Run("basicauth wrong pass", func(t *testing.T) {
-		proxy := getProxy(t, authCfg)
-
-		req := httptest.NewRequest("POST", fakeServer.URL, nil)
-		req.SetBasicAuth("foo", "baar")
-		resp := makeCustomRequest(proxy, req)
-
-		expected := "invalid username or password for user \"foo\""
-		if resp != expected {
-			t.Fatalf("expected response: %q; got: %q", expected, resp)
-		}
-	})
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			proxy, err := getProxy(goodCfg)
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+			res := tc.f(proxy)
+			if res != tc.expected {
+				t.Fatalf("expected response: %q; got: %q", tc.expected, res)
+			}
+		})
+	}
 
 	t.Run("basicauth success", func(t *testing.T) {
-		proxy := getProxy(t, authCfg)
+		proxy, err := getProxy(authCfg)
+		if err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
 
 		req := httptest.NewRequest("POST", fakeServer.URL, nil)
 		req.SetBasicAuth("foo", "bar")
@@ -276,34 +289,11 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 		}
 	})
 
-	t.Run("auth wrong name", func(t *testing.T) {
-		proxy := getProxy(t, authCfg)
-
-		uri := fmt.Sprintf("%s?user=fooo&password=bar", fakeServer.URL)
-		req := httptest.NewRequest("POST", uri, nil)
-		resp := makeCustomRequest(proxy, req)
-
-		expected := "invalid username or password for user \"fooo\""
-		if resp != expected {
-			t.Fatalf("expected response: %q; got: %q", expected, resp)
-		}
-	})
-
-	t.Run("auth wrong pass", func(t *testing.T) {
-		proxy := getProxy(t, authCfg)
-
-		uri := fmt.Sprintf("%s?user=foo&password=baar", fakeServer.URL)
-		req := httptest.NewRequest("POST", uri, nil)
-		resp := makeCustomRequest(proxy, req)
-
-		expected := "invalid username or password for user \"foo\""
-		if resp != expected {
-			t.Fatalf("expected response: %q; got: %q", expected, resp)
-		}
-	})
-
 	t.Run("auth success", func(t *testing.T) {
-		proxy := getProxy(t, authCfg)
+		proxy, err := getProxy(authCfg)
+		if err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
 
 		uri := fmt.Sprintf("%s?user=foo&password=bar", fakeServer.URL)
 		req := httptest.NewRequest("POST", uri, nil)
@@ -356,7 +346,10 @@ func TestReverseProxy_ServeHTTP2(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			goodCfg.Users[0].Networks = tc.allowedNetworks
-			proxy := getProxy(t, goodCfg)
+			proxy, err := getProxy(goodCfg)
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
 			resp := makeRequest(proxy)
 
 			if resp != tc.expected {
@@ -426,17 +419,17 @@ func makeCustomRequest(p *reverseProxy, req *http.Request) string {
 	return string(response)
 }
 
-func getProxy(t *testing.T, cfg *config.Config) *reverseProxy {
+func getProxy(cfg *config.Config) (*reverseProxy, error) {
 	addr, err := url.Parse(fakeServer.URL)
 	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
+		return nil, err
 	}
 
 	cfg.Clusters[0].Nodes = []string{addr.Host}
 	proxy, err := newConfiguredProxy(cfg)
 	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
+		return nil, err
 	}
 
-	return proxy
+	return proxy, nil
 }

@@ -31,8 +31,8 @@ func TestLoadConfig(t *testing.T) {
 				LogDebug: true,
 				Networks: Networks{
 					&net.IPNet{
-						net.IPv4(127, 0, 0, 0),
-						net.IPMask{255, 255, 255, 0},
+						IP:   net.IPv4(127, 0, 0, 0),
+						Mask: net.IPMask{255, 255, 255, 0},
 					},
 				},
 				Clusters: []Cluster{
@@ -54,9 +54,9 @@ func TestLoadConfig(t *testing.T) {
 						},
 					},
 					{
-						Name:   "second cluster",
-						Scheme: "https",
-						Nodes:  []string{"127.0.1.1:8123", "127.0.1.2:8123"},
+						Name:          "second cluster",
+						Scheme:        "https",
+						Nodes:         []string{"127.0.1.1:8123", "127.0.1.2:8123"},
 						KillQueryUser: KillQueryUser{Name: "default"},
 						ClusterUsers: []ClusterUser{
 							{
@@ -78,12 +78,12 @@ func TestLoadConfig(t *testing.T) {
 						Password: "password",
 						Networks: Networks{
 							&net.IPNet{
-								net.IPv4(127, 0, 0, 1),
-								net.IPMask{255, 255, 255, 255},
+								IP:   net.IPv4(127, 0, 0, 1),
+								Mask: net.IPMask{255, 255, 255, 255},
 							},
 							&net.IPNet{
-								net.IPv4(1, 2, 3, 0),
-								net.IPMask{255, 255, 255, 0},
+								IP:   net.IPv4(1, 2, 3, 0),
+								Mask: net.IPMask{255, 255, 255, 0},
 							},
 						},
 						ToCluster: "second cluster",

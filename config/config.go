@@ -20,8 +20,8 @@ var (
 	}
 
 	defaultCluster = Cluster{
-		Scheme:       "http",
-		ClusterUsers: []ClusterUser{defaultClusterUser},
+		Scheme:        "http",
+		ClusterUsers:  []ClusterUser{defaultClusterUser},
 		KillQueryUser: defaultKillQueryUser,
 	}
 

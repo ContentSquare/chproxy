@@ -35,6 +35,8 @@ func SuppressOutput(suppress bool) {
 
 var debug uint32
 
+// Set logger into debug mode if true passed
+// and set it off if false passed
 func SetDebug(val bool) {
 	if val {
 		atomic.StoreUint32(&debug, 1)
@@ -47,6 +49,7 @@ func SetDebug(val bool) {
 	}
 }
 
+// Print debug messages
 func Debugf(format string, args ...interface{}) {
 	if atomic.LoadUint32(&debug) == 0 {
 		return
@@ -56,16 +59,19 @@ func Debugf(format string, args ...interface{}) {
 	DebugLogger.Output(outputCallDepth, s)
 }
 
+// Print info messages
 func Infof(format string, args ...interface{}) {
 	s := fmt.Sprintf(format, args...)
 	InfoLogger.Output(outputCallDepth, s)
 }
 
+// Print warning messages
 func Errorf(format string, args ...interface{}) {
 	s := fmt.Sprintf(format, args...)
 	ErrorLogger.Output(outputCallDepth, s)
 }
 
+// Print fatal message and exits program
 func Fatalf(format string, args ...interface{}) {
 	s := fmt.Sprintf(format, args...)
 	FatalLogger.Output(outputCallDepth, s)
