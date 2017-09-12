@@ -110,7 +110,7 @@ func TestLoadConfig(t *testing.T) {
 					{
 						Name:   "second cluster",
 						Scheme: "http",
-						Nodes:  []string{"127.0.1.1:8123"},
+						Nodes:  []string{"127.0.0.1:8123"},
 						ClusterUsers: []ClusterUser{
 							{
 								Name: "default",
