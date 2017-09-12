@@ -103,7 +103,6 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		log.Debugf("Request scope %s successfully proxied", s)
 	case cw.statusCode == http.StatusBadGateway:
 		fmt.Fprintf(rw, "unable to reach address: %s", req.URL.Host)
-	default:
 	}
 
 	statusCodes.With(
