@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net"
 	"os"
 	"strings"
@@ -432,4 +433,48 @@ func getProxy(cfg *config.Config) (*reverseProxy, error) {
 	}
 
 	return proxy, nil
+}
+
+func TestReverseProxy_ServeHTTPConcurrent(t *testing.T) {
+	addr, err := url.Parse(fakeServer.URL)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	goodCfg.Clusters[0].Nodes = []string{addr.Host}
+	proxy, err := newConfiguredProxy(goodCfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	t.Run("parallel requests", func(t *testing.T) {
+		f := func() {
+			makeRequest(proxy)
+		}
+		if err := testConcurrent(f, 1000); err != nil {
+			t.Fatalf("concurrent test err: %s", err)
+		}
+	})
+
+	t.Run("parallel requests with config reloading", func(t *testing.T) {
+		f := func() {
+			go proxy.ApplyConfig(newConfig())
+			makeRequest(proxy)
+		}
+		if err := testConcurrent(f, 100); err != nil {
+			t.Fatalf("concurrent test err: %s", err)
+		}
+	})
+}
+
+func newConfig() *config.Config {
+	newCfg := *goodCfg
+	newCfg.Users = []config.User{
+		{
+			Name:                 "default",
+			MaxConcurrentQueries: rand.Uint32(),
+		},
+	}
+
+	return &newCfg
 }

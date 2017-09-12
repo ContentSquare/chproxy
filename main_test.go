@@ -16,10 +16,10 @@ func TestServeTLS(t *testing.T) {
 
 	done := make(chan error)
 	ln := newTLSListener(cfg.ListenAddr, &cfg.TLSConfig)
-	go func(){
+	go func() {
 		done <- listenAndServe(ln)
 	}()
-	time.Sleep(time.Millisecond*200)
+	time.Sleep(time.Millisecond * 200)
 
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
@@ -50,10 +50,10 @@ func TestServe(t *testing.T) {
 
 	done := make(chan error)
 	ln := newListener(cfg.ListenAddr)
-	go func(){
+	go func() {
 		done <- listenAndServe(ln)
 	}()
-	time.Sleep(time.Millisecond*200)
+	time.Sleep(time.Millisecond * 200)
 
 	resp, err := http.Get("http://127.0.0.1:8080/metrics")
 	if err != nil {

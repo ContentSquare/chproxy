@@ -14,4 +14,3 @@ script:
   - GOARCH=386 go build
 
   - make test
-  - make bench

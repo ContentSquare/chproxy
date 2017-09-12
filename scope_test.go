@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/url"
 	"testing"
 	"time"
@@ -24,7 +25,7 @@ var (
 	}
 )
 
-func TestScope_RunningQueries(t *testing.T) {
+func TestRunningQueries(t *testing.T) {
 	u1 := &user{
 		maxConcurrentQueries: 1,
 	}
@@ -57,6 +58,8 @@ func TestScope_RunningQueries(t *testing.T) {
 	if err := s.inc(); err == nil {
 		t.Fatalf("error expected while call .inc()")
 	}
+	// check that limits are still same after error
+	check(1, 1, 1)
 
 	u2 := &user{
 		maxConcurrentQueries: 1,
@@ -73,9 +76,11 @@ func TestScope_RunningQueries(t *testing.T) {
 	if err := s.inc(); err != nil {
 		t.Fatalf("unexpected err: %s", err)
 	}
+
+	check(1, 2, 2)
 }
 
-func TestScope_GetHost(t *testing.T) {
+func TestGetHost(t *testing.T) {
 	c := &cluster{
 		hosts: []*host{
 			{
@@ -127,4 +132,62 @@ func TestScope_GetHost(t *testing.T) {
 	if h.addr.Host != expected {
 		t.Fatalf("got host %q; expected %q", h.addr.Host, expected)
 	}
+}
+
+func TestRunningQueriesConcurrent(t *testing.T) {
+	eu := &clusterUser{
+		maxConcurrentQueries: 10,
+	}
+
+	f := func() {
+		eu.inc()
+		eu.runningQueries()
+		eu.dec()
+	}
+	if err := testConcurrent(f, 1000); err != nil {
+		t.Fatalf("concurrent test err: %s", err)
+	}
+}
+
+func TestGetHostConcurrent(t *testing.T) {
+	c := &cluster{
+		hosts: []*host{
+			{
+				addr: &url.URL{Host: "127.0.0.1"},
+			},
+			{
+				addr: &url.URL{Host: "127.0.0.2"},
+			},
+			{
+				addr: &url.URL{Host: "127.0.0.3"},
+			},
+		},
+	}
+
+	f := func() {
+		h := c.getHost()
+		h.inc()
+		h.dec()
+	}
+	if err := testConcurrent(f, 1000); err != nil {
+		t.Fatalf("concurrent test err: %s", err)
+	}
+}
+
+func testConcurrent(f func(), concurrency int) error {
+	ch := make(chan struct{}, concurrency)
+	for i := 0; i < concurrency; i++ {
+		go func() {
+			f()
+			ch <- struct{}{}
+		}()
+	}
+	for i := 0; i < concurrency; i++ {
+		select {
+		case <-ch:
+		case <-time.After(time.Second):
+			return fmt.Errorf("timeout")
+		}
+	}
+	return nil
 }
