@@ -3,6 +3,9 @@ language: go
 go:
   - 1.9
 
+install:
+  - go get github.com/prometheus/client_golang/prometheus
+
 script:
   # build test for supported platforms
   - GOOS=linux go build
