@@ -351,7 +351,7 @@ func (n Networks) Contains(addr string) bool {
 	return false
 }
 
-// User describes simplest <users> configuration
+// ClusterUser describes simplest <users> configuration
 type ClusterUser struct {
 	// User name in ClickHouse users.xml config
 	Name string `yaml:"name"`
@@ -385,7 +385,7 @@ func (u *ClusterUser) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return checkOverflow(u.XXX, "cluster.users")
 }
 
-// Loads and validates configuration from provided .yml file
+// LoadFile loads and validates configuration from provided .yml file
 func LoadFile(filename string) (*Config, error) {
 	content, err := ioutil.ReadFile(filename)
 	if err != nil {

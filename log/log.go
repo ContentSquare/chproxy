@@ -19,7 +19,7 @@ var (
 	FatalLogger = log.New(os.Stderr, "FATAL: ", log.LstdFlags|log.Llongfile|log.LUTC)
 )
 
-// Suppresses all output from logs if `suppress` is true
+// SuppressOutput suppresses all output from logs if `suppress` is true
 // used while testing
 func SuppressOutput(suppress bool) {
 	if suppress {
@@ -35,8 +35,7 @@ func SuppressOutput(suppress bool) {
 
 var debug uint32
 
-// Set logger into debug mode if true passed
-// and set it off if false passed
+// SetDebug sets output into debug mode if true passed
 func SetDebug(val bool) {
 	if val {
 		atomic.StoreUint32(&debug, 1)
