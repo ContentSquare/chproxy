@@ -2,11 +2,12 @@ package config
 
 import (
 	"fmt"
-	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"net"
 	"strings"
 	"time"
+
+	"gopkg.in/yaml.v2"
 )
 
 var (
