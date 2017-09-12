@@ -36,18 +36,19 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 	log.Debugf("Request scope %s", s)
 
-	if err = s.inc(); err != nil {
-		respondWithErr(rw, err)
-		return
-	}
-	defer s.dec()
-
 	label := prometheus.Labels{
 		"user":         s.user.name,
 		"cluster_user": s.clusterUser.name,
 		"host":         s.host.addr.Host,
 	}
 	requestSum.With(label).Inc()
+
+	if err = s.inc(); err != nil {
+		limitExcess.With(label).Inc()
+		respondWithErr(rw, err)
+		return
+	}
+	defer s.dec()
 
 	req.URL.Scheme = s.host.addr.Scheme
 	req.URL.Host = s.host.addr.Host
@@ -67,19 +68,13 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	if s.user.maxExecutionTime > 0 {
 		timeout = s.user.maxExecutionTime
-		timeoutCounter = userTimeouts.With(prometheus.Labels{
-			"host": s.host.addr.Host,
-			"user": s.user.name,
-		})
+		timeoutCounter = userTimeouts.With(label)
 		timeoutErrMsg = fmt.Errorf("timeout for user %q exceeded: %v", s.user.name, timeout)
 	}
 
 	if timeout == 0 || (s.clusterUser.maxExecutionTime > 0 && s.clusterUser.maxExecutionTime < timeout) {
 		timeout = s.clusterUser.maxExecutionTime
-		timeoutCounter = clusterTimeouts.With(prometheus.Labels{
-			"host": s.host.addr.Host,
-			"user": s.clusterUser.name,
-		})
+		timeoutCounter = clusterTimeouts.With(label)
 		timeoutErrMsg = fmt.Errorf("timeout for cluster user %q exceeded: %v", s.clusterUser.name, timeout)
 	}
 
@@ -107,14 +102,17 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		requestSuccess.With(label).Inc()
 		log.Debugf("Request scope %s successfully proxied", s)
 	case cw.statusCode == http.StatusBadGateway:
-		requestErrors.With(label).Inc()
 		fmt.Fprintf(rw, "unable to reach address: %s", req.URL.Host)
 	default:
-		requestErrors.With(label).Inc()
 	}
 
 	statusCodes.With(
-		prometheus.Labels{"host": req.URL.Host, "code": strconv.Itoa(cw.statusCode)},
+		prometheus.Labels{
+			"user":         s.user.name,
+			"cluster_user": s.clusterUser.name,
+			"host":         req.URL.Host,
+			"code":         strconv.Itoa(cw.statusCode),
+		},
 	).Inc()
 }
 
@@ -152,7 +150,10 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 		if _, ok := clusters[c.Name]; ok {
 			return fmt.Errorf("cluster %q already exists", c.Name)
 		}
-		cluster := newCluster(hosts, clusterUsers)
+		cluster := &cluster{
+			hosts: hosts,
+			users: clusterUsers,
+		}
 		cluster.killQueryUserName = c.KillQueryUser.Name
 		cluster.killQueryUserPassword = c.KillQueryUser.Password
 		clusters[c.Name] = cluster

@@ -22,8 +22,8 @@ import (
 var configFile = flag.String("config", "proxy.yml", "Proxy configuration filename")
 
 var (
-	proxy    = newReverseProxy()
-	networks atomic.Value
+	proxy           = newReverseProxy()
+	allowedNetworks atomic.Value
 )
 
 func main() {
@@ -56,6 +56,7 @@ func main() {
 		if err := serveTLS(cfg.ListenAddr, &cfg.TLSConfig); err != nil {
 			log.Fatalf("TLS server error on %q: %s", cfg.ListenAddr, err)
 		}
+		return
 	}
 
 	if err := serve(cfg.ListenAddr); err != nil {
@@ -180,8 +181,8 @@ func (ln *netListener) Accept() (net.Conn, error) {
 		}
 
 		remoteAddr := conn.RemoteAddr().String()
-		allowedNetworks := networks.Load().(*config.Networks)
-		if !allowedNetworks.Contains(remoteAddr) {
+		an := allowedNetworks.Load().(*config.Networks)
+		if !an.Contains(remoteAddr) {
 			log.Errorf("connections are not allowed from %s", remoteAddr)
 			conn.Close()
 			continue
@@ -201,7 +202,7 @@ func reloadConfig() (*config.Server, error) {
 		return nil, err
 	}
 
-	networks.Store(&cfg.Networks)
+	allowedNetworks.Store(&cfg.Networks)
 	log.SetDebug(cfg.LogDebug)
 	return &cfg.Server, nil
 }

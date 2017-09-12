@@ -103,14 +103,6 @@ type cluster struct {
 	killQueryUserPassword string
 }
 
-func newCluster(h []*host, cu map[string]*clusterUser) *cluster {
-	return &cluster{
-		hosts:   h,
-		users:   cu,
-		nextIdx: uint32(time.Now().UnixNano()),
-	}
-}
-
 var client = &http.Client{
 	Timeout: time.Second * 60,
 }

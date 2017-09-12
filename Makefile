@@ -15,7 +15,7 @@ test: build
 	go test -race -v $(pkgs)
 
 bench: build
-	go test -race -v -bench=. $(pkgs) -benchmem
+	go test -v -bench=. $(pkgs) -benchmem
 
 run: build
 	./chproxy
