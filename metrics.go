@@ -3,12 +3,12 @@ package main
 import "github.com/prometheus/client_golang/prometheus"
 
 var (
-	requestSum      *prometheus.CounterVec
-	statusCodes     *prometheus.CounterVec
-	requestSuccess  *prometheus.CounterVec
-	userTimeouts    *prometheus.CounterVec
-	clusterTimeouts *prometheus.CounterVec
-	limitExcess     *prometheus.CounterVec
+	requestSum            *prometheus.CounterVec
+	statusCodes           *prometheus.CounterVec
+	requestSuccess        *prometheus.CounterVec
+	userTimeouts          *prometheus.CounterVec
+	clusterTimeouts       *prometheus.CounterVec
+	concurrentLimitExcess *prometheus.CounterVec
 
 	goodRequest prometheus.Counter
 	badRequest  prometheus.Counter
@@ -55,10 +55,10 @@ func init() {
 		[]string{"user", "cluster_user", "host"},
 	)
 
-	limitExcess = prometheus.NewCounterVec(
+	concurrentLimitExcess = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "limit_excess",
-			Help: "Total number of limit excess",
+			Name: "concurrent_limit_excess",
+			Help: "Total number of max_concurrent_queries excess",
 		},
 		[]string{"user", "cluster_user", "host"},
 	)
@@ -74,5 +74,5 @@ func init() {
 	})
 
 	prometheus.MustRegister(statusCodes, userTimeouts, clusterTimeouts,
-		requestSum, requestSuccess, limitExcess, badRequest, goodRequest)
+		requestSum, requestSuccess, concurrentLimitExcess, badRequest, goodRequest)
 }
