@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"net/http"
 	"testing"
-	"time"
 )
 
 func TestServeTLS(t *testing.T) {
@@ -19,7 +18,6 @@ func TestServeTLS(t *testing.T) {
 	go func() {
 		done <- listenAndServe(ln)
 	}()
-	time.Sleep(time.Millisecond * 200)
 
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
@@ -53,7 +51,6 @@ func TestServe(t *testing.T) {
 	go func() {
 		done <- listenAndServe(ln)
 	}()
-	time.Sleep(time.Millisecond * 200)
 
 	resp, err := http.Get("http://127.0.0.1:8080/metrics")
 	if err != nil {

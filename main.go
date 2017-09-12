@@ -166,6 +166,9 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 	default:
 		badRequest.Inc()
 		log.Debugf("Unsupported path: %s", r.URL.Path)
+
+		rw.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(rw, "Unsupported path: %s", r.URL.Path)
 	}
 }
 
