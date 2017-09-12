@@ -4,8 +4,7 @@ go:
   - 1.9
 
 install:
-  - go get github.com/prometheus/client_golang/prometheus
-  - go get golang.org/x/crypto/acme/autocert
+  - make install
 
 script:
   # build test for supported platforms
@@ -14,5 +13,5 @@ script:
   - GOOS=freebsd go build
   - GOARCH=386 go build
 
-  # run tests on a standard platform
-  - go test -race -v ./...
+  - make test
+  - make bench
