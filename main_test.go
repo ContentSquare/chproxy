@@ -14,8 +14,12 @@ func TestServeTLS(t *testing.T) {
 		t.Fatalf("unexpected error while loading config: %s", err)
 	}
 
-	go serveTLS(cfg.ListenAddr, &cfg.TLSConfig)
-	time.Sleep(time.Second)
+	done := make(chan error)
+	ln := newTLSListener(cfg.ListenAddr, &cfg.TLSConfig)
+	go func(){
+		done <- listenAndServe(ln)
+	}()
+	time.Sleep(time.Millisecond*200)
 
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
@@ -30,6 +34,11 @@ func TestServeTLS(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
 	}
+
+	if err := ln.Close(); err != nil {
+		t.Fatalf("unexpected error while closing listener: %s", err)
+	}
+	<-done
 }
 
 func TestServe(t *testing.T) {
@@ -38,8 +47,13 @@ func TestServe(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error while loading config: %s", err)
 	}
-	go serve(cfg.ListenAddr)
-	time.Sleep(time.Second)
+
+	done := make(chan error)
+	ln := newListener(cfg.ListenAddr)
+	go func(){
+		done <- listenAndServe(ln)
+	}()
+	time.Sleep(time.Millisecond*200)
 
 	resp, err := http.Get("http://127.0.0.1:8080/metrics")
 	if err != nil {
@@ -49,4 +63,9 @@ func TestServe(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
 	}
+
+	if err := ln.Close(); err != nil {
+		t.Fatalf("unexpected error while closing listener: %s", err)
+	}
+	<-done
 }
