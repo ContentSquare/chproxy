@@ -11,7 +11,7 @@ var (
 	limitExcess     *prometheus.CounterVec
 
 	goodRequest prometheus.Counter
-	badRequest prometheus.Counter
+	badRequest  prometheus.Counter
 )
 
 func init() {
@@ -38,7 +38,6 @@ func init() {
 		},
 		[]string{"user", "cluster_user", "host"},
 	)
-
 
 	requestSum = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
