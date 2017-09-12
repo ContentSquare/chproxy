@@ -5,6 +5,7 @@ go:
 
 install:
   - go get github.com/prometheus/client_golang/prometheus
+  - go get golang.org/x/crypto/acme/autocert
 
 script:
   # build test for supported platforms
