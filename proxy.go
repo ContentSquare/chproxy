@@ -43,6 +43,9 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 	requestSum.With(label).Inc()
 
+	timeStart := time.Now()
+	defer requestDuration.With(label).Observe(float64(time.Since(timeStart).Seconds()))
+
 	if err = s.inc(); err != nil {
 		concurrentLimitExcess.With(label).Inc()
 		respondWithErr(rw, err)
