@@ -13,10 +13,11 @@ func TestServeTLS(t *testing.T) {
 		t.Fatalf("unexpected error while loading config: %s", err)
 	}
 
-	done := make(chan error)
+	done := make(chan struct{})
 	ln := newTLSListener(cfg.ListenAddr, &cfg.TLSConfig)
 	go func() {
-		done <- listenAndServe(ln)
+		listenAndServe(ln)
+		close(done)
 	}()
 
 	tr := &http.Transport{
@@ -46,10 +47,11 @@ func TestServe(t *testing.T) {
 		t.Fatalf("unexpected error while loading config: %s", err)
 	}
 
-	done := make(chan error)
+	done := make(chan struct{})
 	ln := newListener(cfg.ListenAddr)
 	go func() {
-		done <- listenAndServe(ln)
+		listenAndServe(ln)
+		close(done)
 	}()
 
 	resp, err := http.Get("http://127.0.0.1:8080/metrics")
