@@ -56,11 +56,15 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	req.URL.Scheme = s.host.addr.Scheme
 	req.URL.Host = s.host.addr.Host
 
+	params := req.URL.Query()
+	params.Set("query_id", strconv.FormatUint(uint64(s.id), 10))
+	req.URL.RawQuery = params.Encode()
+
 	// override credentials before proxying request to CH
 	setAuth(req, s.clusterUser.name, s.clusterUser.password)
 
-	// set custom User-Agent for proper handling of killQuery func
-	ua := fmt.Sprintf("CHProxy; User %s; Scope %d", s.user.name, s.id)
+	// extend ua with additional info
+	ua := fmt.Sprintf("CHProxy-User: %s; CHProxy-ScopeID: %d; %s", s.user.name, s.id, req.Header.Get("User-Agent"))
 	req.Header.Set("User-Agent", ua)
 
 	var (
@@ -97,7 +101,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	switch {
 	case req.Context().Err() != nil:
 		timeoutCounter.Inc()
-		if err := s.cluster.killQuery(ua); err != nil {
+		if err := s.killQuery(); err != nil {
 			log.Errorf("error while killing query: %s", err)
 		}
 		fmt.Fprint(rw, timeoutErrMsg.Error())

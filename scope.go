@@ -69,6 +69,41 @@ func (s *scope) dec() {
 	s.clusterUser.dec()
 }
 
+func (s *scope) killQuery() error {
+	if len(s.cluster.killQueryUserName) == 0 {
+		return nil
+	}
+
+	query := fmt.Sprintf("KILL QUERY WHERE query_id = '%d'", s.id)
+	log.Debugf("ExecutionTime exceeded. Going to call query %q", query)
+
+	r := strings.NewReader(query)
+	addr := s.host.addr.String()
+
+	req, err := http.NewRequest("POST", addr, r)
+	if err != nil {
+		return fmt.Errorf("error while creating kill query request to %s: %s", addr, err)
+	}
+	setAuth(req, s.cluster.killQueryUserName, s.cluster.killQueryUserPassword)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("error while executing clickhouse query %q at %q: %s", query, addr, err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		responseBody, _ := ioutil.ReadAll(resp.Body)
+		resp.Body.Close()
+		return fmt.Errorf("unexpected status code returned from query %q at %q: %d. Response body: %q",
+			query, addr, resp.StatusCode, responseBody)
+	}
+	resp.Body.Close()
+
+	log.Debugf("Query with id=%d successfully killed", s.id)
+
+	return nil
+}
+
 type user struct {
 	toUser          string
 	toCluster       string
@@ -105,42 +140,6 @@ type cluster struct {
 
 var client = &http.Client{
 	Timeout: time.Second * 60,
-}
-
-// We don't use query_id because of distributed processing, the query ID is not passed to remote servers
-func (c *cluster) killQuery(ua string) error {
-	if len(c.killQueryUserName) == 0 {
-		return nil
-	}
-
-	query := fmt.Sprintf("KILL QUERY WHERE http_user_agent = '%s'", ua)
-	log.Debugf("ExecutionTime exceeded. Going to call query %q", query)
-
-	for _, host := range c.hosts {
-		r := strings.NewReader(query)
-		addr := host.addr.String()
-
-		req, err := http.NewRequest("POST", addr, r)
-		if err != nil {
-			return fmt.Errorf("error while creating kill query request to %s: %s", addr, err)
-		}
-		setAuth(req, c.killQueryUserName, c.killQueryUserPassword)
-
-		resp, err := client.Do(req)
-		if err != nil {
-			return fmt.Errorf("error while executing clickhouse query %q at %q: %s", query, addr, err)
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			responseBody, _ := ioutil.ReadAll(resp.Body)
-			resp.Body.Close()
-			return fmt.Errorf("unexpected status code returned from query %q at %q: %d. Response body: %q",
-				query, addr, resp.StatusCode, responseBody)
-		}
-		resp.Body.Close()
-	}
-
-	return nil
 }
 
 // get least loaded + round-robin host from cluster
