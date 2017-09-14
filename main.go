@@ -19,7 +19,7 @@ import (
 	"golang.org/x/crypto/acme/autocert"
 )
 
-var configFile = flag.String("config", "proxy.yml", "Proxy configuration filename")
+var configFile = flag.String("config", "testdata/http.conf.yml", "Proxy configuration filename")
 
 var (
 	proxy           = newReverseProxy()

@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -102,6 +103,25 @@ func (s *scope) killQuery() error {
 	log.Debugf("Query with id=%d successfully killed", s.id)
 
 	return nil
+}
+
+func (s *scope) decorateRequest(req *http.Request) *http.Request {
+	req.URL.Scheme = s.host.addr.Scheme
+	req.URL.Host = s.host.addr.Host
+
+	params := req.URL.Query()
+	params.Set("query_id", strconv.FormatUint(uint64(s.id), 10))
+	req.URL.RawQuery = params.Encode()
+
+	// override credentials before proxying request to CH
+	setAuth(req, s.clusterUser.name, s.clusterUser.password)
+
+	// extend ua with additional info
+	ua := fmt.Sprintf("IP: %s; CHProxy-User: %s; CHProxy-ClusterUser: %s; %s",
+		req.RemoteAddr, s.user.name, s.clusterUser.name, req.Header.Get("User-Agent"))
+	req.Header.Set("User-Agent", ua)
+
+	return req
 }
 
 type user struct {

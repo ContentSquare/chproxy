@@ -34,6 +34,8 @@ func getAuth(req *http.Request) (string, string) {
 // which is enough for ClickHouse to check authorization
 func setAuth(req *http.Request, user, password string) {
 	req.SetBasicAuth(user, password)
-	req.URL.Query().Del("user")
-	req.URL.Query().Del("password")
+	params := req.URL.Query()
+	params.Del("user")
+	params.Del("password")
+	req.URL.RawQuery = params.Encode()
 }

@@ -29,12 +29,17 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	log.Debugf("Accepting request from %s: %s", req.RemoteAddr, req.URL)
 
 	name, password := getAuth(req)
-	s, err := rp.getRequestScope(req, name, password)
+	s, err := rp.getScope(name, password)
 	if err != nil {
 		respondWithErr(rw, err)
 		return
 	}
 	log.Debugf("Request scope %s", s)
+
+	if !s.user.allowedNetworks.Contains(req.RemoteAddr) {
+		respondWithErr(rw, fmt.Errorf("user %q is not allowed to access from %s", name, req.RemoteAddr))
+		return
+	}
 
 	label := prometheus.Labels{
 		"user":         s.user.name,
@@ -53,19 +58,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 	defer s.dec()
 
-	req.URL.Scheme = s.host.addr.Scheme
-	req.URL.Host = s.host.addr.Host
-
-	params := req.URL.Query()
-	params.Set("query_id", strconv.FormatUint(uint64(s.id), 10))
-	req.URL.RawQuery = params.Encode()
-
-	// override credentials before proxying request to CH
-	setAuth(req, s.clusterUser.name, s.clusterUser.password)
-
-	// extend ua with additional info
-	ua := fmt.Sprintf("CHProxy-User: %s; CHProxy-ScopeID: %d; %s", s.user.name, s.id, req.Header.Get("User-Agent"))
-	req.Header.Set("User-Agent", ua)
+	req = s.decorateRequest(req)
 
 	var (
 		timeout        time.Duration
@@ -207,7 +200,7 @@ type reverseProxy struct {
 	clusters map[string]*cluster
 }
 
-func (rp *reverseProxy) getRequestScope(req *http.Request, name, password string) (*scope, error) {
+func (rp *reverseProxy) getScope(name, password string) (*scope, error) {
 	rp.mu.Lock()
 	defer rp.mu.Unlock()
 
@@ -218,10 +211,6 @@ func (rp *reverseProxy) getRequestScope(req *http.Request, name, password string
 
 	if u.password != password {
 		return nil, fmt.Errorf("invalid username or password for user %q", name)
-	}
-
-	if !u.allowedNetworks.Contains(req.RemoteAddr) {
-		return nil, fmt.Errorf("user %q is not allowed to access from %s", name, req.RemoteAddr)
 	}
 
 	c, ok := rp.clusters[u.toCluster]

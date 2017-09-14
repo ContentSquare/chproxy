@@ -1,3 +1,4 @@
+log_debug: true
 users:
   - name: "web"
     to_cluster: "default"
