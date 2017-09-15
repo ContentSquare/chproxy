@@ -6,8 +6,6 @@ var (
 	requestSum            *prometheus.CounterVec
 	statusCodes           *prometheus.CounterVec
 	requestSuccess        *prometheus.CounterVec
-	userTimeouts          *prometheus.CounterVec
-	clusterTimeouts       *prometheus.CounterVec
 	requestDuration       *prometheus.SummaryVec
 	concurrentLimitExcess *prometheus.CounterVec
 
@@ -22,22 +20,6 @@ func init() {
 			Help: "Distribution by status codes counter",
 		},
 		[]string{"user", "cluster_user", "host", "code"},
-	)
-
-	userTimeouts = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "user_timeouts",
-			Help: "Number of timeouts for initial user",
-		},
-		[]string{"user", "cluster_user", "host"},
-	)
-
-	clusterTimeouts = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "cluster_user_timeouts",
-			Help: "Number of timeouts for execution user",
-		},
-		[]string{"user", "cluster_user", "host"},
 	)
 
 	requestSum = prometheus.NewCounterVec(
@@ -82,6 +64,6 @@ func init() {
 		Help: "Total number of unsupported requests",
 	})
 
-	prometheus.MustRegister(statusCodes, userTimeouts, clusterTimeouts, requestDuration,
-		requestSum, requestSuccess, concurrentLimitExcess, badRequest, goodRequest)
+	prometheus.MustRegister(statusCodes, requestDuration, requestSum, requestSuccess,
+		concurrentLimitExcess, badRequest, goodRequest)
 }

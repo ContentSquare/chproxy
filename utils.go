@@ -28,14 +28,3 @@ func getAuth(req *http.Request) (string, string) {
 	// if still no credentials - treat it as `default` user request
 	return "default", ""
 }
-
-// setAuth applies passed credentials as Basic Auth
-// by rewriting possible previous Basic Auth and URL params
-// which is enough for ClickHouse to check authorization
-func setAuth(req *http.Request, user, password string) {
-	req.SetBasicAuth(user, password)
-	params := req.URL.Query()
-	params.Del("user")
-	params.Del("password")
-	req.URL.RawQuery = params.Encode()
-}

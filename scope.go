@@ -80,45 +80,53 @@ func (s *scope) killQuery() error {
 
 	r := strings.NewReader(query)
 	addr := s.host.addr.String()
-
 	req, err := http.NewRequest("POST", addr, r)
 	if err != nil {
 		return fmt.Errorf("error while creating kill query request to %s: %s", addr, err)
 	}
-	setAuth(req, s.cluster.killQueryUserName, s.cluster.killQueryUserPassword)
+
+	// send request as kill_query_user
+	req.SetBasicAuth(s.cluster.killQueryUserName, s.cluster.killQueryUserPassword)
 
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("error while executing clickhouse query %q at %q: %s", query, addr, err)
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		responseBody, _ := ioutil.ReadAll(resp.Body)
-		resp.Body.Close()
 		return fmt.Errorf("unexpected status code returned from query %q at %q: %d. Response body: %q",
 			query, addr, resp.StatusCode, responseBody)
 	}
-	resp.Body.Close()
 
 	log.Debugf("Query with id=%d successfully killed", s.id)
-
 	return nil
 }
 
 func (s *scope) decorateRequest(req *http.Request) *http.Request {
+	params := req.URL.Query()
+
+	// delete possible credentials from query since they
+	// aren't longer needed
+	params.Del("user")
+	params.Del("password")
+
+	// set query_id as scope_id to have possibility kill query if needed
+	params.Set("query_id", strconv.Itoa(int(s.id)))
+	req.URL.RawQuery = params.Encode()
+
+	// rewrite possible previous Basic Auth
+	// and send request as cluster user
+	req.SetBasicAuth(s.clusterUser.name, s.clusterUser.password)
+
+	// send request to chosen host from cluster
 	req.URL.Scheme = s.host.addr.Scheme
 	req.URL.Host = s.host.addr.Host
 
-	params := req.URL.Query()
-	params.Set("query_id", strconv.FormatUint(uint64(s.id), 10))
-	req.URL.RawQuery = params.Encode()
-
-	// override credentials before proxying request to CH
-	setAuth(req, s.clusterUser.name, s.clusterUser.password)
-
 	// extend ua with additional info
 	ua := fmt.Sprintf("IP: %s; CHProxy-User: %s; CHProxy-ClusterUser: %s; %s",
-		req.RemoteAddr, s.user.name, s.clusterUser.name, req.Header.Get("User-Agent"))
+		req.RemoteAddr, s.user.name, s.clusterUser.name, req.UserAgent())
 	req.Header.Set("User-Agent", ua)
 
 	return req

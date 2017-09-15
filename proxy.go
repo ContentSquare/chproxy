@@ -43,13 +43,10 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	label := prometheus.Labels{
 		"user":         s.user.name,
-		"cluster_user": s.clusterUser.name,
 		"host":         s.host.addr.Host,
+		"cluster_user": s.clusterUser.name,
 	}
 	requestSum.With(label).Inc()
-
-	timeStart := time.Now()
-	defer requestDuration.With(label).Observe(float64(time.Since(timeStart).Seconds()))
 
 	if err = s.inc(); err != nil {
 		concurrentLimitExcess.With(label).Inc()
@@ -58,23 +55,21 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 	defer s.dec()
 
+	timeStart := time.Now()
 	req = s.decorateRequest(req)
 
 	var (
-		timeout        time.Duration
-		timeoutCounter prometheus.Counter
-		timeoutErrMsg  error
+		timeout       time.Duration
+		timeoutErrMsg error
 	)
 
 	if s.user.maxExecutionTime > 0 {
 		timeout = s.user.maxExecutionTime
-		timeoutCounter = userTimeouts.With(label)
 		timeoutErrMsg = fmt.Errorf("timeout for user %q exceeded: %v", s.user.name, timeout)
 	}
 
 	if timeout == 0 || (s.clusterUser.maxExecutionTime > 0 && s.clusterUser.maxExecutionTime < timeout) {
 		timeout = s.clusterUser.maxExecutionTime
-		timeoutCounter = clusterTimeouts.With(label)
 		timeoutErrMsg = fmt.Errorf("timeout for cluster user %q exceeded: %v", s.clusterUser.name, timeout)
 	}
 
@@ -86,14 +81,12 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	req = req.WithContext(ctx)
-	cw := &cachedWriter{
-		ResponseWriter: rw,
-	}
+	cw := &cachedWriter{ResponseWriter: rw}
 	rp.ReverseProxy.ServeHTTP(cw, req)
 
 	switch {
 	case req.Context().Err() != nil:
-		timeoutCounter.Inc()
+		cw.statusCode = http.StatusGatewayTimeout
 		if err := s.killQuery(); err != nil {
 			log.Errorf("error while killing query: %s", err)
 		}
@@ -113,6 +106,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			"code":         strconv.Itoa(cw.statusCode),
 		},
 	).Inc()
+	requestDuration.With(label).Observe(float64(time.Since(timeStart).Seconds()))
 }
 
 // Applies provided config to reverseProxy
