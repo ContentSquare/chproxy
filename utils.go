@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/hagen1778/chproxy/log"
+	"github.com/Vertamedia/chproxy/log"
 	"net/http"
 )
 

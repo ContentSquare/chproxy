@@ -11,8 +11,8 @@ import (
 	"net/http/httputil"
 	"net/url"
 
-	"github.com/hagen1778/chproxy/config"
-	"github.com/hagen1778/chproxy/log"
+	"github.com/Vertamedia/chproxy/config"
+	"github.com/Vertamedia/chproxy/log"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

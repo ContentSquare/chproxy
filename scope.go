@@ -10,8 +10,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/hagen1778/chproxy/config"
-	"github.com/hagen1778/chproxy/log"
+	"github.com/Vertamedia/chproxy/config"
+	"github.com/Vertamedia/chproxy/log"
 )
 
 func (s *scope) String() string {
