@@ -5,6 +5,7 @@ import "github.com/prometheus/client_golang/prometheus"
 var (
 	requestSum            *prometheus.CounterVec
 	statusCodes           *prometheus.CounterVec
+	hostPenalties         *prometheus.CounterVec
 	requestSuccess        *prometheus.CounterVec
 	requestDuration       *prometheus.SummaryVec
 	concurrentLimitExcess *prometheus.CounterVec
@@ -16,7 +17,7 @@ var (
 func init() {
 	statusCodes = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "status_codes",
+			Name: "status_codes_total",
 			Help: "Distribution by status codes counter",
 		},
 		[]string{"user", "cluster_user", "host", "code"},
@@ -24,7 +25,7 @@ func init() {
 
 	requestSum = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "request_sum",
+			Name: "request_sum_total",
 			Help: "Total number of sent requests",
 		},
 		[]string{"user", "cluster_user", "host"},
@@ -32,7 +33,7 @@ func init() {
 
 	requestSuccess = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "request_success",
+			Name: "request_success_total",
 			Help: "Total number of sent success requests",
 		},
 		[]string{"user", "cluster_user", "host"},
@@ -40,7 +41,7 @@ func init() {
 
 	requestDuration = prometheus.NewSummaryVec(
 		prometheus.SummaryOpts{
-			Name: "request_duration",
+			Name: "request_duration_seconds",
 			Help: "Shows request duration",
 		},
 		[]string{"user", "cluster_user", "host"},
@@ -48,22 +49,30 @@ func init() {
 
 	concurrentLimitExcess = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "concurrent_limit_excess",
+			Name: "concurrent_limit_excess_total",
 			Help: "Total number of max_concurrent_queries excess",
 		},
 		[]string{"user", "cluster_user", "host"},
 	)
 
+	hostPenalties = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "host_penalties_total",
+			Help: "Total number of given penalties by host",
+		},
+		[]string{"host"},
+	)
+
 	goodRequest = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "good_request",
+		Name: "good_requests_total",
 		Help: "Total number of proxy requests",
 	})
 
 	badRequest = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "bad_request",
+		Name: "bad_requests_total",
 		Help: "Total number of unsupported requests",
 	})
 
 	prometheus.MustRegister(statusCodes, requestDuration, requestSum, requestSuccess,
-		concurrentLimitExcess, badRequest, goodRequest)
+		concurrentLimitExcess, hostPenalties, badRequest, goodRequest)
 }

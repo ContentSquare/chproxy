@@ -12,6 +12,7 @@ import (
 
 	"github.com/Vertamedia/chproxy/config"
 	"github.com/Vertamedia/chproxy/log"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 func (s *scope) String() string {
@@ -153,9 +154,43 @@ type clusterUser struct {
 }
 
 type host struct {
+	// counter of unsuccessful requests to decrease
+	// host priority
+	penalty uint32
+
 	addr *url.URL
 
 	queryCounter
+}
+
+const (
+	penaltyDuration = time.Minute
+	penaltySize     = 5
+	penaltyMaxSize  = 300
+)
+
+// decrease host priority for next requests
+func (h *host) penalize() {
+	p := atomic.LoadUint32(&h.penalty)
+	if p >= penaltyMaxSize {
+		return
+	}
+
+	log.Debugf("Penalizing host %q", h.addr)
+	hostPenalties.With(prometheus.Labels{"host": h.addr.Host}).Inc()
+
+	atomic.AddUint32(&h.penalty, penaltySize)
+
+	time.AfterFunc(penaltyDuration, func() {
+		atomic.AddUint32(&h.penalty, ^uint32(penaltySize-1))
+	})
+}
+
+// overload runningQueries to take penalty into consideration
+func (h *host) runningQueries() uint32 {
+	c := h.queryCounter.runningQueries()
+	p := atomic.LoadUint32(&h.penalty)
+	return c + p
 }
 
 type cluster struct {

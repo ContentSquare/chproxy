@@ -84,29 +84,36 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	cw := &cachedWriter{ResponseWriter: rw}
 	rp.ReverseProxy.ServeHTTP(cw, req)
 
-	switch {
-	case req.Context().Err() != nil:
+	if req.Context().Err() != nil {
 		cw.statusCode = http.StatusGatewayTimeout
 		if err := s.killQuery(); err != nil {
 			log.Errorf("error while killing query: %s", err)
 		}
 		fmt.Fprint(rw, timeoutErrMsg.Error())
-	case cw.statusCode == http.StatusOK:
-		requestSuccess.With(label).Inc()
-		log.Debugf("Request scope %s successfully proxied", s)
-	case cw.statusCode == http.StatusBadGateway:
-		fmt.Fprintf(rw, "unable to reach address: %s", req.URL.Host)
+	} else {
+		switch cw.statusCode {
+		case http.StatusOK:
+			requestSuccess.With(label).Inc()
+			log.Debugf("Request scope %s successfully proxied", s)
+		case http.StatusBadGateway:
+			s.host.penalize()
+			fmt.Fprintf(rw, "unable to reach address: %s", req.URL.Host)
+		default:
+			s.host.penalize()
+		}
 	}
 
 	statusCodes.With(
 		prometheus.Labels{
 			"user":         s.user.name,
 			"cluster_user": s.clusterUser.name,
-			"host":         req.URL.Host,
+			"host":         s.host.addr.Host,
 			"code":         strconv.Itoa(cw.statusCode),
 		},
 	).Inc()
-	requestDuration.With(label).Observe(float64(time.Since(timeStart).Seconds()))
+
+	since := float64(time.Since(timeStart).Seconds())
+	requestDuration.With(label).Observe(since)
 }
 
 // Applies provided config to reverseProxy

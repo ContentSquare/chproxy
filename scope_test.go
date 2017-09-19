@@ -96,41 +96,116 @@ func TestGetHost(t *testing.T) {
 	}
 
 	// step | expected  | hosts running queries
-	// 0    | 127.0.0.2 | 0, 0, 0
-	// 1    | 127.0.0.3 | 0, 0, 0
-	// 2    | 127.0.0.1 | 0, 0, 0
-	// 3    | 127.0.0.2 | 0, 0, 0
-	// 4    | 127.0.0.1 | 0, 0, 1
+	// 1    | 127.0.0.2 | 0, 1, 0
+	// 2    | 127.0.0.3 | 0, 1, 1
+	// 3    | 127.0.0.1 | 1, 1, 1
+	// 4    | 127.0.0.2 | 1, 2, 2
+	// 5    | 127.0.0.1 | 2, 2, 2
+	// 6    | 127.0.0.1 | 3, 7, 2	// 2nd is penalized for `penaltySize`
+	// 7    | 127.0.0.1 | 3, 7, 3
 
+	// step: 1
 	h := c.getHost()
 	expected := "127.0.0.2"
 	if h.addr.Host != expected {
 		t.Fatalf("got host %q; expected %q", h.addr.Host, expected)
 	}
+	h.inc()
 
+	// step: 2
 	h = c.getHost()
 	expected = "127.0.0.3"
 	if h.addr.Host != expected {
 		t.Fatalf("got host %q; expected %q", h.addr.Host, expected)
 	}
+	h.inc()
 
+	// step: 3
 	h = c.getHost()
 	expected = "127.0.0.1"
 	if h.addr.Host != expected {
 		t.Fatalf("got host %q; expected %q", h.addr.Host, expected)
 	}
+	h.inc()
 
+	// step: 4
 	h = c.getHost()
 	expected = "127.0.0.2"
 	if h.addr.Host != expected {
 		t.Fatalf("got host %q; expected %q", h.addr.Host, expected)
 	}
+	h.inc()
 
+	// inc last host to get least-loaded 1st host
 	c.hosts[2].inc()
+
+	// step: 5
 	h = c.getHost()
 	expected = "127.0.0.1"
 	if h.addr.Host != expected {
 		t.Fatalf("got host %q; expected %q", h.addr.Host, expected)
+	}
+	h.inc()
+
+	// penalize 2nd host
+	h = c.hosts[1]
+	h.penalize()
+	expRunningQueries := penaltySize + h.queryCounter.runningQueries()
+	if h.runningQueries() != expRunningQueries {
+		t.Fatalf("got host %q running queries %d; expected %d", h.addr.Host, h.runningQueries(), expRunningQueries)
+	}
+
+	// step: 6
+	// we got "127.0.0.1" because index it's 6th step, hence index is = 0
+	h = c.getHost()
+	expected = "127.0.0.1"
+	if h.addr.Host != expected {
+		t.Fatalf("got host %q; expected %q", h.addr.Host, expected)
+	}
+	h.inc()
+
+	// step: 7
+	// we got "127.0.0.3"; index = 1, means to get 2nd host, but it has runningQueries=7
+	// so we will get next least loaded
+	h = c.getHost()
+	expected = "127.0.0.3"
+	if h.addr.Host != expected {
+		t.Fatalf("got host %q; expected %q", h.addr.Host, expected)
+	}
+	h.inc()
+}
+
+func TestPenalize(t *testing.T) {
+	h := &host{
+		addr: &url.URL{Host: "127.0.0.1"},
+	}
+
+	exp := uint32(0)
+	if h.runningQueries() != exp {
+		t.Fatalf("got running queries %d; expected %d", h.runningQueries(), exp)
+	}
+
+	h.penalize()
+	exp = uint32(penaltySize)
+	if h.runningQueries() != exp {
+		t.Fatalf("got running queries %d; expected %d", h.runningQueries(), exp)
+	}
+
+	// do more penalties than `penaltyMaxSize` allows
+	c := int(penaltyMaxSize/penaltySize) * 2
+	for i := 0; i < c; i++ {
+		h.penalize()
+	}
+	exp = uint32(penaltyMaxSize)
+	if h.runningQueries() != exp {
+		t.Fatalf("got running queries %d; expected %d", h.runningQueries(), exp)
+	}
+
+	// but still might increased
+	h.inc()
+	exp += 1
+	if h.runningQueries() != exp {
+		t.Fatalf("got running queries %d; expected %d", h.runningQueries(), exp)
 	}
 }
 
