@@ -180,6 +180,11 @@ type Cluster struct {
 	// if not specified - killing queries will be omitted
 	KillQueryUser KillQueryUser `yaml:"kill_query_user,omitempty"`
 
+	// HeartBeatInterval is an interval of checking
+	// all cluster nodes for availability
+	// if omitted or zero - interval will be set to 5s
+	HeartBeatInterval time.Duration `yaml:"heartbeat_interval,omitempty"`
+
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
 }
@@ -192,9 +197,6 @@ func (c *Cluster) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-
-	//fmt.Println(c.KillQueryUser)
-	//os.Exit(1)
 
 	if len(c.Name) == 0 {
 		return fmt.Errorf("field `cluster.name` cannot be empty")
@@ -210,6 +212,10 @@ func (c *Cluster) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	if c.Scheme != "http" && c.Scheme != "https" {
 		return fmt.Errorf("field `cluster.scheme` must be `http` or `https`. Got %q instead", c.Scheme)
+	}
+
+	if c.HeartBeatInterval == 0 {
+		c.HeartBeatInterval = time.Second * 5
 	}
 
 	return checkOverflow(c.XXX, "cluster")

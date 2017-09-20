@@ -52,6 +52,7 @@ func TestLoadConfig(t *testing.T) {
 								MaxExecutionTime:     time.Duration(time.Minute),
 							},
 						},
+						HeartBeatInterval: time.Minute,
 					},
 					{
 						Name:          "second cluster",
@@ -70,6 +71,7 @@ func TestLoadConfig(t *testing.T) {
 								MaxExecutionTime:     time.Duration(time.Second * 10),
 							},
 						},
+						HeartBeatInterval: time.Second * 5,
 					},
 				},
 				Users: []User{
@@ -119,6 +121,7 @@ func TestLoadConfig(t *testing.T) {
 						KillQueryUser: KillQueryUser{
 							Name: "default",
 						},
+						HeartBeatInterval: time.Second * 5,
 					},
 				},
 				Users: []User{

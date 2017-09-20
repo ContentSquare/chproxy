@@ -34,9 +34,9 @@ type scope struct {
 var scopeId = uint32(time.Now().UnixNano())
 
 func newScope(u *user, cu *clusterUser, c *cluster) (*scope, error) {
-	h, err := c.getHost()
-	if err != nil {
-		return nil, err
+	h := c.getHost()
+	if h == nil {
+		return nil, fmt.Errorf("no active hosts")
 	}
 
 	return &scope{
@@ -162,19 +162,9 @@ type clusterUser struct {
 	queryCounter
 }
 
-const heartbeatInterval = time.Second * 20
-
-func newHost(addr *url.URL, cluster string) *host {
-	h := &host{
-		addr: addr,
-		done: make(chan struct{}),
-	}
-	label := prometheus.Labels{
-		"cluster": cluster,
-		"host":    addr.Host,
-	}
+func (h *host) runHeartbeat(interval time.Duration, label prometheus.Labels, done <-chan struct{}) {
 	heartbeat := func() {
-		if ok, err := isHealthy(h.addr.String()); ok {
+		if err := isHealthy(h.addr.String()); err == nil {
 			atomic.StoreUint32(&h.active, uint32(1))
 			hostHealth.With(label).Set(1)
 		} else {
@@ -183,19 +173,19 @@ func newHost(addr *url.URL, cluster string) *host {
 			hostHealth.With(label).Set(0)
 		}
 	}
+
 	go func() {
 		heartbeat()
 		for {
 			select {
-			case <-h.done:
+			case <-done:
+				fmt.Println("wa done")
 				return
-			case <-time.After(heartbeatInterval):
+			case <-time.After(interval):
 				heartbeat()
 			}
 		}
 	}()
-
-	return h
 }
 
 type host struct {
@@ -206,8 +196,6 @@ type host struct {
 	active uint32
 	// host address
 	addr *url.URL
-	// close to stop health-checking goroutine
-	done chan struct{}
 
 	queryCounter
 }
@@ -252,10 +240,11 @@ type cluster struct {
 	users                 map[string]*clusterUser
 	killQueryUserName     string
 	killQueryUserPassword string
+	heartBeatInterval     time.Duration
 }
 
 // get least loaded + round-robin host from cluster
-func (c *cluster) getHost() (*host, error) {
+func (c *cluster) getHost() *host {
 	idx := atomic.AddUint32(&c.nextIdx, 1)
 
 	l := uint32(len(c.hosts))
@@ -264,7 +253,7 @@ func (c *cluster) getHost() (*host, error) {
 	idleN := idle.runningQueries()
 
 	if idleN == 0 && idle.isActive() {
-		return idle, nil
+		return idle
 	}
 
 	// round hosts checking
@@ -277,7 +266,7 @@ func (c *cluster) getHost() (*host, error) {
 
 		n := h.runningQueries()
 		if n == 0 {
-			return h, nil
+			return h
 		}
 		if n < idleN {
 			idle, idleN = h, n
@@ -285,10 +274,10 @@ func (c *cluster) getHost() (*host, error) {
 	}
 
 	if !idle.isActive() {
-		return nil, fmt.Errorf("no active hosts")
+		return nil
 	}
 
-	return idle, nil
+	return idle
 }
 
 type queryCounter struct {

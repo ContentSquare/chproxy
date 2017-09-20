@@ -116,7 +116,7 @@ func TestGetHost(t *testing.T) {
 	// 7    | 127.0.0.1 | 3, 7, 3
 
 	// step: 1
-	h, _ := c.getHost()
+	h := c.getHost()
 	expected := "127.0.0.2"
 	if h.addr.Host != expected {
 		t.Fatalf("got host %q; expected %q", h.addr.Host, expected)
@@ -124,7 +124,7 @@ func TestGetHost(t *testing.T) {
 	h.inc()
 
 	// step: 2
-	h, _ = c.getHost()
+	h = c.getHost()
 	expected = "127.0.0.3"
 	if h.addr.Host != expected {
 		t.Fatalf("got host %q; expected %q", h.addr.Host, expected)
@@ -132,7 +132,7 @@ func TestGetHost(t *testing.T) {
 	h.inc()
 
 	// step: 3
-	h, _ = c.getHost()
+	h = c.getHost()
 	expected = "127.0.0.1"
 	if h.addr.Host != expected {
 		t.Fatalf("got host %q; expected %q", h.addr.Host, expected)
@@ -140,7 +140,7 @@ func TestGetHost(t *testing.T) {
 	h.inc()
 
 	// step: 4
-	h, _ = c.getHost()
+	h = c.getHost()
 	expected = "127.0.0.2"
 	if h.addr.Host != expected {
 		t.Fatalf("got host %q; expected %q", h.addr.Host, expected)
@@ -151,7 +151,7 @@ func TestGetHost(t *testing.T) {
 	c.hosts[2].inc()
 
 	// step: 5
-	h, _ = c.getHost()
+	h = c.getHost()
 	expected = "127.0.0.1"
 	if h.addr.Host != expected {
 		t.Fatalf("got host %q; expected %q", h.addr.Host, expected)
@@ -168,7 +168,7 @@ func TestGetHost(t *testing.T) {
 
 	// step: 6
 	// we got "127.0.0.1" because index it's 6th step, hence index is = 0
-	h, _ = c.getHost()
+	h = c.getHost()
 	expected = "127.0.0.1"
 	if h.addr.Host != expected {
 		t.Fatalf("got host %q; expected %q", h.addr.Host, expected)
@@ -178,7 +178,7 @@ func TestGetHost(t *testing.T) {
 	// step: 7
 	// we got "127.0.0.3"; index = 1, means to get 2nd host, but it has runningQueries=7
 	// so we will get next least loaded
-	h, _ = c.getHost()
+	h = c.getHost()
 	expected = "127.0.0.3"
 	if h.addr.Host != expected {
 		t.Fatalf("got host %q; expected %q", h.addr.Host, expected)
@@ -254,7 +254,7 @@ func TestGetHostConcurrent(t *testing.T) {
 	}
 
 	f := func() {
-		h, _ := c.getHost()
+		h := c.getHost()
 		h.inc()
 		h.dec()
 	}

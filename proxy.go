@@ -22,6 +22,7 @@ func newReverseProxy() *reverseProxy {
 			Director: func(*http.Request) {},
 			ErrorLog: log.ErrorLogger,
 		},
+		done: make(chan struct{}),
 	}
 }
 
@@ -128,7 +129,7 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 				return err
 			}
 
-			hosts[i] = newHost(addr, c.Name)
+			hosts[i] = &host{addr: addr}
 		}
 
 		clusterUsers := make(map[string]*clusterUser, len(c.ClusterUsers))
@@ -149,8 +150,9 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 			return fmt.Errorf("cluster %q already exists", c.Name)
 		}
 		cluster := &cluster{
-			hosts: hosts,
-			users: clusterUsers,
+			hosts:             hosts,
+			users:             clusterUsers,
+			heartBeatInterval: c.HeartBeatInterval,
 		}
 		cluster.killQueryUserName = c.KillQueryUser.Name
 		cluster.killQueryUserPassword = c.KillQueryUser.Password
@@ -183,15 +185,23 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 		}
 	}
 
-	// reset previous host health state
+	// if we are here then there is no errors with config
+	// let's clear previous data or processes
 	hostHealth.Reset()
-
-	rp.mu.Lock()
-	for _, cl := range rp.clusters {
-		for _, h := range cl.hosts {
-			close(h.done)
+	close(rp.done)
+	rp.done = make(chan struct{})
+	for k, c := range clusters {
+		for _, h := range c.hosts {
+			label := prometheus.Labels{
+				"cluster": k,
+				"host":    h.addr.Host,
+			}
+			h.runHeartbeat(c.heartBeatInterval, label, rp.done)
 		}
 	}
+
+	// update configuration
+	rp.mu.Lock()
 	rp.clusters = clusters
 	rp.users = users
 	rp.mu.Unlock()
@@ -201,6 +211,8 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 
 type reverseProxy struct {
 	*httputil.ReverseProxy
+
+	done chan struct{}
 
 	mu       sync.Mutex
 	users    map[string]*user

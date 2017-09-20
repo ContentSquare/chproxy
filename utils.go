@@ -33,25 +33,25 @@ func getAuth(req *http.Request) (string, string) {
 
 const okResponse = "Ok.\n"
 
-func isHealthy(addr string) (bool, error) {
+func isHealthy(addr string) error {
 	resp, err := client.Get(addr)
 	if err != nil {
-		return false, err
+		return err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return false, fmt.Errorf("non-200 status code: %s", resp.Status)
+		return fmt.Errorf("non-200 status code: %s", resp.Status)
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	r := string(body)
 	if r != okResponse {
-		return false, fmt.Errorf("unexpected response: %s", r)
+		return fmt.Errorf("unexpected response: %s", r)
 	}
-	return true, nil
+	return nil
 }

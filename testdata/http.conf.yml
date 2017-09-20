@@ -1,6 +1,6 @@
 log_debug: true
 users:
-  - name: "web"
+  - name: "default"
     to_cluster: "default"
     to_user: "default"
 
