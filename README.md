@@ -28,7 +28,7 @@ Example of full configuration can be found [here](https://github.com/Vertamedia/
 
 
 Global configuration consist of:
-```
+```yml
 // Whether to print debug logs
 [ log_debug: <bool> | default = false ]
 
@@ -38,7 +38,7 @@ Global configuration consist of:
 [ allowed_networks: <networks> ... ]
 
 server:
-  [ [<server_config>](#server_config) ]
+  [ [`<server_config>`](#server_config) ]
 
 // List of allowed users
 // which requests will be proxied to ClickHouse
@@ -49,7 +49,7 @@ clusters:
   - <cluster_config> ...
 ```
 
-### (#<server_config>):
+### <server_config>:
 ```
 // TCP address to listen to for http
 [ listen_addr: <addr> | default = `localhost:8080` ]
