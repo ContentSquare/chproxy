@@ -35,10 +35,11 @@ Global configuration consist of:
 # List of networks that access is allowed from
 # Each list item could be IP address or subnet mask
 # if omitted or zero - no limits would be applied
-[ allowed_networks: <networks> ... ]
+# Optional
+allowed_networks: <networks> ... [optional]
 
 server:
-  [ <server_config> ]
+  <server_config> [optional]
 
 # List of allowed users
 # which requests will be proxied to ClickHouse
