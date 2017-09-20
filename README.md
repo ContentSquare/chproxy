@@ -11,10 +11,9 @@ CHProxy, is a web-proxy for accessing [ClickHouse](https://clickhouse.yandex) da
 - multiple cluster configuration
 - expose metrics via prometheus library
 
-
 ## Configuration
 
-Example of full configuration can be found [here](https://github.com/Vertamedia/chproxy/blob/master/config/testdata/full.yml)
+Example of full configuration can be found [here](https://github.com/Vertamedia/chproxy/blob/master/config/testdata/full.yml) or simplest [here](https://github.com/Vertamedia/chproxy/blob/master/config/testdata/default_values.yml)
 
 
 ### Possible types used in configuration:
@@ -30,7 +29,7 @@ Example of full configuration can be found [here](https://github.com/Vertamedia/
 Global configuration consist of:
 ```yml
 # Whether to print debug logs
-[ log_debug: <bool> | default = false ]
+log_debug: <bool> | default = false [optional]
 
 # List of networks that access is allowed from
 # Each list item could be IP address or subnet mask
@@ -53,29 +52,29 @@ clusters:
 ### <server_config>
 ```yml
 # TCP address to listen to for http
-[ listen_addr: <addr> | default = `localhost:8080` ]
+listen_addr: <addr> | default = `localhost:8080` [optional]
 
 # Whether serve https at `listen_addr` addr
 # If no `tls_config` specified than `autocert` will be used
-[ is_tls: <bool> | default = false ]
+is_tls: <bool> | default = false [optional]
 
 # TLS configuration
 tls_config:
-  [ <tls_config> ]
+  <tls_config> [optional]
 ```
 
 ### <tls_config>
 ```yml
 # Path to the directory where autocert certs are cached
-[ cert_cache_dir: <string> ]
+cert_cache_dir: <string> [optional]
 
 # List of host names to which proxy is allowed to respond to
 # see https://godoc.org/golang.org/x/crypto/acme/autocert#HostPolicy
 [ host_policy: <host_name> ... ]
 
 # Certificate and key files for client cert authentication to the server
-[ cert_file: <string> ]
-[ key_file: <string> ]
+cert_file: <string> [optional]
+key_file: <string> [optional]
 ```
 
 ### <user_config>
@@ -84,7 +83,7 @@ tls_config:
 name: <string>
 
 # User password, will be taken from BasicAuth or from URL `password`-param
-[ password: <string> ]
+password: <string> [optional]
 
 # Must match with name of `cluster` config,
 # where requests will be proxied
@@ -95,15 +94,15 @@ to_cluster: <string>
 to_user: <string>
 
 # Maximum number of concurrently running queries for user
-[ max_concurrent_queries: <int> | default = 0 ]
+max_concurrent_queries: <int> | default = 0 [optional]
 
 # Maximum duration of query execution for user
-[ max_execution_time: <duration> | default = 0 ]
+max_execution_time: <duration> | default = 0 [optional]
 
 # List of networks that access is allowed from
 # Each list item could be IP address or subnet mask
 # if omitted or zero - no limits would be applied
-[ allowed_networks: <networks> ... ]
+allowed_networks: <networks> ... [optional]
 
 ```
 
@@ -113,7 +112,7 @@ to_user: <string>
 name: <string>
 
 # Scheme: `http` or `https`; would be applied to all nodes
-[ scheme: <scheme> | default = "http" ]
+scheme: <scheme> | default = "http" [optional]
 
 # List of nodes addresses. Requests would be balanced among them
 nodes: <addr> ...
@@ -125,10 +124,10 @@ users:
 # KillQueryUser - user configuration for killing
 # queries which has exceeded limits
 # if not specified - killing queries will be omitted
-[ kill_query_user: <kill_query_user_config> ]
+kill_query_user: <kill_query_user_config> [optional]
 
 # An interval of checking all cluster nodes for availability
-[ heartbeat_interval: <duration> | default = 5s ]
+heartbeat_interval: <duration> | default = 5s [optional]
 ```
 
 ### <cluster_user_config>
@@ -137,13 +136,13 @@ users:
 name: <string>
 
 # User password in ClickHouse `users.xml` config
-[ password: <string> ]
+password: <string> [optional]
 
 # Maximum number of concurrently running queries for user
-[ max_concurrent_queries: <int> | default = 0 ]
+max_concurrent_queries: <int> | default = 0 [optional]
 
 # Maximum duration of query execution for user
-[ max_execution_time: <duration> | default = 0 ]
+max_execution_time: <duration> | default = 0 [optional]
 ```
 
 ### <kill_query_user_config>
@@ -152,5 +151,9 @@ name: <string>
 name: <string>
 
 # User password to access CH with basic auth
-[ password: <string> ]
+password: <string> [optional]
 ```
+
+## Metrics
+tbd
+
