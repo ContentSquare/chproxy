@@ -38,7 +38,7 @@ Global configuration consist of:
 [ allowed_networks: <networks> ... ]
 
 server:
-  [ [`<server_config>`](#server_config) ]
+  [ <server_config> ]
 
 // List of allowed users
 // which requests will be proxied to ClickHouse
@@ -50,7 +50,7 @@ clusters:
 ```
 
 ### <server_config>:
-```
+```yml
 // TCP address to listen to for http
 [ listen_addr: <addr> | default = `localhost:8080` ]
 
@@ -64,7 +64,7 @@ tls_config:
 ```
 
 ### <tls_config>:
-```
+```yml
 // Path to the directory where autocert certs are cached
 [ cert_cache_dir: <string> ]
 
@@ -78,7 +78,7 @@ tls_config:
 ```
 
 ### <user_config>:
-```
+```yml
 # User name, will be taken from BasicAuth or from URL `user`-param
 name: <string>
 
@@ -107,7 +107,7 @@ to_user: <string>
 ```
 
 ### <cluster_config>:
-```
+```yml
 # Name of CH cluster, must match with `to_cluster`
 name: <string>
 
@@ -131,7 +131,7 @@ users:
 ```
 
 ### <cluster_user_config>:
-```
+```yml
 # User name in ClickHouse `users.xml` config
 name: <string>
 
@@ -146,7 +146,7 @@ name: <string>
 ```
 
 ### <kill_query_user_config>:
-```
+```yml
 # User name to access CH with basic auth
 name: <string>
 
