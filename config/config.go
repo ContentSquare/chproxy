@@ -122,13 +122,11 @@ func (s *Server) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // It can be autocert with letsencrypt
 // or custom certificate
 type TLSConfig struct {
-	// Path to the directory where letsencrypt certs are cached
+	// Path to the directory where autocert certs are cached
 	CertCacheDir string `yaml:"cert_cache_dir,omitempty"`
 
-	// The client cert file for the targets.
+	// Certificate and key files for client cert authentication to the server
 	CertFile string `yaml:"cert_file,omitempty"`
-
-	// The client key file for the targets.
 	KeyFile string `yaml:"key_file,omitempty"`
 
 	// List of host names to which proxy is allowed to respond to
