@@ -15,7 +15,8 @@ var (
 	c = &cluster{
 		hosts: []*host{
 			{
-				addr: &url.URL{Host: "127.0.0.1"},
+				addr:   &url.URL{Host: "127.0.0.1"},
+				active: 1,
 			},
 		},
 		users: map[string]*clusterUser{
@@ -29,7 +30,10 @@ func TestRunningQueries(t *testing.T) {
 	u1 := &user{
 		maxConcurrentQueries: 1,
 	}
-	s := newScope(u1, cu, c)
+	s, err := newScope(u1, cu, c)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
 
 	check := func(uq, cuq, hq uint32) {
 		if s.user.runningQueries() != uq {
@@ -64,7 +68,11 @@ func TestRunningQueries(t *testing.T) {
 	u2 := &user{
 		maxConcurrentQueries: 1,
 	}
-	s = newScope(u2, cu, c)
+	s, err = newScope(u2, cu, c)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
 	if err := s.inc(); err != nil {
 		t.Fatalf("unexpected err: %s", err)
 	}
@@ -84,13 +92,16 @@ func TestGetHost(t *testing.T) {
 	c := &cluster{
 		hosts: []*host{
 			{
-				addr: &url.URL{Host: "127.0.0.1"},
+				addr:   &url.URL{Host: "127.0.0.1"},
+				active: 1,
 			},
 			{
-				addr: &url.URL{Host: "127.0.0.2"},
+				addr:   &url.URL{Host: "127.0.0.2"},
+				active: 1,
 			},
 			{
-				addr: &url.URL{Host: "127.0.0.3"},
+				addr:   &url.URL{Host: "127.0.0.3"},
+				active: 1,
 			},
 		},
 	}
@@ -105,7 +116,7 @@ func TestGetHost(t *testing.T) {
 	// 7    | 127.0.0.1 | 3, 7, 3
 
 	// step: 1
-	h := c.getHost()
+	h, _ := c.getHost()
 	expected := "127.0.0.2"
 	if h.addr.Host != expected {
 		t.Fatalf("got host %q; expected %q", h.addr.Host, expected)
@@ -113,7 +124,7 @@ func TestGetHost(t *testing.T) {
 	h.inc()
 
 	// step: 2
-	h = c.getHost()
+	h, _ = c.getHost()
 	expected = "127.0.0.3"
 	if h.addr.Host != expected {
 		t.Fatalf("got host %q; expected %q", h.addr.Host, expected)
@@ -121,7 +132,7 @@ func TestGetHost(t *testing.T) {
 	h.inc()
 
 	// step: 3
-	h = c.getHost()
+	h, _ = c.getHost()
 	expected = "127.0.0.1"
 	if h.addr.Host != expected {
 		t.Fatalf("got host %q; expected %q", h.addr.Host, expected)
@@ -129,7 +140,7 @@ func TestGetHost(t *testing.T) {
 	h.inc()
 
 	// step: 4
-	h = c.getHost()
+	h, _ = c.getHost()
 	expected = "127.0.0.2"
 	if h.addr.Host != expected {
 		t.Fatalf("got host %q; expected %q", h.addr.Host, expected)
@@ -140,7 +151,7 @@ func TestGetHost(t *testing.T) {
 	c.hosts[2].inc()
 
 	// step: 5
-	h = c.getHost()
+	h, _ = c.getHost()
 	expected = "127.0.0.1"
 	if h.addr.Host != expected {
 		t.Fatalf("got host %q; expected %q", h.addr.Host, expected)
@@ -157,7 +168,7 @@ func TestGetHost(t *testing.T) {
 
 	// step: 6
 	// we got "127.0.0.1" because index it's 6th step, hence index is = 0
-	h = c.getHost()
+	h, _ = c.getHost()
 	expected = "127.0.0.1"
 	if h.addr.Host != expected {
 		t.Fatalf("got host %q; expected %q", h.addr.Host, expected)
@@ -167,7 +178,7 @@ func TestGetHost(t *testing.T) {
 	// step: 7
 	// we got "127.0.0.3"; index = 1, means to get 2nd host, but it has runningQueries=7
 	// so we will get next least loaded
-	h = c.getHost()
+	h, _ = c.getHost()
 	expected = "127.0.0.3"
 	if h.addr.Host != expected {
 		t.Fatalf("got host %q; expected %q", h.addr.Host, expected)
@@ -228,19 +239,22 @@ func TestGetHostConcurrent(t *testing.T) {
 	c := &cluster{
 		hosts: []*host{
 			{
-				addr: &url.URL{Host: "127.0.0.1"},
+				addr:   &url.URL{Host: "127.0.0.1"},
+				active: 1,
 			},
 			{
-				addr: &url.URL{Host: "127.0.0.2"},
+				addr:   &url.URL{Host: "127.0.0.2"},
+				active: 1,
 			},
 			{
-				addr: &url.URL{Host: "127.0.0.3"},
+				addr:   &url.URL{Host: "127.0.0.3"},
+				active: 1,
 			},
 		},
 	}
 
 	f := func() {
-		h := c.getHost()
+		h, _ := c.getHost()
 		h.inc()
 		h.dec()
 	}

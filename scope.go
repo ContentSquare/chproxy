@@ -33,14 +33,19 @@ type scope struct {
 
 var scopeId = uint32(time.Now().UnixNano())
 
-func newScope(u *user, cu *clusterUser, c *cluster) *scope {
+func newScope(u *user, cu *clusterUser, c *cluster) (*scope, error) {
+	h, err := c.getHost()
+	if err != nil {
+		return nil, err
+	}
+
 	return &scope{
 		id:          atomic.AddUint32(&scopeId, 1),
-		host:        c.getHost(),
+		host:        h,
 		cluster:     c,
 		user:        u,
 		clusterUser: cu,
-	}
+	}, nil
 }
 
 func (s *scope) inc() error {
@@ -69,6 +74,10 @@ func (s *scope) dec() {
 	s.host.dec()
 	s.user.dec()
 	s.clusterUser.dec()
+}
+
+var client = &http.Client{
+	Timeout: time.Second * 30,
 }
 
 func (s *scope) killQuery() error {
@@ -153,14 +162,58 @@ type clusterUser struct {
 	queryCounter
 }
 
+const heartbeatInterval = time.Second * 20
+
+func newHost(addr *url.URL, cluster string) *host {
+	h := &host{
+		addr: addr,
+		done: make(chan struct{}),
+	}
+	label := prometheus.Labels{
+		"cluster": cluster,
+		"host":    addr.Host,
+	}
+	heartbeat := func() {
+		if ok, err := isHealthy(h.addr.String()); ok {
+			atomic.StoreUint32(&h.active, uint32(1))
+			hostHealth.With(label).Set(1)
+		} else {
+			log.Errorf("error while health-checking %q host: %s", h.addr.Host, err)
+			atomic.StoreUint32(&h.active, uint32(0))
+			hostHealth.With(label).Set(0)
+		}
+	}
+	go func() {
+		heartbeat()
+		for {
+			select {
+			case <-h.done:
+				return
+			case <-time.After(heartbeatInterval):
+				heartbeat()
+			}
+		}
+	}()
+
+	return h
+}
+
 type host struct {
 	// counter of unsuccessful requests to decrease
 	// host priority
 	penalty uint32
-
+	// if equal to 0 then wouldn't be returned from getHost()
+	active uint32
+	// host address
 	addr *url.URL
+	// close to stop health-checking goroutine
+	done chan struct{}
 
 	queryCounter
+}
+
+func (h *host) isActive() bool {
+	return atomic.LoadUint32(&h.active) == 1
 }
 
 const (
@@ -201,12 +254,8 @@ type cluster struct {
 	killQueryUserPassword string
 }
 
-var client = &http.Client{
-	Timeout: time.Second * 60,
-}
-
 // get least loaded + round-robin host from cluster
-func (c *cluster) getHost() *host {
+func (c *cluster) getHost() (*host, error) {
 	idx := atomic.AddUint32(&c.nextIdx, 1)
 
 	l := uint32(len(c.hosts))
@@ -214,24 +263,32 @@ func (c *cluster) getHost() *host {
 	idle := c.hosts[idx]
 	idleN := idle.runningQueries()
 
-	if idleN == 0 {
-		return idle
+	if idleN == 0 && idle.isActive() {
+		return idle, nil
 	}
 
 	// round hosts checking
 	// until the least loaded is found
 	for i := (idx + 1) % l; i != idx; i = (i + 1) % l {
 		h := c.hosts[i]
+		if !h.isActive() {
+			continue
+		}
+
 		n := h.runningQueries()
 		if n == 0 {
-			return h
+			return h, nil
 		}
 		if n < idleN {
 			idle, idleN = h, n
 		}
 	}
 
-	return idle
+	if !idle.isActive() {
+		return nil, fmt.Errorf("no active hosts")
+	}
+
+	return idle, nil
 }
 
 type queryCounter struct {

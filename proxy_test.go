@@ -155,7 +155,7 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 	}{
 		{
 			name:     "Ok response",
-			expected: "Ok\n",
+			expected: okResponse,
 			cfg:      goodCfg,
 			f:        func(p *reverseProxy) string { return makeRequest(p) },
 		},
@@ -275,7 +275,7 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 		req.SetBasicAuth("foo", "bar")
 		resp := makeCustomRequest(proxy, req)
 
-		expected := "Ok\n"
+		expected := okResponse
 		if resp != expected {
 			t.Fatalf("expected response: %q; got: %q", expected, resp)
 		}
@@ -300,7 +300,7 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 		req := httptest.NewRequest("POST", uri, nil)
 		resp := makeCustomRequest(proxy, req)
 
-		expected := "Ok\n"
+		expected := okResponse
 		if resp != expected {
 			t.Fatalf("expected response: %q; got: %q", expected, resp)
 		}
@@ -325,17 +325,17 @@ func TestReverseProxy_ServeHTTP2(t *testing.T) {
 		{
 			name:            "empty allowed networks",
 			allowedNetworks: config.Networks{},
-			expected:        "Ok\n",
+			expected:        okResponse,
 		},
 		{
 			name:            "allow addr",
 			allowedNetworks: config.Networks{getNetwork("192.0.2.1")},
-			expected:        "Ok\n",
+			expected:        okResponse,
 		},
 		{
 			name:            "allow addr by mask",
 			allowedNetworks: config.Networks{getNetwork("192.0.2.1/32")},
-			expected:        "Ok\n",
+			expected:        okResponse,
 		},
 		{
 			name:            "disallow addr",
@@ -387,7 +387,7 @@ var fakeServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter,
 		time.Sleep(d)
 	}
 
-	fmt.Fprintln(w, "Ok")
+	fmt.Fprintln(w, "Ok.")
 }))
 
 func makeRequest(p *reverseProxy) string {
@@ -431,6 +431,9 @@ func getProxy(cfg *config.Config) (*reverseProxy, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// wait till all hosts will do health-checking
+	time.Sleep(time.Millisecond * 50)
 
 	return proxy, nil
 }

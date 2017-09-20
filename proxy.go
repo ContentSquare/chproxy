@@ -128,9 +128,7 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 				return err
 			}
 
-			hosts[i] = &host{
-				addr: addr,
-			}
+			hosts[i] = newHost(addr, c.Name)
 		}
 
 		clusterUsers := make(map[string]*clusterUser, len(c.ClusterUsers))
@@ -185,7 +183,15 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 		}
 	}
 
+	// reset previous host health state
+	hostHealth.Reset()
+
 	rp.mu.Lock()
+	for _, cl := range rp.clusters {
+		for _, h := range cl.hosts {
+			close(h.done)
+		}
+	}
 	rp.clusters = clusters
 	rp.users = users
 	rp.mu.Unlock()
@@ -224,7 +230,12 @@ func (rp *reverseProxy) getScope(name, password string) (*scope, error) {
 		panic(fmt.Sprintf("BUG: user %q matches to unknown user %q at cluster %q", u.name, u.toUser, u.toCluster))
 	}
 
-	return newScope(u, cu, c), nil
+	s, err := newScope(u, cu, c)
+	if err != nil {
+		return nil, fmt.Errorf("error while creating scope for cluster %q: %s", u.toCluster, err)
+	}
+
+	return s, nil
 }
 
 type cachedWriter struct {
