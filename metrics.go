@@ -19,7 +19,7 @@ func init() {
 	statusCodes = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "status_codes_total",
-			Help: "Distribution by status codes counter",
+			Help: "Distribution by status codes",
 		},
 		[]string{"user", "cluster_user", "host", "code"},
 	)
@@ -43,7 +43,7 @@ func init() {
 	requestDuration = prometheus.NewSummaryVec(
 		prometheus.SummaryOpts{
 			Name: "request_duration_seconds",
-			Help: "Shows request duration",
+			Help: "Request duration",
 		},
 		[]string{"user", "cluster_user", "host"},
 	)
