@@ -209,10 +209,10 @@ func (h *host) isActive() bool {
 }
 
 const (
-	penaltyDuration = time.Second * 10
-	penaltySize     = 5
 	// prevents excess goroutine creating while penalizing overloaded host
 	penaltyMaxSize = 300
+	penaltyDuration = time.Second * 10
+	penaltySize     = 5
 )
 
 // decrease host priority for next requests
