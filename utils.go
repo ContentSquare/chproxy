@@ -1,10 +1,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
-	"github.com/Vertamedia/chproxy/log"
 	"io/ioutil"
 	"net/http"
+	"time"
+
+	"github.com/Vertamedia/chproxy/log"
 )
 
 func respondWithErr(rw http.ResponseWriter, err error) {
@@ -31,10 +34,22 @@ func getAuth(req *http.Request) (string, string) {
 	return "default", ""
 }
 
-const okResponse = "Ok.\n"
+const (
+	okResponse       = "Ok.\n"
+	isHealthyTimeout = time.Second
+)
 
 func isHealthy(addr string) error {
-	resp, err := client.Get(addr)
+	req, err := http.NewRequest("GET", addr, nil)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), isHealthyTimeout)
+	defer cancel()
+	req = req.WithContext(ctx)
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}

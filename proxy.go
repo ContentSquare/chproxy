@@ -22,7 +22,7 @@ func newReverseProxy() *reverseProxy {
 			Director: func(*http.Request) {},
 			ErrorLog: log.ErrorLogger,
 		},
-		done: make(chan struct{}),
+		stopCheckers: make(chan struct{}),
 	}
 }
 
@@ -186,17 +186,22 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 	}
 
 	// if we are here then there is no errors with config
-	// let's clear previous data or processes
+	// let's stop health-checking goroutines and reset metrics
+	close(rp.stopCheckers)
+	// wait while all goroutines will stop
+	rp.checkersDone.Wait()
 	hostHealth.Reset()
-	close(rp.done)
-	rp.done = make(chan struct{})
+
+	// run health-checking for new configuration
+	rp.stopCheckers = make(chan struct{})
 	for k, c := range clusters {
-		for _, h := range c.hosts {
-			label := prometheus.Labels{
-				"cluster": k,
-				"host":    h.addr.Host,
-			}
-			h.runHeartbeat(c.heartBeatInterval, label, rp.done)
+		for _, host := range c.hosts {
+			h := host
+			go func() {
+				rp.checkersDone.Add(1)
+				h.runHeartbeat(c.heartBeatInterval, k, rp.stopCheckers)
+				rp.checkersDone.Done()
+			}()
 		}
 	}
 
@@ -212,7 +217,8 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 type reverseProxy struct {
 	*httputil.ReverseProxy
 
-	done chan struct{}
+	stopCheckers chan struct{}
+	checkersDone sync.WaitGroup
 
 	mu       sync.Mutex
 	users    map[string]*user

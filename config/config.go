@@ -127,7 +127,7 @@ type TLSConfig struct {
 
 	// Certificate and key files for client cert authentication to the server
 	CertFile string `yaml:"cert_file,omitempty"`
-	KeyFile string `yaml:"key_file,omitempty"`
+	KeyFile  string `yaml:"key_file,omitempty"`
 
 	// List of host names to which proxy is allowed to respond to
 	// see https://godoc.org/golang.org/x/crypto/acme/autocert#HostPolicy

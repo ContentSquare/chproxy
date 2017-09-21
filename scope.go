@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -76,9 +77,7 @@ func (s *scope) dec() {
 	s.clusterUser.dec()
 }
 
-var client = &http.Client{
-	Timeout: time.Second * 30,
-}
+const killQueryTimeout = time.Second * 30
 
 func (s *scope) killQuery() error {
 	if len(s.cluster.killQueryUserName) == 0 {
@@ -95,10 +94,14 @@ func (s *scope) killQuery() error {
 		return fmt.Errorf("error while creating kill query request to %s: %s", addr, err)
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), killQueryTimeout)
+	defer cancel()
+	req = req.WithContext(ctx)
+
 	// send request as kill_query_user
 	req.SetBasicAuth(s.cluster.killQueryUserName, s.cluster.killQueryUserPassword)
 
-	resp, err := client.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("error while executing clickhouse query %q at %q: %s", query, addr, err)
 	}
@@ -162,7 +165,11 @@ type clusterUser struct {
 	queryCounter
 }
 
-func (h *host) runHeartbeat(interval time.Duration, label prometheus.Labels, done <-chan struct{}) {
+func (h *host) runHeartbeat(interval time.Duration, cluster string, done <-chan struct{}) {
+	label := prometheus.Labels{
+		"cluster": cluster,
+		"host":    h.addr.Host,
+	}
 	heartbeat := func() {
 		if err := isHealthy(h.addr.String()); err == nil {
 			atomic.StoreUint32(&h.active, uint32(1))
@@ -174,18 +181,15 @@ func (h *host) runHeartbeat(interval time.Duration, label prometheus.Labels, don
 		}
 	}
 
-	go func() {
-		heartbeat()
-		for {
-			select {
-			case <-done:
-				fmt.Println("wa done")
-				return
-			case <-time.After(interval):
-				heartbeat()
-			}
+	heartbeat()
+	for {
+		select {
+		case <-done:
+			return
+		case <-time.After(interval):
+			heartbeat()
 		}
-	}()
+	}
 }
 
 type host struct {
@@ -205,9 +209,10 @@ func (h *host) isActive() bool {
 }
 
 const (
-	penaltyDuration = time.Minute
+	penaltyDuration = time.Second * 10
 	penaltySize     = 5
-	penaltyMaxSize  = 300
+	// prevents excess goroutine creating while penalizing overloaded host
+	penaltyMaxSize = 300
 )
 
 // decrease host priority for next requests
@@ -219,9 +224,7 @@ func (h *host) penalize() {
 
 	log.Debugf("Penalizing host %q", h.addr)
 	hostPenalties.With(prometheus.Labels{"host": h.addr.Host}).Inc()
-
 	atomic.AddUint32(&h.penalty, penaltySize)
-
 	time.AfterFunc(penaltyDuration, func() {
 		atomic.AddUint32(&h.penalty, ^uint32(penaltySize-1))
 	})
