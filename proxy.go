@@ -188,7 +188,7 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 			toUser:               u.ToUser,
 			deny_http:            u.DenyHTTP,
 			deny_https:           u.DenyHTTPS,
-			allowedNetworks:      u.Networks,
+			allowedNetworks:      u.AllowedNetworks,
 			name:                 u.Name,
 			password:             u.Password,
 			maxConcurrentQueries: u.MaxConcurrentQueries,

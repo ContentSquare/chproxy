@@ -58,7 +58,12 @@ func main() {
 	if len(cfg.HTTPS.ListenAddr) != 0 {
 		go serveTLS(cfg.HTTPS)
 	}
-	serve(cfg.HTTP)
+
+	if len(cfg.HTTP.ListenAddr) != 0 {
+		go serve(cfg.HTTP)
+	}
+
+	select{ }
 }
 
 func serveTLS(cfg config.HTTPS) {
@@ -217,9 +222,9 @@ func reloadConfig() (*config.Server, error) {
 		return nil, err
 	}
 
-	allowedNetworksHTTP.Store(&cfg.Server.HTTP.Networks)
-	allowedNetworksHTTPS.Store(&cfg.Server.HTTPS.Networks)
-	allowedNetworksMetrics.Store(&cfg.Server.Metrics.Networks)
+	allowedNetworksHTTP.Store(&cfg.Server.HTTP.AllowedNetworks)
+	allowedNetworksHTTPS.Store(&cfg.Server.HTTPS.AllowedNetworks)
+	allowedNetworksMetrics.Store(&cfg.Server.Metrics.AllowedNetworks)
 	log.SetDebug(cfg.LogDebug)
 	return &cfg.Server, nil
 }

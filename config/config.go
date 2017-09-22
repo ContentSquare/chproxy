@@ -12,14 +12,7 @@ import (
 
 var (
 	defaultConfig = Config{
-		Server:   defaultServer,
 		Clusters: []Cluster{defaultCluster},
-	}
-
-	defaultServer = Server{
-		HTTP: HTTP{
-			ListenAddr: ":8080",
-		},
 	}
 
 	defaultCluster = Cluster{
@@ -99,8 +92,6 @@ type Server struct {
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (s *Server) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	*s = defaultServer
-
 	type plain Server
 	if err := unmarshal((*plain)(s)); err != nil {
 		return err
@@ -110,8 +101,6 @@ func (s *Server) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 // HTTP describes configuration for server to listen HTTP connections
-// It can be autocert with letsencrypt
-// or custom certificate
 type HTTP struct {
 	// TCP address to listen to for http
 	// Default is `:8080`
@@ -120,7 +109,7 @@ type HTTP struct {
 	// List of networks that access is allowed from
 	// Each list item could be IP address or subnet mask
 	// if omitted or zero - no limits would be applied
-	Networks Networks `yaml:"allowed_networks,omitempty"`
+	AllowedNetworks Networks `yaml:"allowed_networks,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
@@ -135,6 +124,15 @@ func (c *HTTP) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	if len(c.ListenAddr) == 0 {
 		c.ListenAddr = ":8080"
+	}
+
+	if len(c.AllowedNetworks) == 0 {
+		c.AllowedNetworks = Networks{
+			&net.IPNet{
+				IP:   net.IPv4(127, 0, 0, 1),
+				Mask: net.IPMask{255, 255, 255, 255},
+			},
+		}
 	}
 
 	return checkOverflow(c.XXX, "http")
@@ -157,7 +155,7 @@ type HTTPS struct {
 	// List of networks that access is allowed from
 	// Each list item could be IP address or subnet mask
 	// if omitted or zero - no limits would be applied
-	Networks Networks `yaml:"allowed_networks,omitempty"`
+	AllowedNetworks Networks `yaml:"allowed_networks,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
@@ -189,6 +187,7 @@ func (c *HTTPS) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return checkOverflow(c.XXX, "https")
 }
 
+// Autocert configuration via letsencrypt
 type Autocert struct {
 	// Path to the directory where autocert certs are cached
 	CacheDir string `yaml:"cache_dir,omitempty"`
@@ -215,7 +214,7 @@ type Metrics struct {
 	// List of networks that access is allowed from
 	// Each list item could be IP address or subnet mask
 	// if omitted or zero - no limits would be applied
-	Networks Networks `yaml:"allowed_networks,omitempty"`
+	AllowedNetworks Networks `yaml:"allowed_networks,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
@@ -350,7 +349,7 @@ type User struct {
 	// List of networks that access is allowed from
 	// Each list item could be IP address or subnet mask
 	// if omitted or zero - no limits would be applied
-	Networks Networks `yaml:"allowed_networks,omitempty"`
+	AllowedNetworks Networks `yaml:"allowed_networks,omitempty"`
 
 	// Whether to deny http connections for this user
 	DenyHTTP bool `yaml:"deny_http,omitempty"`
@@ -381,17 +380,17 @@ func (u *User) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("field `user.to_cluster` for %q cannot be empty", u.Name)
 	}
 
-	if len(u.Password) == 0 && len(u.Networks) == 0 {
+	if len(u.Password) == 0 && len(u.AllowedNetworks) == 0 {
 		return fmt.Errorf("access for user %q must be limited by `password` or by `allowed_networks`", u.Name)
 	}
 
-	if u.DenyHTTP == true && u.DenyHTTPS == true {
-		return fmt.Errorf("user %q has both `deny_http` and `deny_https` setted to `true`", u.Name)
+	if u.DenyHTTP && u.DenyHTTPS {
+		return fmt.Errorf("user %q has both `deny_http` and `deny_https` set to `true`", u.Name)
 	}
 
-	/*	if u.DenyHTTP == false && len(u.Networks) == 0 {
+	if u.DenyHTTP == false && len(u.AllowedNetworks) == 0 {
 		return fmt.Errorf("user %q is allowed to connect via http but not limited by `allowed_networks` - possible security breach", u.Name)
-	}*/
+	}
 
 	return checkOverflow(u.XXX, "user")
 }

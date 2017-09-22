@@ -21,7 +21,7 @@ func TestLoadConfig(t *testing.T) {
 				Server: Server{
 					HTTP: HTTP{
 						ListenAddr: ":9090",
-						Networks: Networks{
+						AllowedNetworks: Networks{
 							&net.IPNet{
 								IP:   net.IPv4(127, 0, 0, 0),
 								Mask: net.IPMask{255, 255, 255, 0},
@@ -34,7 +34,7 @@ func TestLoadConfig(t *testing.T) {
 							CacheDir:     "certs_dir",
 							AllowedHosts: []string{"example.com"},
 						},
-						Networks: Networks{
+						AllowedNetworks: Networks{
 							&net.IPNet{
 								IP:   net.IPv4(127, 0, 0, 0),
 								Mask: net.IPMask{255, 255, 255, 0},
@@ -42,7 +42,7 @@ func TestLoadConfig(t *testing.T) {
 						},
 					},
 					Metrics: Metrics{
-						Networks: Networks{
+						AllowedNetworks: Networks{
 							&net.IPNet{
 								IP:   net.IPv4(127, 0, 0, 0),
 								Mask: net.IPMask{255, 255, 255, 0},
@@ -106,7 +106,7 @@ func TestLoadConfig(t *testing.T) {
 						MaxConcurrentQueries: 4,
 						MaxExecutionTime:     time.Duration(time.Minute),
 						DenyHTTPS:            true,
-						Networks: Networks{
+						AllowedNetworks: Networks{
 							&net.IPNet{
 								IP:   net.IPv4(127, 0, 0, 1),
 								Mask: net.IPMask{255, 255, 255, 255},
@@ -121,12 +121,55 @@ func TestLoadConfig(t *testing.T) {
 			},
 		},
 		{
-			"default values",
-			"testdata/default_values.yml",
+			"default values http",
+			"testdata/default_values_http.yml",
 			Config{
 				Server: Server{
 					HTTP: HTTP{
 						ListenAddr: ":8080",
+						AllowedNetworks: Networks{
+							&net.IPNet{
+								IP:   net.IPv4(127, 0, 0, 0),
+								Mask: net.IPMask{255, 255, 255, 0},
+							},
+						},
+					},
+				},
+				Clusters: []Cluster{
+					{
+						Name:   "cluster",
+						Scheme: "http",
+						Nodes:  []string{"127.0.0.1:8123"},
+						ClusterUsers: []ClusterUser{
+							{
+								Name: "default",
+							},
+						},
+						KillQueryUser: KillQueryUser{
+							Name: "default",
+						},
+						HeartBeatInterval: time.Second * 5,
+					},
+				},
+				Users: []User{
+					{
+						Name:      "default",
+						Password:  "***",
+						ToCluster: "cluster",
+						ToUser:    "default",
+					},
+				},
+			},
+		},
+		{
+			"default values https",
+			"testdata/default_values_https.yml",
+			Config{
+				Server: Server{
+					HTTPS: HTTPS{
+						ListenAddr: ":443",
+						CertFile: "cert_file",
+						KeyFile: "cert_key",
 					},
 				},
 				Clusters: []Cluster{
@@ -215,7 +258,7 @@ func TestBadConfig(t *testing.T) {
 		{
 			"empty tls",
 			"testdata/bad.empty_tls.yml",
-			"configuration `https` is missing. Must be specified `https.cache_dir` for autocert OR `https.key_file` and `https.cert_file` for already existing certs",
+			"configuration `https` is missing. Must be specified `https.autocert.cache_dir` for autocert OR `https.key_file` and `https.cert_file` for already existing certs",
 		},
 		{
 			"empty tls cert key",

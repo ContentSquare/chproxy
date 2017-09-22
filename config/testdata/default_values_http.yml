@@ -1,3 +1,7 @@
+server:
+  http:
+
+
 users:
   - name: "default"
     password: "***"
