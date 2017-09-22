@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/tls"
+	"github.com/Vertamedia/chproxy/config"
 	"net/http"
 	"testing"
 )
@@ -14,7 +15,7 @@ func TestServeTLS(t *testing.T) {
 	}
 
 	done := make(chan struct{})
-	ln := newTLSListener(cfg.ListenAddr, &cfg.TLSConfig)
+	ln := newTLSListener(cfg.HTTPS)
 	go func() {
 		listenAndServe(ln)
 		close(done)
@@ -25,7 +26,14 @@ func TestServeTLS(t *testing.T) {
 	}
 	client := &http.Client{Transport: tr}
 
-	resp, err := client.Get("https://127.0.0.1:9090/metrics")
+	req, err := http.NewRequest("GET", "https://127.0.0.1:8443/metrics", nil)
+	if err != nil {
+		t.Fatalf("unexpected erorr: %s", err)
+	}
+
+	req.SetBasicAuth("default", "qwerty")
+
+	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -48,13 +56,16 @@ func TestServe(t *testing.T) {
 	}
 
 	done := make(chan struct{})
-	ln := newListener(cfg.ListenAddr)
+	an := func() *config.Networks {
+		return allowedNetworksHTTP.Load().(*config.Networks)
+	}
+	ln := newListener(cfg.HTTP.ListenAddr, an)
 	go func() {
 		listenAndServe(ln)
 		close(done)
 	}()
 
-	resp, err := http.Get("http://127.0.0.1:8080/metrics")
+	resp, err := http.Get("http://127.0.0.1:9090/metrics")
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}

@@ -1,14 +1,12 @@
 server:
-  listen_addr: "127.0.0.1:9090"
-  is_tls: true
-  tls_config:
-      cert_cache_dir: "certs_dir"
-      host_policy: ["example.com"]
+  https:
+      listen_addr: ":8443"
       cert_file: "testdata/example.com.cert"
       key_file: "testdata/example.com.key"
 
 users:
   - name: "default"
+    password: "qwerty"
     to_cluster: "default"
     to_user: "default"
 

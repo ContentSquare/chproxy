@@ -148,6 +148,8 @@ func (s *scope) decorateRequest(req *http.Request) *http.Request {
 type user struct {
 	toUser          string
 	toCluster       string
+	deny_http       bool
+	deny_https      bool
 	allowedNetworks config.Networks
 
 	name, password       string
@@ -161,6 +163,18 @@ type clusterUser struct {
 	name, password       string
 	maxExecutionTime     time.Duration
 	maxConcurrentQueries uint32
+
+	queryCounter
+}
+
+type host struct {
+	// counter of unsuccessful requests to decrease
+	// host priority
+	penalty uint32
+	// if equal to 0 then wouldn't be returned from getHost()
+	active uint32
+	// host address
+	addr *url.URL
 
 	queryCounter
 }
@@ -192,25 +206,13 @@ func (h *host) runHeartbeat(interval time.Duration, cluster string, done <-chan 
 	}
 }
 
-type host struct {
-	// counter of unsuccessful requests to decrease
-	// host priority
-	penalty uint32
-	// if equal to 0 then wouldn't be returned from getHost()
-	active uint32
-	// host address
-	addr *url.URL
-
-	queryCounter
-}
-
 func (h *host) isActive() bool {
 	return atomic.LoadUint32(&h.active) == 1
 }
 
 const (
 	// prevents excess goroutine creating while penalizing overloaded host
-	penaltyMaxSize = 300
+	penaltyMaxSize  = 300
 	penaltyDuration = time.Second * 10
 	penaltySize     = 5
 )

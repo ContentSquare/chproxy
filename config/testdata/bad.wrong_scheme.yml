@@ -1,5 +1,6 @@
 users:
   - name: "default"
+    password: "***"
     to_cluster: "second cluster"
     to_user: "default"
 

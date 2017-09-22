@@ -22,8 +22,11 @@ import (
 var configFile = flag.String("config", "testdata/http.conf.yml", "Proxy configuration filename")
 
 var (
-	proxy           = newReverseProxy()
-	allowedNetworks atomic.Value
+	proxy = newReverseProxy()
+
+	allowedNetworksHTTP    atomic.Value
+	allowedNetworksHTTPS   atomic.Value
+	allowedNetworksMetrics atomic.Value
 )
 
 func main() {
@@ -52,44 +55,43 @@ func main() {
 		}
 	}()
 
-	if cfg.IsTLS {
-		if err := serveTLS(cfg.ListenAddr, &cfg.TLSConfig); err != nil {
-			log.Fatalf("TLS server error on %q: %s", cfg.ListenAddr, err)
-		}
-		return
+	if len(cfg.HTTPS.ListenAddr) != 0 {
+		go serveTLS(cfg.HTTPS)
 	}
+	serve(cfg.HTTP)
+}
 
-	if err := serve(cfg.ListenAddr); err != nil {
-		log.Fatalf("Server error on %q: %s", cfg.ListenAddr, err)
+func serveTLS(cfg config.HTTPS) {
+	ln := newTLSListener(cfg)
+	log.Infof("Serving https on %q", cfg.ListenAddr)
+	if err := listenAndServe(ln); err != nil {
+		log.Fatalf("TLS server error on %q: %s", cfg.ListenAddr, err)
+	}
+}
+func serve(cfg config.HTTP) {
+	an := func() *config.Networks {
+		return allowedNetworksHTTP.Load().(*config.Networks)
+	}
+	ln := newListener(cfg.ListenAddr, an)
+	log.Infof("Serving http on %q", cfg.ListenAddr)
+	if err := listenAndServe(ln); err != nil {
+		log.Fatalf("HTTP server error on %q: %s", cfg.ListenAddr, err)
 	}
 }
 
-func serveTLS(addr string, tlsConfig *config.TLSConfig) error {
-	ln := newTLSListener(addr, tlsConfig)
-
-	log.Infof("Serving https on %q", addr)
-	return listenAndServe(ln)
-}
-
-func serve(addr string) error {
-	ln := newListener(addr)
-
-	log.Infof("Serving http on %q", addr)
-	return listenAndServe(ln)
-}
-
-func newListener(laddr string) net.Listener {
+func newListener(laddr string, an func() *config.Networks) net.Listener {
 	ln, err := net.Listen("tcp4", laddr)
 	if err != nil {
 		log.Fatalf("cannot listen for %q: %s", laddr, err)
 	}
 	return &netListener{
-		ln,
+		Listener:        ln,
+		allowedNetworks: an,
 	}
 }
 
-func newTLSListener(laddr string, cfg *config.TLSConfig) net.Listener {
-	tlsConfig := tls.Config{
+func newTLSListener(cfg config.HTTPS) net.Listener {
+	HTTPS := tls.Config{
 		PreferServerCipherSuites: true,
 		CurvePreferences: []tls.CurveID{
 			tls.CurveP256,
@@ -100,21 +102,21 @@ func newTLSListener(laddr string, cfg *config.TLSConfig) net.Listener {
 	if len(cfg.KeyFile) > 0 && len(cfg.CertFile) > 0 {
 		cert, err := tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)
 		if err != nil {
-			log.Fatalf("cannot load cert for `tls_config.cert_file`=%q, `tls_config.key_file`=%q: %s",
+			log.Fatalf("cannot load cert for `https.cert_file`=%q, `https.key_file`=%q: %s",
 				cfg.CertFile, cfg.KeyFile, err)
 		}
-		tlsConfig.Certificates = []tls.Certificate{cert}
+		HTTPS.Certificates = []tls.Certificate{cert}
 	} else {
-		if len(cfg.CertCacheDir) > 0 {
-			if err := os.MkdirAll(cfg.CertCacheDir, 0700); err != nil {
-				log.Fatalf("error while creating folder %q: %s", cfg.CertCacheDir, err)
+		if len(cfg.Autocert.CacheDir) > 0 {
+			if err := os.MkdirAll(cfg.Autocert.CacheDir, 0700); err != nil {
+				log.Fatalf("error while creating folder %q: %s", cfg.Autocert.CacheDir, err)
 			}
 		}
 
 		var hp autocert.HostPolicy
-		if len(cfg.HostPolicy) != 0 {
-			allowedHosts := make(map[string]struct{}, len(cfg.HostPolicy))
-			for _, v := range cfg.HostPolicy {
+		if len(cfg.Autocert.AllowedHosts) != 0 {
+			allowedHosts := make(map[string]struct{}, len(cfg.Autocert.AllowedHosts))
+			for _, v := range cfg.Autocert.AllowedHosts {
 				allowedHosts[v] = struct{}{}
 			}
 
@@ -129,15 +131,18 @@ func newTLSListener(laddr string, cfg *config.TLSConfig) net.Listener {
 
 		m := autocert.Manager{
 			Prompt:     autocert.AcceptTOS,
-			Cache:      autocert.DirCache(cfg.CertCacheDir),
+			Cache:      autocert.DirCache(cfg.Autocert.CacheDir),
 			HostPolicy: hp,
 		}
 
-		tlsConfig.GetCertificate = m.GetCertificate
+		HTTPS.GetCertificate = m.GetCertificate
 	}
 
-	ln := newListener(laddr)
-	return tls.NewListener(ln, &tlsConfig)
+	an := func() *config.Networks {
+		return allowedNetworksHTTPS.Load().(*config.Networks)
+	}
+	ln := newListener(cfg.ListenAddr, an)
+	return tls.NewListener(ln, &HTTPS)
 }
 
 func listenAndServe(ln net.Listener) error {
@@ -159,6 +164,13 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
 	case "/favicon.ico":
 	case "/metrics":
+		an := allowedNetworksMetrics.Load().(*config.Networks)
+		if !an.Contains(r.RemoteAddr) {
+			log.Errorf("connections to /metrics are not allowed from %s", r.RemoteAddr)
+			rw.WriteHeader(http.StatusForbidden)
+			fmt.Fprintf(rw, "connections to /metrics are not allowed from %s", r.RemoteAddr)
+			return
+		}
 		promHandler.ServeHTTP(rw, r)
 	case "/":
 		goodRequest.Inc()
@@ -166,7 +178,6 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 	default:
 		badRequest.Inc()
 		log.Debugf("Unsupported path: %s", r.URL.Path)
-
 		rw.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintf(rw, "Unsupported path: %s", r.URL.Path)
 	}
@@ -174,6 +185,7 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 
 type netListener struct {
 	net.Listener
+	allowedNetworks func() *config.Networks
 }
 
 func (ln *netListener) Accept() (net.Conn, error) {
@@ -184,7 +196,7 @@ func (ln *netListener) Accept() (net.Conn, error) {
 		}
 
 		remoteAddr := conn.RemoteAddr().String()
-		an := allowedNetworks.Load().(*config.Networks)
+		an := ln.allowedNetworks()
 		if !an.Contains(remoteAddr) {
 			log.Errorf("connections are not allowed from %s", remoteAddr)
 			conn.Close()
@@ -205,7 +217,9 @@ func reloadConfig() (*config.Server, error) {
 		return nil, err
 	}
 
-	allowedNetworks.Store(&cfg.Networks)
+	allowedNetworksHTTP.Store(&cfg.Server.HTTP.Networks)
+	allowedNetworksHTTPS.Store(&cfg.Server.HTTPS.Networks)
+	allowedNetworksMetrics.Store(&cfg.Server.Metrics.Networks)
 	log.SetDebug(cfg.LogDebug)
 	return &cfg.Server, nil
 }

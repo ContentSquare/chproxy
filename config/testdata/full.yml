@@ -1,27 +1,34 @@
 log_debug: true
-allowed_networks: ["127.0.0.1/24"]
 
 server:
-  listen_addr: ":9090"
-  is_tls: true
-  tls_config:
-      cert_cache_dir: "certs_dir"
-      host_policy: ["example.com"]
-      cert_file: "/path/to/cert_file"
-      key_file: "/path/to/key_file"
+  http:
+    listen_addr: ":9090"
+    allowed_networks: ["127.0.0.1/24"]
+
+  https:
+    listen_addr: ":443"
+    allowed_networks: ["127.0.0.1/24"]
+    autocert:
+      cache_dir: "certs_dir"
+      allowed_hosts: ["example.com"]
+
+  metrics:
+    allowed_networks: ["127.0.0.1/24"]
 
 users:
   - name: "web"
     password: "password"
-    allowed_networks: ["127.0.0.1", "1.2.3.0/24"]
     to_cluster: "second cluster"
     to_user: "web"
+    deny_http: true
 
   - name: "default"
     to_cluster: "second cluster"
     to_user: "default"
+    allowed_networks: ["127.0.0.1", "1.2.3.0/24"]
     max_concurrent_queries: 4
     max_execution_time: 1m
+    deny_https: true
 
 clusters:
   - name: "first cluster"

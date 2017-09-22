@@ -1,9 +1,9 @@
 server:
-  listen_addr: ":9090"
-  is_tls: true
-  tls_config:
+  https:
+    listen_addr: ":443"
 
 users:
   - name: "default"
+    password: "***"
     to_cluster: "cluster"
     to_user: "default"

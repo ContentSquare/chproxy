@@ -17,7 +17,9 @@ var (
 	}
 
 	defaultServer = Server{
-		ListenAddr: ":8080",
+		HTTP: HTTP{
+			ListenAddr: ":8080",
+		},
 	}
 
 	defaultCluster = Cluster{
@@ -46,11 +48,6 @@ type Config struct {
 	// Whether to print debug logs
 	LogDebug bool `yaml:"log_debug,omitempty"`
 
-	// List of networks that access is allowed from
-	// Each list item could be IP address or subnet mask
-	// if omitted or zero - no limits would be applied
-	Networks Networks `yaml:"allowed_networks,omitempty"`
-
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
 }
@@ -73,8 +70,12 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("field `clusters` must contain at least 1 cluster")
 	}
 
-	if len(c.Server.ListenAddr) == 0 {
-		return fmt.Errorf("field `server.listen_addr` cannot be empty")
+	if len(c.Server.HTTPS.ListenAddr) > 0 {
+		if len(c.Server.HTTPS.Autocert.CacheDir) == 0 && len(c.Server.HTTPS.CertFile) == 0 && len(c.Server.HTTPS.KeyFile) == 0 {
+			return fmt.Errorf("configuration `https` is missing. " +
+				"Must be specified `https.cache_dir` for autocert " +
+				"OR `https.key_file` and `https.cert_file` for already existing certs")
+		}
 	}
 
 	return checkOverflow(c.XXX, "config")
@@ -83,16 +84,14 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // Server describes configuration of proxy server
 // These settings are immutable and can't be reloaded without restart
 type Server struct {
-	// TCP address to listen to for http
-	// Default is `localhost:8080`
-	ListenAddr string `yaml:"listen_addr,omitempty"`
-
-	// Whether serve https at ListenAddr addr
-	// If no TLSConfig specified than `autocert` will be used
-	IsTLS bool `yaml:"is_tls,omitempty"`
+	// Optional HTTP configuration
+	HTTP HTTP `yaml:"http,omitempty"`
 
 	// Optional TLS configuration
-	TLSConfig TLSConfig `yaml:"tls_config,omitempty"`
+	HTTPS HTTPS `yaml:"https,omitempty"`
+
+	// Metrics optional metrics handler configuration
+	Metrics Metrics `yaml:"metrics,omitempty"`
 
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
@@ -107,52 +106,129 @@ func (s *Server) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 
-	if s.IsTLS == true {
-		if len(s.TLSConfig.CertCacheDir) == 0 && len(s.TLSConfig.CertFile) == 0 && len(s.TLSConfig.KeyFile) == 0 {
-			return fmt.Errorf("configuration `tls_config` is missing. " +
-				"Must be specified `tls_config.cert_cache_dir` for autocert " +
-				"OR `tls_config.key_file` and `tls_config.cert_file` for already existing certs")
-		}
-	}
-
 	return checkOverflow(s.XXX, "server")
 }
 
-// TLSConfig describes configuration for TLS starting server
+// HTTP describes configuration for server to listen HTTP connections
 // It can be autocert with letsencrypt
 // or custom certificate
-type TLSConfig struct {
-	// Path to the directory where autocert certs are cached
-	CertCacheDir string `yaml:"cert_cache_dir,omitempty"`
+type HTTP struct {
+	// TCP address to listen to for http
+	// Default is `:8080`
+	ListenAddr string `yaml:"listen_addr,omitempty"`
 
-	// Certificate and key files for client cert authentication to the server
-	CertFile string `yaml:"cert_file,omitempty"`
-	KeyFile  string `yaml:"key_file,omitempty"`
-
-	// List of host names to which proxy is allowed to respond to
-	// see https://godoc.org/golang.org/x/crypto/acme/autocert#HostPolicy
-	HostPolicy []string `yaml:"host_policy,omitempty"`
+	// List of networks that access is allowed from
+	// Each list item could be IP address or subnet mask
+	// if omitted or zero - no limits would be applied
+	Networks Networks `yaml:"allowed_networks,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *TLSConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	type plain TLSConfig
+func (c *HTTP) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain HTTP
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
 
+	if len(c.ListenAddr) == 0 {
+		c.ListenAddr = ":8080"
+	}
+
+	return checkOverflow(c.XXX, "http")
+}
+
+// HTTPS describes configuration for server to listen HTTPS connections
+// It can be autocert with letsencrypt
+// or custom certificate
+type HTTPS struct {
+	// TCP address to listen to for https
+	// Default is `:443`
+	ListenAddr string `yaml:"listen_addr,omitempty"`
+
+	// Certificate and key files for client cert authentication to the server
+	CertFile string `yaml:"cert_file,omitempty"`
+	KeyFile  string `yaml:"key_file,omitempty"`
+
+	Autocert Autocert `yaml:"autocert,omitempty"`
+
+	// List of networks that access is allowed from
+	// Each list item could be IP address or subnet mask
+	// if omitted or zero - no limits would be applied
+	Networks Networks `yaml:"allowed_networks,omitempty"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *HTTPS) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain HTTPS
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+
+	if len(c.ListenAddr) == 0 {
+		c.ListenAddr = ":443"
+	}
+
+	if len(c.Autocert.CacheDir) > 0 && (len(c.CertFile) > 0 || len(c.KeyFile) > 0) {
+		return fmt.Errorf("it is forbidden to specify certificate and `https.autocert` at the same time. Choose one way")
+	}
+
 	if len(c.CertFile) > 0 && len(c.KeyFile) == 0 {
-		return fmt.Errorf("field `tls_config.key_file` must be specified")
+		return fmt.Errorf("field `https.key_file` must be specified")
 	}
 
 	if len(c.KeyFile) > 0 && len(c.CertFile) == 0 {
-		return fmt.Errorf("field `tls_config.cert_file` must be specified")
+		return fmt.Errorf("field `https.cert_file` must be specified")
 	}
 
-	return checkOverflow(c.XXX, "tls_config")
+	return checkOverflow(c.XXX, "https")
+}
+
+type Autocert struct {
+	// Path to the directory where autocert certs are cached
+	CacheDir string `yaml:"cache_dir,omitempty"`
+
+	// List of host names to which proxy is allowed to respond to
+	// see https://godoc.org/golang.org/x/crypto/acme/autocert#HostPolicy
+	AllowedHosts []string `yaml:"allowed_hosts,omitempty"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *Autocert) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain Autocert
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+
+	return checkOverflow(c.XXX, "autocert")
+}
+
+type Metrics struct {
+	// List of networks that access is allowed from
+	// Each list item could be IP address or subnet mask
+	// if omitted or zero - no limits would be applied
+	Networks Networks `yaml:"allowed_networks,omitempty"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *Metrics) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain Metrics
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+
+	return checkOverflow(c.XXX, "metrics")
 }
 
 // Cluster describes CH cluster configuration
@@ -276,6 +352,12 @@ type User struct {
 	// if omitted or zero - no limits would be applied
 	Networks Networks `yaml:"allowed_networks,omitempty"`
 
+	// Whether to deny http connections for this user
+	DenyHTTP bool `yaml:"deny_http,omitempty"`
+
+	// Whether to deny https connections for this user
+	DenyHTTPS bool `yaml:"deny_https,omitempty"`
+
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
 }
@@ -292,12 +374,24 @@ func (u *User) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	if len(u.ToUser) == 0 {
-		return fmt.Errorf("field `user.to_user` cannot be empty")
+		return fmt.Errorf("field `user.to_user` for %q cannot be empty", u.Name)
 	}
 
 	if len(u.ToCluster) == 0 {
-		return fmt.Errorf("field `user.to_cluster` cannot be empty")
+		return fmt.Errorf("field `user.to_cluster` for %q cannot be empty", u.Name)
 	}
+
+	if len(u.Password) == 0 && len(u.Networks) == 0 {
+		return fmt.Errorf("access for user %q must be limited by `password` or by `allowed_networks`", u.Name)
+	}
+
+	if u.DenyHTTP == true && u.DenyHTTPS == true {
+		return fmt.Errorf("user %q has both `deny_http` and `deny_https` setted to `true`", u.Name)
+	}
+
+	/*	if u.DenyHTTP == false && len(u.Networks) == 0 {
+		return fmt.Errorf("user %q is allowed to connect via http but not limited by `allowed_networks` - possible security breach", u.Name)
+	}*/
 
 	return checkOverflow(u.XXX, "user")
 }
@@ -305,15 +399,21 @@ func (u *User) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // Networks is a list of IPNet entities
 type Networks []*net.IPNet
 
+const entireIPv4 = "0.0.0.0/0"
+
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (n *Networks) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var sl []string
 	if err := unmarshal(&sl); err != nil {
 		return err
 	}
-
 	networks := make(Networks, len(sl))
 	for i, s := range sl {
+		if s == entireIPv4 {
+			return fmt.Errorf("suspicious mask specified \"0.0.0.0/0\". " +
+				"If you want to allow all then just omit `allowed_networks` field")
+		}
+
 		if !strings.Contains(s, `/`) {
 			s += "/32"
 		}

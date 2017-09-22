@@ -1,0 +1,11 @@
+users:
+  - name: "dummy"
+    allowed_networks: ["0.0.0.0/32"]
+    to_cluster: "cluster"
+    to_user: "default"
+    deny_http: true
+    deny_https: true
+
+clusters:
+  - name: "cluster"
+    nodes: ["127.0.1.1:8123"]

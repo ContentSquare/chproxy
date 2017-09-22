@@ -1,8 +1,9 @@
 server:
-  listen_addr: ":9090"
-  is_tls: true
   https:
     cert_file: "cert_file"
+    cert_key: "cert_key"
+    autocert:
+      cache_dir: "cache_dir"
 
 users:
   - name: "default"
