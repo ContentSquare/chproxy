@@ -34,12 +34,6 @@ func TestLoadConfig(t *testing.T) {
 							CacheDir:     "certs_dir",
 							AllowedHosts: []string{"example.com"},
 						},
-						AllowedNetworks: Networks{
-							&net.IPNet{
-								IP:   net.IPv4(127, 0, 0, 0),
-								Mask: net.IPMask{255, 255, 255, 0},
-							},
-						},
 					},
 					Metrics: Metrics{
 						AllowedNetworks: Networks{
@@ -154,7 +148,6 @@ func TestLoadConfig(t *testing.T) {
 				Users: []User{
 					{
 						Name:      "default",
-						Password:  "***",
 						ToCluster: "cluster",
 						ToUser:    "default",
 					},
@@ -236,13 +229,15 @@ func TestBadConfig(t *testing.T) {
 		{
 			"security no password",
 			"testdata/bad.security_no_pass.yml",
-			"https security breach: user \"dummy\" has neither password nor `allowed_networks` on `user` or `server.http` level",
+			"security breach: https: user \"dummy\" has neither password nor `allowed_networks` on `user` or `server.http` level" +
+				"\nSet option `hack_me_please=true` to disable security errors",
 		},
 		{
 			"security no allowed networks",
 			"testdata/bad.security_no_an.yml",
-			"http security breach: user \"dummy\" is allowed to connect via http, " +
-				"but not limited by `allowed_networks` on `user` or `server.http` level - password could be stolen",
+			"security breach: http: user \"dummy\" is allowed to connect via http, but not limited by `allowed_networks` " +
+				"on `user` or `server.http` level - password could be stolen" +
+				"\nSet option `hack_me_please=true` to disable security errors",
 		},
 		{
 			"allow all",
@@ -254,6 +249,12 @@ func TestBadConfig(t *testing.T) {
 			"deny all",
 			"testdata/bad.deny_all.yml",
 			"user \"dummy\" has both `deny_http` and `deny_https` set to `true`",
+		},
+		{
+			"autocert allowed networks",
+			"testdata/bad.autocert_an.yml",
+			"`letsencrypt` specification requires https server to listen on :443 port and be without `allowed_networks` limits. " +
+				"Otherwise, certificates will be impossible to generate",
 		},
 	}
 

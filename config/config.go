@@ -41,6 +41,9 @@ type Config struct {
 	// Whether to print debug logs
 	LogDebug bool `yaml:"log_debug,omitempty"`
 
+	// Whether to ignore security warnings
+	HackMePlease bool `yaml:"hack_me_please,omitempty"`
+
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
 }
@@ -84,28 +87,40 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		}
 	}
 
+	if err := c.checkVulnerabilities(); err != nil {
+		return fmt.Errorf("security breach: %s\nSet option `hack_me_please=true` to disable security errors", err)
+	}
+
+	return checkOverflow(c.XXX, "config")
+}
+
+func (c *Config) checkVulnerabilities() error {
+	if c.HackMePlease {
+		return nil
+	}
+
 	httpsVulnerability := len(c.Server.HTTPS.ListenAddr) > 0 && len(c.Server.HTTPS.AllowedNetworks) == 0
 	httpVulnerability := len(c.Server.HTTP.ListenAddr) > 0 && len(c.Server.HTTP.AllowedNetworks) == 0
 	for _, u := range c.Users {
 		if len(u.AllowedNetworks) == 0 {
 			if len(u.Password) == 0 {
 				if !u.DenyHTTPS && httpsVulnerability {
-					return fmt.Errorf("https security breach: user %q has neither password nor `allowed_networks` on `user` or `server.http` level", u.Name)
+					return fmt.Errorf("https: user %q has neither password nor `allowed_networks` on `user` or `server.http` level", u.Name)
 				}
 
 				if !u.DenyHTTP && httpVulnerability {
-					return fmt.Errorf("http security breach: user %q has neither password nor `allowed_networks` on `user` or `server.http` level", u.Name)
+					return fmt.Errorf("http: user %q has neither password nor `allowed_networks` on `user` or `server.http` level", u.Name)
 				}
 			}
 
 			if len(u.Password) > 0 && httpVulnerability {
-				return fmt.Errorf("http security breach: user %q is allowed to connect via http, but not limited by `allowed_networks` "+
+				return fmt.Errorf("http: user %q is allowed to connect via http, but not limited by `allowed_networks` "+
 					"on `user` or `server.http` level - password could be stolen", u.Name)
 			}
 		}
 	}
 
-	return checkOverflow(c.XXX, "config")
+	return nil
 }
 
 // Server describes configuration of proxy server
@@ -193,8 +208,15 @@ func (c *HTTPS) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		c.ListenAddr = ":443"
 	}
 
-	if len(c.Autocert.CacheDir) > 0 && (len(c.CertFile) > 0 || len(c.KeyFile) > 0) {
-		return fmt.Errorf("it is forbidden to specify certificate and `https.autocert` at the same time. Choose one way")
+	if len(c.Autocert.CacheDir) > 0 {
+		if  len(c.CertFile) > 0 || len(c.KeyFile) > 0 {
+			return fmt.Errorf("it is forbidden to specify certificate and `https.autocert` at the same time. Choose one way")
+		}
+
+		if len(c.AllowedNetworks) > 0 || c.ListenAddr != ":443" {
+			return fmt.Errorf("`letsencrypt` specification requires https server to listen on :443 port and be without `allowed_networks` limits. " +
+			"Otherwise, certificates will be impossible to generate")
+		}
 	}
 
 	if len(c.CertFile) > 0 && len(c.KeyFile) == 0 {

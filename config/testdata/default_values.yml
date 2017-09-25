@@ -5,7 +5,6 @@ server:
 
 users:
   - name: "default"
-    password: "***"
     to_cluster: "cluster"
     to_user: "default"
 

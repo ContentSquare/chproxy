@@ -4,6 +4,9 @@ server:
 
 users:
   - name: "default"
-    password: "***"
     to_cluster: "cluster"
     to_user: "default"
+
+clusters:
+  - name: "cluster"
+    nodes: ["127.0.1.1:8123"]

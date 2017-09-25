@@ -1,3 +1,7 @@
+server:
+  http:
+    listen_addr: ":8080"
+
 clusters:
   - name: "second cluster"
     nodes: ["127.0.1.1:8123"]

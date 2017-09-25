@@ -1,3 +1,7 @@
+server:
+  http:
+    listen_addr: ":8080"
+
 users:
   - name: "dummy"
     allowed_networks: ["0.0.0.0/0"]

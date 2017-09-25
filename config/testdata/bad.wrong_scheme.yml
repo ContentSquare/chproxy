@@ -1,6 +1,9 @@
+server:
+  http:
+    listen_addr: ":8080"
+
 users:
   - name: "default"
-    password: "***"
     to_cluster: "second cluster"
     to_user: "default"
 

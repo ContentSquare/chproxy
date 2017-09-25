@@ -1,6 +1,5 @@
 server:
   https:
-    listen_addr: ":443"
     autocert:
       cache_dir: "cache_dir"
 
