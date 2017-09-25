@@ -209,13 +209,13 @@ func (c *HTTPS) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	if len(c.Autocert.CacheDir) > 0 {
-		if  len(c.CertFile) > 0 || len(c.KeyFile) > 0 {
+		if len(c.CertFile) > 0 || len(c.KeyFile) > 0 {
 			return fmt.Errorf("it is forbidden to specify certificate and `https.autocert` at the same time. Choose one way")
 		}
 
 		if len(c.AllowedNetworks) > 0 || c.ListenAddr != ":443" {
 			return fmt.Errorf("`letsencrypt` specification requires https server to listen on :443 port and be without `allowed_networks` limits. " +
-			"Otherwise, certificates will be impossible to generate")
+				"Otherwise, certificates will be impossible to generate")
 		}
 	}
 
