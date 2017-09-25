@@ -63,7 +63,7 @@ func main() {
 		go serve(cfg.HTTP)
 	}
 
-	select{ }
+	select {}
 }
 
 func serveTLS(cfg config.HTTPS) {
@@ -96,7 +96,7 @@ func newListener(laddr string, an func() *config.Networks) net.Listener {
 }
 
 func newTLSListener(cfg config.HTTPS) net.Listener {
-	HTTPS := tls.Config{
+	tlsCfg := tls.Config{
 		PreferServerCipherSuites: true,
 		CurvePreferences: []tls.CurveID{
 			tls.CurveP256,
@@ -110,7 +110,7 @@ func newTLSListener(cfg config.HTTPS) net.Listener {
 			log.Fatalf("cannot load cert for `https.cert_file`=%q, `https.key_file`=%q: %s",
 				cfg.CertFile, cfg.KeyFile, err)
 		}
-		HTTPS.Certificates = []tls.Certificate{cert}
+		tlsCfg.Certificates = []tls.Certificate{cert}
 	} else {
 		if len(cfg.Autocert.CacheDir) > 0 {
 			if err := os.MkdirAll(cfg.Autocert.CacheDir, 0700); err != nil {
@@ -140,14 +140,14 @@ func newTLSListener(cfg config.HTTPS) net.Listener {
 			HostPolicy: hp,
 		}
 
-		HTTPS.GetCertificate = m.GetCertificate
+		tlsCfg.GetCertificate = m.GetCertificate
 	}
 
 	an := func() *config.Networks {
 		return allowedNetworksHTTPS.Load().(*config.Networks)
 	}
 	ln := newListener(cfg.ListenAddr, an)
-	return tls.NewListener(ln, &HTTPS)
+	return tls.NewListener(ln, &tlsCfg)
 }
 
 func listenAndServe(ln net.Listener) error {
@@ -226,5 +226,6 @@ func reloadConfig() (*config.Server, error) {
 	allowedNetworksHTTPS.Store(&cfg.Server.HTTPS.AllowedNetworks)
 	allowedNetworksMetrics.Store(&cfg.Server.Metrics.AllowedNetworks)
 	log.SetDebug(cfg.LogDebug)
+	log.Infof("New config is next: \n%s", cfg)
 	return &cfg.Server, nil
 }

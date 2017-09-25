@@ -346,7 +346,7 @@ func TestReverseProxy_ServeHTTP2(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			goodCfg.Users[0].Networks = tc.allowedNetworks
+			goodCfg.Users[0].AllowedNetworks = tc.allowedNetworks
 			proxy, err := getProxy(goodCfg)
 			if err != nil {
 				t.Fatalf("unexpected error: %s", err)

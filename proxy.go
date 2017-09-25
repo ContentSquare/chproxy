@@ -96,11 +96,12 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	rp.ReverseProxy.ServeHTTP(cw, req)
 
 	if req.Context().Err() != nil {
+		// penalize host if respond is slow, probably it is overloaded
+		s.host.penalize()
 		cw.statusCode = http.StatusGatewayTimeout
 		if err := s.killQuery(); err != nil {
 			log.Errorf("error while killing query: %s", err)
 		}
-		s.host.penalize()
 		fmt.Fprint(rw, timeoutErrMsg.Error())
 	} else {
 		switch cw.statusCode {

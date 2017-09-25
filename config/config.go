@@ -45,6 +45,15 @@ type Config struct {
 	XXX map[string]interface{} `yaml:",inline"`
 }
 
+func (c *Config) String() string {
+	b, err := yaml.Marshal(c)
+	if err != nil {
+		panic(err)
+	}
+
+	return string(b)
+}
+
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*c = defaultConfig
@@ -63,11 +72,36 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("field `clusters` must contain at least 1 cluster")
 	}
 
+	if len(c.Server.HTTP.ListenAddr) == 0 && len(c.Server.HTTPS.ListenAddr) == 0 {
+		return fmt.Errorf("neither HTTP nor HTTPS not configured")
+	}
+
 	if len(c.Server.HTTPS.ListenAddr) > 0 {
 		if len(c.Server.HTTPS.Autocert.CacheDir) == 0 && len(c.Server.HTTPS.CertFile) == 0 && len(c.Server.HTTPS.KeyFile) == 0 {
 			return fmt.Errorf("configuration `https` is missing. " +
 				"Must be specified `https.cache_dir` for autocert " +
 				"OR `https.key_file` and `https.cert_file` for already existing certs")
+		}
+	}
+
+	httpsVulnerability := len(c.Server.HTTPS.ListenAddr) > 0 && len(c.Server.HTTPS.AllowedNetworks) == 0
+	httpVulnerability := len(c.Server.HTTP.ListenAddr) > 0 && len(c.Server.HTTP.AllowedNetworks) == 0
+	for _, u := range c.Users {
+		if len(u.AllowedNetworks) == 0 {
+			if len(u.Password) == 0 {
+				if !u.DenyHTTPS && httpsVulnerability {
+					return fmt.Errorf("https security breach: user %q has neither password nor `allowed_networks` on `user` or `server.http` level", u.Name)
+				}
+
+				if !u.DenyHTTP && httpVulnerability {
+					return fmt.Errorf("http security breach: user %q has neither password nor `allowed_networks` on `user` or `server.http` level", u.Name)
+				}
+			}
+
+			if len(u.Password) > 0 && httpVulnerability {
+				return fmt.Errorf("http security breach: user %q is allowed to connect via http, but not limited by `allowed_networks` "+
+					"on `user` or `server.http` level - password could be stolen", u.Name)
+			}
 		}
 	}
 
@@ -120,19 +154,6 @@ func (c *HTTP) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	type plain HTTP
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
-	}
-
-	if len(c.ListenAddr) == 0 {
-		c.ListenAddr = ":8080"
-	}
-
-	if len(c.AllowedNetworks) == 0 {
-		c.AllowedNetworks = Networks{
-			&net.IPNet{
-				IP:   net.IPv4(127, 0, 0, 1),
-				Mask: net.IPMask{255, 255, 255, 255},
-			},
-		}
 	}
 
 	return checkOverflow(c.XXX, "http")
@@ -380,16 +401,8 @@ func (u *User) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("field `user.to_cluster` for %q cannot be empty", u.Name)
 	}
 
-	if len(u.Password) == 0 && len(u.AllowedNetworks) == 0 {
-		return fmt.Errorf("access for user %q must be limited by `password` or by `allowed_networks`", u.Name)
-	}
-
 	if u.DenyHTTP && u.DenyHTTPS {
 		return fmt.Errorf("user %q has both `deny_http` and `deny_https` set to `true`", u.Name)
-	}
-
-	if u.DenyHTTP == false && len(u.AllowedNetworks) == 0 {
-		return fmt.Errorf("user %q is allowed to connect via http but not limited by `allowed_networks` - possible security breach", u.Name)
 	}
 
 	return checkOverflow(u.XXX, "user")

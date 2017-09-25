@@ -121,55 +121,18 @@ func TestLoadConfig(t *testing.T) {
 			},
 		},
 		{
-			"default values http",
-			"testdata/default_values_http.yml",
+			"default values",
+			"testdata/default_values.yml",
 			Config{
 				Server: Server{
 					HTTP: HTTP{
 						ListenAddr: ":8080",
 						AllowedNetworks: Networks{
 							&net.IPNet{
-								IP:   net.IPv4(127, 0, 0, 0),
-								Mask: net.IPMask{255, 255, 255, 0},
+								IP:   net.IPv4(127, 0, 0, 1),
+								Mask: net.IPMask{255, 255, 255, 255},
 							},
 						},
-					},
-				},
-				Clusters: []Cluster{
-					{
-						Name:   "cluster",
-						Scheme: "http",
-						Nodes:  []string{"127.0.0.1:8123"},
-						ClusterUsers: []ClusterUser{
-							{
-								Name: "default",
-							},
-						},
-						KillQueryUser: KillQueryUser{
-							Name: "default",
-						},
-						HeartBeatInterval: time.Second * 5,
-					},
-				},
-				Users: []User{
-					{
-						Name:      "default",
-						Password:  "***",
-						ToCluster: "cluster",
-						ToUser:    "default",
-					},
-				},
-			},
-		},
-		{
-			"default values https",
-			"testdata/default_values_https.yml",
-			Config{
-				Server: Server{
-					HTTPS: HTTPS{
-						ListenAddr: ":443",
-						CertFile: "cert_file",
-						KeyFile: "cert_key",
 					},
 				},
 				Clusters: []Cluster{
@@ -256,13 +219,13 @@ func TestBadConfig(t *testing.T) {
 			"field `cluster.scheme` must be `http` or `https`. Got \"tcp\" instead",
 		},
 		{
-			"empty tls",
-			"testdata/bad.empty_tls.yml",
-			"configuration `https` is missing. Must be specified `https.autocert.cache_dir` for autocert OR `https.key_file` and `https.cert_file` for already existing certs",
+			"empty https",
+			"testdata/bad.empty_https.yml",
+			"configuration `https` is missing. Must be specified `https.cache_dir` for autocert OR `https.key_file` and `https.cert_file` for already existing certs",
 		},
 		{
-			"empty tls cert key",
-			"testdata/bad.empty_tls_cert_key.yml",
+			"empty https cert key",
+			"testdata/bad.empty_https_cert_key.yml",
 			"field `https.key_file` must be specified",
 		},
 		{
@@ -271,9 +234,15 @@ func TestBadConfig(t *testing.T) {
 			"it is forbidden to specify certificate and `https.autocert` at the same time. Choose one way",
 		},
 		{
-			"vulnerable user",
-			"testdata/bad.vulnerable_user.yml",
-			"access for user \"dummy\" must be limited by `password` or by `allowed_networks`",
+			"security no password",
+			"testdata/bad.security_no_pass.yml",
+			"https security breach: user \"dummy\" has neither password nor `allowed_networks` on `user` or `server.http` level",
+		},
+		{
+			"security no allowed networks",
+			"testdata/bad.security_no_an.yml",
+			"http security breach: user \"dummy\" is allowed to connect via http, " +
+				"but not limited by `allowed_networks` on `user` or `server.http` level - password could be stolen",
 		},
 		{
 			"allow all",
@@ -284,13 +253,8 @@ func TestBadConfig(t *testing.T) {
 		{
 			"deny all",
 			"testdata/bad.deny_all.yml",
-			"user \"dummy\" has both `deny_http` and `deny_https` setted to `true`",
+			"user \"dummy\" has both `deny_http` and `deny_https` set to `true`",
 		},
-		/*	{
-			"security_breach",
-			"testdata/bad.security_breach.yml",
-			"user \"dummy\" is allowed to connect via http but not limited by `allowed_networks` - possible security breach",
-		},*/
 	}
 
 	for _, tc := range testCases {

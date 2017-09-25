@@ -7,7 +7,6 @@ server:
 
 users:
   - name: "default"
-    allowed_networks: ["127.0.0.1"]
     to_cluster: "default"
     to_user: "default"
 
