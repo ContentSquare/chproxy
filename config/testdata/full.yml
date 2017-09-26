@@ -1,9 +1,13 @@
 log_debug: true
 
+network_groups:
+  - name: "office"
+    networks: ["127.0.0.1/24"]
+
 server:
   http:
     listen_addr: ":9090"
-    allowed_networks: ["127.0.0.1/24"]
+    allowed_networks: ["office"]
 
   https:
     listen_addr: ":443"
@@ -12,7 +16,7 @@ server:
       allowed_hosts: ["example.com"]
 
   metrics:
-    allowed_networks: ["127.0.0.1/24"]
+    allowed_networks: ["office"]
 
 users:
   - name: "web"
@@ -24,7 +28,7 @@ users:
   - name: "default"
     to_cluster: "second cluster"
     to_user: "default"
-    allowed_networks: ["127.0.0.1", "1.2.3.0/24"]
+    allowed_networks: ["office", "1.2.3.0/24"]
     max_concurrent_queries: 4
     max_execution_time: 1m
     deny_https: true

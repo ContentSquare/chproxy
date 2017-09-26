@@ -20,13 +20,8 @@ func TestLoadConfig(t *testing.T) {
 			Config{
 				Server: Server{
 					HTTP: HTTP{
-						ListenAddr: ":9090",
-						AllowedNetworks: Networks{
-							&net.IPNet{
-								IP:   net.IPv4(127, 0, 0, 0),
-								Mask: net.IPMask{255, 255, 255, 0},
-							},
-						},
+						ListenAddr:       ":9090",
+						NetworksOrGroups: []string{"office"},
 					},
 					HTTPS: HTTPS{
 						ListenAddr: ":443",
@@ -36,12 +31,7 @@ func TestLoadConfig(t *testing.T) {
 						},
 					},
 					Metrics: Metrics{
-						AllowedNetworks: Networks{
-							&net.IPNet{
-								IP:   net.IPv4(127, 0, 0, 0),
-								Mask: net.IPMask{255, 255, 255, 0},
-							},
-						},
+						NetworksOrGroups: []string{"office"},
 					},
 				},
 				LogDebug: true,
@@ -100,13 +90,15 @@ func TestLoadConfig(t *testing.T) {
 						MaxConcurrentQueries: 4,
 						MaxExecutionTime:     time.Duration(time.Minute),
 						DenyHTTPS:            true,
-						AllowedNetworks: Networks{
+						NetworksOrGroups:     []string{"office", "1.2.3.0/24"},
+					},
+				},
+				NetworkGroups: []NetworkGroups{
+					{
+						Name: "office",
+						Networks: Networks{
 							&net.IPNet{
-								IP:   net.IPv4(127, 0, 0, 1),
-								Mask: net.IPMask{255, 255, 255, 255},
-							},
-							&net.IPNet{
-								IP:   net.IPv4(1, 2, 3, 0),
+								IP:   net.IPv4(127, 0, 0, 0),
 								Mask: net.IPMask{255, 255, 255, 0},
 							},
 						},
@@ -120,13 +112,8 @@ func TestLoadConfig(t *testing.T) {
 			Config{
 				Server: Server{
 					HTTP: HTTP{
-						ListenAddr: ":8080",
-						AllowedNetworks: Networks{
-							&net.IPNet{
-								IP:   net.IPv4(127, 0, 0, 1),
-								Mask: net.IPMask{255, 255, 255, 255},
-							},
-						},
+						ListenAddr:       ":8080",
+						NetworksOrGroups: []string{"127.0.0.1"},
 					},
 				},
 				Clusters: []Cluster{
@@ -255,6 +242,11 @@ func TestBadConfig(t *testing.T) {
 			"testdata/bad.autocert_an.yml",
 			"`letsencrypt` specification requires https server to listen on :443 port and be without `allowed_networks` limits. " +
 				"Otherwise, certificates will be impossible to generate",
+		},
+		{
+			"network groups",
+			"testdata/bad.network_groups.yml",
+			"wrong network group name or address \"office\": invalid CIDR address: office/32",
 		},
 	}
 

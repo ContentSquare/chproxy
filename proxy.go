@@ -73,7 +73,6 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		timeout       time.Duration
 		timeoutErrMsg error
 	)
-
 	if s.user.maxExecutionTime > 0 {
 		timeout = s.user.maxExecutionTime
 		timeoutErrMsg = fmt.Errorf("timeout for user %q exceeded: %v", s.user.name, timeout)

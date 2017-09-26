@@ -44,8 +44,12 @@ type Config struct {
 	// Whether to ignore security warnings
 	HackMePlease bool `yaml:"hack_me_please,omitempty"`
 
+	NetworkGroups []NetworkGroups `yaml:"network_groups,omitempty"`
+
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
+
+	networkReg map[string]Networks
 }
 
 func (c *Config) String() string {
@@ -87,40 +91,7 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		}
 	}
 
-	if err := c.checkVulnerabilities(); err != nil {
-		return fmt.Errorf("security breach: %s\nSet option `hack_me_please=true` to disable security errors", err)
-	}
-
 	return checkOverflow(c.XXX, "config")
-}
-
-func (c *Config) checkVulnerabilities() error {
-	if c.HackMePlease {
-		return nil
-	}
-
-	httpsVulnerability := len(c.Server.HTTPS.ListenAddr) > 0 && len(c.Server.HTTPS.AllowedNetworks) == 0
-	httpVulnerability := len(c.Server.HTTP.ListenAddr) > 0 && len(c.Server.HTTP.AllowedNetworks) == 0
-	for _, u := range c.Users {
-		if len(u.AllowedNetworks) == 0 {
-			if len(u.Password) == 0 {
-				if !u.DenyHTTPS && httpsVulnerability {
-					return fmt.Errorf("https: user %q has neither password nor `allowed_networks` on `user` or `server.http` level", u.Name)
-				}
-
-				if !u.DenyHTTP && httpVulnerability {
-					return fmt.Errorf("http: user %q has neither password nor `allowed_networks` on `user` or `server.http` level", u.Name)
-				}
-			}
-
-			if len(u.Password) > 0 && httpVulnerability {
-				return fmt.Errorf("http: user %q is allowed to connect via http, but not limited by `allowed_networks` "+
-					"on `user` or `server.http` level - password could be stolen", u.Name)
-			}
-		}
-	}
-
-	return nil
 }
 
 // Server describes configuration of proxy server
@@ -155,10 +126,12 @@ type HTTP struct {
 	// Default is `:8080`
 	ListenAddr string `yaml:"listen_addr,omitempty"`
 
+	NetworksOrGroups NetworksOrGroups `yaml:"allowed_networks,omitempty"`
+
 	// List of networks that access is allowed from
 	// Each list item could be IP address or subnet mask
 	// if omitted or zero - no limits would be applied
-	AllowedNetworks Networks `yaml:"allowed_networks,omitempty"`
+	AllowedNetworks Networks `yaml:"-"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
@@ -188,10 +161,12 @@ type HTTPS struct {
 
 	Autocert Autocert `yaml:"autocert,omitempty"`
 
+	NetworksOrGroups NetworksOrGroups `yaml:"allowed_networks,omitempty"`
+
 	// List of networks that access is allowed from
 	// Each list item could be IP address or subnet mask
 	// if omitted or zero - no limits would be applied
-	AllowedNetworks Networks `yaml:"allowed_networks,omitempty"`
+	AllowedNetworks Networks `yaml:"-"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
@@ -213,7 +188,7 @@ func (c *HTTPS) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			return fmt.Errorf("it is forbidden to specify certificate and `https.autocert` at the same time. Choose one way")
 		}
 
-		if len(c.AllowedNetworks) > 0 || c.ListenAddr != ":443" {
+		if len(c.NetworksOrGroups) > 0 || c.ListenAddr != ":443" {
 			return fmt.Errorf("`letsencrypt` specification requires https server to listen on :443 port and be without `allowed_networks` limits. " +
 				"Otherwise, certificates will be impossible to generate")
 		}
@@ -254,10 +229,12 @@ func (c *Autocert) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 type Metrics struct {
+	NetworksOrGroups NetworksOrGroups `yaml:"allowed_networks,omitempty"`
+
 	// List of networks that access is allowed from
 	// Each list item could be IP address or subnet mask
 	// if omitted or zero - no limits would be applied
-	AllowedNetworks Networks `yaml:"allowed_networks,omitempty"`
+	AllowedNetworks Networks `yaml:"-"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
@@ -389,10 +366,12 @@ type User struct {
 	// if omitted or zero - no limits would be applied
 	MaxExecutionTime time.Duration `yaml:"max_execution_time,omitempty"`
 
+	NetworksOrGroups NetworksOrGroups `yaml:"allowed_networks,omitempty"`
+
 	// List of networks that access is allowed from
 	// Each list item could be IP address or subnet mask
 	// if omitted or zero - no limits would be applied
-	AllowedNetworks Networks `yaml:"allowed_networks,omitempty"`
+	AllowedNetworks Networks `yaml:"-"`
 
 	// Whether to deny http connections for this user
 	DenyHTTP bool `yaml:"deny_http,omitempty"`
@@ -430,38 +409,46 @@ func (u *User) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return checkOverflow(u.XXX, "user")
 }
 
+type NetworkGroups struct {
+	// Name of the group
+	Name string `yaml:"name"`
+
+	// List of networks
+	// Each list item could be IP address or subnet mask
+	Networks Networks `yaml:"networks"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (ng *NetworkGroups) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain NetworkGroups
+	if err := unmarshal((*plain)(ng)); err != nil {
+		return err
+	}
+
+	return checkOverflow(ng.XXX, "network_groups")
+}
+
 // Networks is a list of IPNet entities
 type Networks []*net.IPNet
 
-const entireIPv4 = "0.0.0.0/0"
-
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (n *Networks) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var sl []string
-	if err := unmarshal(&sl); err != nil {
+	var s []string
+	if err := unmarshal(&s); err != nil {
 		return err
 	}
-	networks := make(Networks, len(sl))
-	for i, s := range sl {
-		if s == entireIPv4 {
-			return fmt.Errorf("suspicious mask specified \"0.0.0.0/0\". " +
-				"If you want to allow all then just omit `allowed_networks` field")
-		}
-
-		if !strings.Contains(s, `/`) {
-			s += "/32"
-		}
-
-		_, ipnet, err := net.ParseCIDR(s)
+	networks := make(Networks, len(s))
+	for i, s := range s {
+		ipnet, err := stringToIPnet(s)
 		if err != nil {
 			return err
 		}
-
 		networks[i] = ipnet
 	}
-
 	*n = networks
-
 	return nil
 }
 
@@ -489,6 +476,8 @@ func (n Networks) Contains(addr string) bool {
 
 	return false
 }
+
+type NetworksOrGroups []string
 
 // ClusterUser describes simplest <users> configuration
 type ClusterUser struct {
@@ -536,7 +525,89 @@ func LoadFile(filename string) (*Config, error) {
 		return nil, err
 	}
 
+	cfg.networkReg = make(map[string]Networks, len(cfg.NetworkGroups))
+	for _, ng := range cfg.NetworkGroups {
+		cfg.networkReg[ng.Name] = ng.Networks
+	}
+
+	if len(cfg.Server.HTTP.ListenAddr) > 0 && len(cfg.Server.HTTP.NetworksOrGroups) > 0 {
+		if cfg.Server.HTTP.AllowedNetworks, err = cfg.groupToNetwork(cfg.Server.HTTP.NetworksOrGroups); err != nil {
+			return nil, err
+		}
+	}
+
+	if len(cfg.Server.HTTPS.ListenAddr) > 0 && len(cfg.Server.HTTPS.NetworksOrGroups) > 0 {
+		if cfg.Server.HTTPS.AllowedNetworks, err = cfg.groupToNetwork(cfg.Server.HTTPS.NetworksOrGroups); err != nil {
+			return nil, err
+		}
+	}
+
+	if len(cfg.Server.Metrics.NetworksOrGroups) > 0 {
+		if cfg.Server.Metrics.AllowedNetworks, err = cfg.groupToNetwork(cfg.Server.Metrics.NetworksOrGroups); err != nil {
+			return nil, err
+		}
+	}
+
+	for _, u := range cfg.Users {
+		if len(u.NetworksOrGroups) > 0 {
+			if u.AllowedNetworks, err = cfg.groupToNetwork(u.NetworksOrGroups); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	if err := cfg.checkVulnerabilities(); err != nil {
+		return nil, fmt.Errorf("security breach: %s\nSet option `hack_me_please=true` to disable security errors", err)
+	}
+
 	return cfg, nil
+}
+
+func (c Config) groupToNetwork(src NetworksOrGroups) (Networks, error) {
+	dst := make(Networks, 0)
+	for _, v := range src {
+		ng, ok := c.networkReg[v]
+		if ok {
+			dst = append(dst, ng...)
+		} else {
+			ipnet, err := stringToIPnet(v)
+			if err != nil {
+				return nil, err
+			}
+			dst = append(dst, ipnet)
+		}
+	}
+
+	return dst, nil
+}
+
+func (c Config) checkVulnerabilities() error {
+	if c.HackMePlease {
+		return nil
+	}
+
+	httpsVulnerability := len(c.Server.HTTPS.ListenAddr) > 0 && len(c.Server.HTTPS.NetworksOrGroups) == 0
+	httpVulnerability := len(c.Server.HTTP.ListenAddr) > 0 && len(c.Server.HTTP.NetworksOrGroups) == 0
+	for _, u := range c.Users {
+		if len(u.NetworksOrGroups) == 0 {
+			if len(u.Password) == 0 {
+				if !u.DenyHTTPS && httpsVulnerability {
+					return fmt.Errorf("https: user %q has neither password nor `allowed_networks` on `user` or `server.http` level", u.Name)
+				}
+
+				if !u.DenyHTTP && httpVulnerability {
+					return fmt.Errorf("http: user %q has neither password nor `allowed_networks` on `user` or `server.http` level", u.Name)
+				}
+			}
+
+			if len(u.Password) > 0 && httpVulnerability {
+				return fmt.Errorf("http: user %q is allowed to connect via http, but not limited by `allowed_networks` "+
+					"on `user` or `server.http` level - password could be stolen", u.Name)
+			}
+		}
+	}
+
+	return nil
 }
 
 func checkOverflow(m map[string]interface{}, ctx string) error {
@@ -548,4 +619,25 @@ func checkOverflow(m map[string]interface{}, ctx string) error {
 		return fmt.Errorf("unknown fields in %s: %s", ctx, strings.Join(keys, ", "))
 	}
 	return nil
+}
+
+const entireIPv4 = "0.0.0.0/0"
+
+func stringToIPnet(s string) (*net.IPNet, error) {
+	if s == entireIPv4 {
+		return nil, fmt.Errorf("suspicious mask specified \"0.0.0.0/0\". " +
+			"If you want to allow all then just omit `allowed_networks` field")
+	}
+
+	ip := s
+	if !strings.Contains(ip, `/`) {
+		ip += "/32"
+	}
+
+	_, ipnet, err := net.ParseCIDR(ip)
+	if err != nil {
+		return nil, fmt.Errorf("wrong network group name or address %q: %s", s, err)
+	}
+
+	return ipnet, nil
 }
