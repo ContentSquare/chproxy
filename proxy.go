@@ -37,12 +37,12 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 	log.Debugf("Request scope %s", s)
 
-	if s.user.deny_http && req.URL.Scheme == "http" {
+	if s.user.denyHTTP && req.URL.Scheme == "http" {
 		respondWithErr(rw, fmt.Errorf("user %q is not allowed to access via http", name))
 		return
 	}
 
-	if s.user.deny_https && req.URL.Scheme == "https" {
+	if s.user.denyHTTP && req.URL.Scheme == "https" {
 		respondWithErr(rw, fmt.Errorf("user %q is not allowed to access via https", name))
 		return
 	}
@@ -186,8 +186,8 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 		users[u.Name] = &user{
 			toCluster:            u.ToCluster,
 			toUser:               u.ToUser,
-			deny_http:            u.DenyHTTP,
-			deny_https:           u.DenyHTTPS,
+			denyHTTP:             u.DenyHTTP,
+			denyHTTPS:            u.DenyHTTPS,
 			allowedNetworks:      u.AllowedNetworks,
 			name:                 u.Name,
 			password:             u.Password,

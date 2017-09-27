@@ -214,7 +214,7 @@ func TestPenalize(t *testing.T) {
 
 	// but still might increased
 	h.inc()
-	exp += 1
+	exp++
 	if h.runningQueries() != exp {
 		t.Fatalf("got running queries %d; expected %d", h.runningQueries(), exp)
 	}

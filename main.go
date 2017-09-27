@@ -37,7 +37,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("error while loading config: %s", err)
 	}
-	log.Infof("Loading config %s: successful", *configFile)
+	log.Infof("Loading config %q: successful", *configFile)
 
 	c := make(chan os.Signal)
 	signal.Notify(c, syscall.SIGHUP)
@@ -226,6 +226,6 @@ func reloadConfig() (*config.Server, error) {
 	allowedNetworksHTTPS.Store(&cfg.Server.HTTPS.AllowedNetworks)
 	allowedNetworksMetrics.Store(&cfg.Server.Metrics.AllowedNetworks)
 	log.SetDebug(cfg.LogDebug)
-	log.Infof("New config is next: \n%s", cfg)
+	log.Infof("Loaded config: \n%s", cfg)
 	return &cfg.Server, nil
 }

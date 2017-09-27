@@ -32,7 +32,7 @@ type scope struct {
 	clusterUser *clusterUser
 }
 
-var scopeId = uint32(time.Now().UnixNano())
+var scopeID = uint32(time.Now().UnixNano())
 
 func newScope(u *user, cu *clusterUser, c *cluster) (*scope, error) {
 	h := c.getHost()
@@ -41,7 +41,7 @@ func newScope(u *user, cu *clusterUser, c *cluster) (*scope, error) {
 	}
 
 	return &scope{
-		id:          atomic.AddUint32(&scopeId, 1),
+		id:          atomic.AddUint32(&scopeID, 1),
 		host:        h,
 		cluster:     c,
 		user:        u,
@@ -148,8 +148,8 @@ func (s *scope) decorateRequest(req *http.Request) *http.Request {
 type user struct {
 	toUser          string
 	toCluster       string
-	deny_http       bool
-	deny_https      bool
+	denyHTTP        bool
+	denyHTTPS       bool
 	allowedNetworks config.Networks
 
 	name, password       string
