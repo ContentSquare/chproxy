@@ -11,7 +11,7 @@ import (
 var (
 	stdLogFlags      = log.LstdFlags | log.LUTC
 	stdDebugLogFlags = log.LstdFlags | log.Lshortfile | log.LUTC
-	outputCallDepth  = 2
+	outputCallDepth  = 3
 
 	DebugLogger = log.New(os.Stderr, "DEBUG: ", stdDebugLogFlags)
 	InfoLogger  = log.New(os.Stderr, "INFO: ", stdLogFlags)
