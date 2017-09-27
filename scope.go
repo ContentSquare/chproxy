@@ -14,6 +14,7 @@ import (
 	"github.com/Vertamedia/chproxy/config"
 	"github.com/Vertamedia/chproxy/log"
 	"github.com/prometheus/client_golang/prometheus"
+	"net"
 )
 
 func (s *scope) String() string {
@@ -39,7 +40,6 @@ func newScope(u *user, cu *clusterUser, c *cluster) (*scope, error) {
 	if h == nil {
 		return nil, fmt.Errorf("no active hosts")
 	}
-
 	return &scope{
 		id:          atomic.AddUint32(&scopeID, 1),
 		host:        h,
@@ -58,16 +58,13 @@ func (s *scope) inc() error {
 	if s.user.maxConcurrentQueries > 0 && uq > s.user.maxConcurrentQueries {
 		err = fmt.Errorf("limits for user %q are exceeded: maxConcurrentQueries limit: %d", s.user.name, s.user.maxConcurrentQueries)
 	}
-
 	if s.clusterUser.maxConcurrentQueries > 0 && cq > s.clusterUser.maxConcurrentQueries {
 		err = fmt.Errorf("limits for cluster user %q are exceeded: maxConcurrentQueries limit: %d", s.clusterUser.name, s.clusterUser.maxConcurrentQueries)
 	}
-
 	if err != nil {
 		s.dec()
 		return err
 	}
-
 	return nil
 }
 
@@ -83,7 +80,6 @@ func (s *scope) killQuery() error {
 	if len(s.cluster.killQueryUserName) == 0 {
 		return nil
 	}
-
 	query := fmt.Sprintf("KILL QUERY WHERE query_id = '%d'", s.id)
 	log.Debugf("ExecutionTime exceeded. Going to call query %q", query)
 
@@ -93,9 +89,9 @@ func (s *scope) killQuery() error {
 	if err != nil {
 		return fmt.Errorf("error while creating kill query request to %s: %s", addr, err)
 	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), killQueryTimeout)
 	defer cancel()
+
 	req = req.WithContext(ctx)
 
 	// send request as kill_query_user
@@ -138,10 +134,13 @@ func (s *scope) decorateRequest(req *http.Request) *http.Request {
 	req.URL.Host = s.host.addr.Host
 
 	// extend ua with additional info
-	ua := fmt.Sprintf("IP: %s; CHProxy-User: %s; CHProxy-ClusterUser: %s; %s",
-		req.RemoteAddr, s.user.name, s.clusterUser.name, req.UserAgent())
+	localAddr := "unknown"
+	if addr, ok := req.Context().Value(http.LocalAddrContextKey).(net.Addr); ok {
+		localAddr = addr.String()
+	}
+	ua := fmt.Sprintf("RemoteAddr: %s; LocalAddr: %s; CHProxy-User: %s; CHProxy-ClusterUser: %s; %s",
+		req.RemoteAddr, localAddr, s.user.name, s.clusterUser.name, req.UserAgent())
 	req.Header.Set("User-Agent", ua)
-
 	return req
 }
 
@@ -194,7 +193,6 @@ func (h *host) runHeartbeat(interval time.Duration, cluster string, done <-chan 
 			hostHealth.With(label).Set(0)
 		}
 	}
-
 	heartbeat()
 	for {
 		select {
@@ -223,7 +221,6 @@ func (h *host) penalize() {
 	if p >= penaltyMaxSize {
 		return
 	}
-
 	log.Debugf("Penalizing host %q", h.addr)
 	hostPenalties.With(prometheus.Labels{"host": h.addr.Host}).Inc()
 	atomic.AddUint32(&h.penalty, penaltySize)
@@ -251,7 +248,6 @@ type cluster struct {
 // get least loaded + round-robin host from cluster
 func (c *cluster) getHost() *host {
 	idx := atomic.AddUint32(&c.nextIdx, 1)
-
 	l := uint32(len(c.hosts))
 	idx = idx % l
 	idle := c.hosts[idx]
@@ -268,7 +264,6 @@ func (c *cluster) getHost() *host {
 		if !h.isActive() {
 			continue
 		}
-
 		n := h.runningQueries()
 		if n == 0 {
 			return h
@@ -277,11 +272,9 @@ func (c *cluster) getHost() *host {
 			idle, idleN = h, n
 		}
 	}
-
 	if !idle.isActive() {
 		return nil
 	}
-
 	return idle
 }
 
@@ -289,14 +282,8 @@ type queryCounter struct {
 	value uint32
 }
 
-func (qc *queryCounter) runningQueries() uint32 {
-	return atomic.LoadUint32(&qc.value)
-}
+func (qc *queryCounter) runningQueries() uint32 { return atomic.LoadUint32(&qc.value) }
 
-func (qc *queryCounter) inc() uint32 {
-	return atomic.AddUint32(&qc.value, 1)
-}
+func (qc *queryCounter) inc() uint32 { return atomic.AddUint32(&qc.value, 1) }
 
-func (qc *queryCounter) dec() {
-	atomic.AddUint32(&qc.value, ^uint32(0))
-}
+func (qc *queryCounter) dec() { atomic.AddUint32(&qc.value, ^uint32(0)) }

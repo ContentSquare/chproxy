@@ -23,7 +23,6 @@ func init() {
 		},
 		[]string{"user", "cluster_user", "host", "code"},
 	)
-
 	requestSum = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "request_sum_total",
@@ -31,7 +30,6 @@ func init() {
 		},
 		[]string{"user", "cluster_user", "host"},
 	)
-
 	requestSuccess = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "request_success_total",
@@ -39,7 +37,6 @@ func init() {
 		},
 		[]string{"user", "cluster_user", "host"},
 	)
-
 	requestDuration = prometheus.NewSummaryVec(
 		prometheus.SummaryOpts{
 			Name: "request_duration_seconds",
@@ -47,7 +44,6 @@ func init() {
 		},
 		[]string{"user", "cluster_user", "host"},
 	)
-
 	concurrentLimitExcess = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "concurrent_limit_excess_total",
@@ -55,7 +51,6 @@ func init() {
 		},
 		[]string{"user", "cluster_user", "host"},
 	)
-
 	hostPenalties = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "host_penalties_total",
@@ -63,7 +58,6 @@ func init() {
 		},
 		[]string{"host"},
 	)
-
 	hostHealth = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "host_health",
@@ -71,17 +65,14 @@ func init() {
 		},
 		[]string{"cluster", "host"},
 	)
-
 	goodRequest = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "good_requests_total",
 		Help: "Total number of proxy requests",
 	})
-
 	badRequest = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "bad_requests_total",
 		Help: "Total number of unsupported requests",
 	})
-
 	prometheus.MustRegister(statusCodes, requestDuration, requestSum, requestSuccess,
 		concurrentLimitExcess, hostPenalties, hostHealth, badRequest, goodRequest)
 }

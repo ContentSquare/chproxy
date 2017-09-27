@@ -149,17 +149,14 @@ func TestLoadConfig(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Error parsing %s: %s", tc.file, err)
 			}
-
 			got, err := yaml.Marshal(c)
 			if err != nil {
 				t.Fatalf("%s", err)
 			}
-
 			exp, err := yaml.Marshal(&tc.cfg)
 			if err != nil {
 				t.Fatalf("%s", err)
 			}
-
 			if !bytes.Equal(got, exp) {
 				t.Fatalf("unexpected config result: \ngot\n\n%s\n expected\n\n%s", got, exp)
 			}

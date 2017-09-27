@@ -48,31 +48,53 @@ func SetDebug(val bool) {
 	}
 }
 
-// Debugf prints debug messages
+// Debugf prints debug message according to a format
 func Debugf(format string, args ...interface{}) {
 	if atomic.LoadUint32(&debug) == 0 {
 		return
 	}
-
 	s := fmt.Sprintf(format, args...)
 	DebugLogger.Output(outputCallDepth, s)
 }
 
-// Infof prints info messages
+// Debug prints debug message
+func Debug(s string) {
+	if atomic.LoadUint32(&debug) == 0 {
+		return
+	}
+	DebugLogger.Output(outputCallDepth, s)
+}
+
+// Infof prints info message according to a format
 func Infof(format string, args ...interface{}) {
 	s := fmt.Sprintf(format, args...)
+	Info(s)
+}
+
+// Info prints info message
+func Info(s string) {
 	InfoLogger.Output(outputCallDepth, s)
 }
 
-// Errorf prints warning messages
+// Errorf prints warning message according to a format
 func Errorf(format string, args ...interface{}) {
 	s := fmt.Sprintf(format, args...)
+	Error(s)
+}
+
+// Error prints warning message
+func Error(s string) {
 	ErrorLogger.Output(outputCallDepth, s)
 }
 
-// Fatalf prints fatal message and exits program
+// Fatalf prints fatal message according to a format and exits program
 func Fatalf(format string, args ...interface{}) {
 	s := fmt.Sprintf(format, args...)
+	Fatal(s)
+}
+
+// Fatal prints fatal message and exits program
+func Fatal(s string) {
 	FatalLogger.Output(outputCallDepth, s)
 	os.Exit(1)
 }

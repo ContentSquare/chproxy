@@ -44,7 +44,6 @@ func isHealthy(addr string) error {
 	if err != nil {
 		return err
 	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), isHealthyTimeout)
 	defer cancel()
 	req = req.WithContext(ctx)
@@ -58,12 +57,10 @@ func isHealthy(addr string) error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("non-200 status code: %s", resp.Status)
 	}
-
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
-
 	r := string(body)
 	if r != okResponse {
 		return fmt.Errorf("unexpected response: %s", r)

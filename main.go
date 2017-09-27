@@ -55,10 +55,12 @@ func main() {
 		}
 	}()
 
+	if len(cfg.HTTP.ListenAddr) == 0 && len(cfg.HTTPS.ListenAddr) == 0 {
+		panic("BUG: broken config validation - `listen_addr` is not configured")
+	}
 	if len(cfg.HTTPS.ListenAddr) != 0 {
 		go serveTLS(cfg.HTTPS)
 	}
-
 	if len(cfg.HTTP.ListenAddr) != 0 {
 		go serve(cfg.HTTP)
 	}
@@ -67,35 +69,37 @@ func main() {
 }
 
 func serveTLS(cfg config.HTTPS) {
-	ln := newTLSListener(cfg)
+	an := func() *config.Networks { return allowedNetworksHTTPS.Load().(*config.Networks) }
+	tlsCfg := newTLSConfig(cfg)
+	authLn := newAuthListener(cfg.ListenAddr, an)
+	ln := tls.NewListener(authLn, tlsCfg)
 	log.Infof("Serving https on %q", cfg.ListenAddr)
 	if err := listenAndServe(ln); err != nil {
 		log.Fatalf("TLS server error on %q: %s", cfg.ListenAddr, err)
 	}
 }
+
 func serve(cfg config.HTTP) {
-	an := func() *config.Networks {
-		return allowedNetworksHTTP.Load().(*config.Networks)
-	}
-	ln := newListener(cfg.ListenAddr, an)
+	an := func() *config.Networks { return allowedNetworksHTTP.Load().(*config.Networks) }
+	ln := newAuthListener(cfg.ListenAddr, an)
 	log.Infof("Serving http on %q", cfg.ListenAddr)
 	if err := listenAndServe(ln); err != nil {
 		log.Fatalf("HTTP server error on %q: %s", cfg.ListenAddr, err)
 	}
 }
 
-func newListener(laddr string, an func() *config.Networks) net.Listener {
+func newAuthListener(laddr string, an func() *config.Networks) net.Listener {
 	ln, err := net.Listen("tcp4", laddr)
 	if err != nil {
 		log.Fatalf("cannot listen for %q: %s", laddr, err)
 	}
-	return &netListener{
+	return &authListener{
 		Listener:        ln,
 		allowedNetworks: an,
 	}
 }
 
-func newTLSListener(cfg config.HTTPS) net.Listener {
+func newTLSConfig(cfg config.HTTPS) *tls.Config {
 	tlsCfg := tls.Config{
 		PreferServerCipherSuites: true,
 		CurvePreferences: []tls.CurveID{
@@ -103,7 +107,6 @@ func newTLSListener(cfg config.HTTPS) net.Listener {
 			tls.X25519,
 		},
 	}
-
 	if len(cfg.KeyFile) > 0 && len(cfg.CertFile) > 0 {
 		cert, err := tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)
 		if err != nil {
@@ -117,37 +120,27 @@ func newTLSListener(cfg config.HTTPS) net.Listener {
 				log.Fatalf("error while creating folder %q: %s", cfg.Autocert.CacheDir, err)
 			}
 		}
-
 		var hp autocert.HostPolicy
 		if len(cfg.Autocert.AllowedHosts) != 0 {
 			allowedHosts := make(map[string]struct{}, len(cfg.Autocert.AllowedHosts))
 			for _, v := range cfg.Autocert.AllowedHosts {
 				allowedHosts[v] = struct{}{}
 			}
-
 			hp = func(_ context.Context, host string) error {
 				if _, ok := allowedHosts[host]; ok {
 					return nil
 				}
-
 				return fmt.Errorf("host %q doesn't match `host_policy` configuration", host)
 			}
 		}
-
 		m := autocert.Manager{
 			Prompt:     autocert.AcceptTOS,
 			Cache:      autocert.DirCache(cfg.Autocert.CacheDir),
 			HostPolicy: hp,
 		}
-
 		tlsCfg.GetCertificate = m.GetCertificate
 	}
-
-	an := func() *config.Networks {
-		return allowedNetworksHTTPS.Load().(*config.Networks)
-	}
-	ln := newListener(cfg.ListenAddr, an)
-	return tls.NewListener(ln, &tlsCfg)
+	return &tlsCfg
 }
 
 func listenAndServe(ln net.Listener) error {
@@ -159,7 +152,6 @@ func listenAndServe(ln net.Listener) error {
 		IdleTimeout:  time.Minute * 10,
 		ErrorLog:     log.ErrorLogger,
 	}
-
 	return s.Serve(ln)
 }
 
@@ -171,9 +163,10 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 	case "/metrics":
 		an := allowedNetworksMetrics.Load().(*config.Networks)
 		if !an.Contains(r.RemoteAddr) {
-			log.Errorf("connections to /metrics are not allowed from %s", r.RemoteAddr)
+			err := fmt.Sprintf("connections to /metrics are not allowed from %s", r.RemoteAddr)
+			log.Error(err)
 			rw.WriteHeader(http.StatusForbidden)
-			fmt.Fprintf(rw, "connections to /metrics are not allowed from %s", r.RemoteAddr)
+			fmt.Fprint(rw, err)
 			return
 		}
 		promHandler.ServeHTTP(rw, r)
@@ -182,24 +175,24 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 		proxy.ServeHTTP(rw, r)
 	default:
 		badRequest.Inc()
-		log.Debugf("Unsupported path: %s", r.URL.Path)
+		err := fmt.Sprintf("Unsupported path: %s", r.URL.Path)
+		log.Debugf(err)
 		rw.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(rw, "Unsupported path: %s", r.URL.Path)
+		fmt.Fprint(rw, err)
 	}
 }
 
-type netListener struct {
+type authListener struct {
 	net.Listener
 	allowedNetworks func() *config.Networks
 }
 
-func (ln *netListener) Accept() (net.Conn, error) {
+func (ln *authListener) Accept() (net.Conn, error) {
 	for {
 		conn, err := ln.Listener.Accept()
 		if err != nil {
 			return nil, err
 		}
-
 		remoteAddr := conn.RemoteAddr().String()
 		an := ln.allowedNetworks()
 		if !an.Contains(remoteAddr) {
@@ -207,7 +200,6 @@ func (ln *netListener) Accept() (net.Conn, error) {
 			conn.Close()
 			continue
 		}
-
 		return conn, nil
 	}
 }
@@ -217,11 +209,9 @@ func reloadConfig() (*config.Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("can't load config %q: %s", *configFile, err)
 	}
-
 	if err := proxy.ApplyConfig(cfg); err != nil {
 		return nil, err
 	}
-
 	allowedNetworksHTTP.Store(&cfg.Server.HTTP.AllowedNetworks)
 	allowedNetworksHTTPS.Store(&cfg.Server.HTTPS.AllowedNetworks)
 	allowedNetworksMetrics.Store(&cfg.Server.Metrics.AllowedNetworks)

@@ -30,7 +30,7 @@ var (
 	}
 )
 
-// Config describes access and proxy rules
+// Config describes server configuration, access and proxy rules
 type Config struct {
 	Server Server `yaml:"server,omitempty"`
 
@@ -52,37 +52,32 @@ type Config struct {
 	networkReg map[string]Networks
 }
 
+// String implements the Stringer interface
 func (c *Config) String() string {
 	b, err := yaml.Marshal(c)
 	if err != nil {
 		panic(err)
 	}
-
 	return string(b)
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	*c = defaultConfig
-
 	// set c to the defaults and then overwrite it with the input.
+	*c = defaultConfig
 	type plain Config
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-
 	if len(c.Users) == 0 {
 		return fmt.Errorf("field `users` must contain at least 1 user")
 	}
-
 	if len(c.Clusters) == 0 {
 		return fmt.Errorf("field `clusters` must contain at least 1 cluster")
 	}
-
 	if len(c.Server.HTTP.ListenAddr) == 0 && len(c.Server.HTTPS.ListenAddr) == 0 {
 		return fmt.Errorf("neither HTTP nor HTTPS not configured")
 	}
-
 	if len(c.Server.HTTPS.ListenAddr) > 0 {
 		if len(c.Server.HTTPS.Autocert.CacheDir) == 0 && len(c.Server.HTTPS.CertFile) == 0 && len(c.Server.HTTPS.KeyFile) == 0 {
 			return fmt.Errorf("configuration `https` is missing. " +
@@ -90,7 +85,6 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				"OR `https.key_file` and `https.cert_file` for already existing certs")
 		}
 	}
-
 	return checkOverflow(c.XXX, "config")
 }
 
@@ -116,7 +110,6 @@ func (s *Server) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal((*plain)(s)); err != nil {
 		return err
 	}
-
 	return checkOverflow(s.XXX, "server")
 }
 
@@ -178,30 +171,24 @@ func (c *HTTPS) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-
 	if len(c.ListenAddr) == 0 {
 		c.ListenAddr = ":443"
 	}
-
 	if len(c.Autocert.CacheDir) > 0 {
 		if len(c.CertFile) > 0 || len(c.KeyFile) > 0 {
 			return fmt.Errorf("it is forbidden to specify certificate and `https.autocert` at the same time. Choose one way")
 		}
-
 		if len(c.NetworksOrGroups) > 0 || c.ListenAddr != ":443" {
 			return fmt.Errorf("`letsencrypt` specification requires https server to listen on :443 port and be without `allowed_networks` limits. " +
 				"Otherwise, certificates will be impossible to generate")
 		}
 	}
-
 	if len(c.CertFile) > 0 && len(c.KeyFile) == 0 {
 		return fmt.Errorf("field `https.key_file` must be specified")
 	}
-
 	if len(c.KeyFile) > 0 && len(c.CertFile) == 0 {
 		return fmt.Errorf("field `https.cert_file` must be specified")
 	}
-
 	return checkOverflow(c.XXX, "https")
 }
 
@@ -224,10 +211,10 @@ func (c *Autocert) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-
 	return checkOverflow(c.XXX, "autocert")
 }
 
+// Metrics describes configuration to access metrics endpoint
 type Metrics struct {
 	NetworksOrGroups NetworksOrGroups `yaml:"allowed_networks,omitempty"`
 
@@ -285,32 +272,25 @@ type Cluster struct {
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (c *Cluster) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*c = defaultCluster
-
 	type plain Cluster
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-
 	if len(c.Name) == 0 {
 		return fmt.Errorf("field `cluster.name` cannot be empty")
 	}
-
 	if len(c.Nodes) == 0 {
 		return fmt.Errorf("field `cluster.nodes` must contain at least 1 address")
 	}
-
 	if len(c.ClusterUsers) == 0 {
 		return fmt.Errorf("field `cluster.users` must contain at least 1 user")
 	}
-
 	if c.Scheme != "http" && c.Scheme != "https" {
 		return fmt.Errorf("field `cluster.scheme` must be `http` or `https`. Got %q instead", c.Scheme)
 	}
-
 	if c.HeartBeatInterval == 0 {
 		c.HeartBeatInterval = time.Second * 5
 	}
-
 	return checkOverflow(c.XXX, "cluster")
 }
 
@@ -333,11 +313,9 @@ func (u *KillQueryUser) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal((*plain)(u)); err != nil {
 		return err
 	}
-
 	if len(u.Name) == 0 {
 		return fmt.Errorf("field `cluster.kill_query_user.name` must be specified")
 	}
-
 	return checkOverflow(u.XXX, "kill_query_user")
 }
 
@@ -409,6 +387,7 @@ func (u *User) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return checkOverflow(u.XXX, "user")
 }
 
+// NetworkGroups describes a named Networks lists
 type NetworkGroups struct {
 	// Name of the group
 	Name string `yaml:"name"`
@@ -427,7 +406,6 @@ func (ng *NetworkGroups) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	if err := unmarshal((*plain)(ng)); err != nil {
 		return err
 	}
-
 	return checkOverflow(ng.XXX, "network_groups")
 }
 
@@ -477,6 +455,8 @@ func (n Networks) Contains(addr string) bool {
 	return false
 }
 
+// NetworksOrGroups is a list of strings with names of NetworkGroups
+// or just Networks
 type NetworksOrGroups []string
 
 // ClusterUser describes simplest <users> configuration
@@ -519,35 +499,29 @@ func LoadFile(filename string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	cfg := &Config{}
 	if err := yaml.Unmarshal([]byte(content), cfg); err != nil {
 		return nil, err
 	}
-
 	cfg.networkReg = make(map[string]Networks, len(cfg.NetworkGroups))
 	for _, ng := range cfg.NetworkGroups {
 		cfg.networkReg[ng.Name] = ng.Networks
 	}
-
 	if len(cfg.Server.HTTP.ListenAddr) > 0 && len(cfg.Server.HTTP.NetworksOrGroups) > 0 {
 		if cfg.Server.HTTP.AllowedNetworks, err = cfg.groupToNetwork(cfg.Server.HTTP.NetworksOrGroups); err != nil {
 			return nil, err
 		}
 	}
-
 	if len(cfg.Server.HTTPS.ListenAddr) > 0 && len(cfg.Server.HTTPS.NetworksOrGroups) > 0 {
 		if cfg.Server.HTTPS.AllowedNetworks, err = cfg.groupToNetwork(cfg.Server.HTTPS.NetworksOrGroups); err != nil {
 			return nil, err
 		}
 	}
-
 	if len(cfg.Server.Metrics.NetworksOrGroups) > 0 {
 		if cfg.Server.Metrics.AllowedNetworks, err = cfg.groupToNetwork(cfg.Server.Metrics.NetworksOrGroups); err != nil {
 			return nil, err
 		}
 	}
-
 	for _, u := range cfg.Users {
 		if len(u.NetworksOrGroups) > 0 {
 			if u.AllowedNetworks, err = cfg.groupToNetwork(u.NetworksOrGroups); err != nil {
@@ -555,20 +529,18 @@ func LoadFile(filename string) (*Config, error) {
 			}
 		}
 	}
-
 	if err := cfg.checkVulnerabilities(); err != nil {
 		return nil, fmt.Errorf("security breach: %s\nSet option `hack_me_please=true` to disable security errors", err)
 	}
-
 	return cfg, nil
 }
 
 func (c Config) groupToNetwork(src NetworksOrGroups) (Networks, error) {
 	dst := make(Networks, 0)
 	for _, v := range src {
-		ng, ok := c.networkReg[v]
+		group, ok := c.networkReg[v]
 		if ok {
-			dst = append(dst, ng...)
+			dst = append(dst, group...)
 		} else {
 			ipnet, err := stringToIPnet(v)
 			if err != nil {
@@ -585,28 +557,25 @@ func (c Config) checkVulnerabilities() error {
 	if c.HackMePlease {
 		return nil
 	}
-
 	httpsVulnerability := len(c.Server.HTTPS.ListenAddr) > 0 && len(c.Server.HTTPS.NetworksOrGroups) == 0
 	httpVulnerability := len(c.Server.HTTP.ListenAddr) > 0 && len(c.Server.HTTP.NetworksOrGroups) == 0
 	for _, u := range c.Users {
-		if len(u.NetworksOrGroups) == 0 {
-			if len(u.Password) == 0 {
-				if !u.DenyHTTPS && httpsVulnerability {
-					return fmt.Errorf("https: user %q has neither password nor `allowed_networks` on `user` or `server.http` level", u.Name)
-				}
-
-				if !u.DenyHTTP && httpVulnerability {
-					return fmt.Errorf("http: user %q has neither password nor `allowed_networks` on `user` or `server.http` level", u.Name)
-				}
+		if len(u.NetworksOrGroups) != 0 {
+			continue
+		}
+		if len(u.Password) == 0 {
+			if !u.DenyHTTPS && httpsVulnerability {
+				return fmt.Errorf("https: user %q has neither password nor `allowed_networks` on `user` or `server.http` level", u.Name)
 			}
-
-			if len(u.Password) > 0 && httpVulnerability {
-				return fmt.Errorf("http: user %q is allowed to connect via http, but not limited by `allowed_networks` "+
-					"on `user` or `server.http` level - password could be stolen", u.Name)
+			if !u.DenyHTTP && httpVulnerability {
+				return fmt.Errorf("http: user %q has neither password nor `allowed_networks` on `user` or `server.http` level", u.Name)
 			}
 		}
+		if len(u.Password) > 0 && httpVulnerability {
+			return fmt.Errorf("http: user %q is allowed to connect via http, but not limited by `allowed_networks` "+
+				"on `user` or `server.http` level - password could be stolen", u.Name)
+		}
 	}
-
 	return nil
 }
 
@@ -628,16 +597,13 @@ func stringToIPnet(s string) (*net.IPNet, error) {
 		return nil, fmt.Errorf("suspicious mask specified \"0.0.0.0/0\". " +
 			"If you want to allow all then just omit `allowed_networks` field")
 	}
-
 	ip := s
 	if !strings.Contains(ip, `/`) {
 		ip += "/32"
 	}
-
 	_, ipnet, err := net.ParseCIDR(ip)
 	if err != nil {
 		return nil, fmt.Errorf("wrong network group name or address %q: %s", s, err)
 	}
-
 	return ipnet, nil
 }

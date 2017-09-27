@@ -53,7 +53,6 @@ func newConfiguredProxy(cfg *config.Config) (*reverseProxy, error) {
 	if err := p.ApplyConfig(cfg); err != nil {
 		return p, fmt.Errorf("error while loading config: %s", err)
 	}
-
 	return p, nil
 }
 
@@ -62,24 +61,19 @@ func TestNewReverseProxy(t *testing.T) {
 	if err := proxy.ApplyConfig(goodCfg); err != nil {
 		t.Fatalf("error while loading config: %s", err)
 	}
-
 	if len(proxy.clusters) != 1 {
 		t.Fatalf("got %d hosts; expected: %d", len(proxy.clusters), 1)
 	}
-
 	c := proxy.clusters["cluster"]
 	if len(c.hosts) != 1 {
 		t.Fatalf("got %d hosts; expected: %d", len(c.hosts), 1)
 	}
-
 	if c.hosts[0].addr.Host != "localhost:8123" {
 		t.Fatalf("got %s host; expected: %s", c.hosts[0].addr.Host, "localhost:8123")
 	}
-
 	if len(proxy.users) != 1 {
 		t.Fatalf("got %d users; expected: %d", len(proxy.users), 1)
 	}
-
 	if _, ok := proxy.users["default"]; !ok {
 		t.Fatalf("expected user %q to be present in users", "default")
 	}
@@ -112,11 +106,9 @@ func TestApplyConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
-
 	if err = proxy.ApplyConfig(badCfg); err == nil {
 		t.Fatalf("error expected; got nil")
 	}
-
 	if _, ok := proxy.clusters["badCfg"]; ok {
 		t.Fatalf("bad config applied; expected previous config")
 	}
@@ -279,12 +271,10 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 		if resp != expected {
 			t.Fatalf("expected response: %q; got: %q", expected, resp)
 		}
-
 		user, pass := getAuth(req)
 		if user != authCfg.Clusters[0].ClusterUsers[0].Name {
 			t.Fatalf("user name expected to be %q; got %q", authCfg.Clusters[0].ClusterUsers[0].Name, user)
 		}
-
 		if pass != authCfg.Clusters[0].ClusterUsers[0].Password {
 			t.Fatalf("user password expected to be %q; got %q", authCfg.Clusters[0].ClusterUsers[0].Password, pass)
 		}
@@ -295,7 +285,6 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
-
 		uri := fmt.Sprintf("%s?user=foo&password=bar", fakeServer.URL)
 		req := httptest.NewRequest("POST", uri, nil)
 		resp := makeCustomRequest(proxy, req)
@@ -304,12 +293,10 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 		if resp != expected {
 			t.Fatalf("expected response: %q; got: %q", expected, resp)
 		}
-
 		user, pass := getAuth(req)
 		if user != authCfg.Clusters[0].ClusterUsers[0].Name {
 			t.Fatalf("user name expected to be %q; got %q", authCfg.Clusters[0].ClusterUsers[0].Name, user)
 		}
-
 		if pass != authCfg.Clusters[0].ClusterUsers[0].Password {
 			t.Fatalf("user password expected to be %q; got %q", authCfg.Clusters[0].ClusterUsers[0].Password, pass)
 		}
@@ -352,7 +339,6 @@ func TestReverseProxy_ServeHTTP2(t *testing.T) {
 				t.Fatalf("unexpected error: %s", err)
 			}
 			resp := makeRequest(proxy)
-
 			if resp != tc.expected {
 				t.Fatalf("expected response: %q; got: %q", tc.expected, resp)
 			}
@@ -364,9 +350,7 @@ func getNetwork(s string) *net.IPNet {
 	if !strings.Contains(s, `/`) {
 		s += "/32"
 	}
-
 	_, ipnet, _ := net.ParseCIDR(s)
-
 	return ipnet
 }
 
@@ -383,16 +367,12 @@ var fakeServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter,
 			fmt.Fprintln(w, "Err delay:", err)
 			return
 		}
-
 		time.Sleep(d)
 	}
-
 	fmt.Fprintln(w, "Ok.")
 }))
 
-func makeRequest(p *reverseProxy) string {
-	return makeHeavyRequest(p, time.Duration(0))
-}
+func makeRequest(p *reverseProxy) string { return makeHeavyRequest(p, time.Duration(0)) }
 
 func makeHeavyRequest(p *reverseProxy, duration time.Duration) string {
 	body := bytes.NewBufferString(duration.String())
@@ -404,7 +384,6 @@ func makeHeavyRequest(p *reverseProxy, duration time.Duration) string {
 	if err != nil {
 		panic(err)
 	}
-
 	return string(response)
 }
 
@@ -416,7 +395,6 @@ func makeCustomRequest(p *reverseProxy, req *http.Request) string {
 	if err != nil {
 		panic(err)
 	}
-
 	return string(response)
 }
 
@@ -425,7 +403,6 @@ func getProxy(cfg *config.Config) (*reverseProxy, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	cfg.Clusters[0].Nodes = []string{addr.Host}
 	proxy, err := newConfiguredProxy(cfg)
 	if err != nil {
@@ -434,7 +411,6 @@ func getProxy(cfg *config.Config) (*reverseProxy, error) {
 
 	// wait till all hosts will do health-checking
 	time.Sleep(time.Millisecond * 50)
-
 	return proxy, nil
 }
 
@@ -443,13 +419,11 @@ func TestReverseProxy_ServeHTTPConcurrent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
-
 	goodCfg.Clusters[0].Nodes = []string{addr.Host}
 	proxy, err := newConfiguredProxy(goodCfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
-
 	t.Run("parallel requests", func(t *testing.T) {
 		f := func() {
 			makeRequest(proxy)
@@ -458,7 +432,6 @@ func TestReverseProxy_ServeHTTPConcurrent(t *testing.T) {
 			t.Fatalf("concurrent test err: %s", err)
 		}
 	})
-
 	t.Run("parallel requests with config reloading", func(t *testing.T) {
 		f := func() {
 			go proxy.ApplyConfig(newConfig())
@@ -478,6 +451,5 @@ func newConfig() *config.Config {
 			MaxConcurrentQueries: rand.Uint32(),
 		},
 	}
-
 	return &newCfg
 }

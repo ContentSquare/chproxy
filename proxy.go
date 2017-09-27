@@ -41,17 +41,14 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		respondWithErr(rw, fmt.Errorf("user %q is not allowed to access via http", name))
 		return
 	}
-
 	if s.user.denyHTTP && req.URL.Scheme == "https" {
 		respondWithErr(rw, fmt.Errorf("user %q is not allowed to access via https", name))
 		return
 	}
-
 	if !s.user.allowedNetworks.Contains(req.RemoteAddr) {
 		respondWithErr(rw, fmt.Errorf("user %q is not allowed to access from %s", name, req.RemoteAddr))
 		return
 	}
-
 	label := prometheus.Labels{
 		"user":         s.user.name,
 		"host":         s.host.addr.Host,
@@ -77,12 +74,10 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		timeout = s.user.maxExecutionTime
 		timeoutErrMsg = fmt.Errorf("timeout for user %q exceeded: %v", s.user.name, timeout)
 	}
-
 	if timeout == 0 || (s.clusterUser.maxExecutionTime > 0 && s.clusterUser.maxExecutionTime < timeout) {
 		timeout = s.clusterUser.maxExecutionTime
 		timeoutErrMsg = fmt.Errorf("timeout for cluster user %q exceeded: %v", s.clusterUser.name, timeout)
 	}
-
 	ctx := context.Background()
 	if timeout != 0 {
 		var cancel context.CancelFunc
@@ -112,7 +107,6 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			fmt.Fprintf(rw, "unable to reach address: %s", req.URL.Host)
 		}
 	}
-
 	statusCodes.With(
 		prometheus.Labels{
 			"user":         s.user.name,
@@ -121,7 +115,6 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			"code":         strconv.Itoa(cw.statusCode),
 		},
 	).Inc()
-
 	since := float64(time.Since(timeStart).Seconds())
 	requestDuration.With(label).Observe(since)
 }
@@ -137,7 +130,6 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 			if err != nil {
 				return err
 			}
-
 			hosts[i] = &host{addr: addr}
 		}
 
@@ -146,7 +138,6 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 			if _, ok := clusterUsers[u.Name]; ok {
 				return fmt.Errorf("cluster user %q already exists", u.Name)
 			}
-
 			clusterUsers[u.Name] = &clusterUser{
 				name:                 u.Name,
 				password:             u.Password,
@@ -174,15 +165,12 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 		if !ok {
 			return fmt.Errorf("error while mapping user %q to cluster %q: no such cluster", u.Name, u.ToCluster)
 		}
-
 		if _, ok := c.users[u.ToUser]; !ok {
 			return fmt.Errorf("error while mapping user %q to cluster's %q user %q: no such user", u.Name, u.ToCluster, u.ToUser)
 		}
-
 		if _, ok := users[u.Name]; ok {
 			return fmt.Errorf("user %q already exists", u.Name)
 		}
-
 		users[u.Name] = &user{
 			toCluster:            u.ToCluster,
 			toUser:               u.ToUser,
@@ -244,26 +232,21 @@ func (rp *reverseProxy) getScope(name, password string) (*scope, error) {
 	if !ok {
 		return nil, fmt.Errorf("invalid username or password for user %q", name)
 	}
-
 	if u.password != password {
 		return nil, fmt.Errorf("invalid username or password for user %q", name)
 	}
-
 	c, ok := rp.clusters[u.toCluster]
 	if !ok {
 		panic(fmt.Sprintf("BUG: user %q matches to unknown cluster %q", u.name, u.toCluster))
 	}
-
 	cu, ok := c.users[u.toUser]
 	if !ok {
 		panic(fmt.Sprintf("BUG: user %q matches to unknown user %q at cluster %q", u.name, u.toUser, u.toCluster))
 	}
-
 	s, err := newScope(u, cu, c)
 	if err != nil {
 		return nil, fmt.Errorf("error while creating scope for cluster %q: %s", u.toCluster, err)
 	}
-
 	return s, nil
 }
 

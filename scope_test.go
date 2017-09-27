@@ -11,7 +11,6 @@ var (
 	cu = &clusterUser{
 		maxConcurrentQueries: 2,
 	}
-
 	c = &cluster{
 		hosts: []*host{
 			{
@@ -34,7 +33,6 @@ func TestRunningQueries(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
-
 	check := func(uq, cuq, hq uint32) {
 		if s.user.runningQueries() != uq {
 			t.Fatalf("expected runningQueries for user: %d; got: %d", uq, s.user.runningQueries())
@@ -72,7 +70,6 @@ func TestRunningQueries(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
-
 	if err := s.inc(); err != nil {
 		t.Fatalf("unexpected err: %s", err)
 	}
@@ -84,7 +81,6 @@ func TestRunningQueries(t *testing.T) {
 	if err := s.inc(); err != nil {
 		t.Fatalf("unexpected err: %s", err)
 	}
-
 	check(1, 2, 2)
 }
 
@@ -190,7 +186,6 @@ func TestPenalize(t *testing.T) {
 	h := &host{
 		addr: &url.URL{Host: "127.0.0.1"},
 	}
-
 	exp := uint32(0)
 	if h.runningQueries() != exp {
 		t.Fatalf("got running queries %d; expected %d", h.runningQueries(), exp)
@@ -224,7 +219,6 @@ func TestRunningQueriesConcurrent(t *testing.T) {
 	eu := &clusterUser{
 		maxConcurrentQueries: 10,
 	}
-
 	f := func() {
 		eu.inc()
 		eu.runningQueries()
@@ -252,7 +246,6 @@ func TestGetHostConcurrent(t *testing.T) {
 			},
 		},
 	}
-
 	f := func() {
 		h := c.getHost()
 		h.inc()
