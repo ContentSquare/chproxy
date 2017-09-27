@@ -507,26 +507,18 @@ func LoadFile(filename string) (*Config, error) {
 	for _, ng := range cfg.NetworkGroups {
 		cfg.networkReg[ng.Name] = ng.Networks
 	}
-	if len(cfg.Server.HTTP.ListenAddr) > 0 && len(cfg.Server.HTTP.NetworksOrGroups) > 0 {
-		if cfg.Server.HTTP.AllowedNetworks, err = cfg.groupToNetwork(cfg.Server.HTTP.NetworksOrGroups); err != nil {
-			return nil, err
-		}
+	if cfg.Server.HTTP.AllowedNetworks, err = cfg.groupToNetwork(cfg.Server.HTTP.NetworksOrGroups); err != nil {
+		return nil, err
 	}
-	if len(cfg.Server.HTTPS.ListenAddr) > 0 && len(cfg.Server.HTTPS.NetworksOrGroups) > 0 {
-		if cfg.Server.HTTPS.AllowedNetworks, err = cfg.groupToNetwork(cfg.Server.HTTPS.NetworksOrGroups); err != nil {
-			return nil, err
-		}
+	if cfg.Server.HTTPS.AllowedNetworks, err = cfg.groupToNetwork(cfg.Server.HTTPS.NetworksOrGroups); err != nil {
+		return nil, err
 	}
-	if len(cfg.Server.Metrics.NetworksOrGroups) > 0 {
-		if cfg.Server.Metrics.AllowedNetworks, err = cfg.groupToNetwork(cfg.Server.Metrics.NetworksOrGroups); err != nil {
-			return nil, err
-		}
+	if cfg.Server.Metrics.AllowedNetworks, err = cfg.groupToNetwork(cfg.Server.Metrics.NetworksOrGroups); err != nil {
+		return nil, err
 	}
 	for _, u := range cfg.Users {
-		if len(u.NetworksOrGroups) > 0 {
-			if u.AllowedNetworks, err = cfg.groupToNetwork(u.NetworksOrGroups); err != nil {
-				return nil, err
-			}
+		if u.AllowedNetworks, err = cfg.groupToNetwork(u.NetworksOrGroups); err != nil {
+			return nil, err
 		}
 	}
 	if err := cfg.checkVulnerabilities(); err != nil {
@@ -536,6 +528,9 @@ func LoadFile(filename string) (*Config, error) {
 }
 
 func (c Config) groupToNetwork(src NetworksOrGroups) (Networks, error) {
+	if len(src) == 0 {
+		return nil, nil
+	}
 	dst := make(Networks, 0)
 	for _, v := range src {
 		group, ok := c.networkReg[v]
@@ -549,7 +544,6 @@ func (c Config) groupToNetwork(src NetworksOrGroups) (Networks, error) {
 			dst = append(dst, ipnet)
 		}
 	}
-
 	return dst, nil
 }
 
