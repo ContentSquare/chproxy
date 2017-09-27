@@ -29,26 +29,13 @@ func newReverseProxy() *reverseProxy {
 func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	log.Debugf("Accepting request from %s: %s", req.RemoteAddr, req.URL)
 
-	name, password := getAuth(req)
-	s, err := rp.getScope(name, password)
+	s, err := rp.getScope(req)
 	if err != nil {
 		respondWithErr(rw, err)
 		return
 	}
 	log.Debugf("Request scope %s", s)
 
-	if s.user.denyHTTP && req.URL.Scheme == "http" {
-		respondWithErr(rw, fmt.Errorf("user %q is not allowed to access via http", name))
-		return
-	}
-	if s.user.denyHTTP && req.URL.Scheme == "https" {
-		respondWithErr(rw, fmt.Errorf("user %q is not allowed to access via https", name))
-		return
-	}
-	if !s.user.allowedNetworks.Contains(req.RemoteAddr) {
-		respondWithErr(rw, fmt.Errorf("user %q is not allowed to access from %s", name, req.RemoteAddr))
-		return
-	}
 	label := prometheus.Labels{
 		"user":         s.user.name,
 		"host":         s.host.addr.Host,
@@ -224,7 +211,9 @@ type reverseProxy struct {
 	clusters map[string]*cluster
 }
 
-func (rp *reverseProxy) getScope(name, password string) (*scope, error) {
+func (rp *reverseProxy) getScope(req *http.Request) (*scope, error) {
+	name, password := getAuth(req)
+
 	rp.mu.Lock()
 	defer rp.mu.Unlock()
 
@@ -242,6 +231,15 @@ func (rp *reverseProxy) getScope(name, password string) (*scope, error) {
 	cu, ok := c.users[u.toUser]
 	if !ok {
 		panic(fmt.Sprintf("BUG: user %q matches to unknown user %q at cluster %q", u.name, u.toUser, u.toCluster))
+	}
+	if u.denyHTTP && req.URL.Scheme == "http" {
+		return nil, fmt.Errorf("user %q is not allowed to access via http", name)
+	}
+	if u.denyHTTP && req.URL.Scheme == "https" {
+		return nil, fmt.Errorf("user %q is not allowed to access via https", name)
+	}
+	if !u.allowedNetworks.Contains(req.RemoteAddr) {
+		return nil, fmt.Errorf("user %q is not allowed to access from %s", name, req.RemoteAddr)
 	}
 	s, err := newScope(u, cu, c)
 	if err != nil {
