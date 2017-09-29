@@ -114,15 +114,16 @@ func (s *scope) killQuery() error {
 }
 
 func (s *scope) decorateRequest(req *http.Request) *http.Request {
-	params := req.URL.Query()
-
-	// delete possible credentials from query since they
-	// aren't longer needed
-	params.Del("user")
-	params.Del("password")
+	// make new params to purify URL
+	params := make(url.Values)
 
 	// set query_id as scope_id to have possibility kill query if needed
 	params.Set("query_id", strconv.Itoa(int(s.id)))
+	// if query was passed - keep it
+	q := req.URL.Query().Get("query")
+	if len(q) > 0 {
+		params.Set("query", q)
+	}
 	req.URL.RawQuery = params.Encode()
 
 	// rewrite possible previous Basic Auth
@@ -141,6 +142,8 @@ func (s *scope) decorateRequest(req *http.Request) *http.Request {
 	ua := fmt.Sprintf("RemoteAddr: %s; LocalAddr: %s; CHProxy-User: %s; CHProxy-ClusterUser: %s; %s",
 		req.RemoteAddr, localAddr, s.user.name, s.clusterUser.name, req.UserAgent())
 	req.Header.Set("User-Agent", ua)
+
+	fmt.Println(req.URL.Query())
 	return req
 }
 
