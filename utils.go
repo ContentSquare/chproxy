@@ -11,8 +11,12 @@ import (
 )
 
 func respondWithErr(rw http.ResponseWriter, err error) {
-	log.Errorf("proxy failed: %s", err)
-	rw.WriteHeader(http.StatusInternalServerError)
+	respondWith(rw, err, http.StatusInternalServerError)
+}
+
+func respondWith(rw http.ResponseWriter, err error, status int) {
+	log.Error(err.Error())
+	rw.WriteHeader(status)
 	rw.Write([]byte(err.Error()))
 }
 

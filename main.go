@@ -69,33 +69,26 @@ func main() {
 }
 
 func serveTLS(cfg config.HTTPS) {
-	an := func() *config.Networks { return allowedNetworksHTTPS.Load().(*config.Networks) }
+	ln, err := net.Listen("tcp4", cfg.ListenAddr)
+	if err != nil {
+		log.Fatalf("cannot listen for %q: %s", cfg.ListenAddr, err)
+	}
 	tlsCfg := newTLSConfig(cfg)
-	authLn := newAuthListener(cfg.ListenAddr, an)
-	ln := tls.NewListener(authLn, tlsCfg)
+	tln := tls.NewListener(ln, tlsCfg)
 	log.Infof("Serving https on %q", cfg.ListenAddr)
-	if err := listenAndServe(ln); err != nil {
+	if err := listenAndServe(tln); err != nil {
 		log.Fatalf("TLS server error on %q: %s", cfg.ListenAddr, err)
 	}
 }
 
 func serve(cfg config.HTTP) {
-	an := func() *config.Networks { return allowedNetworksHTTP.Load().(*config.Networks) }
-	ln := newAuthListener(cfg.ListenAddr, an)
+	ln, err := net.Listen("tcp4", cfg.ListenAddr)
+	if err != nil {
+		log.Fatalf("cannot listen for %q: %s", cfg.ListenAddr, err)
+	}
 	log.Infof("Serving http on %q", cfg.ListenAddr)
 	if err := listenAndServe(ln); err != nil {
 		log.Fatalf("HTTP server error on %q: %s", cfg.ListenAddr, err)
-	}
-}
-
-func newAuthListener(laddr string, an func() *config.Networks) net.Listener {
-	ln, err := net.Listen("tcp4", laddr)
-	if err != nil {
-		log.Fatalf("cannot listen for %q: %s", laddr, err)
-	}
-	return &authListener{
-		Listener:        ln,
-		allowedNetworks: an,
 	}
 }
 
@@ -163,14 +156,31 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 	case "/metrics":
 		an := allowedNetworksMetrics.Load().(*config.Networks)
 		if !an.Contains(r.RemoteAddr) {
-			err := fmt.Sprintf("connections to /metrics are not allowed from %s", r.RemoteAddr)
-			log.Error(err)
-			rw.WriteHeader(http.StatusForbidden)
-			fmt.Fprint(rw, err)
+			err := fmt.Errorf("connections to /metrics are not allowed from %s", r.RemoteAddr)
+			r.Close = true
+			respondWith(rw, err, http.StatusForbidden)
 			return
 		}
 		promHandler.ServeHTTP(rw, r)
 	case "/":
+		var err error
+		if r.URL.Scheme == "https" {
+			an := allowedNetworksHTTPS.Load().(*config.Networks)
+			if !an.Contains(r.RemoteAddr) {
+				err = fmt.Errorf("https connections are not allowed from %s", r.RemoteAddr)
+			}
+		} else {
+			an := allowedNetworksHTTP.Load().(*config.Networks)
+			if !an.Contains(r.RemoteAddr) {
+				err = fmt.Errorf("http connections are not allowed from %s", r.RemoteAddr)
+			}
+		}
+		if err != nil {
+			r.Close = true
+			respondWith(rw, err, http.StatusForbidden)
+			return
+		}
+
 		goodRequest.Inc()
 		proxy.ServeHTTP(rw, r)
 	default:
@@ -179,28 +189,6 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 		log.Debugf(err)
 		rw.WriteHeader(http.StatusBadRequest)
 		fmt.Fprint(rw, err)
-	}
-}
-
-type authListener struct {
-	net.Listener
-	allowedNetworks func() *config.Networks
-}
-
-func (ln *authListener) Accept() (net.Conn, error) {
-	for {
-		conn, err := ln.Listener.Accept()
-		if err != nil {
-			return nil, err
-		}
-		remoteAddr := conn.RemoteAddr().String()
-		an := ln.allowedNetworks()
-		if !an.Contains(remoteAddr) {
-			log.Errorf("connections are not allowed from %s", remoteAddr)
-			conn.Close()
-			continue
-		}
-		return conn, nil
 	}
 }
 
