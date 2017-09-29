@@ -20,9 +20,9 @@ import (
 func (s *scope) String() string {
 	return fmt.Sprintf("[ Id: %d; User %q(%d) proxying as %q(%d) to %q(%d) ]",
 		s.id,
-		s.user.name, s.user.runningQueries(),
-		s.clusterUser.name, s.clusterUser.runningQueries(),
-		s.host.addr.Host, s.host.runningQueries())
+		s.user.name, s.user.queryCounter.load(),
+		s.clusterUser.name, s.clusterUser.queryCounter.load(),
+		s.host.addr.Host, s.host.load())
 }
 
 type scope struct {
@@ -50,28 +50,44 @@ func newScope(u *user, cu *clusterUser, c *cluster) (*scope, error) {
 }
 
 func (s *scope) inc() error {
-	uq := s.user.inc()
-	cq := s.clusterUser.inc()
+	uQueries := s.user.queryCounter.inc()
+	cQueries := s.clusterUser.queryCounter.inc()
+	uRateLimit := s.user.rateLimiter.inc()
+	cRateLimit := s.clusterUser.rateLimiter.inc()
 	s.host.inc()
 
 	var err error
-	if s.user.maxConcurrentQueries > 0 && uq > s.user.maxConcurrentQueries {
-		err = fmt.Errorf("limits for user %q are exceeded: maxConcurrentQueries limit: %d", s.user.name, s.user.maxConcurrentQueries)
+	if s.user.maxConcurrentQueries > 0 && uQueries > s.user.maxConcurrentQueries {
+		err = fmt.Errorf("limits for user %q are exceeded: max_concurrent_queries limit: %d",
+			s.user.name, s.user.maxConcurrentQueries)
 	}
-	if s.clusterUser.maxConcurrentQueries > 0 && cq > s.clusterUser.maxConcurrentQueries {
-		err = fmt.Errorf("limits for cluster user %q are exceeded: maxConcurrentQueries limit: %d", s.clusterUser.name, s.clusterUser.maxConcurrentQueries)
+	if s.clusterUser.maxConcurrentQueries > 0 && cQueries > s.clusterUser.maxConcurrentQueries {
+		err = fmt.Errorf("limits for cluster user %q are exceeded: max_concurrent_queries limit: %d",
+			s.clusterUser.name, s.clusterUser.maxConcurrentQueries)
+	}
+	if s.user.reqsPerMin > 0 && uRateLimit > s.user.reqsPerMin {
+		err = fmt.Errorf("rate limit for user %q is exceeded: requests_per_minute limit: %d",
+			s.user.name, s.user.reqsPerMin)
+	}
+	if s.clusterUser.reqsPerMin > 0 && cRateLimit > s.clusterUser.reqsPerMin {
+		err = fmt.Errorf("rate limit for cluster user %q is exceeded: requests_per_minute limit: %d",
+			s.clusterUser.name, s.clusterUser.reqsPerMin)
 	}
 	if err != nil {
 		s.dec()
+		s.user.rateLimiter.dec()
+		s.clusterUser.rateLimiter.dec()
 		return err
 	}
+
 	return nil
 }
 
+// decrement only runningQuery because rateLimiter will be reset automatically
 func (s *scope) dec() {
 	s.host.dec()
-	s.user.dec()
-	s.clusterUser.dec()
+	s.user.queryCounter.dec()
+	s.clusterUser.queryCounter.dec()
 }
 
 const killQueryTimeout = time.Second * 30
@@ -142,8 +158,6 @@ func (s *scope) decorateRequest(req *http.Request) *http.Request {
 	ua := fmt.Sprintf("RemoteAddr: %s; LocalAddr: %s; CHProxy-User: %s; CHProxy-ClusterUser: %s; %s",
 		req.RemoteAddr, localAddr, s.user.name, s.clusterUser.name, req.UserAgent())
 	req.Header.Set("User-Agent", ua)
-
-	fmt.Println(req.URL.Query())
 	return req
 }
 
@@ -157,16 +171,20 @@ type user struct {
 	name, password       string
 	maxExecutionTime     time.Duration
 	maxConcurrentQueries uint32
+	reqsPerMin           uint32
 
-	queryCounter
+	rateLimiter  rateLimiter
+	queryCounter counter
 }
 
 type clusterUser struct {
 	name, password       string
 	maxExecutionTime     time.Duration
 	maxConcurrentQueries uint32
+	reqsPerMin           uint32
 
-	queryCounter
+	rateLimiter  rateLimiter
+	queryCounter counter
 }
 
 type host struct {
@@ -178,10 +196,11 @@ type host struct {
 	// host address
 	addr *url.URL
 
-	queryCounter
+	counter
 }
 
-func (h *host) runHeartbeat(interval time.Duration, cluster string, done <-chan struct{}) {
+func (h *host) runHeartbeat(interval time.Duration, cluster string) {
+	proxy.reloadWG.Add(1)
 	label := prometheus.Labels{
 		"cluster": cluster,
 		"host":    h.addr.Host,
@@ -199,7 +218,8 @@ func (h *host) runHeartbeat(interval time.Duration, cluster string, done <-chan 
 	heartbeat()
 	for {
 		select {
-		case <-done:
+		case <-proxy.reloadSignal:
+			proxy.reloadWG.Done()
 			return
 		case <-time.After(interval):
 			heartbeat()
@@ -213,9 +233,9 @@ func (h *host) isActive() bool {
 
 const (
 	// prevents excess goroutine creating while penalizing overloaded host
+	penaltySize     = 5
 	penaltyMaxSize  = 300
 	penaltyDuration = time.Second * 10
-	penaltySize     = 5
 )
 
 // decrease host priority for next requests
@@ -233,8 +253,8 @@ func (h *host) penalize() {
 }
 
 // overload runningQueries to take penalty into consideration
-func (h *host) runningQueries() uint32 {
-	c := h.queryCounter.runningQueries()
+func (h *host) load() uint32 {
+	c := h.counter.load()
 	p := atomic.LoadUint32(&h.penalty)
 	return c + p
 }
@@ -254,7 +274,7 @@ func (c *cluster) getHost() *host {
 	l := uint32(len(c.hosts))
 	idx = idx % l
 	idle := c.hosts[idx]
-	idleN := idle.runningQueries()
+	idleN := idle.load()
 
 	if idleN == 0 && idle.isActive() {
 		return idle
@@ -267,7 +287,7 @@ func (c *cluster) getHost() *host {
 		if !h.isActive() {
 			continue
 		}
-		n := h.runningQueries()
+		n := h.load()
 		if n == 0 {
 			return h
 		}
@@ -281,12 +301,29 @@ func (c *cluster) getHost() *host {
 	return idle
 }
 
-type queryCounter struct {
+type rateLimiter struct {
+	counter
+}
+
+func (rl *rateLimiter) run() {
+	proxy.reloadWG.Add(1)
+	for {
+		select {
+		case <-proxy.reloadSignal:
+			proxy.reloadWG.Done()
+			return
+		case <-time.After(time.Minute):
+			atomic.StoreUint32(&rl.value, 0)
+		}
+	}
+}
+
+type counter struct {
 	value uint32
 }
 
-func (qc *queryCounter) runningQueries() uint32 { return atomic.LoadUint32(&qc.value) }
+func (c *counter) load() uint32 { return atomic.LoadUint32(&c.value) }
 
-func (qc *queryCounter) inc() uint32 { return atomic.AddUint32(&qc.value, 1) }
+func (c *counter) dec() { atomic.AddUint32(&c.value, ^uint32(0)) }
 
-func (qc *queryCounter) dec() { atomic.AddUint32(&qc.value, ^uint32(0)) }
+func (c *counter) inc() uint32 { return atomic.AddUint32(&c.value, 1) }

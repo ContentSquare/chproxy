@@ -357,6 +357,10 @@ type User struct {
 	// Whether to deny https connections for this user
 	DenyHTTPS bool `yaml:"deny_https,omitempty"`
 
+	// Maximum number of requests per minute for user
+	// if omitted or zero - no limits would be applied
+	ReqsPerMin uint32 `yaml:"requests_per_minute,omitempty"`
+
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
 }
@@ -474,6 +478,10 @@ type ClusterUser struct {
 	// Maximum duration of query executing for user
 	// if omitted or zero - no limits would be applied
 	MaxExecutionTime time.Duration `yaml:"max_execution_time,omitempty"`
+
+	// Maximum number of requests per minute for user
+	// if omitted or zero - no limits would be applied
+	ReqsPerMin uint32 `yaml:"requests_per_minute,omitempty"`
 
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`

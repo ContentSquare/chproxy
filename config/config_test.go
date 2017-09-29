@@ -68,6 +68,7 @@ func TestLoadConfig(t *testing.T) {
 							},
 							{
 								Name:                 "web",
+								ReqsPerMin:           10,
 								MaxConcurrentQueries: 4,
 								MaxExecutionTime:     time.Duration(time.Second * 10),
 							},
@@ -77,11 +78,12 @@ func TestLoadConfig(t *testing.T) {
 				},
 				Users: []User{
 					{
-						Name:      "web",
-						Password:  "password",
-						ToCluster: "second cluster",
-						ToUser:    "web",
-						DenyHTTP:  true,
+						Name:       "web",
+						Password:   "password",
+						ToCluster:  "second cluster",
+						ToUser:     "web",
+						DenyHTTP:   true,
+						ReqsPerMin: 4,
 					},
 					{
 						Name:                 "default",

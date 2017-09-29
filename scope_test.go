@@ -34,16 +34,16 @@ func TestRunningQueries(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 	check := func(uq, cuq, hq uint32) {
-		if s.user.runningQueries() != uq {
-			t.Fatalf("expected runningQueries for user: %d; got: %d", uq, s.user.runningQueries())
+		if s.user.queryCounter.load() != uq {
+			t.Fatalf("expected runningQueries for user: %d; got: %d", uq, s.user.queryCounter.load())
 		}
 
-		if s.clusterUser.runningQueries() != cuq {
-			t.Fatalf("expected runningQueries for cluster user: %d; got: %d", cuq, s.clusterUser.runningQueries())
+		if s.clusterUser.queryCounter.load() != cuq {
+			t.Fatalf("expected runningQueries for cluster user: %d; got: %d", cuq, s.clusterUser.queryCounter.load())
 		}
 
-		if s.host.runningQueries() != hq {
-			t.Fatalf("expected runningQueries for host: %d; got: %d", hq, s.host.runningQueries())
+		if s.host.load() != hq {
+			t.Fatalf("expected runningQueries for host: %d; got: %d", hq, s.host.load())
 		}
 	}
 
@@ -156,10 +156,10 @@ func TestGetHost(t *testing.T) {
 
 	// penalize 2nd host
 	h = c.hosts[1]
+	expRunningQueries := penaltySize + h.load()
 	h.penalize()
-	expRunningQueries := penaltySize + h.queryCounter.runningQueries()
-	if h.runningQueries() != expRunningQueries {
-		t.Fatalf("got host %q running queries %d; expected %d", h.addr.Host, h.runningQueries(), expRunningQueries)
+	if h.load() != expRunningQueries {
+		t.Fatalf("got host %q running queries %d; expected %d", h.addr.Host, h.load(), expRunningQueries)
 	}
 
 	// step: 6
@@ -187,14 +187,14 @@ func TestPenalize(t *testing.T) {
 		addr: &url.URL{Host: "127.0.0.1"},
 	}
 	exp := uint32(0)
-	if h.runningQueries() != exp {
-		t.Fatalf("got running queries %d; expected %d", h.runningQueries(), exp)
+	if h.load() != exp {
+		t.Fatalf("got running queries %d; expected %d", h.load(), exp)
 	}
 
 	h.penalize()
 	exp = uint32(penaltySize)
-	if h.runningQueries() != exp {
-		t.Fatalf("got running queries %d; expected %d", h.runningQueries(), exp)
+	if h.load() != exp {
+		t.Fatalf("got running queries %d; expected %d", h.load(), exp)
 	}
 
 	// do more penalties than `penaltyMaxSize` allows
@@ -203,15 +203,15 @@ func TestPenalize(t *testing.T) {
 		h.penalize()
 	}
 	exp = uint32(penaltyMaxSize)
-	if h.runningQueries() != exp {
-		t.Fatalf("got running queries %d; expected %d", h.runningQueries(), exp)
+	if h.load() != exp {
+		t.Fatalf("got running queries %d; expected %d", h.load(), exp)
 	}
 
 	// but still might increased
 	h.inc()
 	exp++
-	if h.runningQueries() != exp {
-		t.Fatalf("got running queries %d; expected %d", h.runningQueries(), exp)
+	if h.load() != exp {
+		t.Fatalf("got running queries %d; expected %d", h.load(), exp)
 	}
 }
 
@@ -220,9 +220,9 @@ func TestRunningQueriesConcurrent(t *testing.T) {
 		maxConcurrentQueries: 10,
 	}
 	f := func() {
-		eu.inc()
-		eu.runningQueries()
-		eu.dec()
+		eu.queryCounter.inc()
+		eu.queryCounter.load()
+		eu.queryCounter.dec()
 	}
 	if err := testConcurrent(f, 1000); err != nil {
 		t.Fatalf("concurrent test err: %s", err)

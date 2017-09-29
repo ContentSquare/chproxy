@@ -2,9 +2,9 @@ package main
 
 import (
 	"crypto/tls"
+	"net"
 	"net/http"
 	"testing"
-	"net"
 )
 
 func TestServeTLS(t *testing.T) {

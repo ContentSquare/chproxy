@@ -24,6 +24,7 @@ users:
     to_cluster: "second cluster"
     to_user: "web"
     deny_http: true
+    requests_per_minute: 4
 
   - name: "default"
     to_cluster: "second cluster"
@@ -58,3 +59,4 @@ clusters:
       - name: "web"
         max_concurrent_queries: 4
         max_execution_time: 10s
+        requests_per_minute: 10

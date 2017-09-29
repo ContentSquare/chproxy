@@ -22,7 +22,8 @@ func newReverseProxy() *reverseProxy {
 			Director: func(*http.Request) {},
 			ErrorLog: log.ErrorLogger,
 		},
-		stopCheckers: make(chan struct{}),
+		reloadSignal: make(chan struct{}),
+		reloadWG:     sync.WaitGroup{},
 	}
 }
 
@@ -44,8 +45,8 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	requestSum.With(label).Inc()
 
 	if err = s.inc(); err != nil {
-		concurrentLimitExcess.With(label).Inc()
-		respondWithErr(rw, err)
+		limitExcess.With(label).Inc()
+		respondWith(rw, err, http.StatusTooManyRequests)
 		return
 	}
 	defer s.dec()
@@ -130,6 +131,7 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 				password:             u.Password,
 				maxConcurrentQueries: u.MaxConcurrentQueries,
 				maxExecutionTime:     u.MaxExecutionTime,
+				reqsPerMin:           u.ReqsPerMin,
 			}
 		}
 
@@ -168,33 +170,23 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 			password:             u.Password,
 			maxConcurrentQueries: u.MaxConcurrentQueries,
 			maxExecutionTime:     u.MaxExecutionTime,
+			reqsPerMin:           u.ReqsPerMin,
 		}
 	}
 
 	// if we are here then there is no errors with config
-	// let's stop health-checking goroutines and reset metrics
-	close(rp.stopCheckers)
-	// wait while all goroutines will stop
-	rp.checkersDone.Wait()
-	hostHealth.Reset()
-
-	// run health-checking for new configuration
-	rp.stopCheckers = make(chan struct{})
-	for k, c := range clusters {
-		for _, host := range c.hosts {
-			h := host
-			go func() {
-				rp.checkersDone.Add(1)
-				h.runHeartbeat(c.heartBeatInterval, k, rp.stopCheckers)
-				rp.checkersDone.Done()
-			}()
-		}
-	}
+	// send signal for all listeners that proxy is going to reload
+	close(rp.reloadSignal)
+	// and recover it for further possible reloads
+	rp.reloadWG.Wait()
+	rp.reloadSignal = make(chan struct{})
 
 	// update configuration
 	rp.mu.Lock()
 	rp.clusters = clusters
+	go rp.runHeartbeat()
 	rp.users = users
+	go rp.runLimiters()
 	rp.mu.Unlock()
 
 	return nil
@@ -202,9 +194,8 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 
 type reverseProxy struct {
 	*httputil.ReverseProxy
-
-	stopCheckers chan struct{}
-	checkersDone sync.WaitGroup
+	reloadSignal chan struct{}
+	reloadWG     sync.WaitGroup
 
 	mu       sync.Mutex
 	users    map[string]*user
@@ -246,6 +237,29 @@ func (rp *reverseProxy) getScope(req *http.Request) (*scope, error) {
 		return nil, fmt.Errorf("error while creating scope for cluster %q: %s", u.toCluster, err)
 	}
 	return s, nil
+}
+
+func (rp reverseProxy) runLimiters() {
+	for _, c := range rp.clusters {
+		for _, user := range c.users {
+			if user.reqsPerMin > 0 {
+				go user.rateLimiter.run()
+			}
+		}
+	}
+	for _, user := range rp.users {
+		if user.reqsPerMin > 0 {
+			go user.rateLimiter.run()
+		}
+	}
+}
+
+func (rp reverseProxy) runHeartbeat() {
+	for k, c := range rp.clusters {
+		for _, host := range c.hosts {
+			go host.runHeartbeat(c.heartBeatInterval, k)
+		}
+	}
 }
 
 type cachedWriter struct {

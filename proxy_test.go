@@ -153,7 +153,7 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 		},
 		{
 			name:     "max concurrent queries for cluster user",
-			expected: "limits for cluster user \"web\" are exceeded: maxConcurrentQueries limit: 1",
+			expected: "limits for cluster user \"web\" are exceeded: max_concurrent_queries limit: 1",
 			cfg:      goodCfg,
 			f: func(p *reverseProxy) string {
 				p.clusters["cluster"].users["web"].maxConcurrentQueries = 1
@@ -193,7 +193,7 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 		},
 		{
 			name:     "max concurrent queries for user",
-			expected: "limits for user \"default\" are exceeded: maxConcurrentQueries limit: 1",
+			expected: "limits for user \"default\" are exceeded: max_concurrent_queries limit: 1",
 			cfg:      goodCfg,
 			f: func(p *reverseProxy) string {
 				p.users["default"].maxConcurrentQueries = 1
