@@ -192,6 +192,27 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 				rp.reloadWG.Done()
 			}()
 		}
+		for _, user := range c.users {
+			u := user
+			if u.reqsPerMin > 0 {
+				go func() {
+					rp.reloadWG.Add(1)
+					u.rateLimiter.run(rp.reloadSignal)
+					rp.reloadWG.Done()
+				}()
+			}
+		}
+	}
+
+	for _, user := range rp.users {
+		u := user
+		if u.reqsPerMin > 0 {
+			go func() {
+				rp.reloadWG.Add(1)
+				u.rateLimiter.run(rp.reloadSignal)
+				rp.reloadWG.Done()
+			}()
+		}
 	}
 
 	// update configuration
