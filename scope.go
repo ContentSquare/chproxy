@@ -199,8 +199,7 @@ type host struct {
 	counter
 }
 
-func (h *host) runHeartbeat(interval time.Duration, cluster string) {
-	proxy.reloadWG.Add(1)
+func (h *host) runHeartbeat(interval time.Duration, cluster string, done <-chan struct{}) {
 	label := prometheus.Labels{
 		"cluster": cluster,
 		"host":    h.addr.Host,
@@ -218,8 +217,7 @@ func (h *host) runHeartbeat(interval time.Duration, cluster string) {
 	heartbeat()
 	for {
 		select {
-		case <-proxy.reloadSignal:
-			proxy.reloadWG.Done()
+		case <-done:
 			return
 		case <-time.After(interval):
 			heartbeat()
@@ -305,12 +303,10 @@ type rateLimiter struct {
 	counter
 }
 
-func (rl *rateLimiter) run() {
-	proxy.reloadWG.Add(1)
+func (rl *rateLimiter) run(done <-chan struct{}) {
 	for {
 		select {
-		case <-proxy.reloadSignal:
-			proxy.reloadWG.Done()
+		case <-done:
 			return
 		case <-time.After(time.Minute):
 			atomic.StoreUint32(&rl.value, 0)
