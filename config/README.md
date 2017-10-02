@@ -212,7 +212,7 @@ clusters:
 Chproxy allows to setup web-proxy with `HTTP` or `HTTPS` protocols. [HTTPS](#https_config) might be configured with
 custom certificate or with automated [Let's Encrypt](https://letsencrypt.org/) certificates.
 
-Access to proxy can be [limitied](#networks) by list of IPs or IP masks. This option can be applied to [HTTP](#http_config), [HTTPS](#https_config), [Metrics](#metric_config), [user](#user_config) or [cluster-user](#cluster_user_config).
+Access to proxy can be [limitied](#networks) by list of IPs or IP masks. This option can be applied to [HTTP](#http_config), [HTTPS](#https_config), [metrics](#metrics_config), [user](#user_config) or [cluster-user](#cluster_user_config).
 
 ### Users
 There are two types of users: `in-users` (in global section) and `out-users` (in cluster section).
@@ -395,7 +395,7 @@ key_file: <string> | optional
 autocert: <autocert_config> | optional
 ```
 
-##### <autocert_config>
+#### <autocert_config>
 ```yml
 # Path to the directory where autocert certs are cached
 cache_dir: <string>
