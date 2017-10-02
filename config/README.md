@@ -1,5 +1,15 @@
 # chproxy [![Go Report Card](https://goreportcard.com/badge/github.com/Vertamedia/chproxy)](https://goreportcard.com/report/github.com/Vertamedia/chproxy)
 
+TODO:
+- billions of connections
+- hack me plz
+- rate limit explanation
+- add dashboard for monitoring
+- renew metrics description and explain how to use them
+- mention about URL params purifying
+
+
+
 Chproxy, is an http proxy for [ClickHouse](https://ClickHouse.yandex) database. It provides the following features:
 
 - May proxy requests to multiple distinct `ClickHouse` clusters depending on the input user. For instance, requests from `appserver` user may go to `stats-raw` cluster, while requests from `reportserver` user may go to `stats-aggregate` cluster.
