@@ -107,8 +107,9 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	requestDuration.With(label).Observe(since)
 }
 
-// Applies provided config to reverseProxy
+// ApplyConfig applies provided config to reverseProxy obj
 // New config will be applied only if non-nil error returned
+// Otherwise old version will be kept
 func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 	clusters := make(map[string]*cluster, len(cfg.Clusters))
 	for _, c := range cfg.Clusters {
@@ -129,9 +130,9 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 			clusterUsers[u.Name] = &clusterUser{
 				name:                 u.Name,
 				password:             u.Password,
+				reqPerMin:            u.ReqPerMin,
 				maxConcurrentQueries: u.MaxConcurrentQueries,
 				maxExecutionTime:     u.MaxExecutionTime,
-				reqsPerMin:           u.ReqsPerMin,
 			}
 		}
 
@@ -139,12 +140,12 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 			return fmt.Errorf("cluster %q already exists", c.Name)
 		}
 		cluster := &cluster{
-			hosts:             hosts,
-			users:             clusterUsers,
-			heartBeatInterval: c.HeartBeatInterval,
+			hosts:                 hosts,
+			users:                 clusterUsers,
+			heartBeatInterval:     c.HeartBeatInterval,
+			killQueryUserName:     c.KillQueryUser.Name,
+			killQueryUserPassword: c.KillQueryUser.Password,
 		}
-		cluster.killQueryUserName = c.KillQueryUser.Name
-		cluster.killQueryUserPassword = c.KillQueryUser.Password
 		clusters[c.Name] = cluster
 	}
 
@@ -161,55 +162,68 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 			return fmt.Errorf("user %q already exists", u.Name)
 		}
 		users[u.Name] = &user{
-			toCluster:            u.ToCluster,
+			name:                 u.Name,
+			password:             u.Password,
 			toUser:               u.ToUser,
 			denyHTTP:             u.DenyHTTP,
 			denyHTTPS:            u.DenyHTTPS,
+			toCluster:            u.ToCluster,
+			reqPerMin:            u.ReqPerMin,
 			allowedNetworks:      u.AllowedNetworks,
-			name:                 u.Name,
-			password:             u.Password,
-			maxConcurrentQueries: u.MaxConcurrentQueries,
 			maxExecutionTime:     u.MaxExecutionTime,
-			reqsPerMin:           u.ReqsPerMin,
+			maxConcurrentQueries: u.MaxConcurrentQueries,
 		}
 	}
 
-	// if we are here then there is no errors with config
+	// if we are here then there are no errors with new config
 	// send signal for all listeners that proxy is going to reload
 	close(rp.reloadSignal)
 	// wait till all goroutines will stop
 	rp.reloadWG.Wait()
+	// reset previous hostHealth to remove old hosts
 	hostHealth.Reset()
-
-	// and recover it for further possible reloads
+	// recover channel for further reloads
 	rp.reloadSignal = make(chan struct{})
+
+	// run checkers
 	for k, c := range clusters {
 		for _, host := range c.hosts {
 			h := host
+			label := prometheus.Labels{
+				"cluster": k,
+				"host":    h.addr.Host,
+			}
 			go func() {
 				rp.reloadWG.Add(1)
-				h.runHeartbeat(c.heartBeatInterval, k, rp.reloadSignal)
+				h.runHeartbeat(c.heartBeatInterval, label, rp.reloadSignal)
 				rp.reloadWG.Done()
 			}()
 		}
 		for _, user := range c.users {
 			u := user
-			if u.reqsPerMin > 0 {
+			if u.reqPerMin > 0 {
+				label := prometheus.Labels{
+					"cluster": k,
+					"user":    u.name,
+				}
 				go func() {
 					rp.reloadWG.Add(1)
-					u.rateLimiter.run(rp.reloadSignal)
+					u.rateLimiter.run(label, rp.reloadSignal)
 					rp.reloadWG.Done()
 				}()
 			}
 		}
 	}
-
-	for _, user := range rp.users {
+	for _, user := range users {
 		u := user
-		if u.reqsPerMin > 0 {
+		if u.reqPerMin > 0 {
+			label := prometheus.Labels{
+				"user":    u.name,
+				"cluster": "",
+			}
 			go func() {
 				rp.reloadWG.Add(1)
-				u.rateLimiter.run(rp.reloadSignal)
+				u.rateLimiter.run(label, rp.reloadSignal)
 				rp.reloadWG.Done()
 			}()
 		}
@@ -230,7 +244,7 @@ type reverseProxy struct {
 	reloadSignal chan struct{}
 	reloadWG     sync.WaitGroup
 
-	mu       sync.Mutex
+	mu       sync.RWMutex
 	users    map[string]*user
 	clusters map[string]*cluster
 }
@@ -238,8 +252,8 @@ type reverseProxy struct {
 func (rp *reverseProxy) getScope(req *http.Request) (*scope, error) {
 	name, password := getAuth(req)
 
-	rp.mu.Lock()
-	defer rp.mu.Unlock()
+	rp.mu.RLock()
+	defer rp.mu.RUnlock()
 
 	u, ok := rp.users[name]
 	if !ok {
@@ -272,6 +286,7 @@ func (rp *reverseProxy) getScope(req *http.Request) (*scope, error) {
 	return s, nil
 }
 
+// cache writer suppose to intercept headers set
 type cachedWriter struct {
 	http.ResponseWriter
 	statusCode int

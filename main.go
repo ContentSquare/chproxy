@@ -157,7 +157,7 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 		an := allowedNetworksMetrics.Load().(*config.Networks)
 		if !an.Contains(r.RemoteAddr) {
 			err := fmt.Errorf("connections to /metrics are not allowed from %s", r.RemoteAddr)
-			r.Close = true
+			rw.Header().Set("Connection", "close")
 			respondWith(rw, err, http.StatusForbidden)
 			return
 		}
@@ -176,7 +176,7 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if err != nil {
-			r.Close = true
+			rw.Header().Set("Connection", "close")
 			respondWith(rw, err, http.StatusForbidden)
 			return
 		}

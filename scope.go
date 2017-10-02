@@ -65,25 +65,26 @@ func (s *scope) inc() error {
 		err = fmt.Errorf("limits for cluster user %q are exceeded: max_concurrent_queries limit: %d",
 			s.clusterUser.name, s.clusterUser.maxConcurrentQueries)
 	}
-	if s.user.reqsPerMin > 0 && uRateLimit > s.user.reqsPerMin {
+	if s.user.reqPerMin > 0 && uRateLimit > s.user.reqPerMin {
 		err = fmt.Errorf("rate limit for user %q is exceeded: requests_per_minute limit: %d",
-			s.user.name, s.user.reqsPerMin)
+			s.user.name, s.user.reqPerMin)
 	}
-	if s.clusterUser.reqsPerMin > 0 && cRateLimit > s.clusterUser.reqsPerMin {
+	if s.clusterUser.reqPerMin > 0 && cRateLimit > s.clusterUser.reqPerMin {
 		err = fmt.Errorf("rate limit for cluster user %q is exceeded: requests_per_minute limit: %d",
-			s.clusterUser.name, s.clusterUser.reqsPerMin)
+			s.clusterUser.name, s.clusterUser.reqPerMin)
 	}
 	if err != nil {
 		s.dec()
-		s.user.rateLimiter.dec()
-		s.clusterUser.rateLimiter.dec()
 		return err
 	}
 
 	return nil
 }
 
-// decrement only runningQuery because rateLimiter will be reset automatically
+// decrement only queryCounter because rateLimiter will be reset automatically
+// and to avoid situation when rateLimiter will be reset before decrement,
+// which would lead to negative values, rateLimiter will be increased for every request
+// even if maxConcurrentQueries already generated an error
 func (s *scope) dec() {
 	s.host.dec()
 	s.user.queryCounter.dec()
@@ -171,7 +172,7 @@ type user struct {
 	name, password       string
 	maxExecutionTime     time.Duration
 	maxConcurrentQueries uint32
-	reqsPerMin           uint32
+	reqPerMin            uint32
 
 	rateLimiter  rateLimiter
 	queryCounter counter
@@ -181,7 +182,7 @@ type clusterUser struct {
 	name, password       string
 	maxExecutionTime     time.Duration
 	maxConcurrentQueries uint32
-	reqsPerMin           uint32
+	reqPerMin            uint32
 
 	rateLimiter  rateLimiter
 	queryCounter counter
@@ -191,7 +192,7 @@ type host struct {
 	// counter of unsuccessful requests to decrease
 	// host priority
 	penalty uint32
-	// if equal to 0 then wouldn't be returned from getHost()
+	// if equal to 0 then this obj wouldn't be returned from getHost()
 	active uint32
 	// host address
 	addr *url.URL
@@ -199,11 +200,7 @@ type host struct {
 	counter
 }
 
-func (h *host) runHeartbeat(interval time.Duration, cluster string, done <-chan struct{}) {
-	label := prometheus.Labels{
-		"cluster": cluster,
-		"host":    h.addr.Host,
-	}
+func (h *host) runHeartbeat(interval time.Duration, label prometheus.Labels, done <-chan struct{}) {
 	heartbeat := func() {
 		if err := isHealthy(h.addr.String()); err == nil {
 			atomic.StoreUint32(&h.active, uint32(1))
@@ -303,12 +300,14 @@ type rateLimiter struct {
 	counter
 }
 
-func (rl *rateLimiter) run(done <-chan struct{}) {
+func (rl *rateLimiter) run(label prometheus.Labels, done <-chan struct{}) {
 	for {
 		select {
 		case <-done:
 			return
 		case <-time.After(time.Minute):
+			v := atomic.LoadUint32(&rl.value)
+			requestPerMin.With(label).Set(float64(v))
 			atomic.StoreUint32(&rl.value, 0)
 		}
 	}

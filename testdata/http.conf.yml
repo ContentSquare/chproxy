@@ -7,7 +7,11 @@ users:
   - name: "default"
     to_cluster: "default"
     to_user: "default"
+    requests_per_minute: 4
 
 clusters:
   - name: "default"
     nodes: ["127.0.0.1:8123"]
+    users:
+      - name: "default"
+        requests_per_minute: 8

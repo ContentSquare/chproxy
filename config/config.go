@@ -359,7 +359,7 @@ type User struct {
 
 	// Maximum number of requests per minute for user
 	// if omitted or zero - no limits would be applied
-	ReqsPerMin uint32 `yaml:"requests_per_minute,omitempty"`
+	ReqPerMin uint32 `yaml:"requests_per_minute,omitempty"`
 
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
@@ -481,7 +481,7 @@ type ClusterUser struct {
 
 	// Maximum number of requests per minute for user
 	// if omitted or zero - no limits would be applied
-	ReqsPerMin uint32 `yaml:"requests_per_minute,omitempty"`
+	ReqPerMin uint32 `yaml:"requests_per_minute,omitempty"`
 
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
