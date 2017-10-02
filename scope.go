@@ -85,6 +85,7 @@ func (s *scope) inc() error {
 // and to avoid situation when rateLimiter will be reset before decrement,
 // which would lead to negative values, rateLimiter will be increased for every request
 // even if maxConcurrentQueries already generated an error
+// also it allows to show a real amount of requests by `requests_per_minute` metric
 func (s *scope) dec() {
 	s.host.dec()
 	s.user.queryCounter.dec()

@@ -116,8 +116,7 @@ func (s *Server) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // HTTP describes configuration for server to listen HTTP connections
 type HTTP struct {
 	// TCP address to listen to for http
-	// Default is `:8080`
-	ListenAddr string `yaml:"listen_addr,omitempty"`
+	ListenAddr string `yaml:"listen_addr"`
 
 	NetworksOrGroups NetworksOrGroups `yaml:"allowed_networks,omitempty"`
 
