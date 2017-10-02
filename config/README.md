@@ -16,12 +16,12 @@ Chproxy, is an http proxy for [ClickHouse](https://ClickHouse.yandex) database. 
 - Supports automatic HTTPS certificate issuing and renewal via [Let’s Encrypt](https://letsencrypt.org/).
 - May proxy requests to each configured cluster via either HTTP or HTTPS.
 - Prepends User-Agent request header with remote/local ip and input username before proxying it to `ClickHouse`, so this info may be queried from `system.query_log.http_user_agent`.
-- Exposes [metrics](#Metrics) in [prometheus text format](https://prometheus.io/docs/instrumenting/exposition_formats/).
+- Exposes [metrics](#metrics) in [prometheus text format](https://prometheus.io/docs/instrumenting/exposition_formats/).
 - Configuration may be updated without restart - just send `SIGHUP` signal to `chproxy` process.
 - Easy to manage and run - just pass config file path to a single `chproxy` binary.
 - Easy to configure:
 ```yml
-		server:
+server:
   http:
       listen_addr: ":9090"
       allowed_networks: ["127.0.0.1/24"]
@@ -41,21 +41,21 @@ clusters:
 ## Why it was created
 
 We faced a situation when `ClickHouse` exceeded `max_execution_time` and `max_concurrent_queries` limits due to various reasons:
-`max_execution_time` may be exceeded due to the current implementation deficiencies.
-`max_concurrent_queries` works only on a per-node basis. There is no way to limit the number of concurrent queries on a cluster if queries are spread across cluster nodes.
+- `max_execution_time` may be exceeded due to the current implementation deficiencies.
+- `max_concurrent_queries` works only on a per-node basis. There is no way to limit the number of concurrent queries on a cluster if queries are spread across cluster nodes.
 
-This led to high resource usage on all the cluster nodes. We had to kill those queries manually (since `ClickHouse` didn't kill them by itself) and to launch a dedicated http proxy for sending all the requests to a dedicated `ClickHouse` node under the given user. Now we had two distinct http proxies in front of our `ClickHouse` cluster - one for spreading `INSERT`s among cluster nodes and another one for sending `SELECT`s to a dedicated node where limits may be enforced. This was fragile and inconvenient to manage, so `chproxy` has been created :)
+This led to high resource usage on all the cluster nodes. We had to kill those queries manually (since `ClickHouse` didn't kill them by itself) and to launch a dedicated http proxy for sending all the requests to a dedicated `ClickHouse` node under the given user. Now we had two distinct http proxies in front of our `ClickHouse` cluster - one for spreading `INSERTs` among cluster nodes and another one for sending `SELECTs` to a dedicated node where limits may be enforced. This was fragile and inconvenient to manage, so `chproxy` has been created :)
 
 
 ## Use cases
 
-### Spread `INSERT`s among cluster shards
+### Spread `INSERTs` among cluster shards
 
-Usually `INSERT`s are sent from application servers located in a limited number of subnetworks. `INSERT`s from other subnetworks must be denied.
+Usually `INSERTs` are sent from application servers located in a limited number of subnetworks. `INSERTs` from other subnetworks must be denied.
 
-All the `INSERT`s may be routed to a distributed table on a single node. But this increases resource usage (CPU and network) on the node comparing to other nodes, since it must parse each row from each `INSERT` and route it to the corresponding node (shard).
+All the `INSERTs` may be routed to a distributed table on a single node. But this increases resource usage (CPU and network) on the node comparing to other nodes, since it must parse each row from each `INSERT` and route it to the corresponding node (shard).
 
-It would be better to spread `INSERT`s among available shards and to route them directly to per-shard tables instead of distributed tables. The routing logic may be embedded either directly into applications generating `INSERT`s or may be moved to a proxy. Proxy approach is better since it allows re-configuring `ClickHouse` cluster without modification of application configs and without application downtime.
+It would be better to spread `INSERTs` among available shards and to route them directly to per-shard tables instead of distributed tables. The routing logic may be embedded either directly into applications generating `INSERTs` or may be moved to a proxy. Proxy approach is better since it allows re-configuring `ClickHouse` cluster without modification of application configs and without application downtime.
 
 The following minimal `chproxy` config may be used for this use case:
 ```yml
@@ -80,13 +80,13 @@ clusters:
     ]
 ```
 
-### Spread `SELECT`s from reporting apps among cluster nodes
+### Spread `SELECTs` from reporting apps among cluster nodes
 
-Reporting app servers are usually located in a limited number of subnetworkds. Reporting apps usually generate various customer reports from `SELECT` query results. The load generated by such `SELECT`s on `ClickHouse` cluster may vary depending on the number of online customers and on the generated reports. It is obvious that the load must be limited in order to prevent cluster overload.
+Reporting app servers are usually located in a limited number of subnetworkds. Reporting apps usually generate various customer reports from `SELECT` query results. The load generated by such `SELECTs` on `ClickHouse` cluster may vary depending on the number of online customers and on the generated reports. It is obvious that the load must be limited in order to prevent cluster overload.
 
-All the `SELECT`s may be routed to a distributed table on a single node. But this increases resource usage (RAM, CPU and network) on the node comparing to other nodes, since it must do final aggregation, sorting and filtering for the data obtained from nodes (shards).
+All the `SELECTs` may be routed to a distributed table on a single node. But this increases resource usage (RAM, CPU and network) on the node comparing to other nodes, since it must do final aggregation, sorting and filtering for the data obtained from nodes (shards).
 
-It would be better to create identical distributed table on each shard and spread `SELECT`s among all the available shards.
+It would be better to create identical distributed table on each shard and spread `SELECTs` among all the available shards.
 
 The following minimal `chproxy` config may be used for this use case:
 ```yml
@@ -209,10 +209,10 @@ clusters:
 ## Configuration
 
 ### Server
-Chproxy allows to setup web-proxy with `HTTP` or `HTTPS` protocols. [HTTPS](#<https_config>) might be configured with
+Chproxy allows to setup web-proxy with `HTTP` or `HTTPS` protocols. [HTTPS](#https_config) might be configured with
 custom certificate or with automated [Let's Encrypt](https://letsencrypt.org/) certificates.
 
-Access to proxy can be [limitied](#networks) by list of IPs or IP masks. This option can be applied to [HTTP](#<http_config>), [HTTPS](#<https_config>), [Metrics](#<metric_config>), [user](#<user_config>) or [cluster-user](#<cluster_user_config>).
+Access to proxy can be [limitied](#networks) by list of IPs or IP masks. This option can be applied to [HTTP](#http_config), [HTTPS](#https_config), [Metrics](#metric_config), [user](#user_config) or [cluster-user](#cluster_user_config).
 
 ### Users
 There are two types of users: `in-users` (in global section) and `out-users` (in cluster section).
@@ -225,7 +225,7 @@ And two applications which are `reading` from ClickHouse. So we are creating two
 This will help to avoid situation when one application will use all 4-request limit.
 
 
-All requests to CHProxy must be authorized with credentials from [user_config](#<user_config>). Credentials can be passed
+All requests to CHProxy must be authorized with credentials from [user_config](#user_config). Credentials can be passed
 via BasicAuth or via URL `user` and `password` params. Limits for `in-users` and `out-users` are independent.
 
 ### Clusters
@@ -240,7 +240,7 @@ from the list until connection will be restored. Such behavior must help to redu
 
 
 If some of proxied queries through cluster will run out of `max_execution_time` limit, proxy will try to kill them.
-But this is possible only if `cluster` configured with [kill_query_user](#<kill_query_user_config>)
+But this is possible only if `cluster` configured with [kill_query_user](#kill_query_user_config)
 
 
 If `cluster`'s [users](#cluster_user_config) are not specified, it means that there is only a "default" user with no limits.
@@ -501,15 +501,15 @@ password: <string> | optional
 
 ## Metrics
 Metrics are exposed via [Prometheus](https://prometheus.io/) at `/metrics` path
-Name | Type | Description | Labels
------------- | -------------
-status_codes_total | Counter |Distribution by status codes | `user`, `cluster_user`, `host`, `code`
-request_sum_total | Counter | Total number of sent requests | `user`, `cluster_user`, `host`
-request_success_total | Counter | Total number of sent success requests | `user`, `cluster_user`, `host`
-request_duration_seconds | Summary | Request duration | `user`, `cluster_user`, `host`
-concurrent_limit_excess_total | Counter | Total number of max_concurrent_queries excess | `user`, `cluster_user`, `host`
-host_penalties_total | Counter | Total number of given penalties by host | `user`, `cluster_user`, `host`
-host_health | Gauge | Health state of hosts by clusters | `cluster_user`, `host`
-good_requests_total | Counter | Total number of proxy requests |
-bad_requests_total | Counter | Total number of unsupported requests |
+| Name | Type | Description | Labels|
+| ---- | ---- | ---- | ---- |
+| status_codes_total | Counter |Distribution by status codes | `user`, `cluster_user`, `host`, `code`|
+| request_sum_total | Counter | Total number of sent requests | `user`, `cluster_user`, `host`|
+| request_success_total | Counter | Total number of sent success requests | `user`, `cluster_user`, `host`|
+| request_duration_seconds | Summary | Request duration | `user`, `cluster_user`, `host`|
+| concurrent_limit_excess_total | Counter | Total number of max_concurrent_queries excess | `user`, `cluster_user`, `host`|
+| host_penalties_total | Counter | Total number of given penalties by host | `user`, `cluster_user`, `host`|
+| host_health | Gauge | Health state of hosts by clusters | `cluster_user`, `host`|
+| good_requests_total | Counter | Total number of proxy requests ||
+| bad_requests_total | Counter | Total number of unsupported requests ||
 
