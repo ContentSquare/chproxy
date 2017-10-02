@@ -17,16 +17,16 @@ Chproxy, is an http proxy for [ClickHouse](https://ClickHouse.yandex) database. 
 - May limit access to `chproxy` via IP/IP-mask lists.
 - May independently limit access for each input user via IP/IP-mask lists.
 - May limit per-user query duration. Timed out queries are forcibly killed via `KILL QUERY` request.
-- May limit per-user requests per minute amount.
+- May limit per-user requests per minute rate.
 - May limit per-user number of concurrent requests.
 - Query duration, concurrent requests and request per minute limits may be independently set for each input user and for each per-cluster user.
 - Evenly spreads requests among cluster nodes using `least loaded` + `round robin` technique.
 - Monitors node health and prevents from sending requests to unhealthy nodes.
-- May accept incoming requests via either HTTP or HTTPS.
+- May accept incoming requests via HTTP and HTTPS.
 - Supports automatic HTTPS certificate issuing and renewal via [Let’s Encrypt](https://letsencrypt.org/).
 - May proxy requests to each configured cluster via either HTTP or HTTPS.
-- Prepends User-Agent request header with remote/local ip and input username before proxying it to `ClickHouse`, so this info may be queried from `system.query_log.http_user_agent`.
-- Exposes [metrics](#metrics) in [prometheus text format](https://prometheus.io/docs/instrumenting/exposition_formats/).
+- Prepends User-Agent request header with remote/local address and input username before proxying it to `ClickHouse`, so this info may be queried from [system.query_log.http_user_agent](https://github.com/yandex/ClickHouse/issues/847).
+- Exposes various useful [metrics](#metrics) in [prometheus text format](https://prometheus.io/docs/instrumenting/exposition_formats/).
 - Configuration may be updated without restart - just send `SIGHUP` signal to `chproxy` process.
 - Easy to manage and run - just pass config file path to a single `chproxy` binary.
 - Easy to configure:
@@ -34,14 +34,14 @@ Chproxy, is an http proxy for [ClickHouse](https://ClickHouse.yandex) database. 
 server:
   http:
       listen_addr: ":9090"
-      allowed_networks: ["127.0.0.1/24"]
+      allowed_networks: ["127.0.0.0/24"]
 
 users:
   - name: "default"
     to_cluster: "default"
     to_user: "default"
 
-# by default each cluster has user `default` which can be overridden by section `users`
+# by default each cluster has `default` user which can be overridden by section `users`
 clusters:
   - name: "default"
     nodes: ["127.0.0.1:8123"]
@@ -51,10 +51,10 @@ clusters:
 ## Why it was created
 
 We faced a situation when `ClickHouse` exceeded `max_execution_time` and `max_concurrent_queries` limits due to various reasons:
-- `max_execution_time` may be exceeded due to the current implementation deficiencies.
+- `max_execution_time` may be exceeded due to the current [implementation deficiencies](https://github.com/yandex/ClickHouse/issues/217).
 - `max_concurrent_queries` works only on a per-node basis. There is no way to limit the number of concurrent queries on a cluster if queries are spread across cluster nodes.
 
-This led to high resource usage on all the cluster nodes. We had to kill those queries manually (since `ClickHouse` didn't kill them by itself) and to launch a dedicated http proxy for sending all the requests to a dedicated `ClickHouse` node under the given user. Now we had two distinct http proxies in front of our `ClickHouse` cluster - one for spreading `INSERTs` among cluster nodes and another one for sending `SELECTs` to a dedicated node where limits may be enforced. This was fragile and inconvenient to manage, so `chproxy` has been created :)
+This led to high resource usage on all the cluster nodes. We had to kill those queries manually (since `ClickHouse` didn't kill them by itself) and to launch a dedicated http proxy for sending all the requests to a dedicated `ClickHouse` node under the given user. Now we had two distinct http proxies in front of our `ClickHouse` cluster - one for spreading `INSERTs` among cluster nodes and another one for sending `SELECTs` to a dedicated node where limits may be enforced somehow. This was fragile and inconvenient to manage, so `chproxy` has been created :)
 
 
 ## Use cases
@@ -63,16 +63,18 @@ This led to high resource usage on all the cluster nodes. We had to kill those q
 
 Usually `INSERTs` are sent from application servers located in a limited number of subnetworks. `INSERTs` from other subnetworks must be denied.
 
-All the `INSERTs` may be routed to a distributed table on a single node. But this increases resource usage (CPU and network) on the node comparing to other nodes, since it must parse each row from each `INSERT` and route it to the corresponding node (shard).
+All the `INSERTs` may be routed to a distributed table on a single node. But this increases resource usage (CPU and network) on the node comparing to other nodes, since it must parse each row to be inserted and route it to the corresponding node (shard).
 
-It would be better to spread `INSERTs` among available shards and to route them directly to per-shard tables instead of distributed tables. The routing logic may be embedded either directly into applications generating `INSERTs` or may be moved to a proxy. Proxy approach is better since it allows re-configuring `ClickHouse` cluster without modification of application configs and without application downtime.
+It would be better to spread `INSERTs` among available shards and to route them directly to per-shard tables instead of distributed tables. The routing logic may be embedded either directly into applications generating `INSERTs` or may be moved to a proxy. Proxy approach is better since it allows re-configuring `ClickHouse` cluster without modification of application configs and without application downtime. Multiple identical proxies may be started on distinct servers for scalability and availability purposes.
 
 The following minimal `chproxy` config may be used for this use case:
 ```yml
 server:
   http:
       listen_addr: ":9090"
-      allowed_networks: ["10.10.10.1/24"]
+
+      # Networks with application servers.
+      allowed_networks: ["10.10.1.0/24"]
 
 users:
   - name: "insert"
@@ -81,7 +83,9 @@ users:
 
 clusters:
   - name: "stats-raw"
-#  requests will be spread in `round-robin` + `least-loaded` manner among nodes
+
+    # Requests are spread in `round-robin` + `least-loaded` fashion among nodes.
+    # Unreachable and unhealthy nodes are skipped.
     nodes: [
       "10.10.10.1:8123",
       "10.10.10.2:8123",
@@ -92,9 +96,9 @@ clusters:
 
 ### Spread `SELECTs` from reporting apps among cluster nodes
 
-Reporting app servers are usually located in a limited number of subnetworkds. Reporting apps usually generate various customer reports from `SELECT` query results. The load generated by such `SELECTs` on `ClickHouse` cluster may vary depending on the number of online customers and on the generated reports. It is obvious that the load must be limited in order to prevent cluster overload.
+Reporting servers are usually located in a limited number of subnetworks. Reporting apps usually generate various customer reports from `SELECT` query results. The load generated by such `SELECTs` on `ClickHouse` cluster may vary depending on the number of online customers and on the generated reports. It is obvious that the load must be limited in order to prevent cluster overload.
 
-All the `SELECTs` may be routed to a distributed table on a single node. But this increases resource usage (RAM, CPU and network) on the node comparing to other nodes, since it must do final aggregation, sorting and filtering for the data obtained from nodes (shards).
+All the `SELECTs` may be routed to a distributed table on a single node. But this increases resource usage (RAM, CPU and network) on the node comparing to other nodes, since it must do final aggregation, sorting and filtering for the data obtained from cluster nodes (shards).
 
 It would be better to create identical distributed table on each shard and spread `SELECTs` among all the available shards.
 
@@ -103,7 +107,9 @@ The following minimal `chproxy` config may be used for this use case:
 server:
   http:
       listen_addr: ":9090"
-      allowed_networks: ["127.0.0.1/24"]
+
+      # Networks with reporting servers.
+      allowed_networks: ["10.10.2.0/24"]
 
 users:
   - name: "report"
@@ -115,8 +121,8 @@ users:
 clusters:
   - name: "stats-aggregate"
     nodes: [
-      "10.10.0.1:8123",
-      "10.10.0.2:8123"
+      "10.10.20.1:8123",
+      "10.10.20.2:8123"
     ]
     users:
       - name: "readonly"
@@ -164,7 +170,7 @@ All the above cases may be combined in a single `chproxy` config:
 server:
   http:
       listen_addr: ":9090"
-      allowed_networks: ["10.10.10.1/24"]
+      allowed_networks: ["10.10.1.0/24","10.10.2.0/24"]
   https:
     listen_addr: ":443"
     autocert:
@@ -172,9 +178,16 @@ server:
 
 users:
   - name: "insert"
+    allowed_networks: ["10.10.1.0/24"]
     to_cluster: "stats-raw"
     to_user: "default"
-    deny_https: true
+
+  - name: "report"
+    allowed_networks: ["10.10.2.0/24"]
+    to_cluster: "stats-aggregate"
+    to_user: "readonly"
+    max_concurrent_queries: 6
+    max_execution_time: 1m
 
   - name: "web"
     password: "****"
@@ -185,18 +198,11 @@ users:
     requests_per_minute: 10
     deny_http: true
 
-  - name: "report"
-    to_cluster: "stats-aggregate"
-    to_user: "readonly"
-    max_concurrent_queries: 6
-    max_execution_time: 1m
-    deny_https: true
-
 clusters:
   - name: "stats-aggregate"
     nodes: [
-      "10.10.0.1:8123",
-      "10.10.0.2:8123"
+      "10.10.20.1:8123",
+      "10.10.20.2:8123"
     ]
     users:
     - name: "readonly"
@@ -211,15 +217,15 @@ clusters:
     ]
     users:
       - name: "default"
+
       - name: "web"
         password: "****"
 ```
 
-
 ## Configuration
 
 ### Server
-Chproxy allows to setup web-proxy with `HTTP` or `HTTPS` protocols. [HTTPS](#https_config) might be configured with
+`Chproxy` may accept requests over `HTTP` and `HTTPS` protocols. [HTTPS](#https_config) must be configured with
 custom certificate or with automated [Let's Encrypt](https://letsencrypt.org/) certificates.
 
 Access to proxy can be [limitied](#networks) by list of IPs or IP masks. This option can be applied to [HTTP](#http_config), [HTTPS](#https_config), [metrics](#metrics_config), [user](#user_config) or [cluster-user](#cluster_user_config).
@@ -229,14 +235,14 @@ There are two types of users: `in-users` (in global section) and `out-users` (in
 This means all requests will be matched to `in-users` and if all checks are Ok - will be matched to `out-users`
 with overriding credentials.
 
-
 For example, we have one ClickHouse user `web` with `read-only` permissions and limits `max_concurrent_queries=4`.
 And two applications which are `reading` from ClickHouse. So we are creating two `in-users` with `max_concurrent_queries=2` and `to_user=web`.
 This will help to avoid situation when one application will use all 4-request limit.
 
+All the requests to `chproxy` must be authorized with credentials from [user_config](#user_config). Credentials can be passed
+via BasicAuth or via URL `user` and `password` params.
 
-All requests to CHProxy must be authorized with credentials from [user_config](#user_config). Credentials can be passed
-via BasicAuth or via URL `user` and `password` params. Limits for `in-users` and `out-users` are independent.
+Limits for `in-users` and `out-users` are independent.
 
 ### Clusters
 Proxy can be configured with multiple `cluster`s. Each `cluster` must have a name and a list of nodes.
@@ -244,10 +250,8 @@ All requests to cluster will be balanced with `round-robin` and `least-loaded` w
 If some of requests to ClickHouse node were unsuccessful - this node priority will be decreased for short period.
 It means that proxy will chose next least loaded healthy node for every new request.
 
-
 There is also `heartbeat_interval` which is just checking all nodes for availability. If node is unavailable it will be excluded
 from the list until connection will be restored. Such behavior must help to reduce number of unsuccessful requests in case of network lags.
-
 
 If some of proxied queries through cluster will run out of `max_execution_time` limit, proxy will try to kill them.
 But this is possible only if `cluster` configured with [kill_query_user](#kill_query_user_config)
