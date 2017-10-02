@@ -501,15 +501,16 @@ password: <string> | optional
 
 ## Metrics
 Metrics are exposed via [Prometheus](https://prometheus.io/) at `/metrics` path
-| Name | Type | Description | Labels|
-| ---- | ---- | ---- | ---- |
-| status_codes_total | Counter |Distribution by status codes | `user`, `cluster_user`, `host`, `code`|
-| request_sum_total | Counter | Total number of sent requests | `user`, `cluster_user`, `host`|
-| request_success_total | Counter | Total number of sent success requests | `user`, `cluster_user`, `host`|
-| request_duration_seconds | Summary | Request duration | `user`, `cluster_user`, `host`|
-| concurrent_limit_excess_total | Counter | Total number of max_concurrent_queries excess | `user`, `cluster_user`, `host`|
-| host_penalties_total | Counter | Total number of given penalties by host | `user`, `cluster_user`, `host`|
-| host_health | Gauge | Health state of hosts by clusters | `cluster_user`, `host`|
-| good_requests_total | Counter | Total number of proxy requests ||
-| bad_requests_total | Counter | Total number of unsupported requests ||
+
+| Name | Type | Description | Labels |
+| ------------- | ------------- | ------------- | ------------- |
+| status_codes_total | Counter | Distribution by status codes | `user`, `cluster_user`, `host`, `code` |
+| request_sum_total | Counter | Total number of sent requests | `user`, `cluster_user`, `host` |
+| request_success_total | Counter | Total number of sent success requests | `user`, `cluster_user`, `host` |
+| request_duration_seconds | Summary | Request duration | `user`, `cluster_user`, `host` |
+| concurrent_limit_excess_total | Counter | Total number of max_concurrent_queries excess | `user`, `cluster_user`, `host` |
+| host_penalties_total | Counter | Total number of given penalties by host | `user`, `cluster_user`, `host` |
+| host_health | Gauge | Health state of hosts by clusters | `cluster_user`, `host` |
+| good_requests_total | Counter | Total number of proxy requests | |
+| bad_requests_total | Counter | Total number of unsupported requests | |
 
