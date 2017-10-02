@@ -97,7 +97,7 @@ type Server struct {
 	// Optional TLS configuration
 	HTTPS HTTPS `yaml:"https,omitempty"`
 
-	// Metrics optional metrics handler configuration
+	// Optional metrics handler configuration
 	Metrics Metrics `yaml:"metrics,omitempty"`
 
 	// Catches all undefined fields

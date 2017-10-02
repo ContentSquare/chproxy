@@ -193,40 +193,28 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 				"cluster": k,
 				"host":    h.addr.Host,
 			}
+			rp.reloadWG.Add(1)
 			go func() {
-				rp.reloadWG.Add(1)
 				h.runHeartbeat(c.heartBeatInterval, label, rp.reloadSignal)
 				rp.reloadWG.Done()
 			}()
 		}
 		for _, user := range c.users {
 			u := user
-			if u.reqPerMin > 0 {
-				label := prometheus.Labels{
-					"cluster": k,
-					"user":    u.name,
-				}
-				go func() {
-					rp.reloadWG.Add(1)
-					u.rateLimiter.run(label, rp.reloadSignal)
-					rp.reloadWG.Done()
-				}()
-			}
+			rp.reloadWG.Add(1)
+			go func() {
+				u.rateLimiter.run(rp.reloadSignal)
+				rp.reloadWG.Done()
+			}()
 		}
 	}
 	for _, user := range users {
 		u := user
-		if u.reqPerMin > 0 {
-			label := prometheus.Labels{
-				"user":    u.name,
-				"cluster": "",
-			}
-			go func() {
-				rp.reloadWG.Add(1)
-				u.rateLimiter.run(label, rp.reloadSignal)
-				rp.reloadWG.Done()
-			}()
-		}
+		rp.reloadWG.Add(1)
+		go func() {
+			u.rateLimiter.run(rp.reloadSignal)
+			rp.reloadWG.Done()
+		}()
 	}
 
 	// update configuration

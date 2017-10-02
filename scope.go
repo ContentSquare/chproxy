@@ -301,14 +301,12 @@ type rateLimiter struct {
 	counter
 }
 
-func (rl *rateLimiter) run(label prometheus.Labels, done <-chan struct{}) {
+func (rl *rateLimiter) run(done <-chan struct{}) {
 	for {
 		select {
 		case <-done:
 			return
 		case <-time.After(time.Minute):
-			v := atomic.LoadUint32(&rl.value)
-			requestPerMin.With(label).Set(float64(v))
 			atomic.StoreUint32(&rl.value, 0)
 		}
 	}

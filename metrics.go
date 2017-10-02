@@ -6,7 +6,6 @@ var (
 	requestSum      *prometheus.CounterVec
 	hostHealth      *prometheus.GaugeVec
 	statusCodes     *prometheus.CounterVec
-	requestPerMin   *prometheus.GaugeVec
 	hostPenalties   *prometheus.CounterVec
 	requestSuccess  *prometheus.CounterVec
 	requestDuration *prometheus.SummaryVec
@@ -66,13 +65,6 @@ func init() {
 		},
 		[]string{"cluster", "host"},
 	)
-	requestPerMin = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "requests_per_minute",
-			Help: "Requests per minute for user",
-		},
-		[]string{"user", "cluster"},
-	)
 	goodRequest = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "good_requests_total",
 		Help: "Total number of proxy requests",
@@ -82,5 +74,5 @@ func init() {
 		Help: "Total number of unsupported requests",
 	})
 	prometheus.MustRegister(statusCodes, requestDuration, requestSum, requestSuccess,
-		limitExcess, hostPenalties, hostHealth, requestPerMin, badRequest, goodRequest)
+		limitExcess, hostPenalties, hostHealth, badRequest, goodRequest)
 }
