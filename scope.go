@@ -81,12 +81,11 @@ func (s *scope) inc() error {
 	return nil
 }
 
-// decrement only queryCounter because rateLimiter will be reset automatically
-// and to avoid situation when rateLimiter will be reset before decrement,
-// which would lead to negative values, rateLimiter will be increased for every request
-// even if maxConcurrentQueries already generated an error
-// also it allows to show a real amount of requests by `requests_per_minute` metric
 func (s *scope) dec() {
+	// decrement only queryCounter because rateLimiter will be reset automatically
+	// and to avoid situation when rateLimiter will be reset before decrement,
+	// which would lead to negative values, rateLimiter will be increased for every request
+	// even if maxConcurrentQueries already generated an error
 	s.host.dec()
 	s.user.queryCounter.dec()
 	s.clusterUser.queryCounter.dec()
@@ -180,6 +179,8 @@ type user struct {
 }
 
 type clusterUser struct {
+	allowedNetworks config.Networks
+
 	name, password       string
 	maxExecutionTime     time.Duration
 	maxConcurrentQueries uint32

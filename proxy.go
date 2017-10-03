@@ -131,8 +131,9 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 				name:                 u.Name,
 				password:             u.Password,
 				reqPerMin:            u.ReqPerMin,
-				maxConcurrentQueries: u.MaxConcurrentQueries,
+				allowedNetworks:      u.AllowedNetworks,
 				maxExecutionTime:     u.MaxExecutionTime,
+				maxConcurrentQueries: u.MaxConcurrentQueries,
 			}
 		}
 
@@ -259,13 +260,16 @@ func (rp *reverseProxy) getScope(req *http.Request) (*scope, error) {
 		panic(fmt.Sprintf("BUG: user %q matches to unknown user %q at cluster %q", u.name, u.toUser, u.toCluster))
 	}
 	if u.denyHTTP && req.URL.Scheme == "http" {
-		return nil, fmt.Errorf("user %q is not allowed to access via http", name)
+		return nil, fmt.Errorf("user %q is not allowed to access via http", u.name)
 	}
 	if u.denyHTTP && req.URL.Scheme == "https" {
-		return nil, fmt.Errorf("user %q is not allowed to access via https", name)
+		return nil, fmt.Errorf("user %q is not allowed to access via https", u.name)
 	}
 	if !u.allowedNetworks.Contains(req.RemoteAddr) {
-		return nil, fmt.Errorf("user %q is not allowed to access from %s", name, req.RemoteAddr)
+		return nil, fmt.Errorf("user %q is not allowed to access from %s", u.name, req.RemoteAddr)
+	}
+	if !cu.allowedNetworks.Contains(req.RemoteAddr) {
+		return nil, fmt.Errorf("cluster user %q is not allowed to access from %s", cu.name, req.RemoteAddr)
 	}
 	s, err := newScope(u, cu, c)
 	if err != nil {

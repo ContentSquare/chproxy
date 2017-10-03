@@ -482,6 +482,13 @@ type ClusterUser struct {
 	// if omitted or zero - no limits would be applied
 	ReqPerMin uint32 `yaml:"requests_per_minute,omitempty"`
 
+	NetworksOrGroups NetworksOrGroups `yaml:"allowed_networks,omitempty"`
+
+	// List of networks that access is allowed from
+	// Each list item could be IP address or subnet mask
+	// if omitted or zero - no limits would be applied
+	AllowedNetworks Networks `yaml:"-"`
+
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
 }
@@ -522,6 +529,13 @@ func LoadFile(filename string) (*Config, error) {
 	}
 	if cfg.Server.Metrics.AllowedNetworks, err = cfg.groupToNetwork(cfg.Server.Metrics.NetworksOrGroups); err != nil {
 		return nil, err
+	}
+	for _, c := range cfg.Clusters {
+		for _, u := range c.ClusterUsers {
+			if u.AllowedNetworks, err = cfg.groupToNetwork(u.NetworksOrGroups); err != nil {
+				return nil, err
+			}
+		}
 	}
 	for _, u := range cfg.Users {
 		if u.AllowedNetworks, err = cfg.groupToNetwork(u.NetworksOrGroups); err != nil {

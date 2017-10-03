@@ -71,6 +71,7 @@ func TestLoadConfig(t *testing.T) {
 								ReqPerMin:            10,
 								MaxConcurrentQueries: 4,
 								MaxExecutionTime:     time.Duration(time.Second * 10),
+								NetworksOrGroups:     []string{"office"},
 							},
 						},
 						HeartBeatInterval: time.Second * 5,
