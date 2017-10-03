@@ -1,5 +1,7 @@
 log_debug: true
 
+hack_me_please: true
+
 network_groups:
   - name: "office"
     networks: ["127.0.0.1/24"]

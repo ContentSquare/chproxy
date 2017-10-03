@@ -1,15 +1,5 @@
 # chproxy [![Go Report Card](https://goreportcard.com/badge/github.com/Vertamedia/chproxy)](https://goreportcard.com/report/github.com/Vertamedia/chproxy)
 
-TODO:
-- billions of connections
-- hack me plz
-- rate limit explanation
-- add dashboard for monitoring
-- renew metrics description and explain how to use them
-- mention about URL params purifying
-
-
-
 Chproxy, is an http proxy for [ClickHouse](https://ClickHouse.yandex) database. It provides the following features:
 
 - May proxy requests to multiple distinct `ClickHouse` clusters depending on the input user. For instance, requests from `appserver` user may go to `stats-raw` cluster, while requests from `reportserver` user may go to `stats-aggregate` cluster.
@@ -229,10 +219,10 @@ clusters:
 ## Configuration
 
 ### Server
-`Chproxy` may accept requests over `HTTP` and `HTTPS` protocols. [HTTPS](#https_config) must be configured with
+`Chproxy` may accept requests over `HTTP` and `HTTPS` protocols. [HTTPS](https://github.com/Vertamedia/chproxy/blob/master/confighttps_config) must be configured with
 custom certificate or with automated [Let's Encrypt](https://letsencrypt.org/) certificates.
 
-Access to proxy can be [limitied](#networks) by list of IPs or IP masks. This option can be applied to [HTTP](#http_config), [HTTPS](#https_config), [metrics](#metrics_config), [user](#user_config) or [cluster-user](#cluster_user_config).
+Access to proxy can be [limitied](https://github.com/Vertamedia/chproxy/blob/master/confignetworks) by list of IPs or IP masks. This option can be applied to [HTTP](https://github.com/Vertamedia/chproxy/blob/master/config#http_config), [HTTPS](https://github.com/Vertamedia/chproxy/blob/master/confighttps_config), [metrics](https://github.com/Vertamedia/chproxy/blob/master/configmetrics_config), [user](https://github.com/Vertamedia/chproxy/blob/master/configuser_config) or [cluster-user](https://github.com/Vertamedia/chproxy/blob/master/configcluster_user_config).
 
 ### Users
 There are two types of users: `in-users` (in global section) and `out-users` (in cluster section).
@@ -243,7 +233,7 @@ For example, we have one ClickHouse user `web` with `read-only` permissions and 
 And two applications which are `reading` from ClickHouse. So we are creating two `in-users` with `max_concurrent_queries=2` and `to_user=web`.
 This will help to avoid situation when one application will use all 4-request limit.
 
-All the requests to `chproxy` must be authorized with credentials from [user_config](#user_config). Credentials can be passed
+All the requests to `chproxy` must be authorized with credentials from [user_config](https://github.com/Vertamedia/chproxy/blob/master/configuser_config). Credentials can be passed
 via BasicAuth or via URL `user` and `password` params.
 
 Limits for `in-users` and `out-users` are independent.
@@ -258,11 +248,16 @@ There is also `heartbeat_interval` which is just checking all nodes for availabi
 from the list until connection will be restored. Such behavior must help to reduce number of unsuccessful requests in case of network lags.
 
 If some of proxied queries through cluster will run out of `max_execution_time` limit, proxy will try to kill them.
-But this is possible only if `cluster` configured with [kill_query_user](#kill_query_user_config)
+But this is possible only if `cluster` configured with [kill_query_user](https://github.com/Vertamedia/chproxy/blob/master/configkill_query_user_config)
 
 
-If `cluster`'s [users](#cluster_user_config) are not specified, it means that there is only a "default" user with no limits.
+If `cluster`'s [users](https://github.com/Vertamedia/chproxy/blob/master/configcluster_user_config) are not specified, it means that there is only a "default" user with no limits.
 
+### Security
+Proxy will purify all `URL` params from requests before sending them to `ClickHouse` nodes. This must prevent overriding of user's configurations at cluster.
+
+Be careful with limitations, allowed networks, passwords etc. Proxy will try do detect most obvious errors as `allowed_networks: ["0.0.0.0/0"]` or sending password via HTTP.
+But if such warnings are superfluous - just set `hack_me_please=true` in config file. 
 
 ### Possible types used in configuration:
 
@@ -270,55 +265,84 @@ If `cluster`'s [users](#cluster_user_config) are not specified, it means that th
  - `<addr>`: string value consisting of a hostname or IP followed by an optional port number
  - `<scheme>`: a string that can take the values `http` or `https`
  - `<duration>`: a duration matching the regular expression `[0-9]+(ms|[smhdwy])`
- - `<networks>`: string value consisting of IP, IP mask or named group, for example `"127.0.0.1"` or `"127.0.0.1/24"`
+ - `<networks>`: string value consisting of IP, IP mask or named group, for example `"127.0.0.1"` or `"127.0.0.1/24"`. 
  - `<host_name>`: string value consisting of host name, for example `"example.com"`
 
 Example of [full](https://github.com/Vertamedia/chproxy/blob/master/config/testdata/full.yml) configuration:
 ```yml
+# Whether to print debug logs
 log_debug: true
 
+# Whether to ignore security warnings
+hack_me_please: true
+
+# Named network lists, might be used as `allowed_networks` properties
 network_groups:
   - name: "office"
+    # List of networks or network_groups access is allowed from
+    # Each list item could be IP address or subnet mask
     networks: ["127.0.0.1/24"]
 
 server:
   http:
+    # TCP address to listen to for http
     listen_addr: ":9090"
     allowed_networks: ["office"]
 
   https:
+    # TCP address to listen to for https
     listen_addr: ":443"
+    # Autocert configuration via letsencrypt
     autocert:
+      # Path to the directory where autocert certs are cached
       cache_dir: "certs_dir"
+      # List of host names to which proxy is allowed to respond to
+      # see https://godoc.org/golang.org/x/crypto/acme/autocert#HostPolicy
       allowed_hosts: ["example.com"]
 
+  # Metrics handler configuration
   metrics:
     allowed_networks: ["office"]
 
 users:
+    # name and password will be used to authorize access via BasicAuth or URL `user` and `password` params
   - name: "web"
     password: "password"
+    # Which cluster user must match 
     to_cluster: "second cluster"
+    # Which user of cluster above user must match
     to_user: "web"
+    # Whether to deny HTTP connections
     deny_http: true
+    # Limit of requests per minute rate
     requests_per_minute: 4
 
   - name: "default"
     to_cluster: "second cluster"
     to_user: "default"
     allowed_networks: ["office", "1.2.3.0/24"]
+    # Maximum number of concurrently running queries for user
     max_concurrent_queries: 4
+    #Maximum duration of query execution for user    
     max_execution_time: 1m
+    # Whether to deny HTTPS connections
     deny_https: true
 
 clusters:
   - name: "first cluster"
+    # Scheme: `http` or `https`; would be applied to all nodes
     scheme: "http"
+    # List of nodes addresses. Requests would be balanced among them
     nodes: ["127.0.0.1:8123", "127.0.0.2:8123", "127.0.0.3:8123"]
+    # An interval for checking all cluster nodes for availability
     heartbeat_interval: 1m
+    # KillQueryUser - user configuration for killing
+    # queries which has exceeded limits
+    # if not specified - killing queries will be omitted
     kill_query_user:
       name: "default"
       password: "password"
+    # List of ClickHouse cluster users
     users:
       - name: "web"
         password: "password"
@@ -339,181 +363,7 @@ clusters:
         requests_per_minute: 10
 ```
 
-Global configuration consist of:
-```yml
-# Whether to print debug logs
-log_debug: <bool> | default = false [optional]
-
-# Whether to ignore security warnings
-hack_me_please bool | default = false [optional]
-
-# Named network lists
-network_groups: <network_groups_config> ... [optional]
-
-server:
-  <server_config> [optional]
-
-# List of allowed users
-# which requests will be proxied to ClickHouse
-users:
-  - <user_config> ...
-
-clusters:
-  - <cluster_config> ...
-```
-
-### <network_groups_config>
-```yml
-# Name of group
-name: "office"
-
-# List of networks access is allowed from
-# Each list item could be IP address or subnet mask
-networks: <networks> ...
-```
-
-### <server_config>
-```yml
-# HTTP server configuration
-http: <http_config> [optional]
-
-# HTTPS server configuration
-https: <https_config> [optional]
-
-# Metrics handler configuration
-metrics: <metrics_config> [optional]
-```
-
-#### <http_config>
-```yml
-# TCP address to listen to for http
-listen_addr: <addr>
-
-# List of networks or network_groups access is allowed from
-# Each list item could be IP address or subnet mask
-allowed_networks: <network_groups>, <networks> ... | optional
-```
-
-#### <https_config>
-```yml
-# TCP address to listen to for https
-listen_addr: <addr> | optional | default = `:443`
-
-# List of networks or network_groups access is allowed from
-# Each list item could be IP address or subnet mask
-allowed_networks: <network_groups>, <networks> ... | optional
-
-# Certificate and key files for client cert authentication to the server
-cert_file: <string> | optional
-key_file: <string> | optional
-
-# Autocert configuration via letsencrypt
-autocert: <autocert_config> | optional
-```
-
-#### <autocert_config>
-```yml
-# Path to the directory where autocert certs are cached
-cache_dir: <string>
-
-# List of host names to which proxy is allowed to respond to
-# see https://godoc.org/golang.org/x/crypto/acme/autocert#HostPolicy
-allowed_hosts: <host_name> ... | optional
-```
-
-#### <metrics_config>
-```yml
-# List of networks or network_groups access is allowed from
-# Each list item could be IP address or subnet mask
-allowed_networks: <network_groups>, <networks> ... | optional
-```
-
-### <user_config>
-```yml
-# User name, will be taken from BasicAuth or from URL `user`-param
-name: <string>
-
-# User password, will be taken from BasicAuth or from URL `password`-param
-password: <string> | optional
-
-# Must match with name of `cluster` config,
-# where requests will be proxied
-to_cluster: <string>
-
-# Must match with name of `user` from `cluster` config,
-# whom credentials will be used for proxying request to CH
-to_user: <string>
-
-# Maximum number of concurrently running queries for user
-max_concurrent_queries: <int> | optional | default = 0
-
-# Maximum duration of query execution for user
-max_execution_time: <duration> | optional | default = 0
-
-# Maximum number of requests per minute for user
-requests_per_minute: <int> | optional | default = 0
-
-# Whether to deny http connections for this user
-deny_http: <bool> | optional | default = false
-
-# Whether to deny https connections for this user
-deny_https: <bool> | optional | default = false
-
-# List of networks or network_groups access is allowed from
-# Each list item could be IP address or subnet mask
-allowed_networks: <network_groups>, <networks> ... | optional
-```
-
-### <cluster_config>
-```yml
-# Name of CH cluster, must match with `to_cluster`
-name: <string>
-
-# Scheme: `http` or `https`; would be applied to all nodes
-scheme: <scheme> | optional | default = "http"
-
-# List of nodes addresses. Requests would be balanced among them
-nodes: <addr> ...
-
-# List of ClickHouse cluster users
-users:
-    - <cluster_user_config> ...
-
-# KillQueryUser - user configuration for killing
-# queries which has exceeded limits
-# if not specified - killing queries will be omitted
-kill_query_user: <kill_query_user_config> | optional
-
-# An interval for checking all cluster nodes for availability
-heartbeat_interval: <duration> | optional | default = 5s
-```
-
-#### <cluster_user_config>
-```yml
-# User name in ClickHouse `users.xml` config
-name: <string>
-
-# User password in ClickHouse `users.xml` config
-password: <string> | optional 
-
-# Maximum number of concurrently running queries for user
-max_concurrent_queries: <int> | optional | default = 0
-
-# Maximum duration of query execution for user
-max_execution_time: <duration> | optional | default = 0
-
-# Maximum number of requests per minute for user
-requests_per_minute: <int> | optional | default = 0
-```
-
-### <kill_query_user_config>
-```yml
-# User name to access CH with basic auth
-name: <string>
-
-# User password to access CH with basic auth
-password: <string> | optional
-```
+Full specification can be find [here](https://github.com/Vertamedia/chproxy/blob/master/config)
 
 ## Metrics
 Metrics are exposed via [Prometheus](https://prometheus.io/) at `/metrics` path

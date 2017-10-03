@@ -18,6 +18,7 @@ func TestLoadConfig(t *testing.T) {
 			"full description",
 			"testdata/full.yml",
 			Config{
+				HackMePlease:true,
 				Server: Server{
 					HTTP: HTTP{
 						ListenAddr:       ":9090",
