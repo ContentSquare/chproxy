@@ -219,10 +219,10 @@ clusters:
 ## Configuration
 
 ### Server
-`Chproxy` may accept requests over `HTTP` and `HTTPS` protocols. [HTTPS](https://github.com/Vertamedia/chproxy/blob/master/confighttps_config) must be configured with
+`Chproxy` may accept requests over `HTTP` and `HTTPS` protocols. [HTTPS](https://github.com/Vertamedia/chproxy/blob/master/config#https_config) must be configured with
 custom certificate or with automated [Let's Encrypt](https://letsencrypt.org/) certificates.
 
-Access to proxy can be [limitied](https://github.com/Vertamedia/chproxy/blob/master/confignetworks) by list of IPs or IP masks. This option can be applied to [HTTP](https://github.com/Vertamedia/chproxy/blob/master/config#http_config), [HTTPS](https://github.com/Vertamedia/chproxy/blob/master/confighttps_config), [metrics](https://github.com/Vertamedia/chproxy/blob/master/configmetrics_config), [user](https://github.com/Vertamedia/chproxy/blob/master/configuser_config) or [cluster-user](https://github.com/Vertamedia/chproxy/blob/master/configcluster_user_config).
+Access to proxy can be [limitied](https://github.com/Vertamedia/chproxy/blob/master/config#networks) by list of IPs or IP masks. This option can be applied to [HTTP](https://github.com/Vertamedia/chproxy/blob/master/config#http_config), [HTTPS](https://github.com/Vertamedia/chproxy/blob/master/config#https_config), [metrics](https://github.com/Vertamedia/chproxy/blob/master/config#metrics_config), [user](https://github.com/Vertamedia/chproxy/blob/master/config#user_config) or [cluster-user](https://github.com/Vertamedia/chproxy/blob/master/config#cluster_user_config).
 
 ### Users
 There are two types of users: `in-users` (in global section) and `out-users` (in cluster section).
@@ -233,7 +233,7 @@ For example, we have one ClickHouse user `web` with `read-only` permissions and 
 And two applications which are `reading` from ClickHouse. So we are creating two `in-users` with `max_concurrent_queries=2` and `to_user=web`.
 This will help to avoid situation when one application will use all 4-request limit.
 
-All the requests to `chproxy` must be authorized with credentials from [user_config](https://github.com/Vertamedia/chproxy/blob/master/configuser_config). Credentials can be passed
+All the requests to `chproxy` must be authorized with credentials from [user_config](https://github.com/Vertamedia/chproxy/blob/master/config#user_config). Credentials can be passed
 via BasicAuth or via URL `user` and `password` params.
 
 Limits for `in-users` and `out-users` are independent.
@@ -248,10 +248,10 @@ There is also `heartbeat_interval` which is just checking all nodes for availabi
 from the list until connection will be restored. Such behavior must help to reduce number of unsuccessful requests in case of network lags.
 
 If some of proxied queries through cluster will run out of `max_execution_time` limit, proxy will try to kill them.
-But this is possible only if `cluster` configured with [kill_query_user](https://github.com/Vertamedia/chproxy/blob/master/configkill_query_user_config)
+But this is possible only if `cluster` configured with [kill_query_user](https://github.com/Vertamedia/chproxy/blob/master/config#kill_query_user_config)
 
 
-If `cluster`'s [users](https://github.com/Vertamedia/chproxy/blob/master/configcluster_user_config) are not specified, it means that there is only a "default" user with no limits.
+If `cluster`'s [users](https://github.com/Vertamedia/chproxy/blob/master/config#cluster_user_config) are not specified, it means that there is only a "default" user with no limits.
 
 ### Security
 Proxy will purify all `URL` params from requests before sending them to `ClickHouse` nodes. This must prevent overriding of user's configurations at cluster.
@@ -363,7 +363,7 @@ clusters:
         requests_per_minute: 10
 ```
 
-Full specification can be find [here](https://github.com/Vertamedia/chproxy/blob/master/config)
+>> Full specification can be find [here](https://github.com/Vertamedia/chproxy/blob/master/config)
 
 ## Metrics
 Metrics are exposed via [Prometheus](https://prometheus.io/) at `/metrics` path
