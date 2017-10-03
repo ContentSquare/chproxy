@@ -29,7 +29,7 @@ Chproxy, is an http proxy for [ClickHouse](https://ClickHouse.yandex) database. 
 - Exposes various useful [metrics](#metrics) in [prometheus text format](https://prometheus.io/docs/instrumenting/exposition_formats/).
 - Configuration may be updated without restart - just send `SIGHUP` signal to `chproxy` process.
 - Easy to manage and run - just pass config file path to a single `chproxy` binary.
-- Easy to configure:
+- Easy to [configure](https://github.com/Vertamedia/chproxy/blob/master/config/examples/simple.yml):
 ```yml
 server:
   http:
@@ -67,7 +67,7 @@ All the `INSERTs` may be routed to a distributed table on a single node. But thi
 
 It would be better to spread `INSERTs` among available shards and to route them directly to per-shard tables instead of distributed tables. The routing logic may be embedded either directly into applications generating `INSERTs` or may be moved to a proxy. Proxy approach is better since it allows re-configuring `ClickHouse` cluster without modification of application configs and without application downtime. Multiple identical proxies may be started on distinct servers for scalability and availability purposes.
 
-The following minimal `chproxy` config may be used for this use case:
+The following minimal `chproxy` config may be used for this [use case](https://github.com/Vertamedia/chproxy/blob/master/config/examples/spread.inserts.yml):
 ```yml
 server:
   http:
@@ -102,7 +102,7 @@ All the `SELECTs` may be routed to a distributed table on a single node. But thi
 
 It would be better to create identical distributed table on each shard and spread `SELECTs` among all the available shards.
 
-The following minimal `chproxy` config may be used for this use case:
+The following minimal `chproxy` config may be used for this [use case](https://github.com/Vertamedia/chproxy/blob/master/config/examples/spread.selects.yml):
 ```yml
 server:
   http:
@@ -131,7 +131,11 @@ clusters:
 
 ### Authorize users by passwords via HTTPS
 
-Suppose you need to access `ClickHouse` cluster from anywhere by username/password. This may be used for building graphs from [ClickHouse-grafana](https://github.com/Vertamedia/ClickHouse-grafana). It is bad idea to transfer unencrypted password and data over untrusted networks. So HTTPS must be used for accessing the cluster in such cases. The following `chproxy` config may be used for this use case:
+Suppose you need to access `ClickHouse` cluster from anywhere by username/password. 
+This may be used for building graphs from [ClickHouse-grafana](https://github.com/Vertamedia/ClickHouse-grafana). 
+It is bad idea to transfer unencrypted password and data over untrusted networks. 
+So HTTPS must be used for accessing the cluster in such cases. 
+The following `chproxy` config may be used for this [use case](https://github.com/Vertamedia/chproxy/blob/master/config/examples/https.yml):
 ```yml
 server:
   https:
@@ -164,7 +168,7 @@ clusters:
 
 ### All the above configs combined
 
-All the above cases may be combined in a single `chproxy` config:
+All the above cases may be combined in a single `chproxy` [config](https://github.com/Vertamedia/chproxy/blob/master/config/examples/combined.yml):
 
 ```yml
 server:
@@ -260,8 +264,6 @@ But this is possible only if `cluster` configured with [kill_query_user](#kill_q
 If `cluster`'s [users](#cluster_user_config) are not specified, it means that there is only a "default" user with no limits.
 
 
-Example of full configuration can be found [here](https://github.com/Vertamedia/chproxy/blob/master/config/testdata/full.yml) or simplest [here](https://github.com/Vertamedia/chproxy/blob/master/config/testdata/default_values.yml)
-
 ### Possible types used in configuration:
 
  - `<bool>`: a boolean value `true` or `false`
@@ -271,7 +273,7 @@ Example of full configuration can be found [here](https://github.com/Vertamedia/
  - `<networks>`: string value consisting of IP, IP mask or named group, for example `"127.0.0.1"` or `"127.0.0.1/24"`
  - `<host_name>`: string value consisting of host name, for example `"example.com"`
 
-Example of full configuration:
+Example of [full](https://github.com/Vertamedia/chproxy/blob/master/config/testdata/full.yml) configuration:
 ```yml
 log_debug: true
 
