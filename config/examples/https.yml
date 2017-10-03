@@ -1,0 +1,27 @@
+server:
+  https:
+    listen_addr: ":443"
+    autocert:
+      cache_dir: "certs_dir"
+
+users:
+  - name: "web"
+    password: "****"
+    to_cluster: "stats-raw"
+    to_user: "web"
+    max_concurrent_queries: 4
+    max_execution_time: 30s
+    requests_per_minute: 10
+    deny_http: true
+
+clusters:
+  - name: "stats-raw"
+    nodes: [
+     "10.10.10.1:8123",
+     "10.10.10.2:8123",
+     "10.10.10.3:8123",
+     "10.10.10.4:8123"
+    ]
+    users:
+      - name: "web"
+        password: "****"

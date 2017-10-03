@@ -1,0 +1,23 @@
+server:
+  http:
+      listen_addr: ":9090"
+
+      # Networks with application servers.
+      allowed_networks: ["10.10.1.0/24"]
+
+users:
+  - name: "insert"
+    to_cluster: "stats-raw"
+    to_user: "default"
+
+clusters:
+  - name: "stats-raw"
+
+    # Requests are spread in `round-robin` + `least-loaded` fashion among nodes.
+    # Unreachable and unhealthy nodes are skipped.
+    nodes: [
+      "10.10.10.1:8123",
+      "10.10.10.2:8123",
+      "10.10.10.3:8123",
+      "10.10.10.4:8123"
+    ]

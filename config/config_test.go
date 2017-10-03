@@ -262,3 +262,40 @@ func TestBadConfig(t *testing.T) {
 		})
 	}
 }
+
+func TestExamples(t *testing.T) {
+	var testCases = []struct {
+		name  string
+		file  string
+	}{
+		{
+			"simple",
+			"examples/simple.yml",
+		},
+		{
+			"spread inserts",
+			"examples/spread.inserts.yml",
+		},
+		{
+			"spread selects",
+			"examples/spread.selects.yml",
+		},
+		{
+			"https",
+			"examples/https.yml",
+		},
+		{
+			"combined",
+			"examples/combined.yml",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := LoadFile(tc.file)
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+		})
+	}
+}

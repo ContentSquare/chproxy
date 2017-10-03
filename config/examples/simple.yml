@@ -1,0 +1,14 @@
+server:
+  http:
+      listen_addr: ":9090"
+      allowed_networks: ["127.0.0.0/24"]
+
+users:
+  - name: "default"
+    to_cluster: "default"
+    to_user: "default"
+
+# by default each cluster has `default` user which can be overridden by section `users`
+clusters:
+  - name: "default"
+    nodes: ["127.0.0.1:8123"]

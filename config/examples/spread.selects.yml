@@ -1,0 +1,23 @@
+server:
+  http:
+      listen_addr: ":9090"
+
+      # Networks with reporting servers.
+      allowed_networks: ["10.10.2.0/24"]
+
+users:
+  - name: "report"
+    to_cluster: "stats-aggregate"
+    to_user: "readonly"
+    max_concurrent_queries: 6
+    max_execution_time: 1m
+
+clusters:
+  - name: "stats-aggregate"
+    nodes: [
+      "10.10.20.1:8123",
+      "10.10.20.2:8123"
+    ]
+    users:
+      - name: "readonly"
+        password: "****"
