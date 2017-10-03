@@ -149,7 +149,6 @@ users:
 
 # KillQueryUser - user configuration for killing
 # queries which has exceeded limits
-# if not specified - killing queries will be omitted
 kill_query_user: <kill_query_user_config> | optional
 
 # An interval for checking all cluster nodes for availability

@@ -247,8 +247,8 @@ It means that proxy will chose next least loaded healthy node for every new requ
 There is also `heartbeat_interval` which is just checking all nodes for availability. If node is unavailable it will be excluded
 from the list until connection will be restored. Such behavior must help to reduce number of unsuccessful requests in case of network lags.
 
-If some of proxied queries through cluster will run out of `max_execution_time` limit, proxy will try to kill them.
-But this is possible only if `cluster` configured with [kill_query_user](https://github.com/Vertamedia/chproxy/blob/master/config#kill_query_user_config)
+If some of proxied queries through cluster will run out of `max_execution_time` limit, proxy will try to kill them. Proxy will try to kill such queries
+as user `default` by default. But it is possible to reconfigure this property at section [kill_query_user](https://github.com/Vertamedia/chproxy/blob/master/config#kill_query_user_config)
 
 
 If `cluster`'s [users](https://github.com/Vertamedia/chproxy/blob/master/config#cluster_user_config) are not specified, it means that there is only a "default" user with no limits.
@@ -334,7 +334,6 @@ clusters:
     # An interval for checking all cluster nodes for availability
     heartbeat_interval: 1m
     # User configuration for killing queries which has exceeded limits
-    # if not specified - killing queries will be omitted
     kill_query_user:
       name: "default"
       password: "password"
