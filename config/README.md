@@ -363,7 +363,7 @@ clusters:
         requests_per_minute: 10
 ```
 
->> Full specification can be find [here](https://github.com/Vertamedia/chproxy/blob/master/config)
+#### Full specification can be find [here](https://github.com/Vertamedia/chproxy/blob/master/config)
 
 ## Metrics
 Metrics are exposed via [Prometheus](https://prometheus.io/) at `/metrics` path
