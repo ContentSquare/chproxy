@@ -222,7 +222,7 @@ clusters:
 `Chproxy` may accept requests over `HTTP` and `HTTPS` protocols. [HTTPS](https://github.com/Vertamedia/chproxy/blob/master/config#https_config) must be configured with
 custom certificate or with automated [Let's Encrypt](https://letsencrypt.org/) certificates.
 
-Access to proxy can be [limitied](https://github.com/Vertamedia/chproxy/blob/master/config#networks) by list of IPs or IP masks. This option can be applied to [HTTP](https://github.com/Vertamedia/chproxy/blob/master/config#http_config), [HTTPS](https://github.com/Vertamedia/chproxy/blob/master/config#https_config), [metrics](https://github.com/Vertamedia/chproxy/blob/master/config#metrics_config), [user](https://github.com/Vertamedia/chproxy/blob/master/config#user_config) or [cluster-user](https://github.com/Vertamedia/chproxy/blob/master/config#cluster_user_config).
+Access to proxy can be limitied by list of IPs or IP masks. This option can be applied to [HTTP](https://github.com/Vertamedia/chproxy/blob/master/config#http_config), [HTTPS](https://github.com/Vertamedia/chproxy/blob/master/config#https_config), [metrics](https://github.com/Vertamedia/chproxy/blob/master/config#metrics_config), [user](https://github.com/Vertamedia/chproxy/blob/master/config#user_config) or [cluster-user](https://github.com/Vertamedia/chproxy/blob/master/config#cluster_user_config).
 
 ### Users
 There are two types of users: `in-users` (in global section) and `out-users` (in cluster section).
@@ -259,16 +259,7 @@ Proxy will purify all `URL` params from requests before sending them to `ClickHo
 Be careful with limitations, allowed networks, passwords etc. Proxy will try do detect most obvious errors as `allowed_networks: ["0.0.0.0/0"]` or sending password via HTTP.
 But if such warnings are superfluous - just set `hack_me_please=true` in config file. 
 
-### Possible types used in configuration:
-
- - `<bool>`: a boolean value `true` or `false`
- - `<addr>`: string value consisting of a hostname or IP followed by an optional port number
- - `<scheme>`: a string that can take the values `http` or `https`
- - `<duration>`: a duration matching the regular expression `[0-9]+(ms|[smhdwy])`
- - `<networks>`: string value consisting of IP, IP mask or named group, for example `"127.0.0.1"` or `"127.0.0.1/24"`. 
- - `<host_name>`: string value consisting of host name, for example `"example.com"`
-
-Example of [full](https://github.com/Vertamedia/chproxy/blob/master/config/testdata/full.yml) configuration:
+#### Example of [full](https://github.com/Vertamedia/chproxy/blob/master/config/testdata/full.yml) configuration:
 ```yml
 # Whether to print debug logs
 log_debug: true

@@ -1,3 +1,12 @@
+### Possible types used in configuration:
+
+ - `<bool>`: a boolean value `true` or `false`
+ - `<addr>`: string value consisting of a hostname or IP followed by an optional port number
+ - `<scheme>`: a string that can take the values `http` or `https`
+ - `<duration>`: a duration matching the regular expression `[0-9]+(ms|[smhdwy])`
+ - `<networks>`: string value consisting of IP, IP mask or named group, for example `"127.0.0.1"` or `"127.0.0.1/24"`. 
+ - `<host_name>`: string value consisting of host name, for example `"example.com"`
+
 ### Global configuration consist of:
 ```yml
 # Whether to print debug logs
