@@ -363,6 +363,7 @@ clusters:
 
 ## Metrics
 Metrics are exposed via [Prometheus](https://prometheus.io/) at `/metrics` path
+You can find dashboard for [Grafana](https://grafana.com) based on the proxy metrics [here](https://github.com/Vertamedia/chproxy/blob/master/chproxy_overview.json)
 
 | Name | Type | Description | Labels |
 | ------------- | ------------- | ------------- | ------------- |
