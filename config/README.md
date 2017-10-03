@@ -279,7 +279,7 @@ hack_me_please: true
 # Named network lists, might be used as `allowed_networks` properties
 network_groups:
   - name: "office"
-    # List of networks or network_groups access is allowed from
+    # List of networks access is allowed from
     # Each list item could be IP address or subnet mask
     networks: ["127.0.0.1/24"]
 
@@ -287,11 +287,17 @@ server:
   http:
     # TCP address to listen to for http
     listen_addr: ":9090"
+    # List of networks or network_groups access is allowed from
+    # Each list item could be IP address, subnet mask or networ_group name
     allowed_networks: ["office"]
 
   https:
     # TCP address to listen to for https
     listen_addr: ":443"
+    # Path to cert file
+    cert_file: "cert_file"
+    # Path to cert key
+    cert_key: "cert_key"
     # Autocert configuration via letsencrypt
     autocert:
       # Path to the directory where autocert certs are cached
@@ -300,7 +306,7 @@ server:
       # see https://godoc.org/golang.org/x/crypto/acme/autocert#HostPolicy
       allowed_hosts: ["example.com"]
 
-  # Metrics handler configuration
+  # Metrics handler can be limited by networks. To show metrics just request `/metrics` path
   metrics:
     allowed_networks: ["office"]
 
@@ -308,13 +314,13 @@ users:
     # name and password will be used to authorize access via BasicAuth or URL `user` and `password` params
   - name: "web"
     password: "password"
-    # Which cluster user must match 
+    # Which cluster this user must match to 
     to_cluster: "second cluster"
-    # Which user of cluster above user must match
+    # Which user of cluster above this user must match to
     to_user: "web"
     # Whether to deny HTTP connections
     deny_http: true
-    # Limit of requests per minute rate
+    # Limit of requests per minute
     requests_per_minute: 4
 
   - name: "default"
@@ -336,8 +342,7 @@ clusters:
     nodes: ["127.0.0.1:8123", "127.0.0.2:8123", "127.0.0.3:8123"]
     # An interval for checking all cluster nodes for availability
     heartbeat_interval: 1m
-    # KillQueryUser - user configuration for killing
-    # queries which has exceeded limits
+    # User configuration for killing queries which has exceeded limits
     # if not specified - killing queries will be omitted
     kill_query_user:
       name: "default"
