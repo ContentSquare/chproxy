@@ -3,16 +3,16 @@
 Chproxy, is an http proxy for [ClickHouse](https://ClickHouse.yandex) database. It provides the following features:
 
 - May proxy requests to multiple distinct `ClickHouse` clusters depending on the input user. For instance, requests from `appserver` user may go to `stats-raw` cluster, while requests from `reportserver` user may go to `stats-aggregate` cluster.
-- May map input users to per-cluster users. This prevents from exposing real users and passwords used in `ClickHouse` clusters.
-- May limit access to `chproxy` via IP/IP-mask lists.
-- May independently limit access for each input user via IP/IP-mask lists.
+- May map input users to per-cluster users. This prevents from exposing real usernames and passwords used in `ClickHouse` clusters.
+- May accept incoming requests via HTTP and HTTPS.
+- May limit HTTP and HTTPS access by IP/IP-mask lists.
+- May limit per-user access by IP/IP-mask lists.
 - May limit per-user query duration. Timed out queries are forcibly killed via `KILL QUERY` request.
-- May limit per-user requests per minute rate.
+- May limit per-user requests rate.
 - May limit per-user number of concurrent requests.
-- Query duration, concurrent requests and request per minute limits may be independently set for each input user and for each per-cluster user.
+- All the limits may be independently set for each input user and for each per-cluster user.
 - Evenly spreads requests among cluster nodes using `least loaded` + `round robin` technique.
 - Monitors node health and prevents from sending requests to unhealthy nodes.
-- May accept incoming requests via HTTP and HTTPS.
 - Supports automatic HTTPS certificate issuing and renewal via [Let’s Encrypt](https://letsencrypt.org/).
 - May proxy requests to each configured cluster via either HTTP or HTTPS.
 - Prepends User-Agent request header with remote/local address and input username before proxying it to `ClickHouse`, so this info may be queried from [system.query_log.http_user_agent](https://github.com/yandex/ClickHouse/issues/847).
@@ -368,7 +368,7 @@ clusters:
         requests_per_minute: 10
 ```
 
-#### Full specification can be find [here](https://github.com/Vertamedia/chproxy/blob/master/config)
+#### Full specification is located [here](https://github.com/Vertamedia/chproxy/blob/master/config)
 
 ## Metrics
 Metrics are exposed via [Prometheus](https://prometheus.io/) at `/metrics` path
