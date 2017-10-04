@@ -1,7 +1,7 @@
 server:
   https:
     cert_file: "cert_file"
-    cert_key: "cert_key"
+    key_file: "key_file"
     autocert:
       cache_dir: "cache_dir"
 

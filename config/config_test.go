@@ -206,7 +206,7 @@ func TestBadConfig(t *testing.T) {
 		},
 		{
 			"empty https cert key",
-			"testdata/bad.empty_https_cert_key.yml",
+			"testdata/bad.empty_https_key_file.yml",
 			"field `https.key_file` must be specified",
 		},
 		{

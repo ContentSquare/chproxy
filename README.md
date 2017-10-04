@@ -288,7 +288,7 @@ server:
     # Path to cert file
     cert_file: "cert_file"
     # Path to cert key
-    cert_key: "cert_key"
+    key_file: "key_file"
     # Autocert configuration via letsencrypt
     autocert:
       # Path to the directory where autocert certs are cached
