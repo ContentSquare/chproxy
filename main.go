@@ -165,13 +165,14 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 	case "/":
 		var err error
 		var an *config.Networks
-		if r.URL.Scheme == "https" {
+		if r.TLS != nil {
 			an = allowedNetworksHTTPS.Load().(*config.Networks)
+			err = fmt.Errorf("https connections are not allowed from %s", r.RemoteAddr)
 		} else {
 			an = allowedNetworksHTTP.Load().(*config.Networks)
+			err = fmt.Errorf("http connections are not allowed from %s", r.RemoteAddr)
 		}
 		if !an.Contains(r.RemoteAddr) {
-			err = fmt.Errorf("%s connections are not allowed from %s", r.URL.Scheme, r.RemoteAddr)
 			rw.Header().Set("Connection", "close")
 			respondWith(rw, err, http.StatusForbidden)
 			return
