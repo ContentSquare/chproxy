@@ -164,18 +164,14 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 		promHandler.ServeHTTP(rw, r)
 	case "/":
 		var err error
+		var an *config.Networks
 		if r.URL.Scheme == "https" {
-			an := allowedNetworksHTTPS.Load().(*config.Networks)
-			if !an.Contains(r.RemoteAddr) {
-				err = fmt.Errorf("https connections are not allowed from %s", r.RemoteAddr)
-			}
+			an = allowedNetworksHTTPS.Load().(*config.Networks)
 		} else {
-			an := allowedNetworksHTTP.Load().(*config.Networks)
-			if !an.Contains(r.RemoteAddr) {
-				err = fmt.Errorf("http connections are not allowed from %s", r.RemoteAddr)
-			}
+			an = allowedNetworksHTTP.Load().(*config.Networks)
 		}
-		if err != nil {
+		if !an.Contains(r.RemoteAddr) {
+			err = fmt.Errorf("%s connections are not allowed from %s", r.URL.Scheme, r.RemoteAddr)
 			rw.Header().Set("Connection", "close")
 			respondWith(rw, err, http.StatusForbidden)
 			return
