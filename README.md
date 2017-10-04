@@ -7,7 +7,7 @@ Chproxy, is an http proxy for [ClickHouse](https://ClickHouse.yandex) database. 
 - May accept incoming requests via HTTP and HTTPS.
 - May limit HTTP and HTTPS access by IP/IP-mask lists.
 - May limit per-user access by IP/IP-mask lists.
-- May limit per-user query duration. Timed out queries are forcibly killed via `KILL QUERY` request.
+- May limit per-user query duration. Timed out queries are forcibly killed via [KILL QUERY](http://clickhouse-docs.readthedocs.io/en/latest/query_language/queries.html#kill-query).
 - May limit per-user requests rate.
 - May limit per-user number of concurrent requests.
 - All the limits may be independently set for each input user and for each per-cluster user.
@@ -40,11 +40,11 @@ clusters:
 
 ## Why it was created
 
-We faced a situation when `ClickHouse` exceeded `max_execution_time` and `max_concurrent_queries` limits due to various reasons:
+`ClickHouse` may exceed [max_execution_time](http://clickhouse-docs.readthedocs.io/en/latest/settings/query_complexity.html#max-execution-time) and [max_concurrent_queries](https://github.com/yandex/ClickHouse/blob/add13f233eb6d30da4c75c4309542047a1dde033/dbms/src/Server/config.xml#L75) limits due to various reasons:
 - `max_execution_time` may be exceeded due to the current [implementation deficiencies](https://github.com/yandex/ClickHouse/issues/217).
 - `max_concurrent_queries` works only on a per-node basis. There is no way to limit the number of concurrent queries on a cluster if queries are spread across cluster nodes.
 
-This led to high resource usage on all the cluster nodes. We had to kill those queries manually (since `ClickHouse` didn't kill them by itself) and to launch a dedicated http proxy for sending all the requests to a dedicated `ClickHouse` node under the given user. Now we had two distinct http proxies in front of our `ClickHouse` cluster - one for spreading `INSERTs` among cluster nodes and another one for sending `SELECTs` to a dedicated node where limits may be enforced somehow. This was fragile and inconvenient to manage, so `chproxy` has been created :)
+Such "leaky" limits may lead to high resource usage on all the cluster nodes. We had to launch a dedicated http proxy for sending all the requests to a dedicated `ClickHouse` node under the given user. So we had to maintain two distinct http proxies in front of our `ClickHouse` cluster - one for spreading `INSERTs` among cluster nodes and another one for sending `SELECTs` to a dedicated node where limits may be enforced somehow. This was fragile and inconvenient to manage, so `chproxy` has been created :)
 
 
 ## Use cases
@@ -219,126 +219,158 @@ clusters:
 ## Configuration
 
 ### Server
-`Chproxy` may accept requests over `HTTP` and `HTTPS` protocols. [HTTPS](https://github.com/Vertamedia/chproxy/blob/master/config#https_config) must be configured with
-custom certificate or with automated [Let's Encrypt](https://letsencrypt.org/) certificates.
+`Chproxy` may accept requests over `HTTP` and `HTTPS` protocols. [HTTPS](https://github.com/Vertamedia/chproxy/blob/master/config#https_config) must be configured with custom certificate or with automated [Let's Encrypt](https://letsencrypt.org/) certificates.
 
-Access to proxy can be limitied by list of IPs or IP masks. This option can be applied to [HTTP](https://github.com/Vertamedia/chproxy/blob/master/config#http_config), [HTTPS](https://github.com/Vertamedia/chproxy/blob/master/config#https_config), [metrics](https://github.com/Vertamedia/chproxy/blob/master/config#metrics_config), [user](https://github.com/Vertamedia/chproxy/blob/master/config#user_config) or [cluster-user](https://github.com/Vertamedia/chproxy/blob/master/config#cluster_user_config).
+Access to `chproxy` can be limitied by list of IPs or IP masks. This option can be applied to [HTTP](https://github.com/Vertamedia/chproxy/blob/master/config#http_config), [HTTPS](https://github.com/Vertamedia/chproxy/blob/master/config#https_config), [metrics](https://github.com/Vertamedia/chproxy/blob/master/config#metrics_config), [user](https://github.com/Vertamedia/chproxy/blob/master/config#user_config) or [cluster-user](https://github.com/Vertamedia/chproxy/blob/master/config#cluster_user_config).
 
 ### Users
 There are two types of users: `in-users` (in global section) and `out-users` (in cluster section).
 This means all requests will be matched to `in-users` and if all checks are Ok - will be matched to `out-users`
 with overriding credentials.
 
-For example, we have one ClickHouse user `web` with `read-only` permissions and limits `max_concurrent_queries=4`.
-And two applications which are `reading` from ClickHouse. So we are creating two `in-users` with `max_concurrent_queries=2` and `to_user=web`.
-This will help to avoid situation when one application will use all 4-request limit.
+Suppose we have one ClickHouse user `web` with `read-only` permissions and `max_concurrent_queries=4` limit.
+There are two distinct applications `reading` from ClickHouse. We may create two distinct `in-users` with `to_user=web` and `nmax_concurrent_queries=2` each in order to avoid situation when a single application exhausts all the 4-request limit on the `web` user.
 
-All the requests to `chproxy` must be authorized with credentials from [user_config](https://github.com/Vertamedia/chproxy/blob/master/config#user_config). Credentials can be passed
-via BasicAuth or via URL `user` and `password` params.
+Requests to `chproxy` must be authorized with credentials from [user_config](https://github.com/Vertamedia/chproxy/blob/master/config#user_config). Credentials can be passed via BasicAuth or via URL `user` and `password` params.
 
 Limits for `in-users` and `out-users` are independent.
 
 ### Clusters
-Proxy can be configured with multiple `cluster`s. Each `cluster` must have a name and a list of nodes.
-All requests to cluster will be balanced with `round-robin` and `least-loaded` way.
-If some of requests to ClickHouse node were unsuccessful - this node priority will be decreased for short period.
-It means that proxy will chose next least loaded healthy node for every new request.
+`Chproxy` can be configured with multiple `cluster`s. Each `cluster` must have a name and a list of nodes.
+Requests to each cluster are balanced using `round-robin` + `least-loaded` approach.
+The node priority is automatically decreased for a short interval if recent requests to it were unsuccessful.
+This means that the `chproxy` will choose the next least loaded healthy node for every new request.
 
-There is also `heartbeat_interval` which is just checking all nodes for availability. If node is unavailable it will be excluded
-from the list until connection will be restored. Such behavior must help to reduce number of unsuccessful requests in case of network lags.
+Additionally each node is periodically checked for availability. Unavailable nodes are automatically excluded from the cluster until they become available again. This allows performing node maintenance without removing temporarily unavailable nodes from the cluster config.
 
-If some of proxied queries through cluster will run out of `max_execution_time` limit, proxy will try to kill them. Proxy will try to kill such queries
-as user `default` by default. But it is possible to reconfigure this property at section [kill_query_user](https://github.com/Vertamedia/chproxy/blob/master/config#kill_query_user_config)
+`Chproxy` automatically kills queris exceeding `max_execution_time` limit. By default `chproxy` tries to kill such queries
+under `default` user. The user may be overriden with [kill_query_user](https://github.com/Vertamedia/chproxy/blob/master/config#kill_query_user_config).
 
 
-If `cluster`'s [users](https://github.com/Vertamedia/chproxy/blob/master/config#cluster_user_config) are not specified, it means that there is only a "default" user with no limits.
+If `cluster`'s [users](https://github.com/Vertamedia/chproxy/blob/master/config#cluster_user_config) section isn't specified, then `default` user is used with no limits.
 
 ### Security
-Proxy will purify all `URL` params from requests before sending them to `ClickHouse` nodes. This must prevent overriding of user's configurations at cluster.
+`Chproxy` removes all the query params from input requests (except the `query`) before proxying them to `ClickHouse` nodes. This prevents from unsafe overriding of various `ClickHouse` [settings](http://clickhouse-docs.readthedocs.io/en/latest/interfaces/http_interface.html).
 
-Be careful with limitations, allowed networks, passwords etc. Proxy will try do detect most obvious errors as `allowed_networks: ["0.0.0.0/0"]` or sending password via HTTP.
-But if such warnings are superfluous - just set `hack_me_please=true` in config file. 
+Be careful when configuring limits, allowed networks, passwords etc.
+By default `chproxy` tries detecting the most obvious configuration errors such as `allowed_networks: ["0.0.0.0/0"]` or sending passwords via unencrypted HTTP. Use `hack_me_please=true` for disabling all the security-related checks when applying new config.
 
 #### Example of [full](https://github.com/Vertamedia/chproxy/blob/master/config/testdata/full.yml) configuration:
 ```yml
-# Whether to print debug logs
+# Whether to print debug logs.
 log_debug: true
 
-# Whether to ignore security warnings
+# Whether to ignore security checks during config parsing.
 hack_me_please: true
 
-# Named network lists, might be used as `allowed_networks` properties
+# Named network lists, might be used as values for `allowed_networks`.
 network_groups:
   - name: "office"
-    # List of networks access is allowed from
-    # Each list item could be IP address or subnet mask
-    networks: ["127.0.0.1/24"]
+    # Each item may contain either IP or IP subnet mask.
+    networks: ["127.0.0.0/24", "10.10.0.1"]
 
+  - name: "reporting-apps"
+    networks: ["10.10.10.0/24"]
+
+# This section contains settings for `chproxy` input interfaces.
 server:
+  # Configs for input http interface.
+  # Input http interface works only if this section is present.
   http:
-    # TCP address to listen to for http
+    # TCP address to listen to for http.
+    # May be in the form IP:port . IP part is optional.
     listen_addr: ":9090"
-    # List of networks or network_groups access is allowed from
-    # Each list item could be IP address, subnet mask or networ_group name
-    allowed_networks: ["office"]
 
+    # List of allowed networks or network_groups.
+    # Each item may contain IP address, IP subnet mask or networ_group name.
+    allowed_networks: ["office", "reporting-apps", "1.2.3.4"]
+
+  # Configs for input https interface.
+  # Input https interface works only if this section is present.
   https:
-    # TCP address to listen to for https
+    # TCP address to listen to for https.
     listen_addr: ":443"
-    # Path to cert file
-    cert_file: "cert_file"
-    # Path to cert key
-    key_file: "key_file"
-    # Autocert configuration via letsencrypt
+
+    # Paths to cert and key files.
+    # cert_file: "cert_file"
+    # key_file: "key_file"
+
+    # Autocert configuration for letsencrypt.
+    # Certificates are automatically issued and renewed if this section
+    # is present.
+    # There is no need in cert_file and key_file if this section is present.
     autocert:
-      # Path to the directory where autocert certs are cached
+      # Path to the directory where autocert certs are cached.
       cache_dir: "certs_dir"
-      # List of host names to which proxy is allowed to respond to
-      # see https://godoc.org/golang.org/x/crypto/acme/autocert#HostPolicy
+
+      # The list of host names proxy is allowed to respond to.
+      # See https://godoc.org/golang.org/x/crypto/acme/autocert#HostPolicy
       allowed_hosts: ["example.com"]
 
-  # Metrics handler can be limited by networks. To show metrics just request `/metrics` path
+  # Access to `/metrics` endpoint may be limited in this section.
+  # Metrics in prometheus format are exposed on the `/metrics` path.
   metrics:
     allowed_networks: ["office"]
 
+# This section contains configs for input users.
 users:
-    # name and password will be used to authorize access via BasicAuth or URL `user` and `password` params
+    # Name and password are used to authorize access via BasicAuth or
+    # via `user`/`password` query params.
   - name: "web"
-    password: "password"
-    # Which cluster this user must match to 
-    to_cluster: "second cluster"
-    # Which user of cluster above this user must match to
+    password: "****"
+
+    # Requests from the user are routed to this cluster.
+    to_cluster: "first cluster"
+
+    # Input user is substituted by the given output user in `to_cluster`
+    # before proxying the request.
     to_user: "web"
-    # Whether to deny HTTP connections
+
+    # Whether to deny input requests over HTTP.
     deny_http: true
-    # Limit of requests per minute
+
+    # Limit of requests per minute for the given input user.
     requests_per_minute: 4
 
   - name: "default"
     to_cluster: "second cluster"
     to_user: "default"
     allowed_networks: ["office", "1.2.3.0/24"]
-    # Maximum number of concurrently running queries for user
+
+    # The maximum number of concurrently running queries for the user.
     max_concurrent_queries: 4
-    #Maximum duration of query execution for user    
+
+    # The maximum query duration for the user.
+    # Timed out queries are forcibly killed via `KILL QUERY`.
     max_execution_time: 1m
-    # Whether to deny HTTPS connections
+
+    # Whether to deny input requests over HTTPS.
     deny_https: true
 
+# This section contains configuration for ClickHouse clusters.
 clusters:
+    # The cluster name is used in `to_cluster`.
   - name: "first cluster"
-    # Scheme: `http` or `https`; would be applied to all nodes
+
+    # Protocol to use for communicating with the cluster nodes.
+    # Currently supported values are `http` or `https`.
     scheme: "http"
-    # List of nodes addresses. Requests would be balanced among them
-    nodes: ["127.0.0.1:8123", "127.0.0.2:8123", "127.0.0.3:8123"]
-    # An interval for checking all cluster nodes for availability
+
+    # Cluster node addresses.
+    # Requests are evenly balanced among them.
+    nodes: ["127.0.0.1:8123", "shard2:8123"]
+
+    # Each cluster node is checked for availability using this interval.
     heartbeat_interval: 1m
-    # User configuration for killing queries which has exceeded limits
+
+    # Timed out queries are killed using this user.
     kill_query_user:
       name: "default"
-      password: "password"
-    # List of ClickHouse cluster users
+      password: "***"
+
+    # Configuration for cluster users.
     users:
+        # The user name is used in `to_user`.
       - name: "web"
         password: "password"
         max_concurrent_queries: 4
@@ -356,6 +388,7 @@ clusters:
         max_concurrent_queries: 4
         max_execution_time: 10s
         requests_per_minute: 10
+        allowed_networks: ["office"]
 ```
 
 #### Full specification is located [here](https://github.com/Vertamedia/chproxy/blob/master/config)
@@ -363,7 +396,7 @@ clusters:
 ## Metrics
 Metrics are exposed via [Prometheus](https://prometheus.io/) at `/metrics` path
 
-You can find dashboard for [Grafana](https://grafana.com) based on the proxy metrics [here](https://github.com/Vertamedia/chproxy/blob/master/chproxy_overview.json)
+An example [grafana](https://grafana.com) dashboard for `chproxy` metrics is available [here](https://github.com/Vertamedia/chproxy/blob/master/chproxy_overview.json)
 
 | Name | Type | Description | Labels |
 | ------------- | ------------- | ------------- | ------------- |

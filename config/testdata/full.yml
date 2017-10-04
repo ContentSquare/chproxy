@@ -1,50 +1,117 @@
+# Whether to print debug logs.
 log_debug: true
 
+# Whether to ignore security checks during config parsing.
 hack_me_please: true
 
+# Named network lists, might be used as values for `allowed_networks`.
 network_groups:
   - name: "office"
-    networks: ["127.0.0.1/24"]
+    # Each item may contain either IP or IP subnet mask.
+    networks: ["127.0.0.0/24", "10.10.0.1"]
 
+  - name: "reporting-apps"
+    networks: ["10.10.10.0/24"]
+
+# This section contains settings for `chproxy` input interfaces.
 server:
+  # Configs for input http interface.
+  # Input http interface works only if this section is present.
   http:
+    # TCP address to listen to for http.
+    # May be in the form IP:port . IP part is optional.
     listen_addr: ":9090"
-    allowed_networks: ["office"]
 
+    # List of allowed networks or network_groups.
+    # Each item may contain IP address, IP subnet mask or networ_group name.
+    allowed_networks: ["office", "reporting-apps", "1.2.3.4"]
+
+  # Configs for input https interface.
+  # Input https interface works only if this section is present.
   https:
+    # TCP address to listen to for https.
     listen_addr: ":443"
+
+    # Paths to cert and key files.
+    # cert_file: "cert_file"
+    # key_file: "key_file"
+
+    # Autocert configuration for letsencrypt.
+    # Certificates are automatically issued and renewed if this section
+    # is present.
+    # There is no need in cert_file and key_file if this section is present.
     autocert:
+      # Path to the directory where autocert certs are cached.
       cache_dir: "certs_dir"
+
+      # The list of host names proxy is allowed to respond to.
+      # See https://godoc.org/golang.org/x/crypto/acme/autocert#HostPolicy
       allowed_hosts: ["example.com"]
 
+  # Access to `/metrics` endpoint may be limited in this section.
+  # Metrics in prometheus format are exposed on the `/metrics` path.
   metrics:
     allowed_networks: ["office"]
 
+# This section contains configs for input users.
 users:
+    # Name and password are used to authorize access via BasicAuth or
+    # via `user`/`password` query params.
   - name: "web"
-    password: "password"
-    to_cluster: "second cluster"
+    password: "****"
+
+    # Requests from the user are routed to this cluster.
+    to_cluster: "first cluster"
+
+    # Input user is substituted by the given output user in `to_cluster`
+    # before proxying the request.
     to_user: "web"
+
+    # Whether to deny input requests over HTTP.
     deny_http: true
+
+    # Limit of requests per minute for the given input user.
     requests_per_minute: 4
 
   - name: "default"
     to_cluster: "second cluster"
     to_user: "default"
     allowed_networks: ["office", "1.2.3.0/24"]
+
+    # The maximum number of concurrently running queries for the user.
     max_concurrent_queries: 4
+
+    # The maximum query duration for the user.
+    # Timed out queries are forcibly killed via `KILL QUERY`.
     max_execution_time: 1m
+
+    # Whether to deny input requests over HTTPS.
     deny_https: true
 
+# This section contains configuration for ClickHouse clusters.
 clusters:
+    # The cluster name is used in `to_cluster`.
   - name: "first cluster"
+
+    # Protocol to use for communicating with the cluster nodes.
+    # Currently supported values are `http` or `https`.
     scheme: "http"
-    nodes: ["127.0.0.1:8123", "127.0.0.2:8123", "127.0.0.3:8123"]
+
+    # Cluster node addresses.
+    # Requests are evenly balanced among them.
+    nodes: ["127.0.0.1:8123", "shard2:8123"]
+
+    # Each cluster node is checked for availability using this interval.
     heartbeat_interval: 1m
+
+    # Timed out queries are killed using this user.
     kill_query_user:
       name: "default"
-      password: "password"
+      password: "***"
+
+    # Configuration for cluster users.
     users:
+        # The user name is used in `to_user`.
       - name: "web"
         password: "password"
         max_concurrent_queries: 4

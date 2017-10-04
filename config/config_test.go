@@ -18,11 +18,11 @@ func TestLoadConfig(t *testing.T) {
 			"full description",
 			"testdata/full.yml",
 			Config{
-				HackMePlease:true,
+				HackMePlease: true,
 				Server: Server{
 					HTTP: HTTP{
 						ListenAddr:       ":9090",
-						NetworksOrGroups: []string{"office"},
+						NetworksOrGroups: []string{"office", "reporting-apps", "1.2.3.4"},
 					},
 					HTTPS: HTTPS{
 						ListenAddr: ":443",
@@ -41,17 +41,17 @@ func TestLoadConfig(t *testing.T) {
 					{
 						Name:   "first cluster",
 						Scheme: "http",
-						Nodes:  []string{"127.0.0.1:8123", "127.0.0.2:8123", "127.0.0.3:8123"},
+						Nodes:  []string{"127.0.0.1:8123", "shard2:8123"},
 						KillQueryUser: KillQueryUser{
 							Name:     "default",
-							Password: "password",
+							Password: "***",
 						},
 						ClusterUsers: []ClusterUser{
 							{
 								Name:                 "web",
 								Password:             "password",
 								MaxConcurrentQueries: 4,
-								MaxExecutionTime:     time.Duration(time.Minute),
+								MaxExecutionTime:     time.Minute,
 							},
 						},
 						HeartBeatInterval: time.Minute,
@@ -65,13 +65,13 @@ func TestLoadConfig(t *testing.T) {
 							{
 								Name:                 "default",
 								MaxConcurrentQueries: 4,
-								MaxExecutionTime:     time.Duration(time.Minute),
+								MaxExecutionTime:     time.Minute,
 							},
 							{
 								Name:                 "web",
 								ReqPerMin:            10,
 								MaxConcurrentQueries: 4,
-								MaxExecutionTime:     time.Duration(time.Second * 10),
+								MaxExecutionTime:     time.Second * 10,
 								NetworksOrGroups:     []string{"office"},
 							},
 						},
@@ -81,8 +81,8 @@ func TestLoadConfig(t *testing.T) {
 				Users: []User{
 					{
 						Name:      "web",
-						Password:  "password",
-						ToCluster: "second cluster",
+						Password:  "****",
+						ToCluster: "first cluster",
 						ToUser:    "web",
 						DenyHTTP:  true,
 						ReqPerMin: 4,
@@ -92,7 +92,7 @@ func TestLoadConfig(t *testing.T) {
 						ToCluster:            "second cluster",
 						ToUser:               "default",
 						MaxConcurrentQueries: 4,
-						MaxExecutionTime:     time.Duration(time.Minute),
+						MaxExecutionTime:     time.Minute,
 						DenyHTTPS:            true,
 						NetworksOrGroups:     []string{"office", "1.2.3.0/24"},
 					},
@@ -103,6 +103,19 @@ func TestLoadConfig(t *testing.T) {
 						Networks: Networks{
 							&net.IPNet{
 								IP:   net.IPv4(127, 0, 0, 0),
+								Mask: net.IPMask{255, 255, 255, 0},
+							},
+							&net.IPNet{
+								IP:   net.IPv4(10, 10, 0, 1),
+								Mask: net.IPMask{255, 255, 255, 255},
+							},
+						},
+					},
+					{
+						Name: "reporting-apps",
+						Networks: Networks{
+							&net.IPNet{
+								IP:   net.IPv4(10, 10, 10, 0),
 								Mask: net.IPMask{255, 255, 255, 0},
 							},
 						},
@@ -266,8 +279,8 @@ func TestBadConfig(t *testing.T) {
 
 func TestExamples(t *testing.T) {
 	var testCases = []struct {
-		name  string
-		file  string
+		name string
+		file string
 	}{
 		{
 			"simple",
