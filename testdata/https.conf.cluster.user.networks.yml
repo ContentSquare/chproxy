@@ -1,0 +1,18 @@
+server:
+  https:
+      listen_addr: ":8443"
+      cert_file: "testdata/example.com.cert"
+      key_file: "testdata/example.com.key"
+
+users:
+  - name: "default"
+    to_cluster: "default"
+    password: "qwerty"
+    to_user: "web"
+
+clusters:
+  - name: "default"
+    nodes: ["127.0.0.1:8123"]
+    users:
+      - name: "web"
+        allowed_networks: ["127.0.2.1/24"]
