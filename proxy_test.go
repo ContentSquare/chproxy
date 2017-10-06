@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
@@ -203,6 +204,39 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 			},
 		},
 		{
+			name:     "disallow https",
+			expected: "user \"default\" is not allowed to access via https",
+			cfg:      authCfg,
+			f: func(p *reverseProxy) string {
+				p.users["default"].denyHTTPS = true
+				req := httptest.NewRequest("POST", fakeServer.URL, nil)
+				req.TLS = &tls.ConnectionState{
+					Version:           tls.VersionTLS12,
+					HandshakeComplete: true,
+				}
+				rw := httptest.NewRecorder()
+				p.ServeHTTP(rw, req)
+				resp := rw.Result()
+				response, err := ioutil.ReadAll(resp.Body)
+				if err != nil {
+					panic(err)
+				}
+				p.users["default"].denyHTTPS = false
+				return string(response)
+			},
+		},
+		{
+			name:     "disallow http",
+			expected: "user \"default\" is not allowed to access via http",
+			cfg:      authCfg,
+			f: func(p *reverseProxy) string {
+				p.users["default"].denyHTTP = true
+				resp := makeRequest(p)
+				p.users["default"].denyHTTP = false
+				return resp
+			},
+		},
+		{
 			name:     "basicauth wrong name",
 			expected: "invalid username or password for user \"fooo\"",
 			cfg:      authCfg,
@@ -324,15 +358,10 @@ func TestReverseProxy_ServeHTTP2(t *testing.T) {
 			allowedNetworks: config.Networks{getNetwork("192.0.2.1/32")},
 			expected:        okResponse,
 		},
-		{
-			name:            "disallow addr",
-			allowedNetworks: config.Networks{getNetwork("192.0.2.2/32"), getNetwork("192.0.2.2")},
-			expected:        "user \"default\" is not allowed to access from 192.0.2.1:1234",
-		},
 	}
 
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run("user "+tc.name, func(t *testing.T) {
 			goodCfg.Users[0].AllowedNetworks = tc.allowedNetworks
 			proxy, err := getProxy(goodCfg)
 			if err != nil {
@@ -343,7 +372,44 @@ func TestReverseProxy_ServeHTTP2(t *testing.T) {
 				t.Fatalf("expected response: %q; got: %q", tc.expected, resp)
 			}
 		})
+		t.Run("cluster user "+tc.name, func(t *testing.T) {
+			goodCfg.Clusters[0].ClusterUsers[0].AllowedNetworks = tc.allowedNetworks
+			proxy, err := getProxy(goodCfg)
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+			resp := makeRequest(proxy)
+			if resp != tc.expected {
+				t.Fatalf("expected response: %q; got: %q", tc.expected, resp)
+			}
+		})
 	}
+
+	t.Run("cluster user disallow addr", func(t *testing.T) {
+		goodCfg.Clusters[0].ClusterUsers[0].AllowedNetworks = config.Networks{getNetwork("192.0.2.2/32"), getNetwork("192.0.2.2")}
+		proxy, err := getProxy(goodCfg)
+		if err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
+		resp := makeRequest(proxy)
+		expected := "cluster user \"web\" is not allowed to access from 192.0.2.1:1234"
+		if resp != expected {
+			t.Fatalf("expected response: %q; got: %q", expected, resp)
+		}
+	})
+
+	t.Run("user disallow addr", func(t *testing.T) {
+		goodCfg.Users[0].AllowedNetworks = config.Networks{getNetwork("192.0.2.2/32"), getNetwork("192.0.2.2")}
+		proxy, err := getProxy(goodCfg)
+		if err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
+		resp := makeRequest(proxy)
+		expected := "user \"default\" is not allowed to access from 192.0.2.1:1234"
+		if resp != expected {
+			t.Fatalf("expected response: %q; got: %q", expected, resp)
+		}
+	})
 }
 
 func getNetwork(s string) *net.IPNet {
@@ -354,23 +420,27 @@ func getNetwork(s string) *net.IPNet {
 	return ipnet
 }
 
-var fakeServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		panic(err)
-	}
-	r.Body.Close()
-
-	if len(body) > 0 {
-		d, err := time.ParseDuration(string(body))
+var (
+	handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
-			fmt.Fprintln(w, "Err delay:", err)
-			return
+			panic(err)
 		}
-		time.Sleep(d)
-	}
-	fmt.Fprintln(w, "Ok.")
-}))
+		r.Body.Close()
+
+		if len(body) > 0 {
+			d, err := time.ParseDuration(string(body))
+			if err != nil {
+				fmt.Fprintln(w, "Err delay:", err)
+				return
+			}
+			time.Sleep(d)
+		}
+		fmt.Fprintln(w, "Ok.")
+	})
+
+	fakeServer = httptest.NewServer(handler)
+)
 
 func makeRequest(p *reverseProxy) string { return makeHeavyRequest(p, time.Duration(0)) }
 

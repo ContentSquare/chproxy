@@ -1,6 +1,6 @@
 server:
   http:
-    listen_addr: ":9091"
+    listen_addr: ":9090"
     allowed_networks: ["127.0.0.1/32"]
   metrics:
     allowed_networks: ["127.0.0.2/32"]

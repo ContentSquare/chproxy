@@ -2,22 +2,23 @@ package main
 
 import (
 	"crypto/tls"
+	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"testing"
 )
 
-func TestServeTLS(t *testing.T) {
-	*configFile = "testdata/tls.conf.yml"
+func startTLS() (net.Listener, chan struct{}) {
 	cfg, err := reloadConfig()
 	if err != nil {
-		t.Fatalf("unexpected error while loading config: %s", err)
+		panic(fmt.Sprintf("unexpected error while loading config: %s", err))
 	}
 	done := make(chan struct{})
 
 	ln, err := net.Listen("tcp4", cfg.HTTPS.ListenAddr)
 	if err != nil {
-		t.Fatalf("cannot listen for %q: %s", cfg.HTTPS.ListenAddr, err)
+		panic(fmt.Sprintf("cannot listen for %q: %s", cfg.HTTPS.ListenAddr, err))
 	}
 	tlsCfg := newTLSConfig(cfg.HTTPS)
 	tln := tls.NewListener(ln, tlsCfg)
@@ -25,88 +26,259 @@ func TestServeTLS(t *testing.T) {
 		listenAndServe(tln)
 		close(done)
 	}()
+	return tln, done
+}
 
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
-	client := &http.Client{Transport: tr}
-
-	req, err := http.NewRequest("GET", "https://127.0.0.1:8443/metrics", nil)
+func startHTTP() (net.Listener, chan struct{}) {
+	cfg, err := reloadConfig()
 	if err != nil {
-		t.Fatalf("unexpected erorr: %s", err)
+		panic(fmt.Sprintf("unexpected error while loading config: %s", err))
 	}
+	done := make(chan struct{})
 
-	req.SetBasicAuth("default", "qwerty")
-
-	resp, err := client.Do(req)
+	ln, err := net.Listen("tcp4", cfg.HTTP.ListenAddr)
 	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
+		panic(fmt.Sprintf("cannot listen for %q: %s", cfg.HTTP.ListenAddr, err))
 	}
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
-	}
-	if err := tln.Close(); err != nil {
-		t.Fatalf("unexpected error while closing listener: %s", err)
-	}
-	<-done
+	go func() {
+		listenAndServe(ln)
+		close(done)
+	}()
+	return ln, done
 }
 
 func TestServe(t *testing.T) {
-	*configFile = "testdata/http.conf.yml"
-	cfg, err := reloadConfig()
-	if err != nil {
-		t.Fatalf("unexpected error while loading config: %s", err)
-	}
-	done := make(chan struct{})
 
-	ln, err := net.Listen("tcp4", cfg.HTTP.ListenAddr)
-	if err != nil {
-		t.Fatalf("cannot listen for %q: %s", cfg.HTTP.ListenAddr, err)
-	}
-	go func() {
-		listenAndServe(ln)
-		close(done)
-	}()
+	var testCases = []struct {
+		name   string
+		file   string
+		testFn func(t *testing.T)
+		lnFn   func() (net.Listener, chan struct{})
+	}{
+		{
+			"https request",
+			"testdata/tls.conf.yml",
+			func(t *testing.T) {
+				tr := &http.Transport{
+					TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+				}
+				client := &http.Client{Transport: tr}
+				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query=asd", nil)
+				if err != nil {
+					t.Fatalf("unexpected erorr: %s", err)
+				}
+				resp, err := client.Do(req)
+				if err != nil {
+					t.Fatalf("unexpected error: %s", err)
+				}
+				if resp.StatusCode != http.StatusUnauthorized {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusUnauthorized)
+				}
+				resp.Body.Close()
 
-	resp, err := http.Get("http://127.0.0.1:9090/metrics")
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
-	}
-	if err := ln.Close(); err != nil {
-		t.Fatalf("unexpected error while closing listener: %s", err)
-	}
-	<-done
-}
+				req, err = http.NewRequest("GET", "https://127.0.0.1:8443?query=asd", nil)
+				if err != nil {
+					t.Fatalf("unexpected erorr: %s", err)
+				}
+				req.SetBasicAuth("default", "qwerty")
+				resp, err = client.Do(req)
+				if err != nil {
+					t.Fatalf("unexpected error: %s", err)
+				}
+				if resp.StatusCode != http.StatusInternalServerError {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusInternalServerError)
+				}
+				response, err := ioutil.ReadAll(resp.Body)
+				if err != nil {
+					t.Fatalf("unexpected err while reading body: %s", err)
+				}
+				expErr := "error while creating scope for cluster \"default\": no active hosts"
+				if string(response) != expErr {
+					t.Fatalf("unexpected response: %q; expected: %q", string(response), expErr)
+				}
+				resp.Body.Close()
+			},
+			startTLS,
+		},
+		{
+			"deny https",
+			"testdata/tls.conf.deny.https.yml",
+			func(t *testing.T) {
+				tr := &http.Transport{
+					TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+				}
+				client := &http.Client{Transport: tr}
+				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query=asd", nil)
+				if err != nil {
+					t.Fatalf("unexpected erorr: %s", err)
+				}
+				req.SetBasicAuth("default", "qwerty")
+				resp, err := client.Do(req)
+				if err != nil {
+					t.Fatalf("unexpected error: %s", err)
+				}
+				if resp.StatusCode != http.StatusForbidden {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
+				}
+				response, err := ioutil.ReadAll(resp.Body)
+				if err != nil {
+					t.Fatalf("unexpected err while reading body: %s", err)
+				}
+				expErr := "user \"default\" is not allowed to access via https"
+				if string(response) != expErr {
+					t.Fatalf("unexpected response: %q; expected: %q", string(response), expErr)
+				}
+				resp.Body.Close()
+			},
+			startTLS,
+		},
+		{
+			"https networks",
+			"testdata/tls.conf.networks.yml",
+			func(t *testing.T) {
+				tr := &http.Transport{
+					TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+				}
+				client := &http.Client{Transport: tr}
+				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query=asd", nil)
+				if err != nil {
+					t.Fatalf("unexpected erorr: %s", err)
+				}
+				req.SetBasicAuth("default", "qwerty")
+				resp, err := client.Do(req)
+				if err != nil {
+					t.Fatalf("unexpected error: %s", err)
+				}
+				if resp.StatusCode != http.StatusForbidden {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
+				}
+				response, err := ioutil.ReadAll(resp.Body)
+				if err != nil {
+					t.Fatalf("unexpected err while reading body: %s", err)
+				}
+				res := string(response)
+				res = res[0:48]
+				expErr := "https connections are not allowed from 127.0.0.1"
+				if res != expErr {
+					t.Fatalf("unexpected response: %q; expected: %q", res, expErr)
+				}
+				resp.Body.Close()
+			},
+			startTLS,
+		},
+		{
+			"http request",
+			"testdata/http.conf.yml",
+			func(t *testing.T) {
+				resp, err := http.Get("http://127.0.0.1:9090?query=asd")
+				if err != nil {
+					t.Fatalf("unexpected erorr: %s", err)
+				}
+				if resp.StatusCode != http.StatusInternalServerError {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusInternalServerError)
+				}
+				response, err := ioutil.ReadAll(resp.Body)
+				if err != nil {
+					t.Fatalf("unexpected err while reading body: %s", err)
+				}
+				expErr := "error while creating scope for cluster \"default\": no active hosts"
+				if string(response) != expErr {
+					t.Fatalf("unexpected response: %q; expected: %q", string(response), expErr)
+				}
+				resp.Body.Close()
 
-func TestServeMetrics(t *testing.T) {
-	*configFile = "testdata/http.metrics.conf.yml"
-	cfg, err := reloadConfig()
-	if err != nil {
-		t.Fatalf("unexpected error while loading config: %s", err)
+				resp, err = http.Get("http://127.0.0.1:9090/metrics")
+				if resp.StatusCode != http.StatusOK {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusInternalServerError)
+				}
+				resp.Body.Close()
+			},
+			startHTTP,
+		},
+		{
+			"deny http",
+			"testdata/http.conf.deny.http.yml",
+			func(t *testing.T) {
+				resp, err := http.Get("http://127.0.0.1:9090?query=asd")
+				if err != nil {
+					t.Fatalf("unexpected erorr: %s", err)
+				}
+				if resp.StatusCode != http.StatusForbidden {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
+				}
+				response, err := ioutil.ReadAll(resp.Body)
+				if err != nil {
+					t.Fatalf("unexpected err while reading body: %s", err)
+				}
+				expErr := "user \"default\" is not allowed to access via http"
+				if string(response) != expErr {
+					t.Fatalf("unexpected response: %q; expected: %q", string(response), expErr)
+				}
+				resp.Body.Close()
+			},
+			startHTTP,
+		},
+		{
+			"http networks",
+			"testdata/http.conf.networks.yml",
+			func(t *testing.T) {
+				resp, err := http.Get("http://127.0.0.1:9090?query=asd")
+				if err != nil {
+					t.Fatalf("unexpected erorr: %s", err)
+				}
+				if resp.StatusCode != http.StatusForbidden {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
+				}
+				response, err := ioutil.ReadAll(resp.Body)
+				if err != nil {
+					t.Fatalf("unexpected err while reading body: %s", err)
+				}
+				res := string(response)
+				res = res[0:47]
+				expErr := "http connections are not allowed from 127.0.0.1"
+				if res != expErr {
+					t.Fatalf("unexpected response: %q; expected: %q", res, expErr)
+				}
+				resp.Body.Close()
+			},
+			startHTTP,
+		},
+		{
+			"http metrics networks",
+			"testdata/http.conf.metrics.networks.yml",
+			func(t *testing.T) {
+				resp, err := http.Get("http://127.0.0.1:9090/metrics")
+				if err != nil {
+					t.Fatalf("unexpected erorr: %s", err)
+				}
+				if resp.StatusCode != http.StatusForbidden {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
+				}
+				response, err := ioutil.ReadAll(resp.Body)
+				if err != nil {
+					t.Fatalf("unexpected err while reading body: %s", err)
+				}
+				res := string(response)
+				res = res[0:54]
+				expErr := "connections to /metrics are not allowed from 127.0.0.1"
+				if res != expErr {
+					t.Fatalf("unexpected response: %q; expected: %q", res, expErr)
+				}
+				resp.Body.Close()
+			},
+			startHTTP,
+		},
 	}
-	done := make(chan struct{})
 
-	ln, err := net.Listen("tcp4", cfg.HTTP.ListenAddr)
-	if err != nil {
-		t.Fatalf("cannot listen for %q: %s", cfg.HTTP.ListenAddr, err)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			*configFile = tc.file
+			tl, done := tc.lnFn()
+			tc.testFn(t)
+			if err := tl.Close(); err != nil {
+				t.Fatalf("unexpected error while closing listener: %s", err)
+			}
+			<-done
+		})
 	}
-	go func() {
-		listenAndServe(ln)
-		close(done)
-	}()
-
-	resp, err := http.Get("http://127.0.0.1:9091/metrics")
-	if err != nil {
-		t.Fatalf("expected error: %s", err)
-	}
-	if resp.StatusCode != http.StatusForbidden {
-		t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
-	}
-	if err := ln.Close(); err != nil {
-		t.Fatalf("unexpected error while closing listener: %s", err)
-	}
-	<-done
 }

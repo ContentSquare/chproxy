@@ -30,9 +30,9 @@ func newReverseProxy() *reverseProxy {
 func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	log.Debugf("Accepting request from %s: %s", req.RemoteAddr, req.URL)
 
-	s, err := rp.getScope(req)
+	s, err, sc := rp.getScope(req)
 	if err != nil {
-		respondWithErr(rw, err)
+		respondWith(rw, err, sc)
 		return
 	}
 	log.Debugf("Request scope %s", s)
@@ -238,7 +238,7 @@ type reverseProxy struct {
 	clusters map[string]*cluster
 }
 
-func (rp *reverseProxy) getScope(req *http.Request) (*scope, error) {
+func (rp *reverseProxy) getScope(req *http.Request) (*scope, error, int) {
 	name, password := getAuth(req)
 
 	rp.mu.RLock()
@@ -246,10 +246,10 @@ func (rp *reverseProxy) getScope(req *http.Request) (*scope, error) {
 
 	u, ok := rp.users[name]
 	if !ok {
-		return nil, fmt.Errorf("invalid username or password for user %q", name)
+		return nil, fmt.Errorf("invalid username or password for user %q", name), http.StatusUnauthorized
 	}
 	if u.password != password {
-		return nil, fmt.Errorf("invalid username or password for user %q", name)
+		return nil, fmt.Errorf("invalid username or password for user %q", name), http.StatusUnauthorized
 	}
 	c, ok := rp.clusters[u.toCluster]
 	if !ok {
@@ -259,23 +259,23 @@ func (rp *reverseProxy) getScope(req *http.Request) (*scope, error) {
 	if !ok {
 		panic(fmt.Sprintf("BUG: user %q matches to unknown user %q at cluster %q", u.name, u.toUser, u.toCluster))
 	}
-	if u.denyHTTP && req.URL.Scheme == "http" {
-		return nil, fmt.Errorf("user %q is not allowed to access via http", u.name)
+	if u.denyHTTP && req.TLS == nil {
+		return nil, fmt.Errorf("user %q is not allowed to access via http", u.name), http.StatusForbidden
 	}
-	if u.denyHTTP && req.URL.Scheme == "https" {
-		return nil, fmt.Errorf("user %q is not allowed to access via https", u.name)
+	if u.denyHTTPS && req.TLS != nil {
+		return nil, fmt.Errorf("user %q is not allowed to access via https", u.name), http.StatusForbidden
 	}
 	if !u.allowedNetworks.Contains(req.RemoteAddr) {
-		return nil, fmt.Errorf("user %q is not allowed to access from %s", u.name, req.RemoteAddr)
+		return nil, fmt.Errorf("user %q is not allowed to access from %s", u.name, req.RemoteAddr), http.StatusForbidden
 	}
 	if !cu.allowedNetworks.Contains(req.RemoteAddr) {
-		return nil, fmt.Errorf("cluster user %q is not allowed to access from %s", cu.name, req.RemoteAddr)
+		return nil, fmt.Errorf("cluster user %q is not allowed to access from %s", cu.name, req.RemoteAddr), http.StatusForbidden
 	}
 	s, err := newScope(u, cu, c)
 	if err != nil {
-		return nil, fmt.Errorf("error while creating scope for cluster %q: %s", u.toCluster, err)
+		return nil, fmt.Errorf("error while creating scope for cluster %q: %s", u.toCluster, err), http.StatusInternalServerError
 	}
-	return s, nil
+	return s, nil, 0
 }
 
 // cache writer suppose to intercept headers set
