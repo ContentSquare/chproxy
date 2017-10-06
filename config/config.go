@@ -530,15 +530,18 @@ func LoadFile(filename string) (*Config, error) {
 	if cfg.Server.Metrics.AllowedNetworks, err = cfg.groupToNetwork(cfg.Server.Metrics.NetworksOrGroups); err != nil {
 		return nil, err
 	}
-	for i, c := range cfg.Clusters {
-		for j, u := range c.ClusterUsers {
-			if cfg.Clusters[i].ClusterUsers[j].AllowedNetworks, err = cfg.groupToNetwork(u.NetworksOrGroups); err != nil {
+	for i := range cfg.Clusters {
+		c := &cfg.Clusters[i]
+		for j := range c.ClusterUsers {
+			u := &c.ClusterUsers[j]
+			if u.AllowedNetworks, err = cfg.groupToNetwork(u.NetworksOrGroups); err != nil {
 				return nil, err
 			}
 		}
 	}
-	for i, u := range cfg.Users {
-		if cfg.Users[i].AllowedNetworks, err = cfg.groupToNetwork(u.NetworksOrGroups); err != nil {
+	for i := range cfg.Users {
+		u := &cfg.Users[i]
+		if u.AllowedNetworks, err = cfg.groupToNetwork(u.NetworksOrGroups); err != nil {
 			return nil, err
 		}
 	}
