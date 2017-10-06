@@ -121,10 +121,10 @@ clusters:
 
 ### Authorize users by passwords via HTTPS
 
-Suppose you need to access `ClickHouse` cluster from anywhere by username/password. 
-This may be used for building graphs from [ClickHouse-grafana](https://github.com/Vertamedia/ClickHouse-grafana). 
-It is bad idea to transfer unencrypted password and data over untrusted networks. 
-So HTTPS must be used for accessing the cluster in such cases. 
+Suppose you need to access `ClickHouse` cluster from anywhere by username/password.
+This may be used for building graphs from [ClickHouse-grafana](https://github.com/Vertamedia/ClickHouse-grafana) or [tabix](https://tabix.io/).
+It is bad idea to transfer unencrypted password and data over untrusted networks.
+So HTTPS must be used for accessing the cluster in such cases.
 The following `chproxy` config may be used for this [use case](https://github.com/Vertamedia/chproxy/blob/master/config/examples/https.yml):
 ```yml
 server:
