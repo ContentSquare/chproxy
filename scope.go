@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -18,7 +17,7 @@ import (
 )
 
 func (s *scope) String() string {
-	return fmt.Sprintf("[ Id: %d; User %q(%d) proxying as %q(%d) to %q(%d) ]",
+	return fmt.Sprintf("[ Id: %X; User %q(%d) proxying as %q(%d) to %q(%d) ]",
 		s.id,
 		s.user.name, s.user.queryCounter.load(),
 		s.clusterUser.name, s.clusterUser.queryCounter.load(),
@@ -26,14 +25,14 @@ func (s *scope) String() string {
 }
 
 type scope struct {
-	id          uint32
+	id          uint64
 	host        *host
 	cluster     *cluster
 	user        *user
 	clusterUser *clusterUser
 }
 
-var scopeID = uint32(time.Now().UnixNano())
+var scopeID = uint64(time.Now().UnixNano())
 
 func newScope(u *user, cu *clusterUser, c *cluster) (*scope, error) {
 	h := c.getHost()
@@ -41,7 +40,7 @@ func newScope(u *user, cu *clusterUser, c *cluster) (*scope, error) {
 		return nil, fmt.Errorf("no active hosts")
 	}
 	return &scope{
-		id:          atomic.AddUint32(&scopeID, 1),
+		id:          atomic.AddUint64(&scopeID, 1),
 		host:        h,
 		cluster:     c,
 		user:        u,
@@ -135,7 +134,7 @@ func (s *scope) decorateRequest(req *http.Request) *http.Request {
 	params := make(url.Values)
 
 	// set query_id as scope_id to have possibility kill query if needed
-	params.Set("query_id", strconv.Itoa(int(s.id)))
+	params.Set("query_id", fmt.Sprintf("%X", s.id))
 	// if query was passed - keep it
 	q := req.URL.Query().Get("query")
 	if len(q) > 0 {
