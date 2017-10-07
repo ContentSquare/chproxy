@@ -3,13 +3,14 @@ package main
 import "github.com/prometheus/client_golang/prometheus"
 
 var (
-	requestSum      *prometheus.CounterVec
-	hostHealth      *prometheus.GaugeVec
-	statusCodes     *prometheus.CounterVec
-	hostPenalties   *prometheus.CounterVec
-	requestSuccess  *prometheus.CounterVec
-	requestDuration *prometheus.SummaryVec
-	limitExcess     *prometheus.CounterVec
+	requestSum        *prometheus.CounterVec
+	hostHealth        *prometheus.GaugeVec
+	statusCodes       *prometheus.CounterVec
+	limitExcess       *prometheus.CounterVec
+	hostPenalties     *prometheus.CounterVec
+	requestSuccess    *prometheus.CounterVec
+	requestDuration   *prometheus.SummaryVec
+	concurrentQueries *prometheus.GaugeVec
 
 	goodRequest prometheus.Counter
 	badRequest  prometheus.Counter
@@ -65,6 +66,13 @@ func init() {
 		},
 		[]string{"cluster", "host"},
 	)
+	concurrentQueries = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "concurrent_queries",
+			Help: "Number of concurrent queries at current time",
+		},
+		[]string{"user", "cluster_user", "host"},
+	)
 	goodRequest = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "good_requests_total",
 		Help: "Total number of proxy requests",
@@ -74,5 +82,5 @@ func init() {
 		Help: "Total number of unsupported requests",
 	})
 	prometheus.MustRegister(statusCodes, requestDuration, requestSum, requestSuccess,
-		limitExcess, hostPenalties, hostHealth, badRequest, goodRequest)
+		limitExcess, hostPenalties, hostHealth, concurrentQueries, badRequest, goodRequest)
 }

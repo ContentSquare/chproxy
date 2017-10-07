@@ -407,6 +407,7 @@ An example [grafana](https://grafana.com) dashboard for `chproxy` metrics is ava
 | concurrent_limit_excess_total | Counter | Total number of max_concurrent_queries excess | `user`, `cluster_user`, `host` |
 | host_penalties_total | Counter | Total number of given penalties by host | `user`, `cluster_user`, `host` |
 | host_health | Gauge | Health state of hosts by clusters | `cluster_user`, `host` |
+| concurrent_queries | Gauge | Number of concurrent queries at current time | `user`, `cluster_user`, `host` |
 | good_requests_total | Counter | Total number of proxy requests | |
 | bad_requests_total | Counter | Total number of unsupported requests | |
 
