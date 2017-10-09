@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -17,11 +16,12 @@ import (
 )
 
 func (s *scope) String() string {
-	return fmt.Sprintf("[ Id: %X; User %q(%d) proxying as %q(%d) to %q(%d) ]",
+	return fmt.Sprintf("[ Id: %X; User %q(%d) proxying as %q(%d) to %q(%d); RemoteAddr: %q; LocalAddr: %q ]",
 		s.id,
 		s.user.name, s.user.queryCounter.load(),
 		s.clusterUser.name, s.clusterUser.queryCounter.load(),
-		s.host.addr.Host, s.host.load())
+		s.host.addr.Host, s.host.load(),
+		s.remoteAddr, s.localAddr)
 }
 
 type scope struct {
@@ -30,22 +30,15 @@ type scope struct {
 	cluster     *cluster
 	user        *user
 	clusterUser *clusterUser
+
+	remoteAddr string
+	localAddr  string
 }
 
 var scopeID = uint64(time.Now().UnixNano())
 
-func newScope(u *user, cu *clusterUser, c *cluster) (*scope, error) {
-	h := c.getHost()
-	if h == nil {
-		return nil, fmt.Errorf("no active hosts")
-	}
-	return &scope{
-		id:          atomic.AddUint64(&scopeID, 1),
-		host:        h,
-		cluster:     c,
-		user:        u,
-		clusterUser: cu,
-	}, nil
+func newScope() *scope {
+	return &scope{id: atomic.AddUint64(&scopeID, 1)}
 }
 
 func (s *scope) inc() error {
@@ -151,12 +144,8 @@ func (s *scope) decorateRequest(req *http.Request) *http.Request {
 	req.URL.Host = s.host.addr.Host
 
 	// extend ua with additional info
-	localAddr := "unknown"
-	if addr, ok := req.Context().Value(http.LocalAddrContextKey).(net.Addr); ok {
-		localAddr = addr.String()
-	}
 	ua := fmt.Sprintf("RemoteAddr: %s; LocalAddr: %s; CHProxy-User: %s; CHProxy-ClusterUser: %s; %s",
-		req.RemoteAddr, localAddr, s.user.name, s.clusterUser.name, req.UserAgent())
+		s.remoteAddr, s.localAddr, s.user.name, s.clusterUser.name, req.UserAgent())
 	req.Header.Set("User-Agent", ua)
 	return req
 }

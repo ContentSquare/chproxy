@@ -29,10 +29,12 @@ func TestRunningQueries(t *testing.T) {
 	u1 := &user{
 		maxConcurrentQueries: 1,
 	}
-	s, err := newScope(u1, cu, c)
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
+	s := newScope()
+	s.host = c.getHost()
+	s.cluster = c
+	s.user = u1
+	s.clusterUser = cu
+
 	check := func(uq, cuq, hq uint32) {
 		if s.user.queryCounter.load() != uq {
 			t.Fatalf("expected runningQueries for user: %d; got: %d", uq, s.user.queryCounter.load())
@@ -66,10 +68,11 @@ func TestRunningQueries(t *testing.T) {
 	u2 := &user{
 		maxConcurrentQueries: 1,
 	}
-	s, err = newScope(u2, cu, c)
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
+	s = newScope()
+	s.host = c.getHost()
+	s.cluster = c
+	s.user = u2
+	s.clusterUser = cu
 	if err := s.inc(); err != nil {
 		t.Fatalf("unexpected err: %s", err)
 	}

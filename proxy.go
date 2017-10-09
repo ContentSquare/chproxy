@@ -3,13 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
-	"strconv"
-	"sync"
-	"time"
-
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strconv"
+	"sync"
+	"time"
 
 	"github.com/Vertamedia/chproxy/config"
 	"github.com/Vertamedia/chproxy/log"
@@ -28,8 +28,6 @@ func newReverseProxy() *reverseProxy {
 }
 
 func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	log.Debugf("Accepting request from %s: %s", req.RemoteAddr, req.URL)
-
 	s, sc, err := rp.getScope(req)
 	if err != nil {
 		respondWith(rw, err, sc)
@@ -273,10 +271,20 @@ func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 	if !cu.allowedNetworks.Contains(req.RemoteAddr) {
 		return nil, http.StatusForbidden, fmt.Errorf("cluster user %q is not allowed to access from %s", cu.name, req.RemoteAddr)
 	}
-	s, err := newScope(u, cu, c)
-	if err != nil {
-		return nil, http.StatusInternalServerError, fmt.Errorf("error while creating scope for cluster %q: %s", u.toCluster, err)
+	h := c.getHost()
+	if h == nil {
+		return nil, http.StatusInternalServerError, fmt.Errorf("error while creating scope for cluster %q: no active hosts", u.toCluster)
 	}
+	s := newScope()
+	s.host = h
+	s.cluster = c
+	s.user = u
+	s.clusterUser = cu
+	s.remoteAddr = req.RemoteAddr
+	if addr, ok := req.Context().Value(http.LocalAddrContextKey).(net.Addr); ok {
+		s.localAddr = addr.String()
+	}
+
 	return s, 0, nil
 }
 
