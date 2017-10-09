@@ -285,30 +285,32 @@ network_groups:
   - name: "reporting-apps"
     networks: ["10.10.10.0/24"]
 
-# This section contains settings for `chproxy` input interfaces.
+# Settings for `chproxy` input interfaces.
 server:
   # Configs for input http interface.
-  # Input http interface works only if this section is present.
+  # The interface works only if this section is present.
   http:
     # TCP address to listen to for http.
     # May be in the form IP:port . IP part is optional.
     listen_addr: ":9090"
 
     # List of allowed networks or network_groups.
-    # Each item may contain IP address, IP subnet mask or networ_group name.
+    # Each item may contain IP address, IP subnet mask or a name
+    # from `network_groups`.
+    # By default requests are accepted from all the IPs.
     allowed_networks: ["office", "reporting-apps", "1.2.3.4"]
 
   # Configs for input https interface.
-  # Input https interface works only if this section is present.
+  # The interface works only if this section is present.
   https:
     # TCP address to listen to for https.
     listen_addr: ":443"
 
-    # Paths to cert and key files.
+    # Paths to TLS cert and key files.
     # cert_file: "cert_file"
     # key_file: "key_file"
 
-    # Autocert configuration for letsencrypt.
+    # Letsencrypt config.
     # Certificates are automatically issued and renewed if this section
     # is present.
     # There is no need in cert_file and key_file if this section is present.
@@ -320,29 +322,31 @@ server:
       # See https://godoc.org/golang.org/x/crypto/acme/autocert#HostPolicy
       allowed_hosts: ["example.com"]
 
-  # Access to `/metrics` endpoint may be limited in this section.
   # Metrics in prometheus format are exposed on the `/metrics` path.
+  # Access to `/metrics` endpoint may be restricted in this section.
+  # By default access to `/metrics` is unrestricted.
   metrics:
     allowed_networks: ["office"]
 
-# This section contains configs for input users.
+# Configs for input users.
 users:
     # Name and password are used to authorize access via BasicAuth or
     # via `user`/`password` query params.
+    # Password is optional. By default empty password is used.
   - name: "web"
     password: "****"
 
     # Requests from the user are routed to this cluster.
     to_cluster: "first cluster"
 
-    # Input user is substituted by the given output user in `to_cluster`
+    # Input user is substituted by the given output user from `to_cluster`
     # before proxying the request.
     to_user: "web"
 
     # Whether to deny input requests over HTTP.
     deny_http: true
 
-    # Limit of requests per minute for the given input user.
+    # Requests per minute limit for the given input user.
     requests_per_minute: 4
 
   - name: "default"
@@ -360,23 +364,26 @@ users:
     # Whether to deny input requests over HTTPS.
     deny_https: true
 
-# This section contains configuration for ClickHouse clusters.
+# Configs for ClickHouse clusters.
 clusters:
     # The cluster name is used in `to_cluster`.
   - name: "first cluster"
 
-    # Protocol to use for communicating with the cluster nodes.
+    # Protocol to use for communicating with cluster nodes.
     # Currently supported values are `http` or `https`.
+    # By default `http` is used.
     scheme: "http"
 
     # Cluster node addresses.
-    # Requests are evenly balanced among them.
+    # Requests are evenly distributed among them.
     nodes: ["127.0.0.1:8123", "shard2:8123"]
 
     # Each cluster node is checked for availability using this interval.
+    # By default each node is checked for every 5 seconds.
     heartbeat_interval: 1m
 
     # Timed out queries are killed using this user.
+    # By default `default` user is used.
     kill_query_user:
       name: "default"
       password: "***"
