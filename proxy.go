@@ -43,7 +43,6 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		"cluster_user": s.clusterUser.name,
 	}
 	requestSum.With(label).Inc()
-	concurrentQueries.With(label).Set(float64(s.host.load()))
 
 	if err = s.inc(); err != nil {
 		limitExcess.With(label).Inc()
@@ -51,6 +50,8 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 	defer s.dec()
+
+	concurrentQueries.With(label).Set(float64(s.host.load()))
 
 	timeStart := time.Now()
 	req = s.decorateRequest(req)
