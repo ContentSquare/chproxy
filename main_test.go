@@ -88,14 +88,6 @@ func TestServe(t *testing.T) {
 				if resp.StatusCode != http.StatusInternalServerError {
 					t.Errorf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusInternalServerError)
 				}
-				response, err := ioutil.ReadAll(resp.Body)
-				if err != nil {
-					t.Errorf("unexpected err while reading body: %s", err)
-				}
-				expErr := "error while creating scope for cluster \"default\": no active hosts"
-				if string(response) != expErr {
-					t.Errorf("unexpected response: %q; expected: %q", string(response), expErr)
-				}
 				resp.Body.Close()
 			},
 			startTLS,
@@ -229,15 +221,6 @@ func TestServe(t *testing.T) {
 				if resp.StatusCode != http.StatusInternalServerError {
 					t.Errorf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusInternalServerError)
 				}
-				response, err := ioutil.ReadAll(resp.Body)
-				if err != nil {
-					t.Errorf("unexpected err while reading body: %s", err)
-				}
-				expErr := "error while creating scope for cluster \"default\": no active hosts"
-				if string(response) != expErr {
-					t.Errorf("unexpected response: %q; expected: %q", string(response), expErr)
-				}
-				resp.Body.Close()
 
 				resp, err = http.Get("http://127.0.0.1:9090/metrics")
 				if resp.StatusCode != http.StatusOK {
