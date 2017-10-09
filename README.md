@@ -420,16 +420,16 @@ An example [grafana](https://grafana.com) dashboard for `chproxy` metrics is ava
 
 | Name | Type | Description | Labels |
 | ------------- | ------------- | ------------- | ------------- |
-| status_codes_total | Counter | Distribution by status codes | `user`, `cluster_user`, `host`, `code` |
-| request_sum_total | Counter | Total number of sent requests | `user`, `cluster_user`, `host` |
-| request_success_total | Counter | Total number of sent success requests | `user`, `cluster_user`, `host` |
+| status_codes_total | Counter | Distribution by response status codes | `user`, `cluster_user`, `host`, `code` |
+| request_sum_total | Counter | The number of processed requests | `user`, `cluster_user`, `host` |
+| request_success_total | Counter | The number of successfully proxied requests | `user`, `cluster_user`, `host` |
 | request_duration_seconds | Summary | Request duration | `user`, `cluster_user`, `host` |
-| concurrent_limit_excess_total | Counter | Total number of max_concurrent_queries excess | `user`, `cluster_user`, `host` |
-| host_penalties_total | Counter | Total number of given penalties by host | `user`, `cluster_user`, `host` |
-| host_health | Gauge | Health state of hosts by clusters | `cluster_user`, `host` |
-| concurrent_queries | Gauge | Number of concurrent queries at current time | `user`, `cluster_user`, `host` |
-| good_requests_total | Counter | Total number of proxy requests | |
-| bad_requests_total | Counter | Total number of unsupported requests | |
+| concurrent_limit_excess_total | Counter | The number of rejected requests due to max_concurrent_queries limit | `user`, `cluster_user`, `host` |
+| host_penalties_total | Counter | The number of given penalties by host | `user`, `cluster_user`, `host` |
+| host_health | Gauge | Health state of hosts by clusters | `cluster`, `host` |
+| concurrent_queries | Gauge | The number of concurrent queries at the moment | `user`, `cluster_user`, `host` |
+| good_requests_total | Counter | The number of good requests | |
+| bad_requests_total | Counter | The number of unsupported requests | |
 
 
 ## FAQ
