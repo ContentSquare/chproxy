@@ -239,10 +239,10 @@ There are two types of users: `in-users` (in global section) and `out-users` (in
 This means all requests will be matched to `in-users` and if all checks are Ok - will be matched to `out-users`
 with overriding credentials.
 
-Suppose we have one ClickHouse user `web` with `read-only` permissions and `max_concurrent_queries=4` limit.
-There are two distinct applications `reading` from ClickHouse. We may create two distinct `in-users` with `to_user=web` and `nmax_concurrent_queries=2` each in order to avoid situation when a single application exhausts all the 4-request limit on the `web` user.
+Suppose we have one ClickHouse user `web` with `read-only` permissions and `max_concurrent_queries: 4` limit.
+There are two distinct applications `reading` from ClickHouse. We may create two distinct `in-users` with `to_user: "web"` and `max_concurrent_queries: 2` each in order to avoid situation when a single application exhausts all the 4-request limit on the `web` user.
 
-Requests to `chproxy` must be authorized with credentials from [user_config](https://github.com/Vertamedia/chproxy/blob/master/config#user_config). Credentials can be passed via BasicAuth or via URL `user` and `password` params.
+Requests to `chproxy` must be authorized with credentials from [user_config](https://github.com/Vertamedia/chproxy/blob/master/config#user_config). Credentials can be passed via [BasicAuth](https://en.wikipedia.org/wiki/Basic_access_authentication) or via `user` and `password` [query string](https://en.wikipedia.org/wiki/Query_string) args.
 
 Limits for `in-users` and `out-users` are independent.
 
@@ -252,7 +252,7 @@ Requests to each cluster are balanced using `round-robin` + `least-loaded` appro
 The node priority is automatically decreased for a short interval if recent requests to it were unsuccessful.
 This means that the `chproxy` will choose the next least loaded healthy node for every new request.
 
-Additionally each node is periodically checked for availability. Unavailable nodes are automatically excluded from the cluster until they become available again. This allows performing node maintenance without removing temporarily unavailable nodes from the cluster config.
+Additionally each node is periodically checked for availability. Unavailable nodes are automatically excluded from the cluster until they become available again. This allows performing node maintenance without removing unavailable nodes from the cluster config.
 
 `Chproxy` automatically kills queris exceeding `max_execution_time` limit. By default `chproxy` tries to kill such queries
 under `default` user. The user may be overriden with [kill_query_user](https://github.com/Vertamedia/chproxy/blob/master/config#kill_query_user_config).
@@ -264,7 +264,9 @@ If `cluster`'s [users](https://github.com/Vertamedia/chproxy/blob/master/config#
 `Chproxy` removes all the query params from input requests (except the `query`) before proxying them to `ClickHouse` nodes. This prevents from unsafe overriding of various `ClickHouse` [settings](http://clickhouse-docs.readthedocs.io/en/latest/interfaces/http_interface.html).
 
 Be careful when configuring limits, allowed networks, passwords etc.
-By default `chproxy` tries detecting the most obvious configuration errors such as `allowed_networks: ["0.0.0.0/0"]` or sending passwords via unencrypted HTTP. Use `hack_me_please=true` for disabling all the security-related checks when applying new config.
+By default `chproxy` tries detecting the most obvious configuration errors such as `allowed_networks: ["0.0.0.0/0"]` or sending passwords via unencrypted HTTP.
+
+Special option `hack_me_please: true` may be used for disabling all the security-related checks during config validation (if you are feelying lucky :) ).
 
 #### Example of [full](https://github.com/Vertamedia/chproxy/blob/master/config/testdata/full.yml) configuration:
 ```yml
