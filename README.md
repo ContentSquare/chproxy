@@ -38,6 +38,17 @@ clusters:
 
 ```
 
+## How to install
+
+Chproxy is written in Go programming language and the easiest way to install it is:
+
+```
+go get -u github.com/Vertamedia/chproxy
+```
+
+If you don't have Go installed on your system - follow this guide https://golang.org/doc/install
+
+
 ## Why it was created
 
 `ClickHouse` may exceed [max_execution_time](http://clickhouse-docs.readthedocs.io/en/latest/settings/query_complexity.html#max-execution-time) and [max_concurrent_queries](https://github.com/yandex/ClickHouse/blob/add13f233eb6d30da4c75c4309542047a1dde033/dbms/src/Server/config.xml#L75) limits due to various reasons:
