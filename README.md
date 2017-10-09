@@ -3,7 +3,7 @@
 Chproxy, is an http proxy for [ClickHouse](https://ClickHouse.yandex) database. It provides the following features:
 
 - May proxy requests to multiple distinct `ClickHouse` clusters depending on the input user. For instance, requests from `appserver` user may go to `stats-raw` cluster, while requests from `reportserver` user may go to `stats-aggregate` cluster.
-- May map input users to per-cluster users. This prevents from exposing real usernames and passwords used in `ClickHouse` clusters.
+- May map input users to per-cluster users. This prevents from exposing real usernames and passwords used in `ClickHouse` clusters. Additionally this allows mapping multiple distinct input users to a single `ClickHouse` user.
 - May accept incoming requests via HTTP and HTTPS.
 - May limit HTTP and HTTPS access by IP/IP-mask lists.
 - May limit per-user access by IP/IP-mask lists.
@@ -14,8 +14,8 @@ Chproxy, is an http proxy for [ClickHouse](https://ClickHouse.yandex) database. 
 - Evenly spreads requests among cluster nodes using `least loaded` + `round robin` technique.
 - Monitors node health and prevents from sending requests to unhealthy nodes.
 - Supports automatic HTTPS certificate issuing and renewal via [Let’s Encrypt](https://letsencrypt.org/).
-- May proxy requests to each configured cluster via either HTTP or HTTPS.
-- Prepends User-Agent request header with remote/local address and input username before proxying it to `ClickHouse`, so this info may be queried from [system.query_log.http_user_agent](https://github.com/yandex/ClickHouse/issues/847).
+- May proxy requests to each configured cluster via either HTTP or [HTTPS](https://github.com/yandex/ClickHouse/blob/96d1ab89da451911eb54eccf1017eb5f94068a34/dbms/src/Server/config.xml#L15).
+- Prepends User-Agent request header with remote/local address and in/out usernames before proxying it to `ClickHouse`, so this info may be queried from [system.query_log.http_user_agent](https://github.com/yandex/ClickHouse/issues/847).
 - Exposes various useful [metrics](#metrics) in [prometheus text format](https://prometheus.io/docs/instrumenting/exposition_formats/).
 - Configuration may be updated without restart - just send `SIGHUP` signal to `chproxy` process.
 - Easy to manage and run - just pass config file path to a single `chproxy` binary.
@@ -23,8 +23,8 @@ Chproxy, is an http proxy for [ClickHouse](https://ClickHouse.yandex) database. 
 ```yml
 server:
   http:
-      listen_addr: ":9090"
-      allowed_networks: ["127.0.0.0/24"]
+    listen_addr: ":9090"
+    allowed_networks: ["127.0.0.0/24"]
 
 users:
   - name: "default"
@@ -40,13 +40,13 @@ clusters:
 
 ## How to install
 
-Chproxy is written in Go programming language and the easiest way to install it is:
+Chproxy is written in [Go](https://golang.org/). The easiest way to install it from sources is:
 
 ```
 go get -u github.com/Vertamedia/chproxy
 ```
 
-If you don't have Go installed on your system - follow this guide https://golang.org/doc/install
+If you don't have Go installed on your system - follow [this guide](https://golang.org/doc/install)
 
 
 ## Why it was created
@@ -55,20 +55,20 @@ If you don't have Go installed on your system - follow this guide https://golang
 - `max_execution_time` may be exceeded due to the current [implementation deficiencies](https://github.com/yandex/ClickHouse/issues/217).
 - `max_concurrent_queries` works only on a per-node basis. There is no way to limit the number of concurrent queries on a cluster if queries are spread across cluster nodes.
 
-Such "leaky" limits may lead to high resource usage on all the cluster nodes. We had to launch a dedicated http proxy for sending all the requests to a dedicated `ClickHouse` node under the given user. So we had to maintain two distinct http proxies in front of our `ClickHouse` cluster - one for spreading `INSERTs` among cluster nodes and another one for sending `SELECTs` to a dedicated node where limits may be enforced somehow. This was fragile and inconvenient to manage, so `chproxy` has been created :)
+Such "leaky" limits may lead to high resource usage on all the cluster nodes. After facing this problem we had to maintain two distinct http proxies in front of our `ClickHouse` cluster - one for spreading `INSERT`s among cluster nodes and another one for sending `SELECT`s to a dedicated node where limits may be enforced somehow. This was fragile and inconvenient to manage, so `chproxy` has been created :)
 
 
 ## Use cases
 
-### Spread `INSERTs` among cluster shards
+### Spread `INSERT`s among cluster shards
 
-Usually `INSERTs` are sent from application servers located in a limited number of subnetworks. `INSERTs` from other subnetworks must be denied.
+Usually `INSERT`s are sent from app servers located in a limited number of subnetworks. `INSERT`s from other subnetworks must be denied.
 
-All the `INSERTs` may be routed to a [distributed table](http://clickhouse-docs.readthedocs.io/en/latest/table_engines/distributed.html) on a single node. But this increases resource usage (CPU and network) on the node comparing to other nodes, since it must parse each row to be inserted and route it to the corresponding node (shard).
+All the `INSERT`s may be routed to a [distributed table](http://clickhouse-docs.readthedocs.io/en/latest/table_engines/distributed.html) on a single node. But this increases resource usage (CPU and network) on the node comparing to other nodes, since it must parse each row to be inserted and route it to the corresponding node (shard).
 
-It would be better to spread `INSERTs` among available shards and to route them directly to per-shard tables instead of distributed tables. The routing logic may be embedded either directly into applications generating `INSERTs` or may be moved to a proxy. Proxy approach is better since it allows re-configuring `ClickHouse` cluster without modification of application configs and without application downtime. Multiple identical proxies may be started on distinct servers for scalability and availability purposes.
+It would be better to spread `INSERT`s among available shards and to route them directly to per-shard tables instead of distributed tables. The routing logic may be embedded either directly into applications generating `INSERT`s or may be moved to a proxy. Proxy approach is better since it allows re-configuring `ClickHouse` cluster without modification of application configs and without application downtime. Multiple identical proxies may be started on distinct servers for scalability and availability purposes.
 
-The following minimal `chproxy` config may be used for this [use case](https://github.com/Vertamedia/chproxy/blob/master/config/examples/spread.inserts.yml):
+The following minimal `chproxy` config may be used for [this use case](https://github.com/Vertamedia/chproxy/blob/master/config/examples/spread.inserts.yml):
 ```yml
 server:
   http:
@@ -95,15 +95,15 @@ clusters:
     ]
 ```
 
-### Spread `SELECTs` from reporting apps among cluster nodes
+### Spread `SELECT`s from reporting apps among cluster nodes
 
-Reporting servers are usually located in a limited number of subnetworks. Reporting apps usually generate various customer reports from `SELECT` query results. The load generated by such `SELECTs` on `ClickHouse` cluster may vary depending on the number of online customers and on the generated reports. It is obvious that the load must be limited in order to prevent cluster overload.
+Reporting servers are usually located in a limited number of subnetworks. Reporting apps usually generate various customer reports from `SELECT` query results. The load generated by such `SELECT`s on `ClickHouse` cluster may vary depending on the number of online customers and on the generated report types. It is obvious that the load must be limited in order to prevent cluster overload.
 
-All the `SELECTs` may be routed to a [distributed table](http://clickhouse-docs.readthedocs.io/en/latest/table_engines/distributed.html) on a single node. But this increases resource usage (RAM, CPU and network) on the node comparing to other nodes, since it must do final aggregation, sorting and filtering for the data obtained from cluster nodes (shards).
+All the `SELECT`s may be routed to a [distributed table](http://clickhouse-docs.readthedocs.io/en/latest/table_engines/distributed.html) on a single node. But this increases resource usage (RAM, CPU and network) on the node comparing to other nodes, since it must do final aggregation, sorting and filtering for the data obtained from cluster nodes (shards).
 
-It would be better to create identical distributed table on each shard and spread `SELECTs` among all the available shards.
+It would be better to create identical distributed table on each shard and spread `SELECT`s among all the available shards.
 
-The following minimal `chproxy` config may be used for this [use case](https://github.com/Vertamedia/chproxy/blob/master/config/examples/spread.selects.yml):
+The following minimal `chproxy` config may be used for [this use case](https://github.com/Vertamedia/chproxy/blob/master/config/examples/spread.selects.yml):
 ```yml
 server:
   http:
@@ -136,7 +136,7 @@ Suppose you need to access `ClickHouse` cluster from anywhere by username/passwo
 This may be used for building graphs from [ClickHouse-grafana](https://github.com/Vertamedia/ClickHouse-grafana) or [tabix](https://tabix.io/).
 It is bad idea to transfer unencrypted password and data over untrusted networks.
 So HTTPS must be used for accessing the cluster in such cases.
-The following `chproxy` config may be used for this [use case](https://github.com/Vertamedia/chproxy/blob/master/config/examples/https.yml):
+The following `chproxy` config may be used for [this use case](https://github.com/Vertamedia/chproxy/blob/master/config/examples/https.yml):
 ```yml
 server:
   https:
