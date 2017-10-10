@@ -105,15 +105,6 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 	clusters := make(map[string]*cluster, len(cfg.Clusters))
 	for _, c := range cfg.Clusters {
-		hosts := make([]*host, len(c.Nodes))
-		for i, node := range c.Nodes {
-			addr, err := url.Parse(fmt.Sprintf("%s://%s", c.Scheme, node))
-			if err != nil {
-				return err
-			}
-			hosts[i] = &host{addr: addr}
-		}
-
 		clusterUsers := make(map[string]*clusterUser, len(c.ClusterUsers))
 		for _, u := range c.ClusterUsers {
 			if _, ok := clusterUsers[u.Name]; ok {
@@ -133,14 +124,26 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 			return fmt.Errorf("cluster %q already exists", c.Name)
 		}
 		cluster := &cluster{
-			name:                  c.Name,
-			hosts:                 hosts,
+			name: c.Name,
 			users:                 clusterUsers,
 			heartBeatInterval:     c.HeartBeatInterval,
 			killQueryUserName:     c.KillQueryUser.Name,
 			killQueryUserPassword: c.KillQueryUser.Password,
 		}
 		clusters[c.Name] = cluster
+
+		hosts := make([]*host, len(c.Nodes))
+		for i, node := range c.Nodes {
+			addr, err := url.Parse(fmt.Sprintf("%s://%s", c.Scheme, node))
+			if err != nil {
+				return err
+			}
+			hosts[i] = &host{
+				cluster: cluster,
+				addr:    addr,
+			}
+		}
+		cluster.hosts = hosts
 	}
 
 	users := make(map[string]*user, len(cfg.Users))
@@ -180,12 +183,12 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 	rp.reloadSignal = make(chan struct{})
 
 	// run checkers
-	for k, c := range clusters {
+	for _, c := range clusters {
 		for _, host := range c.hosts {
 			h := host
 			rp.reloadWG.Add(1)
 			go func() {
-				h.runHeartbeat(c.heartBeatInterval, k, rp.reloadSignal)
+				h.runHeartbeat(rp.reloadSignal)
 				rp.reloadWG.Done()
 			}()
 		}

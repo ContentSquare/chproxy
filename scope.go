@@ -183,6 +183,8 @@ type clusterUser struct {
 }
 
 type host struct {
+	cluster *cluster
+
 	// counter of unsuccessful requests to decrease
 	// host priority
 	penalty uint32
@@ -194,9 +196,9 @@ type host struct {
 	counter
 }
 
-func (h *host) runHeartbeat(interval time.Duration, clusterName string, done <-chan struct{}) {
+func (h *host) runHeartbeat(done <-chan struct{}) {
 	label := prometheus.Labels{
-		"cluster":      clusterName,
+		"cluster":      h.cluster.name,
 		"cluster_node": h.addr.Host,
 	}
 	heartbeat := func() {
@@ -210,6 +212,7 @@ func (h *host) runHeartbeat(interval time.Duration, clusterName string, done <-c
 		}
 	}
 	heartbeat()
+	interval := h.cluster.heartBeatInterval
 	for {
 		select {
 		case <-done:
@@ -238,7 +241,10 @@ func (h *host) penalize() {
 		return
 	}
 	log.Debugf("Penalizing host %q", h.addr)
-	hostPenalties.With(prometheus.Labels{"cluster_node": h.addr.Host}).Inc()
+	hostPenalties.With(prometheus.Labels{
+		"cluster":      h.cluster.name,
+		"cluster_node": h.addr.Host,
+	}).Inc()
 	atomic.AddUint32(&h.penalty, penaltySize)
 	time.AfterFunc(penaltyDuration, func() {
 		atomic.AddUint32(&h.penalty, ^uint32(penaltySize-1))

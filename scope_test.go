@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/prometheus/client_golang/prometheus"
 	"net/url"
 	"testing"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 var (
@@ -101,20 +102,22 @@ func TestRunningQueries(t *testing.T) {
 }
 
 func TestGetHost(t *testing.T) {
-	c := &cluster{
-		hosts: []*host{
-			{
-				addr:   &url.URL{Host: "127.0.0.1"},
-				active: 1,
-			},
-			{
-				addr:   &url.URL{Host: "127.0.0.2"},
-				active: 1,
-			},
-			{
-				addr:   &url.URL{Host: "127.0.0.3"},
-				active: 1,
-			},
+	c := &cluster{name: "default"}
+	c.hosts = []*host{
+		{
+			addr:    &url.URL{Host: "127.0.0.1"},
+			active:  1,
+			cluster: c,
+		},
+		{
+			addr:    &url.URL{Host: "127.0.0.2"},
+			active:  1,
+			cluster: c,
+		},
+		{
+			addr:    &url.URL{Host: "127.0.0.3"},
+			active:  1,
+			cluster: c,
 		},
 	}
 
@@ -199,8 +202,10 @@ func TestGetHost(t *testing.T) {
 }
 
 func TestPenalize(t *testing.T) {
+	c := &cluster{name: "default"}
 	h := &host{
-		addr: &url.URL{Host: "127.0.0.1"},
+		cluster: c,
+		addr:    &url.URL{Host: "127.0.0.1"},
 	}
 	exp := uint32(0)
 	if h.load() != exp {
@@ -214,8 +219,8 @@ func TestPenalize(t *testing.T) {
 	}
 
 	// do more penalties than `penaltyMaxSize` allows
-	c := int(penaltyMaxSize/penaltySize) * 2
-	for i := 0; i < c; i++ {
+	max := int(penaltyMaxSize/penaltySize) * 2
+	for i := 0; i < max; i++ {
 		h.penalize()
 	}
 	exp = uint32(penaltyMaxSize)

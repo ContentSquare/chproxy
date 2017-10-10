@@ -56,7 +56,7 @@ func init() {
 			Name: "host_penalties_total",
 			Help: "Total number of given penalties by host",
 		},
-		[]string{"cluster_node"},
+		[]string{"cluster", "cluster_node"},
 	)
 	hostHealth = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
