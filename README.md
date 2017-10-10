@@ -416,8 +416,6 @@ clusters:
 ## Metrics
 Metrics are exposed via [Prometheus](https://prometheus.io/) at `/metrics` path
 
-An example [grafana](https://grafana.com) dashboard for `chproxy` metrics is available [here](https://github.com/Vertamedia/chproxy/blob/master/chproxy_overview.json)
-
 | Name | Type | Description | Labels |
 | ------------- | ------------- | ------------- | ------------- |
 | status_codes_total | Counter | Distribution by response status codes | `user`, `cluster`, `cluster_user`, `cluster_node`, `code` |
@@ -429,6 +427,10 @@ An example [grafana](https://grafana.com) dashboard for `chproxy` metrics is ava
 | host_health | Gauge | Health state of hosts by clusters | `cluster`, `cluster_node` |
 | concurrent_queries | Gauge | The number of concurrent queries at the moment | `user`, `cluster`, `cluster_user`, `cluster_node` |
 | bad_requests_total | Counter | The number of unsupported requests | |
+
+An example [grafana](https://grafana.com) dashboard for `chproxy` metrics is available [here](https://github.com/Vertamedia/chproxy/blob/master/chproxy_overview.json)
+
+![dashboard example](https://user-images.githubusercontent.com/2902918/31392734-b2fd4a18-ade2-11e7-84a9-4aaaac4c10d7.png)
 
 
 ## FAQ

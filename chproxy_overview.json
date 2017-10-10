@@ -18,12 +18,6 @@
     },
     {
       "type": "panel",
-      "id": "grafana-piechart-panel",
-      "name": "Pie Chart",
-      "version": "1.1.4"
-    },
-    {
-      "type": "panel",
       "id": "graph",
       "name": "Graph",
       "version": ""
@@ -50,6 +44,7 @@
   "hideControls": false,
   "id": null,
   "links": [],
+  "refresh": false,
   "rows": [
     {
       "collapse": false,
@@ -87,20 +82,20 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(rate(request_sum_total{job=~\"$job-chproxy\",user=~\"$user\",cluster_user=~\"$cluster_user\",host=~\"$host\"}[$interval])) ",
+              "expr": "sum(rate(request_sum_total{job=~\"$job-chproxy\",instance=~\"$instance\",user=~\"$user\",cluster_user=~\"$cluster_user\",cluster_node=~\"$cluster_node\"}[$interval])) ",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "request_sum",
               "refId": "A",
-              "step": 120
+              "step": 4
             },
             {
-              "expr": "sum(rate(request_success_total{job=~\"$job-chproxy\",user=~\"$user\",cluster_user=~\"$cluster_user\",host=~\"$host\"}[$interval])) ",
+              "expr": "sum(rate(request_success_total{job=~\"$job-chproxy\",instance=~\"$instance\",user=~\"$user\",cluster_user=~\"$cluster_user\",cluster_node=~\"$cluster_node\"}[$interval])) ",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "request_success",
               "refId": "B",
-              "step": 120
+              "step": 4
             }
           ],
           "thresholds": [],
@@ -143,7 +138,7 @@
           "aliasColors": {
             "0.99": "#E24D42"
           },
-          "bars": true,
+          "bars": false,
           "dashLength": 10,
           "dashes": false,
           "datasource": "${DS_PROMETHEUS}",
@@ -160,10 +155,10 @@
             "total": false,
             "values": true
           },
-          "lines": false,
+          "lines": true,
           "linewidth": 1,
           "links": [],
-          "nullPointMode": "connected",
+          "nullPointMode": "null",
           "percentage": false,
           "pointradius": 5,
           "points": false,
@@ -175,13 +170,13 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "avg(request_duration_seconds{job=~\"$job-chproxy\",user=~\"$user\",cluster_user=~\"$cluster_user\",host=~\"$host\"}) by (quantile)",
+              "expr": "avg(request_duration_seconds{job=~\"$job-chproxy\",instance=~\"$instance\",user=~\"$user\",cluster_user=~\"$cluster_user\",cluster_node=~\"$cluster_node\"}) by (quantile)",
               "format": "time_series",
               "interval": "",
               "intervalFactor": 10,
               "legendFormat": "{{quantile}}",
               "refId": "A",
-              "step": 600
+              "step": 20
             }
           ],
           "thresholds": [],
@@ -189,8 +184,8 @@
           "timeShift": null,
           "title": "Request duration",
           "tooltip": {
-            "shared": false,
-            "sort": 0,
+            "shared": true,
+            "sort": 2,
             "value_type": "individual"
           },
           "type": "graph",
@@ -263,12 +258,12 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(rate(status_codes_total{job=~\"$job-chproxy\",user=~\"$user\",cluster_user=~\"$cluster_user\",host=~\"$host\"}[$interval])) by (code)",
+              "expr": "sum(rate(status_codes_total{job=~\"$job-chproxy\",instance=~\"$instance\",user=~\"$user\",cluster_user=~\"$cluster_user\",cluster_node=~\"$cluster_node\"}[$interval])) by (code)",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "{{code}}",
               "refId": "A",
-              "step": 120
+              "step": 4
             }
           ],
           "thresholds": [],
@@ -339,18 +334,104 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(rate(concurrent_limit_excess_total{job=~\"$job-chproxy\",user=~\"$user\",cluster_user=~\"$cluster_user\",host=~\"$host\"}[$interval])) by (host)",
+              "expr": "sum(\n  rate(\n    concurrent_limit_excess_total{job=~\"$job-chproxy\",instance=~\"$instance\",user=~\"$user\",cluster_user=~\"$cluster_user\",cluster_node=~\"$cluster_node\"}[$interval])) \nby (cluster_node)",
               "format": "time_series",
               "intervalFactor": 2,
-              "legendFormat": "{{host}}",
+              "legendFormat": "{{cluster_node}}",
               "refId": "A",
-              "step": 120
+              "step": 4
             }
           ],
           "thresholds": [],
           "timeFrom": null,
           "timeShift": null,
           "title": "Limit Excess",
+          "tooltip": {
+            "shared": true,
+            "sort": 0,
+            "value_type": "individual"
+          },
+          "type": "graph",
+          "xaxis": {
+            "buckets": null,
+            "mode": "time",
+            "name": null,
+            "show": true,
+            "values": []
+          },
+          "yaxes": [
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            },
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            }
+          ]
+        },
+        {
+          "aliasColors": {},
+          "bars": false,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": "${DS_PROMETHEUS}",
+          "fill": 1,
+          "id": 22,
+          "legend": {
+            "alignAsTable": true,
+            "avg": false,
+            "current": true,
+            "max": false,
+            "min": false,
+            "rightSide": true,
+            "show": true,
+            "total": false,
+            "values": true
+          },
+          "lines": true,
+          "linewidth": 1,
+          "links": [],
+          "nullPointMode": "null",
+          "percentage": false,
+          "pointradius": 5,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [],
+          "spaceLength": 10,
+          "span": 12,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "expr": "sum(\n  concurrent_queries{job=~\"$job-chproxy\",instance=~\"$instance\",user=~\"$user\",cluster_user=~\"$cluster_user\",cluster_node=~\"$cluster_node\"}) \nby (cluster_user)",
+              "format": "time_series",
+              "intervalFactor": 2,
+              "legendFormat": "cluster-{{cluster_user}}",
+              "refId": "A",
+              "step": 2
+            },
+            {
+              "expr": "sum(\n  concurrent_queries{job=~\"$job-chproxy\",instance=~\"$instance\",user=~\"$user\",cluster_user=~\"$cluster_user\",cluster_node=~\"$cluster_node\"}) \nby (user)",
+              "format": "time_series",
+              "intervalFactor": 2,
+              "legendFormat": "{{user}}",
+              "refId": "B",
+              "step": 2
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": null,
+          "timeShift": null,
+          "title": "Concurrent queries by users",
           "tooltip": {
             "shared": true,
             "sort": 0,
@@ -397,46 +478,7 @@
       "panels": [
         {
           "aliasColors": {},
-          "cacheTimeout": null,
-          "combine": {
-            "label": "Others",
-            "threshold": 0
-          },
-          "datasource": "${DS_PROMETHEUS}",
-          "fontSize": "80%",
-          "format": "short",
-          "id": 8,
-          "interval": null,
-          "legend": {
-            "percentage": true,
-            "show": true,
-            "sortDesc": false,
-            "values": true
-          },
-          "legendType": "Right side",
-          "links": [],
-          "maxDataPoints": 3,
-          "nullPointMode": "connected",
-          "pieType": "donut",
-          "span": 6,
-          "strokeWidth": 1,
-          "targets": [
-            {
-              "expr": "sum(request_sum_total{job=~\"$job-chproxy\",user=~\"$user\",cluster_user=~\"$cluster_user\",host=~\"$host\"}) by (host)",
-              "format": "time_series",
-              "intervalFactor": 2,
-              "legendFormat": "{{host}}",
-              "refId": "A",
-              "step": 21600
-            }
-          ],
-          "title": "Host distribution",
-          "type": "grafana-piechart-panel",
-          "valueName": "total"
-        },
-        {
-          "aliasColors": {},
-          "bars": false,
+          "bars": true,
           "dashLength": 10,
           "dashes": false,
           "datasource": "${DS_PROMETHEUS}",
@@ -446,14 +488,18 @@
             "alignAsTable": true,
             "avg": false,
             "current": false,
+            "hideEmpty": false,
+            "hideZero": false,
             "max": true,
             "min": false,
             "rightSide": true,
             "show": true,
+            "sort": null,
+            "sortDesc": null,
             "total": false,
             "values": true
           },
-          "lines": true,
+          "lines": false,
           "linewidth": 1,
           "links": [],
           "nullPointMode": "null as zero",
@@ -461,42 +507,45 @@
           "pointradius": 5,
           "points": false,
           "renderer": "flot",
+          "repeat": "cluster",
           "seriesOverrides": [],
           "spaceLength": 10,
-          "span": 6,
-          "stack": true,
+          "span": 12,
+          "stack": false,
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(request_sum_total{job=~\"$job-chproxy\",user=~\"$user\",cluster_user=~\"$cluster_user\",host=~\"$host\"}) by (host)",
+              "expr": "sum by (cluster_node)  (request_sum_total{job=~\"$job-chproxy\",instance=~\"$instance\",user=~\"$user\",cluster_user=~\"$cluster_user\",cluster_node=~\"$cluster_node\"}) \n / \nscalar(sum(request_sum_total{job=~\"$job-chproxy\",instance=~\"$instance\",user=~\"$user\",cluster_user=~\"$cluster_user\",cluster_node=~\"$cluster_node\"}))",
               "format": "time_series",
               "interval": "",
               "intervalFactor": 2,
-              "legendFormat": "{{host}}",
+              "legendFormat": "{{cluster_node}}",
               "refId": "A",
-              "step": 120
+              "step": 2
             }
           ],
           "thresholds": [],
           "timeFrom": null,
           "timeShift": null,
-          "title": "Host distirbution",
+          "title": "Cluster \"$cluster\" node distirbution",
           "tooltip": {
-            "shared": true,
-            "sort": 2,
+            "shared": false,
+            "sort": 0,
             "value_type": "individual"
           },
           "type": "graph",
           "xaxis": {
             "buckets": null,
-            "mode": "time",
+            "mode": "series",
             "name": null,
-            "show": true,
-            "values": []
+            "show": false,
+            "values": [
+              "current"
+            ]
           },
           "yaxes": [
             {
-              "format": "short",
+              "format": "percentunit",
               "label": null,
               "logBase": 1,
               "max": null,
@@ -512,19 +561,90 @@
               "show": true
             }
           ]
-        }
-      ],
-      "repeat": null,
-      "repeatIteration": null,
-      "repeatRowId": null,
-      "showTitle": true,
-      "title": "Host distribution",
-      "titleSize": "h6"
-    },
-    {
-      "collapse": false,
-      "height": 250,
-      "panels": [
+        },
+        {
+          "aliasColors": {},
+          "bars": false,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": "${DS_PROMETHEUS}",
+          "decimals": 0,
+          "fill": 1,
+          "id": 23,
+          "legend": {
+            "alignAsTable": true,
+            "avg": false,
+            "current": true,
+            "max": false,
+            "min": false,
+            "rightSide": true,
+            "show": true,
+            "sort": "current",
+            "sortDesc": true,
+            "total": false,
+            "values": true
+          },
+          "lines": true,
+          "linewidth": 1,
+          "links": [],
+          "nullPointMode": "null",
+          "percentage": false,
+          "pointradius": 5,
+          "points": false,
+          "renderer": "flot",
+          "repeat": "cluster",
+          "seriesOverrides": [],
+          "spaceLength": 10,
+          "span": 12,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "expr": "sum(\n  concurrent_queries{job=~\"$job-chproxy\",instance=~\"$instance\",user=~\"$user\",cluster=~\"$cluster\", cluster_user=~\"$cluster_user\",cluster_node=~\"$cluster_node\"}) \nby (cluster_node)",
+              "format": "time_series",
+              "interval": "",
+              "intervalFactor": 2,
+              "legendFormat": "{{cluster_node}}",
+              "refId": "A",
+              "step": 2
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": null,
+          "timeShift": null,
+          "title": "Cluster \"$cluster\" concurrent queries by node",
+          "tooltip": {
+            "shared": true,
+            "sort": 0,
+            "value_type": "individual"
+          },
+          "type": "graph",
+          "xaxis": {
+            "buckets": null,
+            "mode": "time",
+            "name": null,
+            "show": true,
+            "values": []
+          },
+          "yaxes": [
+            {
+              "format": "short",
+              "label": "",
+              "logBase": 1,
+              "max": null,
+              "min": "0",
+              "show": true
+            },
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            }
+          ]
+        },
         {
           "cacheTimeout": null,
           "colorBackground": false,
@@ -573,7 +693,7 @@
               "to": "null"
             }
           ],
-          "repeat": "host",
+          "repeat": "cluster_node",
           "span": 2,
           "sparkline": {
             "fillColor": "rgba(31, 118, 189, 0.18)",
@@ -584,16 +704,16 @@
           "tableColumn": "",
           "targets": [
             {
-              "expr": "host_health{job=~\"$job-chproxy\",host=~\"$host\"}",
+              "expr": "host_health{job=~\"$job-chproxy\",instance=~\"$instance\",cluster=~\"$cluster\",cluster_node=~\"$cluster_node\"}",
               "format": "time_series",
               "intervalFactor": 2,
-              "legendFormat": "{{host}}",
+              "legendFormat": "{{cluster_node}}",
               "refId": "A",
-              "step": 600
+              "step": 40
             }
           ],
           "thresholds": "0,1",
-          "title": "$host",
+          "title": "$cluster_node",
           "type": "singlestat",
           "valueFontSize": "80%",
           "valueMaps": [
@@ -615,7 +735,18 @@
       "repeatIteration": null,
       "repeatRowId": null,
       "showTitle": true,
-      "title": "Cluster $cluster state",
+      "title": "Cluster \"$cluster\" state",
+      "titleSize": "h6"
+    },
+    {
+      "collapse": false,
+      "height": 250,
+      "panels": [],
+      "repeat": null,
+      "repeatIteration": null,
+      "repeatRowId": null,
+      "showTitle": false,
+      "title": "Dashboard Row",
       "titleSize": "h6"
     }
   ],
@@ -650,11 +781,31 @@
         "datasource": "${DS_PROMETHEUS}",
         "hide": 0,
         "includeAll": true,
+        "label": "instance",
+        "multi": false,
+        "name": "instance",
+        "options": [],
+        "query": "label_values(request_sum_total{job=~\"$job-chproxy\"},instance)",
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "tagValuesQuery": "",
+        "tags": [],
+        "tagsQuery": "",
+        "type": "query",
+        "useTags": false
+      },
+      {
+        "allValue": null,
+        "current": {},
+        "datasource": "${DS_PROMETHEUS}",
+        "hide": 0,
+        "includeAll": true,
         "label": null,
         "multi": false,
         "name": "user",
         "options": [],
-        "query": "label_values(request_sum_total{job=~\"$job-chproxy\"},user)",
+        "query": "label_values(request_sum_total{job=~\"$job-chproxy\",instance=~\"$instance\"},user)",
         "refresh": 1,
         "regex": "",
         "sort": 0,
@@ -674,7 +825,7 @@
         "multi": false,
         "name": "cluster_user",
         "options": [],
-        "query": "label_values(request_sum_total{job=~\"$job-chproxy\"},cluster_user)",
+        "query": "label_values(request_sum_total{job=~\"$job-chproxy\",instance=~\"$instance\"},cluster_user)",
         "refresh": 1,
         "regex": "",
         "sort": 0,
@@ -692,9 +843,9 @@
         "includeAll": true,
         "label": null,
         "multi": false,
-        "name": "host",
+        "name": "cluster_node",
         "options": [],
-        "query": "label_values(request_sum_total{job=~\"$job-chproxy\"},host)",
+        "query": "label_values(request_sum_total{job=~\"$job-chproxy\",instance=~\"$instance\"},cluster_node)",
         "refresh": 1,
         "regex": "",
         "sort": 3,
@@ -709,8 +860,8 @@
         "auto_count": 30,
         "auto_min": "10s",
         "current": {
-          "text": "30m",
-          "value": "30m"
+          "text": "10m",
+          "value": "10m"
         },
         "hide": 0,
         "label": null,
@@ -727,12 +878,12 @@
             "value": "5m"
           },
           {
-            "selected": false,
+            "selected": true,
             "text": "10m",
             "value": "10m"
           },
           {
-            "selected": true,
+            "selected": false,
             "text": "30m",
             "value": "30m"
           },
@@ -784,7 +935,7 @@
     ]
   },
   "time": {
-    "from": "now-12h",
+    "from": "now-30m",
     "to": "now"
   },
   "timepicker": {
@@ -812,7 +963,7 @@
       "30d"
     ]
   },
-  "timezone": "",
+  "timezone": "browser",
   "title": "ClickHouse Proxy overview",
-  "version": 1
+  "version": 44
 }
