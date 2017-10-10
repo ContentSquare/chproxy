@@ -124,7 +124,7 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 			return fmt.Errorf("cluster %q already exists", c.Name)
 		}
 		cluster := &cluster{
-			name: c.Name,
+			name:                  c.Name,
 			users:                 clusterUsers,
 			heartBeatInterval:     c.HeartBeatInterval,
 			killQueryUserName:     c.KillQueryUser.Name,
