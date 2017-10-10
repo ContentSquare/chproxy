@@ -428,7 +428,7 @@ Metrics are exposed via [Prometheus](https://prometheus.io/) at `/metrics` path
 | concurrent_queries | Gauge | The number of concurrent queries at the moment | `user`, `cluster`, `cluster_user`, `cluster_node` |
 | bad_requests_total | Counter | The number of unsupported requests | |
 
-An example [grafana](https://grafana.com) dashboard for `chproxy` metrics is available [here](https://github.com/Vertamedia/chproxy/blob/master/chproxy_overview.json)
+An example of [Grafana's](https://grafana.com) dashboard for `chproxy` metrics is available [here](https://github.com/Vertamedia/chproxy/blob/master/chproxy_overview.json)
 
 ![dashboard example](https://user-images.githubusercontent.com/2902918/31392734-b2fd4a18-ade2-11e7-84a9-4aaaac4c10d7.png)
 
