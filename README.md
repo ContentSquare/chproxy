@@ -42,7 +42,7 @@ clusters:
 
 ### Precompiled binaries
 
-Check (releases](https://github.com/Vertamedia/chproxy/releases) to download precompiled binaries
+Check [releases](https://github.com/Vertamedia/chproxy/releases) to download precompiled binaries
 
 ### Building from source
 
