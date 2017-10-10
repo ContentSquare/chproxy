@@ -19,7 +19,7 @@ import (
 	"golang.org/x/crypto/acme/autocert"
 )
 
-var configFile = flag.String("config", "testdata/http.conf.yml", "Proxy configuration filename")
+var configFile = flag.String("config", "", "Proxy configuration filename")
 
 var (
 	proxy = newReverseProxy()
@@ -189,6 +189,9 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 }
 
 func reloadConfig() (*config.Server, error) {
+	if *configFile == "" {
+		log.Fatalf("Missing -config flag")
+	}
 	cfg, err := config.LoadFile(*configFile)
 	if err != nil {
 		return nil, fmt.Errorf("can't load config %q: %s", *configFile, err)

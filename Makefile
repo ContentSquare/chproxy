@@ -15,7 +15,7 @@ test: build
 	go test -race -v $(pkgs)
 
 run: build
-	./chproxy
+	./chproxy -config=testdata/http.conf.yml
 
 reconfigure:
 	kill -HUP `pidof chproxy`
