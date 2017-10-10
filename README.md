@@ -40,6 +40,12 @@ clusters:
 
 ## How to install
 
+### Precompiled binaries
+
+Check (releases](https://github.com/Vertamedia/chproxy/releases) to download precompiled binaries
+
+### Building from source
+
 Chproxy is written in [Go](https://golang.org/). The easiest way to install it from sources is:
 
 ```
