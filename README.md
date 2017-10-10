@@ -420,15 +420,14 @@ An example [grafana](https://grafana.com) dashboard for `chproxy` metrics is ava
 
 | Name | Type | Description | Labels |
 | ------------- | ------------- | ------------- | ------------- |
-| status_codes_total | Counter | Distribution by response status codes | `user`, `cluster_user`, `host`, `code` |
-| request_sum_total | Counter | The number of processed requests | `user`, `cluster_user`, `host` |
-| request_success_total | Counter | The number of successfully proxied requests | `user`, `cluster_user`, `host` |
-| request_duration_seconds | Summary | Request duration | `user`, `cluster_user`, `host` |
-| concurrent_limit_excess_total | Counter | The number of rejected requests due to max_concurrent_queries limit | `user`, `cluster_user`, `host` |
-| host_penalties_total | Counter | The number of given penalties by host | `user`, `cluster_user`, `host` |
-| host_health | Gauge | Health state of hosts by clusters | `cluster`, `host` |
-| concurrent_queries | Gauge | The number of concurrent queries at the moment | `user`, `cluster_user`, `host` |
-| good_requests_total | Counter | The number of good requests | |
+| status_codes_total | Counter | Distribution by response status codes | `user`, `cluster`, `cluster_user`, `cluster_node`, `code` |
+| request_sum_total | Counter | The number of processed requests | `user`, `cluster`, `cluster_user`, `cluster_node` |
+| request_success_total | Counter | The number of successfully proxied requests | `user`, `cluster`, `cluster_user`, `cluster_node` |
+| request_duration_seconds | Summary | Request duration | `user`, `cluster`, `cluster_user`, `cluster_node` |
+| concurrent_limit_excess_total | Counter | The number of rejected requests due to max_concurrent_queries limit | `user`, `cluster`, `cluster_user`, `cluster_node` |
+| host_penalties_total | Counter | The number of given penalties by host | `cluster_node` |
+| host_health | Gauge | Health state of hosts by clusters | `cluster`, `cluster_node` |
+| concurrent_queries | Gauge | The number of concurrent queries at the moment | `user`, `cluster`, `cluster_user`, `cluster_node` |
 | bad_requests_total | Counter | The number of unsupported requests | |
 
 
