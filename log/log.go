@@ -11,7 +11,7 @@ import (
 var (
 	stdLogFlags      = log.LstdFlags | log.LUTC
 	stdDebugLogFlags = log.LstdFlags | log.Lshortfile | log.LUTC
-	outputCallDepth  = 3
+	outputCallDepth  = 2
 
 	DebugLogger = log.New(os.Stderr, "DEBUG: ", stdDebugLogFlags)
 	InfoLogger  = log.New(os.Stderr, "INFO: ", stdLogFlags)
@@ -95,6 +95,6 @@ func Fatalf(format string, args ...interface{}) {
 
 // Fatal prints fatal message and exits program
 func Fatal(s string) {
-	FatalLogger.Output(outputCallDepth, s)
+	FatalLogger.Output(outputCallDepth+1, s)
 	os.Exit(1)
 }
