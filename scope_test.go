@@ -237,13 +237,13 @@ func TestPenalize(t *testing.T) {
 }
 
 func TestRunningQueriesConcurrent(t *testing.T) {
-	eu := &clusterUser{
+	cu := &clusterUser{
 		maxConcurrentQueries: 10,
 	}
 	f := func() {
-		eu.queryCounter.inc()
-		eu.queryCounter.load()
-		eu.queryCounter.dec()
+		cu.queryCounter.inc()
+		cu.queryCounter.load()
+		cu.queryCounter.dec()
 	}
 	if err := testConcurrent(f, 1000); err != nil {
 		t.Fatalf("concurrent test err: %s", err)
