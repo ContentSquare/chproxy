@@ -178,7 +178,6 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		goodRequest.Inc()
 		proxy.ServeHTTP(rw, r)
 	default:
 		badRequest.Inc()

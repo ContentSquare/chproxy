@@ -33,6 +33,8 @@ type scope struct {
 
 	remoteAddr string
 	localAddr  string
+
+	labels prometheus.Labels
 }
 
 var scopeID = uint64(time.Now().UnixNano())
@@ -47,6 +49,7 @@ func (s *scope) inc() error {
 	uRateLimit := s.user.rateLimiter.inc()
 	cRateLimit := s.clusterUser.rateLimiter.inc()
 	s.host.inc()
+	concurrentQueries.With(s.labels).Inc()
 
 	var err error
 	if s.user.maxConcurrentQueries > 0 && uQueries > s.user.maxConcurrentQueries {
@@ -81,6 +84,7 @@ func (s *scope) dec() {
 	s.host.dec()
 	s.user.queryCounter.dec()
 	s.clusterUser.queryCounter.dec()
+	concurrentQueries.With(s.labels).Dec()
 }
 
 const killQueryTimeout = time.Second * 30
@@ -190,7 +194,11 @@ type host struct {
 	counter
 }
 
-func (h *host) runHeartbeat(interval time.Duration, label prometheus.Labels, done <-chan struct{}) {
+func (h *host) runHeartbeat(interval time.Duration, clusterName string, done <-chan struct{}) {
+	label := prometheus.Labels{
+		"cluster":      clusterName,
+		"cluster_node": h.addr.Host,
+	}
 	heartbeat := func() {
 		if err := isHealthy(h.addr.String()); err == nil {
 			atomic.StoreUint32(&h.active, uint32(1))
@@ -230,7 +238,7 @@ func (h *host) penalize() {
 		return
 	}
 	log.Debugf("Penalizing host %q", h.addr)
-	hostPenalties.With(prometheus.Labels{"host": h.addr.Host}).Inc()
+	hostPenalties.With(prometheus.Labels{"cluster_node": h.addr.Host}).Inc()
 	atomic.AddUint32(&h.penalty, penaltySize)
 	time.AfterFunc(penaltyDuration, func() {
 		atomic.AddUint32(&h.penalty, ^uint32(penaltySize-1))
@@ -245,6 +253,7 @@ func (h *host) load() uint32 {
 }
 
 type cluster struct {
+	name                  string
 	nextIdx               uint32
 	hosts                 []*host
 	users                 map[string]*clusterUser

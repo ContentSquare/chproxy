@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/prometheus/client_golang/prometheus"
 	"net/url"
 	"testing"
 	"time"
@@ -34,6 +35,12 @@ func TestRunningQueries(t *testing.T) {
 	s.cluster = c
 	s.user = u1
 	s.clusterUser = cu
+	s.labels = prometheus.Labels{
+		"user":         "default",
+		"cluster":      "default",
+		"cluster_user": "default",
+		"cluster_node": "default",
+	}
 
 	check := func(uq, cuq, hq uint32) {
 		if s.user.queryCounter.load() != uq {
@@ -73,6 +80,12 @@ func TestRunningQueries(t *testing.T) {
 	s.cluster = c
 	s.user = u2
 	s.clusterUser = cu
+	s.labels = prometheus.Labels{
+		"user":         "default",
+		"cluster":      "default",
+		"cluster_user": "default",
+		"cluster_node": "default",
+	}
 	if err := s.inc(); err != nil {
 		t.Fatalf("unexpected err: %s", err)
 	}

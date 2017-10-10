@@ -33,23 +33,14 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		respondWith(rw, err, sc)
 		return
 	}
+	requestSum.With(s.labels).Inc()
 	log.Debugf("Request scope %s", s)
-
-	label := prometheus.Labels{
-		"user":         s.user.name,
-		"host":         s.host.addr.Host,
-		"cluster_user": s.clusterUser.name,
-	}
-	requestSum.With(label).Inc()
-
 	if err = s.inc(); err != nil {
-		limitExcess.With(label).Inc()
+		limitExcess.With(s.labels).Inc()
 		respondWith(rw, err, http.StatusTooManyRequests)
 		return
 	}
 	defer s.dec()
-
-	concurrentQueries.With(label).Set(float64(s.host.load()))
 
 	timeStart := time.Now()
 	req = s.decorateRequest(req)
@@ -88,7 +79,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	} else {
 		switch cw.statusCode {
 		case http.StatusOK:
-			requestSuccess.With(label).Inc()
+			requestSuccess.With(s.labels).Inc()
 			log.Debugf("Request scope %s successfully proxied", s)
 		case http.StatusBadGateway:
 			s.host.penalize()
@@ -98,13 +89,14 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	statusCodes.With(
 		prometheus.Labels{
 			"user":         s.user.name,
+			"cluster":      s.cluster.name,
 			"cluster_user": s.clusterUser.name,
-			"host":         s.host.addr.Host,
+			"cluster_node": s.host.addr.Host,
 			"code":         strconv.Itoa(cw.statusCode),
 		},
 	).Inc()
 	since := float64(time.Since(timeStart).Seconds())
-	requestDuration.With(label).Observe(since)
+	requestDuration.With(s.labels).Observe(since)
 }
 
 // ApplyConfig applies provided config to reverseProxy obj
@@ -141,6 +133,7 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 			return fmt.Errorf("cluster %q already exists", c.Name)
 		}
 		cluster := &cluster{
+			name:                  c.Name,
 			hosts:                 hosts,
 			users:                 clusterUsers,
 			heartBeatInterval:     c.HeartBeatInterval,
@@ -190,13 +183,9 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 	for k, c := range clusters {
 		for _, host := range c.hosts {
 			h := host
-			label := prometheus.Labels{
-				"cluster": k,
-				"host":    h.addr.Host,
-			}
 			rp.reloadWG.Add(1)
 			go func() {
-				h.runHeartbeat(c.heartBeatInterval, label, rp.reloadSignal)
+				h.runHeartbeat(c.heartBeatInterval, k, rp.reloadSignal)
 				rp.reloadWG.Done()
 			}()
 		}
@@ -283,6 +272,12 @@ func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 	s.remoteAddr = req.RemoteAddr
 	if addr, ok := req.Context().Value(http.LocalAddrContextKey).(net.Addr); ok {
 		s.localAddr = addr.String()
+	}
+	s.labels = prometheus.Labels{
+		"user":         s.user.name,
+		"cluster":      s.cluster.name,
+		"cluster_user": s.clusterUser.name,
+		"cluster_node": s.host.addr.Host,
 	}
 
 	return s, 0, nil
