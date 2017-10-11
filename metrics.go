@@ -59,16 +59,16 @@ var (
 		},
 		[]string{"user", "cluster", "cluster_user", "cluster_node"},
 	)
-	bytesRead = prometheus.NewCounterVec(
+	requestBodyBytes = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "bytes_read_total",
+			Name: "request_body_bytes_total",
 			Help: "The amount of bytes read from request bodies",
 		},
 		[]string{"user", "cluster", "cluster_user", "cluster_node"},
 	)
-	bytesWritten = prometheus.NewCounterVec(
+	responseBodyBytes = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "bytes_written_total",
+			Name: "response_body_bytes_total",
 			Help: "The amount of bytes written to response bodies",
 		},
 		[]string{"user", "cluster", "cluster_user", "cluster_node"},
@@ -82,5 +82,5 @@ var (
 func init() {
 	prometheus.MustRegister(statusCodes, requestDuration, requestSum, requestSuccess,
 		limitExcess, hostPenalties, hostHealth, concurrentQueries,
-		bytesRead, bytesWritten, badRequest)
+		requestBodyBytes, responseBodyBytes, badRequest)
 }

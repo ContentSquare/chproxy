@@ -38,12 +38,12 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	requestSum.With(s.labels).Inc()
 
 	req.Body = &statReadCloser{
-		ReadCloser: req.Body,
-		bytesRead:  bytesRead.With(s.labels),
+		ReadCloser:       req.Body,
+		requestBodyBytes: requestBodyBytes.With(s.labels),
 	}
 	rw = &statResponseWriter{
-		ResponseWriter: rw,
-		bytesWritten:   bytesWritten.With(s.labels),
+		ResponseWriter:    rw,
+		responseBodyBytes: responseBodyBytes.With(s.labels),
 	}
 
 	if err = s.inc(); err != nil {
@@ -312,24 +312,22 @@ func (cw *cachedWriter) WriteHeader(code int) {
 
 type statReadCloser struct {
 	io.ReadCloser
-
-	bytesRead prometheus.Counter
+	requestBodyBytes prometheus.Counter
 }
 
 func (src *statReadCloser) Read(p []byte) (int, error) {
 	n, err := src.ReadCloser.Read(p)
-	src.bytesRead.Add(float64(n))
+	src.requestBodyBytes.Add(float64(n))
 	return n, err
 }
 
 type statResponseWriter struct {
 	http.ResponseWriter
-
-	bytesWritten prometheus.Counter
+	responseBodyBytes prometheus.Counter
 }
 
 func (srw *statResponseWriter) Write(p []byte) (int, error) {
 	n, err := srw.ResponseWriter.Write(p)
-	srw.bytesWritten.Add(float64(n))
+	srw.responseBodyBytes.Add(float64(n))
 	return n, err
 }
