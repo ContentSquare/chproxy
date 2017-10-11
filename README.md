@@ -42,7 +42,12 @@ clusters:
 
 ### Precompiled binaries
 
-Check [releases](https://github.com/Vertamedia/chproxy/releases) to download precompiled binaries
+Precompiled `chproxy` binaries are available [here](https://github.com/Vertamedia/chproxy/releases).
+Just download the latest stable binary, unpack and run it with the desired [config](#configuration):
+
+```
+./chproxy -config=/path/to/config.yml
+```
 
 ### Building from source
 
@@ -52,7 +57,7 @@ Chproxy is written in [Go](https://golang.org/). The easiest way to install it f
 go get -u github.com/Vertamedia/chproxy
 ```
 
-If you don't have Go installed on your system - follow [this guide](https://golang.org/doc/install)
+If you don't have Go installed on your system - follow [this guide](https://golang.org/doc/install).
 
 
 ## Why it was created
@@ -260,7 +265,7 @@ This means that the `chproxy` will choose the next least loaded healthy node for
 
 Additionally each node is periodically checked for availability. Unavailable nodes are automatically excluded from the cluster until they become available again. This allows performing node maintenance without removing unavailable nodes from the cluster config.
 
-`Chproxy` automatically kills queris exceeding `max_execution_time` limit. By default `chproxy` tries to kill such queries
+`Chproxy` automatically kills queries exceeding `max_execution_time` limit. By default `chproxy` tries to kill such queries
 under `default` user. The user may be overriden with [kill_query_user](https://github.com/Vertamedia/chproxy/blob/master/config#kill_query_user_config).
 
 
