@@ -3,21 +3,6 @@ package main
 import "github.com/prometheus/client_golang/prometheus"
 
 var (
-	requestSum        *prometheus.CounterVec
-	hostHealth        *prometheus.GaugeVec
-	statusCodes       *prometheus.CounterVec
-	limitExcess       *prometheus.CounterVec
-	hostPenalties     *prometheus.CounterVec
-	requestSuccess    *prometheus.CounterVec
-	requestDuration   *prometheus.SummaryVec
-	concurrentQueries *prometheus.GaugeVec
-	bytesRead         *prometheus.CounterVec
-	bytesWritten      *prometheus.CounterVec
-
-	badRequest prometheus.Counter
-)
-
-func init() {
 	statusCodes = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "status_codes_total",
@@ -92,6 +77,9 @@ func init() {
 		Name: "bad_requests_total",
 		Help: "Total number of unsupported requests",
 	})
+)
+
+func init() {
 	prometheus.MustRegister(statusCodes, requestDuration, requestSum, requestSuccess,
 		limitExcess, hostPenalties, hostHealth, concurrentQueries,
 		bytesRead, bytesWritten, badRequest)
