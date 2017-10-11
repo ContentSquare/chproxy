@@ -432,6 +432,8 @@ Metrics are exposed via [Prometheus](https://prometheus.io/) at `/metrics` path
 | host_penalties_total | Counter | The number of given penalties by host | `cluster`, `cluster_node` |
 | host_health | Gauge | Health state of hosts by clusters | `cluster`, `cluster_node` |
 | concurrent_queries | Gauge | The number of concurrent queries at the moment | `user`, `cluster`, `cluster_user`, `cluster_node` |
+| bytes_read_total | Counter | The amount of bytes read from request bodies | `user`, `cluster`, `cluster_user`, `cluster_node` |
+| bytes_written_total | Counter | The amount of bytes written to response bodies | `user`, `cluster`, `cluster_user`, `cluster_node` |
 | bad_requests_total | Counter | The number of unsupported requests | |
 
 An example of [Grafana's](https://grafana.com) dashboard for `chproxy` metrics is available [here](https://github.com/Vertamedia/chproxy/blob/master/chproxy_overview.json)

@@ -11,6 +11,8 @@ var (
 	requestSuccess    *prometheus.CounterVec
 	requestDuration   *prometheus.SummaryVec
 	concurrentQueries *prometheus.GaugeVec
+	bytesRead         *prometheus.CounterVec
+	bytesWritten      *prometheus.CounterVec
 
 	badRequest prometheus.Counter
 )
@@ -72,10 +74,25 @@ func init() {
 		},
 		[]string{"user", "cluster", "cluster_user", "cluster_node"},
 	)
+	bytesRead = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "bytes_read_total",
+			Help: "The amount of bytes read from request bodies",
+		},
+		[]string{"user", "cluster", "cluster_user", "cluster_node"},
+	)
+	bytesWritten = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "bytes_written_total",
+			Help: "The amount of bytes written to response bodies",
+		},
+		[]string{"user", "cluster", "cluster_user", "cluster_node"},
+	)
 	badRequest = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "bad_requests_total",
 		Help: "Total number of unsupported requests",
 	})
 	prometheus.MustRegister(statusCodes, requestDuration, requestSum, requestSuccess,
-		limitExcess, hostPenalties, hostHealth, concurrentQueries, badRequest)
+		limitExcess, hostPenalties, hostHealth, concurrentQueries,
+		bytesRead, bytesWritten, badRequest)
 }

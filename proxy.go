@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -33,8 +34,18 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		respondWith(rw, err, sc)
 		return
 	}
-	requestSum.With(s.labels).Inc()
 	log.Debugf("Request scope %s", s)
+	requestSum.With(s.labels).Inc()
+
+	req.Body = &statReadCloser{
+		ReadCloser: req.Body,
+		bytesRead:  bytesRead.With(s.labels),
+	}
+	rw = &statResponseWriter{
+		ResponseWriter: rw,
+		bytesWritten:   bytesWritten.With(s.labels),
+	}
+
 	if err = s.inc(); err != nil {
 		limitExcess.With(s.labels).Inc()
 		respondWith(rw, err, http.StatusTooManyRequests)
@@ -65,7 +76,9 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	req = req.WithContext(ctx)
-	cw := &cachedWriter{ResponseWriter: rw}
+	cw := &cachedWriter{
+		ResponseWriter: rw,
+	}
 	rp.ReverseProxy.ServeHTTP(cw, req)
 
 	if req.Context().Err() != nil {
@@ -295,4 +308,28 @@ type cachedWriter struct {
 func (cw *cachedWriter) WriteHeader(code int) {
 	cw.statusCode = code
 	cw.ResponseWriter.WriteHeader(code)
+}
+
+type statReadCloser struct {
+	io.ReadCloser
+
+	bytesRead prometheus.Counter
+}
+
+func (src *statReadCloser) Read(p []byte) (int, error) {
+	n, err := src.ReadCloser.Read(p)
+	src.bytesRead.Add(float64(n))
+	return n, err
+}
+
+type statResponseWriter struct {
+	http.ResponseWriter
+
+	bytesWritten prometheus.Counter
+}
+
+func (srw *statResponseWriter) Write(p []byte) (int, error) {
+	n, err := srw.ResponseWriter.Write(p)
+	srw.bytesWritten.Add(float64(n))
+	return n, err
 }
