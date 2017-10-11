@@ -23,20 +23,31 @@ var (
 // used while testing
 func SuppressOutput(suppress bool) {
 	if suppress {
+		atomic.StoreUint32(&forbidDebug, 1)
 		DebugLogger.SetOutput(ioutil.Discard)
 		InfoLogger.SetOutput(ioutil.Discard)
 		ErrorLogger.SetOutput(ioutil.Discard)
 	} else {
+		atomic.StoreUint32(&forbidDebug, 0)
 		DebugLogger.SetOutput(os.Stderr)
 		InfoLogger.SetOutput(os.Stderr)
 		ErrorLogger.SetOutput(os.Stderr)
 	}
 }
 
-var debug uint32
+var (
+	debug uint32
+
+	// hack to avoid race conditions in log package
+	// see https://github.com/golang/go/issues/21935
+	forbidDebug uint32
+)
 
 // SetDebug sets output into debug mode if true passed
 func SetDebug(val bool) {
+	if atomic.LoadUint32(&forbidDebug) == 1 {
+		return
+	}
 	if val {
 		atomic.StoreUint32(&debug, 1)
 		InfoLogger.SetFlags(stdDebugLogFlags)
