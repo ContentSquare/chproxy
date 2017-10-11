@@ -19,9 +19,14 @@ import (
 	"golang.org/x/crypto/acme/autocert"
 )
 
-var configFile = flag.String("config", "", "Proxy configuration filename")
+var (
+	configFile = flag.String("config", "", "Proxy configuration filename")
+	v          = flag.Bool("v", false, "Prints current version and exits")
+)
 
 var (
+	version = "1.1.0"
+
 	proxy = newReverseProxy()
 
 	allowedNetworksHTTP    atomic.Value
@@ -31,7 +36,12 @@ var (
 
 func main() {
 	flag.Parse()
+	if *v {
+		fmt.Printf("Version %s\n", version)
+		os.Exit(0)
+	}
 
+	log.Infof("Chproxy version: %s", version)
 	log.Infof("Loading config: %s", *configFile)
 	cfg, err := reloadConfig()
 	if err != nil {
