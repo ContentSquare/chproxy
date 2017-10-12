@@ -132,15 +132,11 @@ func (s *scope) decorateRequest(req *http.Request) *http.Request {
 
 	// set query_id as scope_id to have possibility kill query if needed
 	params.Set("query_id", fmt.Sprintf("%X", s.id))
-
-	q := req.URL.Query()
-	for _, arg := range allowedQueryArgs {
-		s := q.Get(arg)
-		if len(s) > 0 {
-			params.Set(arg, s)
-		}
+	// if query was passed - keep it
+	q := req.URL.Query().Get("query")
+	if len(q) > 0 {
+		params.Set("query", q)
 	}
-
 	req.URL.RawQuery = params.Encode()
 
 	// rewrite possible previous Basic Auth
@@ -156,12 +152,6 @@ func (s *scope) decorateRequest(req *http.Request) *http.Request {
 		s.remoteAddr, s.localAddr, s.user.name, s.clusterUser.name, req.UserAgent())
 	req.Header.Set("User-Agent", ua)
 	return req
-}
-
-// query args allowed to be proxied
-var allowedQueryArgs = []string{
-	"query",                // real query
-	"add_http_cors_header", // for tabix
 }
 
 type user struct {
