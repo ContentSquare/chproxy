@@ -14,6 +14,9 @@ users:
     requests_per_minute: 10
     deny_http: true
 
+    # Allow `CORS` requests for `tabix`.
+    allow_cors: true
+
 clusters:
   - name: "stats-raw"
     nodes: [

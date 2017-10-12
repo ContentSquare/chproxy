@@ -53,6 +53,13 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 	defer s.dec()
 
+	if s.user.allowCORS {
+		origin := req.Header.Get("Origin")
+		if len(origin) > 0 {
+			rw.Header().Set("Access-Control-Allow-Origin", origin)
+		}
+	}
+
 	timeStart := time.Now()
 	req = s.decorateRequest(req)
 
@@ -177,6 +184,7 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 			toUser:               u.ToUser,
 			denyHTTP:             u.DenyHTTP,
 			denyHTTPS:            u.DenyHTTPS,
+			allowCORS:            u.AllowCORS,
 			toCluster:            u.ToCluster,
 			reqPerMin:            u.ReqPerMin,
 			allowedNetworks:      u.AllowedNetworks,

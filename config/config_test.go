@@ -85,6 +85,7 @@ func TestLoadConfig(t *testing.T) {
 						ToCluster: "first cluster",
 						ToUser:    "web",
 						DenyHTTP:  true,
+						AllowCORS: true,
 						ReqPerMin: 4,
 					},
 					{

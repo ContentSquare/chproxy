@@ -356,6 +356,9 @@ type User struct {
 	// Whether to deny https connections for this user
 	DenyHTTPS bool `yaml:"deny_https,omitempty"`
 
+	// Whether to allow CORS requests for this user
+	AllowCORS bool `yaml:"allow_cors,omitempty"`
+
 	// Maximum number of requests per minute for user
 	// if omitted or zero - no limits would be applied
 	ReqPerMin uint32 `yaml:"requests_per_minute,omitempty"`

@@ -127,6 +127,10 @@ deny_http: <bool> | optional | default = false
 # Whether to deny https connections for this user
 deny_https: <bool> | optional | default = false
 
+# Whether to allow `CORS` requests for this user.
+# Such requests are needed for `tabix`.
+allow_cors: <bool> | optional | default = false
+
 # List of networks or network_groups access is allowed from
 # Each list item could be IP address or subnet mask
 allowed_networks: <network_groups>, <networks> ... | optional

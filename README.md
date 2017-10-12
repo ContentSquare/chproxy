@@ -165,6 +165,9 @@ users:
     requests_per_minute: 10
     deny_http: true
 
+    # Allow `CORS` requests for `tabix`.
+    allow_cors: true
+
 clusters:
   - name: "stats-raw"
     nodes: [
@@ -356,6 +359,10 @@ users:
 
     # Whether to deny input requests over HTTP.
     deny_http: true
+
+    # Whether to allow `CORS` requests like `tabix` does.
+    # By default `CORS` requests are denied for security reasons.
+    allow_cors: true
 
     # Requests per minute limit for the given input user.
     requests_per_minute: 4

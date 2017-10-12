@@ -159,6 +159,8 @@ type user struct {
 	toCluster       string
 	denyHTTP        bool
 	denyHTTPS       bool
+	allowCORS bool
+
 	allowedNetworks config.Networks
 
 	name, password       string
