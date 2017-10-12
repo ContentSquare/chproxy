@@ -87,7 +87,7 @@
               "intervalFactor": 2,
               "legendFormat": "request_sum",
               "refId": "A",
-              "step": 10
+              "step": 60
             },
             {
               "expr": "sum(rate(request_success_total{job=~\"$job-chproxy\",instance=~\"$instance\",user=~\"$user\",cluster_user=~\"$cluster_user\",cluster_node=~\"$cluster_node\"}[$interval])) ",
@@ -95,7 +95,7 @@
               "intervalFactor": 2,
               "legendFormat": "request_success",
               "refId": "B",
-              "step": 10
+              "step": 60
             }
           ],
           "thresholds": [],
@@ -152,6 +152,7 @@
             "min": false,
             "rightSide": true,
             "show": true,
+            "sortDesc": true,
             "total": false,
             "values": true
           },
@@ -170,13 +171,13 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "avg(request_duration_seconds{job=~\"$job-chproxy\",instance=~\"$instance\",user=~\"$user\",cluster_user=~\"$cluster_user\",cluster_node=~\"$cluster_node\"}) by (quantile)",
+              "expr": "avg(request_duration_seconds{job=~\"$job-chproxy\",instance=~\"$instance\",user=~\"$user\",cluster_user=~\"$cluster_user\",cluster_node=~\"$cluster_node\"}) by (user, quantile)",
               "format": "time_series",
               "interval": "",
               "intervalFactor": 10,
-              "legendFormat": "{{quantile}}",
+              "legendFormat": "{{user}} - {{quantile}}",
               "refId": "A",
-              "step": 50
+              "step": 300
             }
           ],
           "thresholds": [],
@@ -258,12 +259,12 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(rate(status_codes_total{job=~\"$job-chproxy\",instance=~\"$instance\",user=~\"$user\",cluster_user=~\"$cluster_user\",cluster_node=~\"$cluster_node\"}[$interval])) by (code)",
+              "expr": "sum(rate(status_codes_total{job=~\"$job-chproxy\",instance=~\"$instance\",user=~\"$user\",cluster=~\"$cluster\",cluster_user=~\"$cluster_user\",cluster_node=~\"$cluster_node\"}[$interval])) by (code)",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "{{code}}",
               "refId": "A",
-              "step": 10
+              "step": 60
             }
           ],
           "thresholds": [],
@@ -334,12 +335,12 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(\n  rate(\n    concurrent_limit_excess_total{job=~\"$job-chproxy\",instance=~\"$instance\",user=~\"$user\",cluster_user=~\"$cluster_user\",cluster_node=~\"$cluster_node\"}[$interval])) \nby (cluster_node)",
+              "expr": "sum(\n  rate(\n    concurrent_limit_excess_total{job=~\"$job-chproxy\",instance=~\"$instance\",user=~\"$user\",cluster=~\"$cluster\",cluster_user=~\"$cluster_user\",cluster_node=~\"$cluster_node\"}[$interval])) \nby (cluster_node)",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "{{cluster_node}}",
               "refId": "A",
-              "step": 10
+              "step": 60
             }
           ],
           "thresholds": [],
@@ -415,17 +416,17 @@
               "expr": "sum(\n  concurrent_queries{job=~\"$job-chproxy\",instance=~\"$instance\",user=~\"$user\",cluster_user=~\"$cluster_user\",cluster_node=~\"$cluster_node\"}) \nby (cluster_user)",
               "format": "time_series",
               "intervalFactor": 2,
-              "legendFormat": "cluster-{{cluster_user}}",
+              "legendFormat": "cu-{{cluster_user}}",
               "refId": "A",
-              "step": 4
+              "step": 30
             },
             {
               "expr": "sum(\n  concurrent_queries{job=~\"$job-chproxy\",instance=~\"$instance\",user=~\"$user\",cluster_user=~\"$cluster_user\",cluster_node=~\"$cluster_node\"}) \nby (user)",
               "format": "time_series",
               "intervalFactor": 2,
-              "legendFormat": "{{user}}",
+              "legendFormat": "u-{{user}}",
               "refId": "B",
-              "step": 4
+              "step": 30
             }
           ],
           "thresholds": [],
@@ -508,7 +509,7 @@
               "intervalFactor": 2,
               "legendFormat": "request",
               "refId": "A",
-              "step": 4
+              "step": 30
             },
             {
               "expr": "sum(rate(response_body_bytes_total{job=~\"$job-chproxy\",instance=~\"$instance\",user=~\"$user\",cluster_user=~\"$cluster_user\",cluster_node=~\"$cluster_node\"}[$interval]))\n",
@@ -516,7 +517,7 @@
               "intervalFactor": 2,
               "legendFormat": "response",
               "refId": "B",
-              "step": 4
+              "step": 30
             }
           ],
           "thresholds": [],
@@ -578,10 +579,10 @@
           "legend": {
             "alignAsTable": true,
             "avg": false,
-            "current": false,
+            "current": true,
             "hideEmpty": false,
             "hideZero": false,
-            "max": true,
+            "max": false,
             "min": false,
             "rightSide": true,
             "show": true,
@@ -609,10 +610,10 @@
               "expr": "sum by (cluster_node)  (request_sum_total{job=~\"$job-chproxy\",instance=~\"$instance\",user=~\"$user\",cluster_user=~\"$cluster_user\",cluster_node=~\"$cluster_node\"}) \n / \nscalar(sum(request_sum_total{job=~\"$job-chproxy\",instance=~\"$instance\",user=~\"$user\",cluster_user=~\"$cluster_user\",cluster_node=~\"$cluster_node\"}))",
               "format": "time_series",
               "interval": "",
-              "intervalFactor": 2,
+              "intervalFactor": 1,
               "legendFormat": "{{cluster_node}}",
               "refId": "A",
-              "step": 4
+              "step": 15
             }
           ],
           "thresholds": [],
@@ -685,17 +686,17 @@
           "seriesOverrides": [],
           "spaceLength": 10,
           "span": 12,
-          "stack": false,
+          "stack": true,
           "steppedLine": false,
           "targets": [
             {
               "expr": "sum(\n  concurrent_queries{job=~\"$job-chproxy\",instance=~\"$instance\",user=~\"$user\",cluster=~\"$cluster\", cluster_user=~\"$cluster_user\",cluster_node=~\"$cluster_node\"}) \nby (cluster_node)",
               "format": "time_series",
               "interval": "",
-              "intervalFactor": 2,
+              "intervalFactor": 4,
               "legendFormat": "{{cluster_node}}",
               "refId": "A",
-              "step": 4
+              "step": 60
             }
           ],
           "thresholds": [],
@@ -704,7 +705,7 @@
           "title": "Cluster \"$cluster\" concurrent queries by node",
           "tooltip": {
             "shared": true,
-            "sort": 0,
+            "sort": 2,
             "value_type": "individual"
           },
           "type": "graph",
@@ -756,7 +757,7 @@
           "id": 9,
           "interval": null,
           "links": [],
-          "mappingType": 1,
+          "mappingType": 2,
           "mappingTypes": [
             {
               "name": "value to text",
@@ -777,9 +778,14 @@
           "prefixFontSize": "50%",
           "rangeMaps": [
             {
-              "from": "null",
-              "text": "N/A",
-              "to": "null"
+              "from": "0",
+              "text": "down",
+              "to": "0"
+            },
+            {
+              "from": "1",
+              "text": "up",
+              "to": "500"
             }
           ],
           "repeat": "cluster_node",
@@ -793,12 +799,12 @@
           "tableColumn": "",
           "targets": [
             {
-              "expr": "host_health{job=~\"$job-chproxy\",instance=~\"$instance\",cluster=~\"$cluster\",cluster_node=~\"$cluster_node\"}",
+              "expr": "sum(host_health{job=~\"$job-chproxy\",instance=~\"$instance\",cluster=~\"$cluster\",cluster_node=~\"$cluster_node\"})",
               "format": "time_series",
               "intervalFactor": 2,
               "legendFormat": "{{cluster_node}}",
               "refId": "A",
-              "step": 60
+              "step": 600
             }
           ],
           "thresholds": "0,1",
@@ -809,7 +815,7 @@
             {
               "op": "=",
               "text": "Ok",
-              "value": "1"
+              "value": ">1"
             },
             {
               "op": "=",
@@ -899,11 +905,31 @@
         "datasource": "${DS_PROMETHEUS}",
         "hide": 0,
         "includeAll": true,
+        "label": "cluster",
+        "multi": false,
+        "name": "cluster",
+        "options": [],
+        "query": "label_values(host_health{job=~\"$job-chproxy\",instance=~\"$instance\"},cluster)",
+        "refresh": 1,
+        "regex": "",
+        "sort": 0,
+        "tagValuesQuery": "",
+        "tags": [],
+        "tagsQuery": "",
+        "type": "query",
+        "useTags": false
+      },
+      {
+        "allValue": null,
+        "current": {},
+        "datasource": "${DS_PROMETHEUS}",
+        "hide": 0,
+        "includeAll": true,
         "label": null,
         "multi": false,
         "name": "cluster_user",
         "options": [],
-        "query": "label_values(request_sum_total{job=~\"$job-chproxy\",instance=~\"$instance\"},cluster_user)",
+        "query": "label_values(request_sum_total{job=~\"$job-chproxy\",instance=~\"$instance\", cluster=~\"$cluster\"},cluster_user)",
         "refresh": 1,
         "regex": "",
         "sort": 0,
@@ -923,7 +949,7 @@
         "multi": false,
         "name": "cluster_node",
         "options": [],
-        "query": "label_values(request_sum_total{job=~\"$job-chproxy\",instance=~\"$instance\"},cluster_node)",
+        "query": "label_values(request_sum_total{job=~\"$job-chproxy\",instance=~\"$instance\", cluster=~\"$cluster\"},cluster_node)",
         "refresh": 1,
         "regex": "",
         "sort": 3,
@@ -938,8 +964,8 @@
         "auto_count": 30,
         "auto_min": "10s",
         "current": {
-          "text": "5m",
-          "value": "5m"
+          "text": "10m",
+          "value": "10m"
         },
         "hide": 0,
         "label": null,
@@ -951,12 +977,12 @@
             "value": "1m"
           },
           {
-            "selected": true,
+            "selected": false,
             "text": "5m",
             "value": "5m"
           },
           {
-            "selected": false,
+            "selected": true,
             "text": "10m",
             "value": "10m"
           },
@@ -989,31 +1015,11 @@
         "query": "1m,5m,10m,30m,1h,6h,12h,1d",
         "refresh": 2,
         "type": "interval"
-      },
-      {
-        "allValue": null,
-        "current": {},
-        "datasource": "${DS_PROMETHEUS}",
-        "hide": 2,
-        "includeAll": true,
-        "label": "cluster",
-        "multi": false,
-        "name": "cluster",
-        "options": [],
-        "query": "label_values(host_health{job=~\"$job-chproxy\"},cluster)",
-        "refresh": 1,
-        "regex": "",
-        "sort": 0,
-        "tagValuesQuery": "",
-        "tags": [],
-        "tagsQuery": "",
-        "type": "query",
-        "useTags": false
       }
     ]
   },
   "time": {
-    "from": "now-1h",
+    "from": "now-6h",
     "to": "now"
   },
   "timepicker": {
@@ -1043,5 +1049,5 @@
   },
   "timezone": "browser",
   "title": "ClickHouse Proxy overview",
-  "version": 47
+  "version": 51
 }
