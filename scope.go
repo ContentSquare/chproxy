@@ -155,10 +155,10 @@ func (s *scope) decorateRequest(req *http.Request) *http.Request {
 }
 
 type user struct {
-	toUser          string
-	toCluster       string
-	denyHTTP        bool
-	denyHTTPS       bool
+	toUser    string
+	toCluster string
+	denyHTTP  bool
+	denyHTTPS bool
 	allowCORS bool
 
 	allowedNetworks config.Networks
