@@ -280,7 +280,7 @@ func (c *cluster) getHost() *host {
 
 	// set least priority to inactive host
 	if !idle.isActive() {
-		idleN = ^uint32(0) - 1
+		idleN = ^uint32(0)
 	}
 
 	if idleN == 0 {
