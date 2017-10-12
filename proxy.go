@@ -31,6 +31,7 @@ func newReverseProxy() *reverseProxy {
 func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	s, sc, err := rp.getScope(req)
 	if err != nil {
+		err = fmt.Errorf("scope error for %q: %s", req.RemoteAddr, err)
 		respondWith(rw, err, sc)
 		return
 	}
@@ -279,14 +280,14 @@ func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 		return nil, http.StatusForbidden, fmt.Errorf("user %q is not allowed to access via https", u.name)
 	}
 	if !u.allowedNetworks.Contains(req.RemoteAddr) {
-		return nil, http.StatusForbidden, fmt.Errorf("user %q is not allowed to access from %s", u.name, req.RemoteAddr)
+		return nil, http.StatusForbidden, fmt.Errorf("user %q is not allowed to access", u.name)
 	}
 	if !cu.allowedNetworks.Contains(req.RemoteAddr) {
-		return nil, http.StatusForbidden, fmt.Errorf("cluster user %q is not allowed to access from %s", cu.name, req.RemoteAddr)
+		return nil, http.StatusForbidden, fmt.Errorf("cluster user %q is not allowed to access", cu.name)
 	}
 	h := c.getHost()
 	if h == nil {
-		return nil, http.StatusInternalServerError, fmt.Errorf("error while creating scope for cluster %q: no active hosts", u.toCluster)
+		return nil, http.StatusInternalServerError, fmt.Errorf("cluster %q - no active hosts", u.toCluster)
 	}
 	s := newScope()
 	s.host = h

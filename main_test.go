@@ -52,12 +52,11 @@ func startHTTP() (net.Listener, chan struct{}) {
 }
 
 func TestServe(t *testing.T) {
-
 	var testCases = []struct {
-		name   string
-		file   string
-		testFn func(t *testing.T)
-		lnFn   func() (net.Listener, chan struct{})
+		name     string
+		file     string
+		testFn   func(t *testing.T)
+		listenFn func() (net.Listener, chan struct{})
 	}{
 		{
 			"https request",
@@ -112,8 +111,9 @@ func TestServe(t *testing.T) {
 				if err != nil {
 					t.Errorf("unexpected err while reading body: %s", err)
 				}
+				stringResponse := string(response)
 				expErr := "user \"default\" is not allowed to access via https"
-				if string(response) != expErr {
+				if stringResponse[35:] != expErr {
 					t.Errorf("unexpected response: %q; expected: %q", string(response), expErr)
 				}
 				resp.Body.Close()
@@ -141,7 +141,7 @@ func TestServe(t *testing.T) {
 					t.Errorf("unexpected err while reading body: %s", err)
 				}
 				res := string(response)
-				res = res[0:48]
+				res = res[:48]
 				expErr := "https connections are not allowed from 127.0.0.1"
 				if res != expErr {
 					t.Errorf("unexpected response: %q; expected: %q", res, expErr)
@@ -171,8 +171,8 @@ func TestServe(t *testing.T) {
 					t.Errorf("unexpected err while reading body: %s", err)
 				}
 				res := string(response)
-				res = res[0:54]
-				expErr := "user \"default\" is not allowed to access from 127.0.0.1"
+				res = res[35:]
+				expErr := "user \"default\" is not allowed to access"
 				if res != expErr {
 					t.Errorf("unexpected response: %q; expected: %q", res, expErr)
 				}
@@ -201,8 +201,8 @@ func TestServe(t *testing.T) {
 					t.Fatalf("unexpected err while reading body: %s", err)
 				}
 				res := string(response)
-				res = res[0:58]
-				expErr := "cluster user \"web\" is not allowed to access from 127.0.0.1"
+				res = res[35:]
+				expErr := "cluster user \"web\" is not allowed to access"
 				if res != expErr {
 					t.Fatalf("unexpected response: %q; expected: %q", res, expErr)
 				}
@@ -245,8 +245,9 @@ func TestServe(t *testing.T) {
 				if err != nil {
 					t.Errorf("unexpected err while reading body: %s", err)
 				}
+				stringResponse := string(response)
 				expErr := "user \"default\" is not allowed to access via http"
-				if string(response) != expErr {
+				if stringResponse[35:] != expErr {
 					t.Errorf("unexpected response: %q; expected: %q", string(response), expErr)
 				}
 				resp.Body.Close()
@@ -319,8 +320,8 @@ func TestServe(t *testing.T) {
 					t.Errorf("unexpected err while reading body: %s", err)
 				}
 				res := string(response)
-				res = res[0:54]
-				expErr := "user \"default\" is not allowed to access from 127.0.0.1"
+				res = res[35:]
+				expErr := "user \"default\" is not allowed to access"
 				if res != expErr {
 					t.Errorf("unexpected response: %q; expected: %q", res, expErr)
 				}
@@ -344,8 +345,8 @@ func TestServe(t *testing.T) {
 					t.Fatalf("unexpected err while reading body: %s", err)
 				}
 				res := string(response)
-				res = res[0:58]
-				expErr := "cluster user \"web\" is not allowed to access from 127.0.0.1"
+				res = res[35:]
+				expErr := "cluster user \"web\" is not allowed to access"
 				if res != expErr {
 					t.Fatalf("unexpected response: %q; expected: %q", res, expErr)
 				}
@@ -358,9 +359,9 @@ func TestServe(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			*configFile = tc.file
-			tl, done := tc.lnFn()
+			ln, done := tc.listenFn()
 			tc.testFn(t)
-			if err := tl.Close(); err != nil {
+			if err := ln.Close(); err != nil {
 				t.Fatalf("unexpected error while closing listener: %s", err)
 			}
 			<-done
