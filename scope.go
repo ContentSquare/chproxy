@@ -154,6 +154,22 @@ func (s *scope) decorateRequest(req *http.Request) *http.Request {
 	return req
 }
 
+func (s *scope) getTimeoutWithErrMsg() (time.Duration, error) {
+	var (
+		timeout       time.Duration
+		timeoutErrMsg error
+	)
+	if s.user.maxExecutionTime > 0 {
+		timeout = s.user.maxExecutionTime
+		timeoutErrMsg = fmt.Errorf("timeout for user %q exceeded: %v", s.user.name, timeout)
+	}
+	if timeout == 0 || (s.clusterUser.maxExecutionTime > 0 && s.clusterUser.maxExecutionTime < timeout) {
+		timeout = s.clusterUser.maxExecutionTime
+		timeoutErrMsg = fmt.Errorf("timeout for cluster user %q exceeded: %v", s.clusterUser.name, timeout)
+	}
+	return timeout, timeoutErrMsg
+}
+
 type user struct {
 	toUser    string
 	toCluster string

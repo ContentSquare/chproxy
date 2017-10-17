@@ -65,18 +65,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	timeStart := time.Now()
 	req = s.decorateRequest(req)
 
-	var (
-		timeout       time.Duration
-		timeoutErrMsg error
-	)
-	if s.user.maxExecutionTime > 0 {
-		timeout = s.user.maxExecutionTime
-		timeoutErrMsg = fmt.Errorf("timeout for user %q exceeded: %v", s.user.name, timeout)
-	}
-	if timeout == 0 || (s.clusterUser.maxExecutionTime > 0 && s.clusterUser.maxExecutionTime < timeout) {
-		timeout = s.clusterUser.maxExecutionTime
-		timeoutErrMsg = fmt.Errorf("timeout for cluster user %q exceeded: %v", s.clusterUser.name, timeout)
-	}
+	timeout, timeoutErrMsg := s.getTimeoutWithErrMsg()
 	ctx := context.Background()
 	if timeout != 0 {
 		var cancel context.CancelFunc
