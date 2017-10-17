@@ -56,9 +56,10 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	if s.user.allowCORS {
 		origin := req.Header.Get("Origin")
-		if len(origin) > 0 {
-			rw.Header().Set("Access-Control-Allow-Origin", origin)
+		if len(origin) == 0 {
+			origin = "*"
 		}
+		rw.Header().Set("Access-Control-Allow-Origin", origin)
 	}
 
 	timeStart := time.Now()
