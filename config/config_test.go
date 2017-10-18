@@ -18,6 +18,14 @@ func TestLoadConfig(t *testing.T) {
 			"full description",
 			"testdata/full.yml",
 			Config{
+				Caches: []Cache{
+					{
+						Name:    "longterm",
+						Dir:     "cache_dir",
+						MaxSize: ByteSize(10 * 1024 * 1024 * 1024),
+						Expire:  time.Hour,
+					},
+				},
 				HackMePlease: true,
 				Server: Server{
 					HTTP: HTTP{
@@ -262,6 +270,11 @@ func TestBadConfig(t *testing.T) {
 			"network groups",
 			"testdata/bad.network_groups.yml",
 			"wrong network group name or address \"office\": invalid CIDR address: office/32",
+		},
+		{
+			"max size",
+			"testdata/bad.max_size.yml",
+			"wrong size format: must be a positive integer with a unit of measurement like M, MB, G, GB, T or TB",
 		},
 	}
 
