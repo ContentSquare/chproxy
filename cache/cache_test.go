@@ -8,10 +8,10 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/Vertamedia/chproxy/config"
 	"github.com/Vertamedia/chproxy/log"
-	"time"
 )
 
 var testDir = "./test-data"
@@ -57,21 +57,48 @@ func TestGenerateKey(t *testing.T) {
 	}
 }
 
-func TestMustRegister(t *testing.T) {
-}
-
-func TestController_Store(t *testing.T) {
-	dir := testDir + "/TestController_Store"
-	cfg := &config.Cache{
-		Name:    "TestController_Store",
+func TestController_Get(t *testing.T) {
+	dir := testDir + "/TestController_Get"
+	cfg := config.Cache{
+		Name:    "TestController_Get",
 		Dir:     dir,
 		MaxSize: config.ByteSize(1024),
+		Expire:  time.Millisecond * 100,
 	}
 	MustRegister(cfg)
 	if _, err := os.Stat(dir); err != nil {
 		t.Fatalf("err while getting folder %q info: %s", dir, err)
 	}
-	cc := CacheController(cfg.Name)
+	cc := GetController(cfg.Name)
+	if cc == nil {
+		t.Fatalf("nil pointer; expected pointer to %s cache controller", cfg.Name)
+	}
+	k := "key"
+	cc.Store(k, []byte("body"))
+	if _, ok := cc.Get(k); !ok {
+		t.Fatalf("expected key %q to be present in cache reigster", k)
+	}
+
+	time.Sleep(time.Millisecond * 110)
+	cc.Store(k, []byte("body"))
+	if _, ok := cc.Get(k); ok {
+		t.Fatalf("expected key %q to be absent in cache reigster", k)
+	}
+}
+
+func TestController_Store(t *testing.T) {
+	dir := testDir + "/TestController_Store"
+	cfg := config.Cache{
+		Name:    "TestController_Store",
+		Dir:     dir,
+		MaxSize: config.ByteSize(1024),
+		Expire:  time.Second * 10,
+	}
+	MustRegister(cfg)
+	if _, err := os.Stat(dir); err != nil {
+		t.Fatalf("err while getting folder %q info: %s", dir, err)
+	}
+	cc := GetController(cfg.Name)
 	if cc == nil {
 		t.Fatalf("nil pointer; expected pointer to %s cache controller", cfg.Name)
 	}
@@ -82,15 +109,10 @@ func TestController_Store(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Error reading body: %v", err)
 	}
-	resp1 := responseWithBody("1")
-	resp2 := responseWithBody("1")
-
-	var buf bytes.Buffer
-	resp2.Write(&buf)
 
 	// generate key and store to cache
-	key := GenerateKey(UnsafeStr2Bytes(req.RequestURI), b)
-	cc.Store(key, resp1)
+	key := GenerateKey([]byte("key"), b)
+	cc.Store(key, []byte("1"))
 
 	// check that cached file exists
 	cacheFilePath := fmt.Sprintf("%s/%s", dir, key)
@@ -102,26 +124,26 @@ func TestController_Store(t *testing.T) {
 		t.Fatalf("got nil; expected cached response")
 	}
 
-	if string(cachedResp) != buf.String() {
-		t.Fatalf("got cached resp: %q; expected: %q", string(cachedResp), buf.String())
+	if !bytes.Equal(cachedResp, []byte("1")) {
+		t.Fatalf("got cached resp: %q; expected: %q", string(cachedResp), string([]byte("1")))
 	}
 }
 
 func TestCleanup(t *testing.T) {
 	dir := testDir + "/TestCleanup"
-	cfg := &config.Cache{
+	cfg := config.Cache{
 		Name:    "TestCleanup",
 		Dir:     dir,
 		Expire:  time.Millisecond * 100,
 		MaxSize: config.ByteSize(100),
 	}
 	MustRegister(cfg)
-	cc := CacheController(cfg.Name)
+	cc := GetController(cfg.Name)
 	key1 := "key1"
-	cc.Store(key1, responseWithBody("body"))
+	cc.Store(key1, []byte("body"))
 	time.Sleep(time.Millisecond * 50)
 	key2 := "key2"
-	cc.Store(key2, responseWithBody("body2"))
+	cc.Store(key2, []byte("body2"))
 
 	_, ok := cc.Get(key1)
 	if !ok {
@@ -153,54 +175,53 @@ func TestCleanup(t *testing.T) {
 
 func TestCleanup2(t *testing.T) {
 	dir := testDir + "/TestCleanup2"
-	cfg := &config.Cache{
+	cfg := config.Cache{
 		Name:    "TestCleanup2",
 		Dir:     dir,
 		Expire:  time.Second * 10,
-		MaxSize: config.ByteSize(140),
+		MaxSize: config.ByteSize(30),
 	}
 	MustRegister(cfg)
-	cc := CacheController(cfg.Name)
+	cc := GetController(cfg.Name)
 
-	// every file for 34 bytes
-	// so it would be 340 bytes after 10 iterations
+	// every file for 4 bytes
+	// so it would be 40 after 10 iterations
 	for i := 0; i < 10; i++ {
 		key := fmt.Sprintf("key-%d", i)
-		cc.Store(key, responseWithBody("body"))
+		cc.Store(key, []byte("body"))
 		time.Sleep(time.Millisecond * 5)
 	}
 
-	// cache must be exceeded MaxSize for 200 bytes
+	// cache must be exceeded MaxSize for 10 bytes
 	cc.cleanup()
-	// if every file was 34 bytes than
-	// we must have 200/34 = 6 extra files
-	// so after cleanup it must be 10 - 6 = 4
-	if len(cc.registry) != 4 {
-		t.Fatalf("expected length: 4; got: %d", len(cc.registry))
+	// if every file was 4 bytes than
+	// we must have 10/4 = 3 extra files
+	// so after cleanup it must be 10 - 3 = 7
+	if len(cc.registry) != 7 {
+		t.Fatalf("expected length: 7; got: %d", len(cc.registry))
 	}
 
-	// or 4*34 = 136 size
-	if cc.size != int64(136) {
-		t.Fatalf("expected size: 136; got: %d", cc.size)
+	// or 7*4 = 28 size
+	if cc.size != int64(28) {
+		t.Fatalf("expected size: 28; got: %d", cc.size)
 	}
 
-	// and all keys must lower than 5 number must be absent in registry
+	// and all keys must lower than 3 number must be absent in registry
 	// since they are the oldest
-	for i := 0; i < 6; i++ {
+	for i := 0; i < 3; i++ {
 		key := fmt.Sprintf("key-%d", i)
 		if _, ok := cc.Get(key); ok {
 			t.Fatalf("expected key %q to be absent in registry", key)
 		}
 	}
 
-	// and all keys higher than 5 - to be present in registry
-	for i := 6; i < 10; i++ {
+	// and all keys higher than 3 - to be present in registry
+	for i := 3; i < 10; i++ {
 		key := fmt.Sprintf("key-%d", i)
 		if _, ok := cc.Get(key); !ok {
 			t.Fatalf("expected key %q to be in registry", key)
 		}
 	}
-
 }
 
 func responseWithBody(b string) *http.Response {

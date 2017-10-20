@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -12,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Vertamedia/chproxy/cache"
 	"github.com/Vertamedia/chproxy/config"
 	"github.com/Vertamedia/chproxy/log"
 	"github.com/prometheus/client_golang/prometheus"
@@ -20,12 +23,42 @@ import (
 func newReverseProxy() *reverseProxy {
 	return &reverseProxy{
 		ReverseProxy: &httputil.ReverseProxy{
-			Director: func(*http.Request) {},
-			ErrorLog: log.ErrorLogger,
+			Director:       func(*http.Request) {},
+			ErrorLog:       log.ErrorLogger,
+			ModifyResponse: cacheResponse,
 		},
 		reloadSignal: make(chan struct{}),
 		reloadWG:     sync.WaitGroup{},
 	}
+}
+
+func cacheResponse(resp *http.Response) error {
+	fmt.Println("Going to cache resp")
+	cc := cacheControllers.Load().(ccList)
+	if cc == nil {
+		fmt.Println("nil")
+		return nil
+	}
+
+	name, _ := getAuth(resp.Request)
+	log.Debugf("going to cache resp for %s", name)
+	c := cc[name]
+	if c == nil {
+		fmt.Println(">> no such key", name, cc)
+		return nil
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil
+	}
+	key, err := hashReq(resp.Request)
+	if err != nil {
+		return fmt.Errorf("error while generating cache hash key: %s", err)
+	}
+	b, err := ioutil.ReadAll(resp.Body)
+	c.Store(key, b)
+	resp.Body = ioutil.NopCloser(bytes.NewBuffer(b))
+
+	return nil
 }
 
 func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -35,7 +68,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		respondWith(rw, err, sc)
 		return
 	}
-	log.Debugf("Request scope %s", s)
+	//log.Debugf("Request scope %s", s)
 	requestSum.With(s.labels).Inc()
 
 	req.Body = &statReadCloser{
@@ -63,24 +96,33 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	timeStart := time.Now()
-	req = s.decorateRequest(req)
-
-	timeout, timeoutErrMsg := s.getTimeoutWithErrMsg()
-	ctx := context.Background()
-	if timeout != 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, timeout)
-		defer cancel()
-	}
-
-	req = req.WithContext(ctx)
+	var timeoutErrMsg error
+	var timeout time.Duration
 	cw := &cachedWriter{
 		ResponseWriter: rw,
 	}
-	rp.ReverseProxy.ServeHTTP(cw, req)
+
+	resp, cacheOk := s.getFromCache(req)
+	if !cacheOk {
+		req = s.decorateRequest(req)
+		timeout, timeoutErrMsg = s.getTimeoutWithErrMsg()
+		ctx := context.Background()
+		if timeout != 0 {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, timeout)
+			defer cancel()
+		}
+		req = req.WithContext(ctx)
+		rp.ReverseProxy.ServeHTTP(cw, req)
+	} else {
+		// reverseProxy never uses Write. It uses WriteHeader and copyResponse for Body
+		// so if cache was hit - we set 200 status to continue processing
+		cw.statusCode = http.StatusOK
+		cw.Write(resp)
+	}
 
 	if req.Context().Err() != nil {
-		// penalize host if respond is slow, probably it is overloaded
+		// penalize host if responding is slow, probably it is overloaded
 		s.host.penalize()
 		cw.statusCode = http.StatusGatewayTimeout
 		if err := s.killQuery(); err != nil {
@@ -97,6 +139,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			fmt.Fprintf(rw, "unable to reach address: %s", req.URL.Host)
 		}
 	}
+
 	statusCodes.With(
 		prometheus.Labels{
 			"user":         s.user.name,
@@ -157,6 +200,7 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 		cluster.hosts = hosts
 	}
 
+	cc := cacheControllers.Load().(ccList)
 	users := make(map[string]*user, len(cfg.Users))
 	for _, u := range cfg.Users {
 		c, ok := clusters[u.ToCluster]
@@ -172,6 +216,7 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 		users[u.Name] = &user{
 			name:                 u.Name,
 			password:             u.Password,
+			cache:                u.Cache,
 			toUser:               u.ToUser,
 			denyHTTP:             u.DenyHTTP,
 			denyHTTPS:            u.DenyHTTPS,
@@ -182,7 +227,15 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 			maxExecutionTime:     u.MaxExecutionTime,
 			maxConcurrentQueries: u.MaxConcurrentQueries,
 		}
+		if len(u.Cache) > 0 {
+			c := cache.GetController(u.Cache)
+			if c == nil {
+				return fmt.Errorf("there is no such cache %q for user %q ", u.Cache, u.Name)
+			}
+			cc[u.Name] = c
+		}
 	}
+	cacheControllers.Store(cc)
 
 	// if we are here then there are no errors with new config
 	// send signal for all listeners that proxy is going to reload
@@ -279,12 +332,14 @@ func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 	if h == nil {
 		return nil, http.StatusInternalServerError, fmt.Errorf("cluster %q - no active hosts", u.toCluster)
 	}
+
 	s := newScope()
 	s.host = h
 	s.cluster = c
 	s.user = u
 	s.clusterUser = cu
 	s.remoteAddr = req.RemoteAddr
+	s.cache = cacheControllers.Load().(ccList)[u.name]
 	if addr, ok := req.Context().Value(http.LocalAddrContextKey).(net.Addr); ok {
 		s.localAddr = addr.String()
 	}
@@ -305,6 +360,7 @@ type cachedWriter struct {
 }
 
 func (cw *cachedWriter) WriteHeader(code int) {
+	fmt.Println(">>> ", code)
 	cw.statusCode = code
 	cw.ResponseWriter.WriteHeader(code)
 }

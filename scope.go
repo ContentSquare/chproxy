@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Vertamedia/chproxy/cache"
 	"github.com/Vertamedia/chproxy/config"
 	"github.com/Vertamedia/chproxy/log"
 	"github.com/prometheus/client_golang/prometheus"
@@ -30,6 +31,7 @@ type scope struct {
 	cluster     *cluster
 	user        *user
 	clusterUser *clusterUser
+	cache       *cache.Controller
 
 	remoteAddr string
 	localAddr  string
@@ -168,6 +170,18 @@ func (s *scope) getTimeoutWithErrMsg() (time.Duration, error) {
 		timeoutErrMsg = fmt.Errorf("timeout for cluster user %q exceeded: %v", s.clusterUser.name, timeout)
 	}
 	return timeout, timeoutErrMsg
+}
+
+func (s scope) getFromCache(req *http.Request) ([]byte, bool) {
+	if s.cache == nil {
+		return nil, false
+	}
+	key, err := hashReq(req)
+	if err != nil {
+		log.Errorf("error while generating cache hash key: %s", err)
+		return nil, false
+	}
+	return s.cache.Get(key)
 }
 
 type user struct {

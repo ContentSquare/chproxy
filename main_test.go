@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/tls"
 	"fmt"
+	"github.com/Vertamedia/chproxy/cache"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -14,17 +15,24 @@ var tlsClient = &http.Client{Transport: &http.Transport{
 }}
 
 func startTLS() (net.Listener, chan struct{}) {
-	cfg, err := reloadConfig()
+	cfg, err := loadConfig()
 	if err != nil {
-		panic(fmt.Sprintf("unexpected error while loading config: %s", err))
+		panic(fmt.Sprintf("error while loading config: %s", err))
+	}
+	cacheControllers.Store(make(ccList))
+	if len(cfg.Caches) > 0 {
+		cache.MustRegister(cfg.Caches...)
+	}
+	if err = applyConfig(cfg); err != nil {
+		panic(fmt.Sprintf("error while applying config: %s", err))
 	}
 	done := make(chan struct{})
 
-	ln, err := net.Listen("tcp4", cfg.HTTPS.ListenAddr)
+	ln, err := net.Listen("tcp4", cfg.Server.HTTPS.ListenAddr)
 	if err != nil {
-		panic(fmt.Sprintf("cannot listen for %q: %s", cfg.HTTPS.ListenAddr, err))
+		panic(fmt.Sprintf("cannot listen for %q: %s", cfg.Server.HTTPS.ListenAddr, err))
 	}
-	tlsCfg := newTLSConfig(cfg.HTTPS)
+	tlsCfg := newTLSConfig(cfg.Server.HTTPS)
 	tln := tls.NewListener(ln, tlsCfg)
 	go func() {
 		listenAndServe(tln)
@@ -34,15 +42,22 @@ func startTLS() (net.Listener, chan struct{}) {
 }
 
 func startHTTP() (net.Listener, chan struct{}) {
-	cfg, err := reloadConfig()
+	cfg, err := loadConfig()
 	if err != nil {
-		panic(fmt.Sprintf("unexpected error while loading config: %s", err))
+		panic(fmt.Sprintf("error while loading config: %s", err))
+	}
+	cacheControllers.Store(make(ccList))
+	if len(cfg.Caches) > 0 {
+		cache.MustRegister(cfg.Caches...)
+	}
+	if err = applyConfig(cfg); err != nil {
+		panic(fmt.Sprintf("error while applying config: %s", err))
 	}
 	done := make(chan struct{})
 
-	ln, err := net.Listen("tcp4", cfg.HTTP.ListenAddr)
+	ln, err := net.Listen("tcp4", cfg.Server.HTTP.ListenAddr)
 	if err != nil {
-		panic(fmt.Sprintf("cannot listen for %q: %s", cfg.HTTP.ListenAddr, err))
+		panic(fmt.Sprintf("cannot listen for %q: %s", cfg.Server.HTTP.ListenAddr, err))
 	}
 	go func() {
 		listenAndServe(ln)

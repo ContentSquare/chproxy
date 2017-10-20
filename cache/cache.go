@@ -3,7 +3,6 @@ package cache
 import (
 	"fmt"
 	"io/ioutil"
-	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
@@ -15,17 +14,24 @@ import (
 )
 
 var (
-	cMu   = sync.Mutex{}
+	cMu   = sync.RWMutex{}
 	cList = make(map[string]*Controller)
 )
 
-func MustRegister(configs ...*config.Cache) {
-	if len(configs) == 0 {
+func MustRegister(cfgs ...config.Cache) {
+	if len(cfgs) == 0 {
 		return
 	}
-	for _, cfg := range configs {
+
+	for _, cfg := range cfgs {
 		if _, ok := cList[cfg.Name]; ok {
-			log.Fatalf("cache %q already registered", cfg.Name)
+			log.Fatalf("cache controller %q is already registered", cfg.Name)
+		}
+		if cfg.MaxSize == 0 {
+			log.Fatalf("max_size cannot be 0")
+		}
+		if cfg.Expire == 0 {
+			log.Fatalf("expire cannot be 0")
 		}
 		c := &Controller{
 			Name:     cfg.Name,
@@ -37,13 +43,13 @@ func MustRegister(configs ...*config.Cache) {
 		if err := c.Run(); err != nil {
 			log.Fatalf("cache %q error: %s", cfg.Name, err)
 		}
-		cList[c.Name] = c
+		cList[cfg.Name] = c
 	}
 }
 
-func CacheController(name string) *Controller {
-	cMu.Lock()
-	defer cMu.Unlock()
+func GetController(name string) *Controller {
+	cMu.RLock()
+	defer cMu.RUnlock()
 	return cList[name]
 }
 
@@ -76,21 +82,32 @@ func (c *Controller) Run() error {
 	if err := filepath.Walk(c.Dir, walkFn); err != nil {
 		return fmt.Errorf("error while reading folder %q: %s", c.Dir, err)
 	}
+
 	c.cleanup()
 	go func() {
-		time.Sleep(cleanUpInterval)
-		c.cleanup()
+		for {
+			time.Sleep(cleanUpInterval)
+			c.cleanup()
+		}
 	}()
+
 	return nil
 }
 
-func (c Controller) Get(key string) ([]byte, bool) {
+func (c *Controller) Get(key string) ([]byte, bool) {
 	c.mu.Lock()
-	_, ok := c.registry[key]
+
+	mod, ok := c.registry[key]
 	if !ok {
 		c.mu.Unlock()
 		return nil, false
 	}
+	if mod.Before(time.Now().Add(-c.Expire)) {
+		c.remove(key)
+		c.mu.Unlock()
+		return nil, false
+	}
+
 	path := fmt.Sprintf("%s/%s", c.Dir, key)
 	name := c.Name
 	c.mu.Unlock()
@@ -98,13 +115,17 @@ func (c Controller) Get(key string) ([]byte, bool) {
 	resp, err := ioutil.ReadFile(path)
 	if err != nil {
 		log.Errorf("err while reading file %q for cache %q: %s", key, name, err)
+		c.mu.Lock()
+		c.remove(key)
+		c.mu.Unlock()
 		return nil, false
 	}
+	log.Debugf("Cache hit")
 	return resp, true
 }
 
 // TODO: somehow release lock while file is creating and writing to minimize wasted time
-func (c *Controller) Store(key string, resp *http.Response) {
+func (c *Controller) Store(key string, b []byte) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -118,7 +139,7 @@ func (c *Controller) Store(key string, resp *http.Response) {
 		log.Errorf("err while creating file %q for cache %q: %s", f.Name(), c.Name, err)
 		return
 	}
-	if err != resp.Write(f) {
+	if _, err = f.Write(b); err != nil {
 		log.Errorf("err while writing into file %q for cache %q: %s", f.Name(), c.Name, err)
 		return
 	}
@@ -131,6 +152,7 @@ func (c *Controller) Store(key string, resp *http.Response) {
 	c.registry[key] = info.ModTime()
 	c.size += info.Size()
 	f.Close()
+	log.Debugf("Cache for key %q stored", key)
 }
 
 func (c *Controller) cleanup() {
@@ -141,14 +163,12 @@ func (c *Controller) cleanup() {
 	if c.size == 0 {
 		return
 	}
-
 	leftBound := time.Now().Add(-c.Expire)
 	for key, mod := range c.registry {
 		if mod.Before(leftBound) {
 			c.remove(key)
 		}
 	}
-
 	// if size limits are fine - exit
 	if c.size <= c.MaxSize {
 		return
@@ -169,7 +189,6 @@ func (c *Controller) cleanup() {
 	sort.Slice(fileList, func(i, j int) bool {
 		return fileList[i].mod.Before(fileList[j].mod)
 	})
-
 	i := 0
 	for {
 		if c.size < c.MaxSize {
@@ -182,6 +201,7 @@ func (c *Controller) cleanup() {
 
 // remove is not concurrent safe and must be called only under lock
 func (c *Controller) remove(key string) {
+	log.Debugf("Going to remove key %q", key)
 	path := fmt.Sprintf("%s/%s", c.Dir, key)
 	f, err := os.Stat(path)
 	if err != nil {

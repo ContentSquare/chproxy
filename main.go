@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Vertamedia/chproxy/cache"
 	"github.com/Vertamedia/chproxy/config"
 	"github.com/Vertamedia/chproxy/log"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -24,6 +25,8 @@ var (
 	v          = flag.Bool("v", false, "Prints current version and exits")
 )
 
+type ccList map[string]*cache.Controller
+
 var (
 	version = "1.2.0"
 
@@ -32,6 +35,7 @@ var (
 	allowedNetworksHTTP    atomic.Value
 	allowedNetworksHTTPS   atomic.Value
 	allowedNetworksMetrics atomic.Value
+	cacheControllers       atomic.Value
 )
 
 func main() {
@@ -43,9 +47,16 @@ func main() {
 
 	log.Infof("Chproxy version: %s", version)
 	log.Infof("Loading config: %s", *configFile)
-	cfg, err := reloadConfig()
+	cfg, err := loadConfig()
 	if err != nil {
 		log.Fatalf("error while loading config: %s", err)
+	}
+	cacheControllers.Store(make(ccList))
+	if len(cfg.Caches) > 0 {
+		cache.MustRegister(cfg.Caches...)
+	}
+	if err = applyConfig(cfg); err != nil {
+		log.Fatalf("error while applying config: %s", err)
 	}
 	log.Infof("Loading config %q: successful", *configFile)
 
@@ -56,7 +67,7 @@ func main() {
 			switch <-c {
 			case syscall.SIGHUP:
 				log.Infof("SIGHUP received. Going to reload config %s ...", *configFile)
-				if _, err := reloadConfig(); err != nil {
+				if err := reloadConfig(); err != nil {
 					log.Errorf("error while reloading config: %s", err)
 					continue
 				}
@@ -65,14 +76,15 @@ func main() {
 		}
 	}()
 
-	if len(cfg.HTTP.ListenAddr) == 0 && len(cfg.HTTPS.ListenAddr) == 0 {
+	server := cfg.Server
+	if len(server.HTTP.ListenAddr) == 0 && len(server.HTTPS.ListenAddr) == 0 {
 		panic("BUG: broken config validation - `listen_addr` is not configured")
 	}
-	if len(cfg.HTTPS.ListenAddr) != 0 {
-		go serveTLS(cfg.HTTPS)
+	if len(server.HTTPS.ListenAddr) != 0 {
+		go serveTLS(server.HTTPS)
 	}
-	if len(cfg.HTTP.ListenAddr) != 0 {
-		go serve(cfg.HTTP)
+	if len(server.HTTP.ListenAddr) != 0 {
+		go serve(server.HTTP)
 	}
 
 	select {}
@@ -198,7 +210,7 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func reloadConfig() (*config.Server, error) {
+func loadConfig() (*config.Config, error) {
 	if *configFile == "" {
 		log.Fatalf("Missing -config flag")
 	}
@@ -206,13 +218,26 @@ func reloadConfig() (*config.Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("can't load config %q: %s", *configFile, err)
 	}
+	return cfg, nil
+}
+
+func applyConfig(cfg *config.Config) error {
 	if err := proxy.ApplyConfig(cfg); err != nil {
-		return nil, err
+		return err
 	}
 	allowedNetworksHTTP.Store(&cfg.Server.HTTP.AllowedNetworks)
 	allowedNetworksHTTPS.Store(&cfg.Server.HTTPS.AllowedNetworks)
 	allowedNetworksMetrics.Store(&cfg.Server.Metrics.AllowedNetworks)
 	log.SetDebug(cfg.LogDebug)
 	log.Infof("Loaded config: \n%s", cfg)
-	return &cfg.Server, nil
+
+	return nil
+}
+
+func reloadConfig() error {
+	cfg, err := loadConfig()
+	if err != nil {
+		return err
+	}
+	return applyConfig(cfg)
 }
