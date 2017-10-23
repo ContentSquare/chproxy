@@ -21,6 +21,7 @@ func newReverseProxy() *reverseProxy {
 	return &reverseProxy{
 		ReverseProxy: &httputil.ReverseProxy{
 			Director: func(*http.Request) {},
+			// @valyala: do we actually need error messages from ReverseProxy?
 			ErrorLog: log.ErrorLogger,
 		},
 		reloadSignal: make(chan struct{}),
@@ -46,10 +47,12 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		ResponseWriter:    rw,
 		responseBodyBytes: responseBodyBytes.With(s.labels),
 	}
-
+	query := fetchQuery(req)
 	if err = s.inc(); err != nil {
 		limitExcess.With(s.labels).Inc()
-		respondWith(rw, err, http.StatusTooManyRequests)
+		log.Errorf("%s; the query was: %s", err, query)
+		rw.WriteHeader(http.StatusTooManyRequests)
+		rw.Write([]byte(err.Error()))
 		return
 	}
 	defer s.dec()
@@ -61,7 +64,6 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		}
 		rw.Header().Set("Access-Control-Allow-Origin", origin)
 	}
-
 	timeStart := time.Now()
 	req = s.decorateRequest(req)
 
@@ -78,7 +80,6 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		ResponseWriter: rw,
 	}
 	rp.ReverseProxy.ServeHTTP(cw, req)
-
 	if req.Context().Err() != nil {
 		// penalize host if respond is slow, probably it is overloaded
 		s.host.penalize()
@@ -86,6 +87,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		if err := s.killQuery(); err != nil {
 			log.Errorf("error while killing query: %s", err)
 		}
+		log.Errorf("node %q: %s; the query was: %s", s.host.addr, timeoutErrMsg, query)
 		fmt.Fprint(rw, timeoutErrMsg.Error())
 	} else {
 		switch cw.statusCode {

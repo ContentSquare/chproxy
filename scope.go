@@ -126,8 +126,13 @@ func (s *scope) killQuery() error {
 	return nil
 }
 
+// decorateRequest purifies request from unsupported params
+// because proxy just can't handle and control it properly via HTTP
+// it is recommended to control CH settings in user's profiles
+// @see http://clickhouse.readthedocs.io/en/latest/reference_en.html#HTTP interface
+// @see http://clickhouse.readthedocs.io/en/latest/reference_en.html#Settings
 func (s *scope) decorateRequest(req *http.Request) *http.Request {
-	// make new params to purify URL
+	// make new params to purify URL because settings might be changed only via GET params
 	params := make(url.Values)
 
 	// set query_id as scope_id to have possibility kill query if needed
