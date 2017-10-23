@@ -50,7 +50,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	query := fetchQuery(req)
 	if err = s.inc(); err != nil {
 		limitExcess.With(s.labels).Inc()
-		log.Errorf("%s. Query was: %s", err, query)
+		log.Errorf("%s; the query was: %s", err, query)
 		rw.WriteHeader(http.StatusTooManyRequests)
 		rw.Write([]byte(err.Error()))
 		return
@@ -87,7 +87,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		if err := s.killQuery(); err != nil {
 			log.Errorf("error while killing query: %s", err)
 		}
-		log.Errorf("%s. Query was: %s", timeoutErrMsg, query)
+		log.Errorf("node %q: %s; the query was: %s", s.host.addr, timeoutErrMsg, query)
 		fmt.Fprint(rw, timeoutErrMsg.Error())
 	} else {
 		switch cw.statusCode {
