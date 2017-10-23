@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io/ioutil"
@@ -10,7 +9,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/Vertamedia/chproxy/cache"
 	"github.com/Vertamedia/chproxy/log"
 )
 
@@ -82,16 +80,3 @@ func unsafeStr2Bytes(s string) []byte {
 	return *(*[]byte)(unsafe.Pointer(&bh))
 }
 
-func hashReq(req *http.Request) (string, error) {
-	var err error
-	var b []byte
-	if req.Body != nil {
-		b, err = ioutil.ReadAll(req.Body)
-		if err != nil {
-			return "", fmt.Errorf("error while reading body: %v", err)
-		}
-	}
-	key := cache.GenerateKey(unsafeStr2Bytes(req.RequestURI), b)
-	req.Body = ioutil.NopCloser(bytes.NewBuffer(b))
-	return key, nil
-}

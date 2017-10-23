@@ -63,15 +63,12 @@ type Controller struct {
 	size     int64
 }
 
-const cleanUpInterval = time.Second * 20
-
 // Runs a goroutine to watch limits exceeding.
 // Also re-reads already cached files to refresh registry after reload
 func (c *Controller) Run() error {
 	if err := os.MkdirAll(c.Dir, 0700); err != nil {
 		return fmt.Errorf("error while creating folder %q: %s", c.Dir, err)
 	}
-
 	walkFn := func(_ string, info os.FileInfo, err error) error {
 		if !info.IsDir() {
 			c.size += info.Size()
@@ -82,7 +79,6 @@ func (c *Controller) Run() error {
 	if err := filepath.Walk(c.Dir, walkFn); err != nil {
 		return fmt.Errorf("error while reading folder %q: %s", c.Dir, err)
 	}
-
 	c.cleanup()
 	go func() {
 		for {
@@ -90,9 +86,10 @@ func (c *Controller) Run() error {
 			c.cleanup()
 		}
 	}()
-
 	return nil
 }
+
+const cleanUpInterval = time.Second * 20
 
 func (c *Controller) Get(key string) ([]byte, bool) {
 	c.mu.Lock()
@@ -107,7 +104,6 @@ func (c *Controller) Get(key string) ([]byte, bool) {
 		c.mu.Unlock()
 		return nil, false
 	}
-
 	path := fmt.Sprintf("%s/%s", c.Dir, key)
 	name := c.Name
 	c.mu.Unlock()
@@ -124,7 +120,8 @@ func (c *Controller) Get(key string) ([]byte, bool) {
 	return resp, true
 }
 
-// TODO: somehow release lock while file is creating and writing to minimize wasted time
+// Stores b to c.Dir/key cache file
+// thread-safe
 func (c *Controller) Store(key string, b []byte) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -136,7 +133,7 @@ func (c *Controller) Store(key string, b []byte) {
 	path := fmt.Sprintf("%s/%s", c.Dir, key)
 	f, err := os.Create(path)
 	if err != nil {
-		log.Errorf("err while creating file %q for cache %q: %s", f.Name(), c.Name, err)
+		log.Errorf("err while creating file %q for cache %q: %s", path, c.Name, err)
 		return
 	}
 	if _, err = f.Write(b); err != nil {
@@ -201,7 +198,6 @@ func (c *Controller) cleanup() {
 
 // remove is not concurrent safe and must be called only under lock
 func (c *Controller) remove(key string) {
-	log.Debugf("Going to remove key %q", key)
 	path := fmt.Sprintf("%s/%s", c.Dir, key)
 	f, err := os.Stat(path)
 	if err != nil {

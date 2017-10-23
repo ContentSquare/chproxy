@@ -33,31 +33,34 @@ func newReverseProxy() *reverseProxy {
 }
 
 func cacheResponse(resp *http.Response) error {
-	fmt.Println("Going to cache resp")
-	cc := cacheControllers.Load().(ccList)
-	if cc == nil {
-		fmt.Println("nil")
-		return nil
-	}
-
-	name, _ := getAuth(resp.Request)
-	log.Debugf("going to cache resp for %s", name)
-	c := cc[name]
-	if c == nil {
-		fmt.Println(">> no such key", name, cc)
-		return nil
-	}
+	fmt.Println(resp.Request.URL)
+	// cache only Ok responses
 	if resp.StatusCode != http.StatusOK {
 		return nil
 	}
-	key, err := hashReq(resp.Request)
-	if err != nil {
-		return fmt.Errorf("error while generating cache hash key: %s", err)
+	key := resp.Request.URL.Query().Get("cache_key")
+	fmt.Println(">>>",key)
+	// if no key then request came from user without cache option
+	if len(key) == 0 {
+		return nil
+	}
+	cc := cacheControllers.Load().(ccList)
+	if cc == nil {
+		return nil
+	}
+	name, _ := getAuth(resp.Request)
+	c, ok := cc[name]
+	if !ok {
+		return nil
 	}
 	b, err := ioutil.ReadAll(resp.Body)
-	c.Store(key, b)
+	if err != nil {
+		return fmt.Errorf("error while reading response body: %s", err)
+	}
+	// do not wait for slow creating/writing into file
+	go c.Store(key, b)
+	// restore body since we've already read&closed it
 	resp.Body = ioutil.NopCloser(bytes.NewBuffer(b))
-
 	return nil
 }
 
@@ -115,9 +118,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		req = req.WithContext(ctx)
 		rp.ReverseProxy.ServeHTTP(cw, req)
 	} else {
-		// reverseProxy never uses Write. It uses WriteHeader and copyResponse for Body
-		// so if cache was hit - we set 200 status to continue processing
-		cw.statusCode = http.StatusOK
+		// just write cached response into connection
 		cw.Write(resp)
 	}
 
@@ -216,7 +217,6 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 		users[u.Name] = &user{
 			name:                 u.Name,
 			password:             u.Password,
-			cache:                u.Cache,
 			toUser:               u.ToUser,
 			denyHTTP:             u.DenyHTTP,
 			denyHTTPS:            u.DenyHTTPS,
@@ -353,14 +353,18 @@ func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 	return s, 0, nil
 }
 
-// cache writer suppose to intercept headers set
+// cached writer supposed to intercept headers set
 type cachedWriter struct {
 	http.ResponseWriter
 	statusCode int
 }
 
+func (cw *cachedWriter) Write(b []byte) (int, error) {
+	cw.statusCode = http.StatusOK
+	return cw.ResponseWriter.Write(b)
+}
+
 func (cw *cachedWriter) WriteHeader(code int) {
-	fmt.Println(">>> ", code)
 	cw.statusCode = code
 	cw.ResponseWriter.WriteHeader(code)
 }

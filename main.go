@@ -32,9 +32,12 @@ var (
 
 	proxy = newReverseProxy()
 
+	// networks allow lists
 	allowedNetworksHTTP    atomic.Value
 	allowedNetworksHTTPS   atomic.Value
 	allowedNetworksMetrics atomic.Value
+
+	// list of cache controllers
 	cacheControllers       atomic.Value
 )
 

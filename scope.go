@@ -176,12 +176,17 @@ func (s scope) getFromCache(req *http.Request) ([]byte, bool) {
 	if s.cache == nil {
 		return nil, false
 	}
-	key, err := hashReq(req)
-	if err != nil {
-		log.Errorf("error while generating cache hash key: %s", err)
-		return nil, false
+	key := cache.GenerateKey(unsafeStr2Bytes(req.RequestURI))
+	response, ok := s.cache.Get(key)
+	if !ok {
+		// add cache key to get a possibility to identify this request in ModifyResponse func
+		params := req.URL.Query()
+		params.Set("cache_key", key)
+		req.URL.RawQuery = params.Encode()
+		fmt.Println(req.URL)
 	}
-	return s.cache.Get(key)
+
+	return response, ok
 }
 
 type user struct {
