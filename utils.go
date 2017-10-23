@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/Vertamedia/chproxy/log"
@@ -70,4 +72,18 @@ func isHealthy(addr string) error {
 		return fmt.Errorf("unexpected response: %s", r)
 	}
 	return nil
+}
+
+// fetchQuery fetches query from POST or GET request
+// @see http://clickhouse.readthedocs.io/en/latest/reference_en.html#HTTP interface
+func fetchQuery(req *http.Request) string {
+	var query string
+	query = req.URL.Query().Get("query")
+	if req.Method == http.MethodGet {
+		return query
+	}
+	body, _ := ioutil.ReadAll(req.Body)
+	query = fmt.Sprintf("%s %s", query, string(body))
+	req.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+	return strings.TrimSpace(query)
 }
