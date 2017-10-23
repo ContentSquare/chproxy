@@ -132,7 +132,7 @@ func (s *scope) killQuery() error {
 // @see http://clickhouse.readthedocs.io/en/latest/reference_en.html#HTTP interface
 // @see http://clickhouse.readthedocs.io/en/latest/reference_en.html#Settings
 func (s *scope) decorateRequest(req *http.Request) *http.Request {
-	// make new params to purify URL because settings might be change only via GET params
+	// make new params to purify URL because settings might be changed only via GET params
 	params := make(url.Values)
 
 	// set query_id as scope_id to have possibility kill query if needed
