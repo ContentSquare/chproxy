@@ -38,7 +38,7 @@ var (
 	allowedNetworksMetrics atomic.Value
 
 	// list of cache controllers
-	cacheControllers       atomic.Value
+	cacheControllers atomic.Value
 )
 
 func main() {

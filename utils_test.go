@@ -32,9 +32,9 @@ func TestFetchQuery(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			query := fetchQuery(tc.req)
-			if query != tc.expected {
-				t.Errorf("got: %q; expected: %q", query, tc.expected)
+			query := getQuery(tc.req)
+			if string(query) != tc.expected {
+				t.Errorf("got: %q; expected: %q", string(query), tc.expected)
 			}
 		})
 	}

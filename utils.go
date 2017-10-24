@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"reflect"
-	"strings"
 	"time"
 	"unsafe"
 
@@ -26,14 +25,12 @@ func getAuth(req *http.Request) (string, string) {
 	if name, pass, ok := req.BasicAuth(); ok {
 		return name, pass
 	}
-
 	// if basicAuth is empty - check URL params `user` and `password`
 	if name := req.URL.Query().Get("user"); name != "" {
 		if pass := req.URL.Query().Get("password"); name != "" {
 			return name, pass
 		}
 	}
-
 	// if still no credentials - treat it as `default` user request
 	return "default", ""
 }
@@ -82,16 +79,23 @@ func unsafeStr2Bytes(s string) []byte {
 	return *(*[]byte)(unsafe.Pointer(&bh))
 }
 
+func getQuery(req *http.Request) []byte {
+	return bytes.TrimSpace(fetchQuery(req))
+}
+
 // fetchQuery fetches query from POST or GET request
 // @see http://clickhouse.readthedocs.io/en/latest/reference_en.html#HTTP interface
-func fetchQuery(req *http.Request) string {
-	var query string
-	query = req.URL.Query().Get("query")
-	if req.Method == http.MethodGet {
-		return query
+func fetchQuery(req *http.Request) []byte {
+	result := []byte(req.URL.Query().Get("query"))
+	if req.Method == http.MethodGet || req.Body == nil {
+		return result
 	}
-	body, _ := ioutil.ReadAll(req.Body)
-	query = fmt.Sprintf("%s %s", query, string(body))
+	body, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		return result
+	}
+	result = append(result, ' ')
+	result = append(result, body...)
 	req.Body = ioutil.NopCloser(bytes.NewBuffer(body))
-	return strings.TrimSpace(query)
+	return result
 }

@@ -4,7 +4,7 @@ log_debug: true
 # Whether to ignore security checks during config parsing.
 hack_me_please: true
 
-# cache configuration
+# Cache configuration
 caches:
   - name: "longterm"
     dir: "cache_dir"
@@ -87,6 +87,9 @@ users:
 
     # Requests per minute limit for the given input user.
     requests_per_minute: 4
+
+    # Name of cache configuration to use
+    cache: "longterm"
 
   - name: "default"
     to_cluster: "second cluster"

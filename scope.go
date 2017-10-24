@@ -177,21 +177,12 @@ func (s *scope) getTimeoutWithErrMsg() (time.Duration, error) {
 	return timeout, timeoutErrMsg
 }
 
-func (s scope) getFromCache(req *http.Request) ([]byte, bool) {
+func (s scope) getFromCache(req *http.Request, query []byte) ([]byte, bool) {
 	if s.cache == nil {
 		return nil, false
 	}
-	key := cache.GenerateKey(unsafeStr2Bytes(req.RequestURI))
-	response, ok := s.cache.Get(key)
-	if !ok {
-		// add cache key to get a possibility to identify this request in ModifyResponse func
-		params := req.URL.Query()
-		params.Set("cache_key", key)
-		req.URL.RawQuery = params.Encode()
-		fmt.Println(req.URL)
-	}
-
-	return response, ok
+	key := cache.GenerateKey(query)
+	return s.cache.Get(key)
 }
 
 type user struct {

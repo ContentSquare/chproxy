@@ -23,46 +23,14 @@ import (
 func newReverseProxy() *reverseProxy {
 	return &reverseProxy{
 		ReverseProxy: &httputil.ReverseProxy{
-			Director:       func(*http.Request) {},
+			Director: func(*http.Request) {},
 			// @valyala: do we actually need error messages from ReverseProxy?
-			ErrorLog:       log.ErrorLogger,
-			ModifyResponse: cacheResponse,
+			ErrorLog:  log.ErrorLogger,
+			Transport: &cacheTransport{http.DefaultTransport},
 		},
 		reloadSignal: make(chan struct{}),
 		reloadWG:     sync.WaitGroup{},
 	}
-}
-
-func cacheResponse(resp *http.Response) error {
-	fmt.Println(resp.Request.URL)
-	// cache only Ok responses
-	if resp.StatusCode != http.StatusOK {
-		return nil
-	}
-	key := resp.Request.URL.Query().Get("cache_key")
-	fmt.Println(">>>",key)
-	// if no key then request came from user without cache option
-	if len(key) == 0 {
-		return nil
-	}
-	cc := cacheControllers.Load().(ccList)
-	if cc == nil {
-		return nil
-	}
-	name, _ := getAuth(resp.Request)
-	c, ok := cc[name]
-	if !ok {
-		return nil
-	}
-	b, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("error while reading response body: %s", err)
-	}
-	// do not wait for slow creating/writing into file
-	go c.Store(key, b)
-	// restore body since we've already read&closed it
-	resp.Body = ioutil.NopCloser(bytes.NewBuffer(b))
-	return nil
 }
 
 func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -72,7 +40,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		respondWith(rw, err, sc)
 		return
 	}
-	//log.Debugf("Request scope %s", s)
+	log.Debugf("Request scope %s", s)
 	requestSum.With(s.labels).Inc()
 
 	req.Body = &statReadCloser{
@@ -83,10 +51,10 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		ResponseWriter:    rw,
 		responseBodyBytes: responseBodyBytes.With(s.labels),
 	}
-	query := fetchQuery(req)
+	query := getQuery(req)
 	if err = s.inc(); err != nil {
 		limitExcess.With(s.labels).Inc()
-		log.Errorf("%s; the query was: %s", err, query)
+		log.Errorf("%s in query: %s", err, string(query))
 		rw.WriteHeader(http.StatusTooManyRequests)
 		rw.Write([]byte(err.Error()))
 		return
@@ -107,21 +75,19 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		ResponseWriter: rw,
 	}
 
-	resp, cacheOk := s.getFromCache(req)
-	if !cacheOk {req = s.decorateRequest(req)
-
-	timeout, timeoutErrMsg = s.getTimeoutWithErrMsg()
-	ctx := context.Background()
-	if timeout != 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, timeout)
-		defer cancel()
-	}
-
-	req = req.WithContext(ctx)
-
-	rp.ReverseProxy.ServeHTTP(cw, req)
-} else {
+	resp, cacheOk := s.getFromCache(req, query)
+	if !cacheOk {
+		req = s.decorateRequest(req)
+		timeout, timeoutErrMsg = s.getTimeoutWithErrMsg()
+		ctx := context.Background()
+		if timeout != 0 {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, timeout)
+			defer cancel()
+		}
+		req = req.WithContext(ctx)
+		rp.ReverseProxy.ServeHTTP(cw, req)
+	} else {
 		// just write cached response into connection
 		cw.Write(resp)
 	}
@@ -132,7 +98,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		if err := s.killQuery(); err != nil {
 			log.Errorf("error while killing query: %s", err)
 		}
-		log.Errorf("node %q: %s; the query was: %s", s.host.addr, timeoutErrMsg, query)
+		log.Errorf("node %q: %s in query: %s", s.host.addr, timeoutErrMsg, string(query))
 		fmt.Fprint(rw, timeoutErrMsg.Error())
 	} else {
 		switch cw.statusCode {
@@ -393,4 +359,40 @@ func (srw *statResponseWriter) Write(p []byte) (int, error) {
 	n, err := srw.ResponseWriter.Write(p)
 	srw.responseBodyBytes.Add(float64(n))
 	return n, err
+}
+
+type cacheTransport struct {
+	http.RoundTripper
+}
+
+func (ct *cacheTransport) RoundTrip(req *http.Request) (resp *http.Response, err error) {
+	// get query from request before RoundTrip to save body
+	query := getQuery(req)
+	resp, err = ct.RoundTripper.RoundTrip(req)
+	if err != nil {
+		return
+	}
+	// cache only Ok responses
+	if resp.StatusCode != http.StatusOK || resp.Body == nil {
+		return
+	}
+	cc := cacheControllers.Load().(ccList)
+	if cc == nil {
+		return
+	}
+	name, _ := getAuth(resp.Request)
+	c, ok := cc[name]
+	if !ok {
+		return
+	}
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return
+	}
+	key := cache.GenerateKey(query)
+	// do not wait for slow creating/writing into file
+	go c.Store(key, b)
+	// restore body since we've already read&closed it
+	resp.Body = ioutil.NopCloser(bytes.NewBuffer(b))
+	return
 }

@@ -290,6 +290,13 @@ log_debug: true
 # Whether to ignore security checks during config parsing.
 hack_me_please: true
 
+# Cache configuration
+caches:
+  - name: "longterm"
+    dir: "cache_dir"
+    max_size: "10G"
+    expire: "1h"
+
 # Named network lists, might be used as values for `allowed_networks`.
 network_groups:
   - name: "office"
@@ -366,6 +373,9 @@ users:
 
     # Requests per minute limit for the given input user.
     requests_per_minute: 4
+    
+    # Name of cache configuration to use
+    cache: "longterm"
 
   - name: "default"
     to_cluster: "second cluster"

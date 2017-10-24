@@ -95,6 +95,7 @@ func TestLoadConfig(t *testing.T) {
 						DenyHTTP:  true,
 						AllowCORS: true,
 						ReqPerMin: 4,
+						Cache:     "longterm",
 					},
 					{
 						Name:                 "default",

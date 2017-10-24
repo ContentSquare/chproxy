@@ -6,6 +6,7 @@
  - `<duration>`: a duration matching the regular expression `[0-9]+(ms|[smhdwy])`
  - `<networks>`: string value consisting of IP, IP mask or named group, for example `"127.0.0.1"` or `"127.0.0.1/24"`. 
  - `<host_name>`: string value consisting of host name, for example `"example.com"`
+ - `<byte_size>`: string value matching the regular expression `(?i)^(-?\d+(?:\.\d+)?)([KMGT]B?|B)$`, for example `"100MB"`
 
 ### Global configuration consist of:
 ```yml
@@ -15,6 +16,10 @@ log_debug: <bool> | default = false [optional]
 # Whether to ignore security warnings
 hack_me_please bool | default = false [optional]
 
+# Named list of cache configurations
+caches:
+  - <cache_config> ...
+    
 # Named network lists
 network_groups: <network_groups_config> ... [optional]
 
@@ -38,6 +43,21 @@ name: "office"
 # List of networks access is allowed from
 # Each list item could be IP address or subnet mask
 networks: <networks> ...
+```
+
+### <cache_config>
+```yml
+# Name of configuration
+name: <string>
+
+# Path to directory where cache-files supposed to be stored
+dir: string
+
+# Maximum cache size. If size exceeds proxy will start dropping eldest cache-files until fitting max_size  
+max_size: <byte_size>
+
+# Cache-files lifetime after which the will be dropped
+expire: <duration>
 ```
 
 ### <server_config>
