@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"reflect"
+	"strings"
 	"time"
 	"unsafe"
 
@@ -80,3 +82,16 @@ func unsafeStr2Bytes(s string) []byte {
 	return *(*[]byte)(unsafe.Pointer(&bh))
 }
 
+// fetchQuery fetches query from POST or GET request
+// @see http://clickhouse.readthedocs.io/en/latest/reference_en.html#HTTP interface
+func fetchQuery(req *http.Request) string {
+	var query string
+	query = req.URL.Query().Get("query")
+	if req.Method == http.MethodGet {
+		return query
+	}
+	body, _ := ioutil.ReadAll(req.Body)
+	query = fmt.Sprintf("%s %s", query, string(body))
+	req.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+	return strings.TrimSpace(query)
+}

@@ -24,6 +24,7 @@ func newReverseProxy() *reverseProxy {
 	return &reverseProxy{
 		ReverseProxy: &httputil.ReverseProxy{
 			Director:       func(*http.Request) {},
+			// @valyala: do we actually need error messages from ReverseProxy?
 			ErrorLog:       log.ErrorLogger,
 			ModifyResponse: cacheResponse,
 		},
@@ -82,10 +83,12 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		ResponseWriter:    rw,
 		responseBodyBytes: responseBodyBytes.With(s.labels),
 	}
-
+	query := fetchQuery(req)
 	if err = s.inc(); err != nil {
 		limitExcess.With(s.labels).Inc()
-		respondWith(rw, err, http.StatusTooManyRequests)
+		log.Errorf("%s; the query was: %s", err, query)
+		rw.WriteHeader(http.StatusTooManyRequests)
+		rw.Write([]byte(err.Error()))
 		return
 	}
 	defer s.dec()
@@ -97,7 +100,6 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		}
 		rw.Header().Set("Access-Control-Allow-Origin", origin)
 	}
-
 	timeStart := time.Now()
 	var timeoutErrMsg error
 	var timeout time.Duration
@@ -106,22 +108,23 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	resp, cacheOk := s.getFromCache(req)
-	if !cacheOk {
-		req = s.decorateRequest(req)
-		timeout, timeoutErrMsg = s.getTimeoutWithErrMsg()
-		ctx := context.Background()
-		if timeout != 0 {
-			var cancel context.CancelFunc
-			ctx, cancel = context.WithTimeout(ctx, timeout)
-			defer cancel()
-		}
-		req = req.WithContext(ctx)
-		rp.ReverseProxy.ServeHTTP(cw, req)
-	} else {
+	if !cacheOk {req = s.decorateRequest(req)
+
+	timeout, timeoutErrMsg = s.getTimeoutWithErrMsg()
+	ctx := context.Background()
+	if timeout != 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+
+	req = req.WithContext(ctx)
+
+	rp.ReverseProxy.ServeHTTP(cw, req)
+} else {
 		// just write cached response into connection
 		cw.Write(resp)
 	}
-
 	if req.Context().Err() != nil {
 		// penalize host if responding is slow, probably it is overloaded
 		s.host.penalize()
@@ -129,6 +132,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		if err := s.killQuery(); err != nil {
 			log.Errorf("error while killing query: %s", err)
 		}
+		log.Errorf("node %q: %s; the query was: %s", s.host.addr, timeoutErrMsg, query)
 		fmt.Fprint(rw, timeoutErrMsg.Error())
 	} else {
 		switch cw.statusCode {
