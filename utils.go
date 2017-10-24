@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"reflect"
 	"time"
-	"unsafe"
 
 	"github.com/Vertamedia/chproxy/log"
 )
@@ -67,16 +65,6 @@ func isHealthy(addr string) error {
 		return fmt.Errorf("unexpected response: %s", r)
 	}
 	return nil
-}
-
-func unsafeStr2Bytes(s string) []byte {
-	sh := (*reflect.StringHeader)(unsafe.Pointer(&s))
-	bh := reflect.SliceHeader{
-		Data: sh.Data,
-		Len:  sh.Len,
-		Cap:  sh.Len,
-	}
-	return *(*[]byte)(unsafe.Pointer(&bh))
 }
 
 func getQuery(req *http.Request) []byte {
