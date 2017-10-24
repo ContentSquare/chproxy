@@ -43,6 +43,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	log.Debugf("Request scope %s", s)
 	requestSum.With(s.labels).Inc()
 
+	query := getQuery(req)
 	req.Body = &statReadCloser{
 		ReadCloser:       req.Body,
 		requestBodyBytes: requestBodyBytes.With(s.labels),
@@ -51,7 +52,6 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		ResponseWriter:    rw,
 		responseBodyBytes: responseBodyBytes.With(s.labels),
 	}
-	query := getQuery(req)
 	if err = s.inc(); err != nil {
 		limitExcess.With(s.labels).Inc()
 		log.Errorf("%s in query: %s", err, string(query))
@@ -74,7 +74,6 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	cw := &cachedWriter{
 		ResponseWriter: rw,
 	}
-
 	resp, cacheOk := s.getFromCache(req, query)
 	if !cacheOk {
 		req = s.decorateRequest(req)

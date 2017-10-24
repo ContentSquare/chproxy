@@ -182,7 +182,13 @@ func (s scope) getFromCache(req *http.Request, query []byte) ([]byte, bool) {
 		return nil, false
 	}
 	key := cache.GenerateKey(query)
-	return s.cache.Get(key)
+	b, ok := s.cache.Get(key)
+	if ok {
+		cacheHit.With(s.labels).Inc()
+	} else {
+		cacheMiss.With(s.labels).Inc()
+	}
+	return b, ok
 }
 
 type user struct {

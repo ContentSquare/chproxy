@@ -73,6 +73,20 @@ var (
 		},
 		[]string{"user", "cluster", "cluster_user", "cluster_node"},
 	)
+	cacheHit = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "cache_hits_total",
+			Help: "The amount of successful cache hits",
+		},
+		[]string{"user", "cluster", "cluster_user", "cluster_node"},
+	)
+	cacheMiss = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "cache_miss_total",
+			Help: "The amount of cache miss",
+		},
+		[]string{"user", "cluster", "cluster_user", "cluster_node"},
+	)
 	badRequest = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "bad_requests_total",
 		Help: "Total number of unsupported requests",
@@ -81,6 +95,6 @@ var (
 
 func init() {
 	prometheus.MustRegister(statusCodes, requestDuration, requestSum, requestSuccess,
-		limitExcess, hostPenalties, hostHealth, concurrentQueries,
+		limitExcess, hostPenalties, hostHealth, concurrentQueries, cacheHit, cacheMiss,
 		requestBodyBytes, responseBodyBytes, badRequest)
 }
