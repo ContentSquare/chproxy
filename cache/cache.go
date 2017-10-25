@@ -38,7 +38,7 @@ func MustRegister(cfgs ...config.Cache) {
 			MaxSize:  int64(cfg.MaxSize),
 			Dir:      cfg.Dir,
 			Expire:   cfg.Expire,
-			registry: make(map[string]time.Time),
+			registry: make(map[string]file),
 		}
 		if err := c.Run(); err != nil {
 			log.Fatalf("cache %q error: %s", cfg.Name, err)
@@ -59,8 +59,13 @@ type Controller struct {
 	MaxSize   int64
 
 	mu       sync.Mutex
-	registry map[string]time.Time
+	registry map[string]file
 	size     int64
+}
+
+type file struct {
+	mod time.Time
+	size int64
 }
 
 // Runs a goroutine to watch limits exceeding.
@@ -71,8 +76,7 @@ func (c *Controller) Run() error {
 	}
 	walkFn := func(_ string, info os.FileInfo, err error) error {
 		if !info.IsDir() {
-			c.size += info.Size()
-			c.registry[info.Name()] = info.ModTime()
+			c.add(info)
 		}
 		return err
 	}
@@ -94,12 +98,12 @@ const cleanUpInterval = time.Second * 20
 func (c *Controller) Get(key string) ([]byte, bool) {
 	c.mu.Lock()
 
-	mod, ok := c.registry[key]
+	file, ok := c.registry[key]
 	if !ok {
 		c.mu.Unlock()
 		return nil, false
 	}
-	if mod.Before(time.Now().Add(-c.Expire)) {
+	if file.mod.Before(time.Now().Add(-c.Expire)) {
 		c.remove(key)
 		c.mu.Unlock()
 		return nil, false
@@ -146,8 +150,7 @@ func (c *Controller) Store(key string, b []byte) {
 		f.Close()
 		return
 	}
-	c.registry[key] = info.ModTime()
-	c.size += info.Size()
+	c.add(info)
 	f.Close()
 	log.Debugf("Cache for key %q stored", key)
 }
@@ -157,12 +160,12 @@ func (c *Controller) cleanup() {
 	defer c.mu.Unlock()
 
 	// if cache is empty - exit
-	if c.size == 0 {
+	if c.size < 1 {
 		return
 	}
 	leftBound := time.Now().Add(-c.Expire)
-	for key, mod := range c.registry {
-		if mod.Before(leftBound) {
+	for key, f := range c.registry {
+		if f.mod.Before(leftBound) {
 			c.remove(key)
 		}
 	}
@@ -176,10 +179,10 @@ func (c *Controller) cleanup() {
 		mod  time.Time
 	}
 	var fileList []*file
-	for name, mod := range c.registry {
+	for name, f := range c.registry {
 		fileList = append(fileList, &file{
 			name: name,
-			mod:  mod,
+			mod:  f.mod,
 		})
 	}
 
@@ -198,18 +201,21 @@ func (c *Controller) cleanup() {
 
 // remove is not concurrent safe and must be called only under lock
 func (c *Controller) remove(key string) {
+	file := c.registry[key]
+	delete(c.registry, key)
+	c.size -= file.size
 	path := fmt.Sprintf("%s/%s", c.Dir, key)
-	f, err := os.Stat(path)
-	if err != nil {
-		log.Errorf("error while getting file %q info for cache %q: %s", path, c.Name, err)
-		return
-	}
-	size := f.Size()
 	if err := os.Remove(path); err != nil {
 		log.Errorf("error while removing file %q for cache %q: %s", path, c.Name, err)
 		return
 	}
+}
 
-	delete(c.registry, key)
-	c.size -= size
+func (c *Controller) add(info os.FileInfo) {
+	size := info.Size()
+	c.size += size
+	c.registry[info.Name()] = file{
+		mod: info.ModTime(),
+		size: size,
+	}
 }
