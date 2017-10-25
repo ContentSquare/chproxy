@@ -1,10 +1,8 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -36,7 +34,6 @@ func newReverseProxy() *reverseProxy {
 			Director: func(*http.Request) {},
 			// @valyala: do we actually need error messages from ReverseProxy?
 			ErrorLog:  log.ErrorLogger,
-			Transport: &cacheTransport{http.DefaultTransport},
 		},
 		reloadSignal: make(chan struct{}),
 		reloadWG:     sync.WaitGroup{},
@@ -327,40 +324,4 @@ func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 	}
 
 	return s, 0, nil
-}
-
-type cacheTransport struct {
-	http.RoundTripper
-}
-
-func (ct *cacheTransport) RoundTrip(req *http.Request) (resp *http.Response, err error) {
-	// get query from request before RoundTrip to save body
-	query := getQuery(req)
-	resp, err = ct.RoundTripper.RoundTrip(req)
-	if err != nil {
-		return
-	}
-	// cache only Ok responses
-	if resp.StatusCode != http.StatusOK || resp.Body == nil {
-		return
-	}
-	cc := cacheControllers.Load().(ccList)
-	if cc == nil {
-		return
-	}
-	name, _ := getAuth(resp.Request)
-	c, ok := cc[name]
-	if !ok {
-		return
-	}
-	b, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return
-	}
-	key := cache.GenerateKey(query)
-	// do not wait for slow creating/writing into file
-	go c.Store(key, b)
-	// restore body since we've already read&closed it
-	resp.Body = ioutil.NopCloser(bytes.NewBuffer(b))
-	return
 }

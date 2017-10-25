@@ -140,25 +140,13 @@ func TestServe(t *testing.T) {
 			"https cache",
 			"testdata/https.cache.yml",
 			func(t *testing.T) {
-				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query=asd", nil)
-				if err != nil {
-					t.Errorf("unexpected erorr: %s", err)
-				}
-				resp, err := tlsClient.Do(req)
-				if err != nil {
-					t.Errorf("unexpected error: %s", err)
-				}
-				if resp.StatusCode != http.StatusUnauthorized {
-					t.Errorf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusUnauthorized)
-				}
-				resp.Body.Close()
-
-				req, err = http.NewRequest("GET", "https://127.0.0.1:8443?query=asd", nil)
+				q := "asd"
+				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query="+q, nil)
 				if err != nil {
 					t.Errorf("unexpected erorr: %s", err)
 				}
 				req.SetBasicAuth("default", "qwerty")
-				resp, err = tlsClient.Do(req)
+				resp, err := tlsClient.Do(req)
 				if err != nil {
 					t.Errorf("unexpected error: %s", err)
 				}
@@ -166,6 +154,21 @@ func TestServe(t *testing.T) {
 					t.Errorf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
 				}
 				resp.Body.Close()
+				key := cache.GenerateKey([]byte(q))
+				path := fmt.Sprintf("%s/cache/%s", testDir, key)
+				if _, err := os.Stat(path); err != nil {
+					t.Errorf("err while getting file %q info: %s", path, err)
+				}
+				cc := cache.GetController("https_cache")
+				cachedResp, ok := cc.Get(key)
+				if !ok {
+					t.Errorf("expected key %q to be cached", key)
+				}
+				expected := "Ok.\n"
+				if string(cachedResp) != expected {
+					t.Errorf("unexpected cache result: %q; expected: %q", string(cachedResp), expected)
+				}
+
 			},
 			startTLS,
 		},
