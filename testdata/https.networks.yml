@@ -1,0 +1,21 @@
+# Named network lists, might be used as values for `allowed_networks`.
+network_groups:
+  - name: "notlocalhost"
+    networks: ["127.0.2.0/24", "10.10.0.1"]
+
+server:
+  https:
+      listen_addr: ":8443"
+      cert_file: "testdata/example.com.cert"
+      key_file: "testdata/example.com.key"
+      allowed_networks: ["notlocalhost"]
+
+users:
+  - name: "default"
+    password: "qwerty"
+    to_cluster: "default"
+    to_user: "default"
+
+clusters:
+  - name: "default"
+    nodes: ["127.0.0.1:8124"]

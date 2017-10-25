@@ -13,10 +13,10 @@ build:
 	go build
 
 test: build
-	go test -race -v $(pkgs)
+	go test -httptest.serve=127.0.0.1:8124 -race -v $(pkgs)
 
 run: build
-	./chproxy -config=testdata/http.conf.yml
+	./chproxy -config=testdata/http.yml
 
 reconfigure:
 	kill -HUP `pidof chproxy`

@@ -8,7 +8,9 @@ import (
 	"net/http"
 	"time"
 
+	"compress/gzip"
 	"github.com/Vertamedia/chproxy/log"
+	"io"
 )
 
 func respondWith(rw http.ResponseWriter, err error, status int) {
@@ -71,19 +73,39 @@ func getQuery(req *http.Request) []byte {
 	return bytes.TrimSpace(fetchQuery(req))
 }
 
+// max bytes to read from requests body
+const maxQueryLength = 5 * 1024 // 5KB
+
 // fetchQuery fetches query from POST or GET request
 // @see http://clickhouse.readthedocs.io/en/latest/reference_en.html#HTTP interface
 func fetchQuery(req *http.Request) []byte {
-	result := []byte(req.URL.Query().Get("query"))
-	if req.Method == http.MethodGet || req.Body == nil {
+	if req.Method == http.MethodGet {
+		return []byte(req.URL.Query().Get("query"))
+	}
+
+	var result []byte
+	if req.Body == nil {
 		return result
 	}
-	body, err := ioutil.ReadAll(req.Body)
+	rc := req.Body.(*readCloser)
+	// read only first maxQueryLength chars to save memory
+	result, err := rc.readFirstN(maxQueryLength)
 	if err != nil {
+		log.Errorf("error while reading body: %s", err)
+		return nil
+	}
+	if req.Header.Get("Content-Encoding") != "gzip" {
 		return result
 	}
-	result = append(result, ' ')
-	result = append(result, body...)
-	req.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+	buf := bytes.NewBuffer(result)
+	r, err := gzip.NewReader(buf)
+	if err != nil && err != io.ErrUnexpectedEOF {
+		return nil
+	}
+	result, err = ioutil.ReadAll(r)
+	if err != nil {
+		log.Errorf("error while reading gzipped body: %s", err)
+		return nil
+	}
 	return result
 }

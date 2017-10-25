@@ -177,11 +177,10 @@ func (s *scope) getTimeoutWithErrMsg() (time.Duration, error) {
 	return timeout, timeoutErrMsg
 }
 
-func (s scope) getFromCache(req *http.Request, query []byte) ([]byte, bool) {
-	if s.cache == nil {
+func (s scope) getFromCache(key string) ([]byte, bool) {
+	if s.cache == nil || len(key) == 0 {
 		return nil, false
 	}
-	key := cache.GenerateKey(query)
 	b, ok := s.cache.Get(key)
 	if ok {
 		cacheHit.With(s.labels).Inc()

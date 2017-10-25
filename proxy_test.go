@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"net"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -17,15 +16,7 @@ import (
 	"net/url"
 
 	"github.com/Vertamedia/chproxy/config"
-	"github.com/Vertamedia/chproxy/log"
 )
-
-func TestMain(m *testing.M) {
-	log.SuppressOutput(true)
-	retCode := m.Run()
-	log.SuppressOutput(false)
-	os.Exit(retCode)
-}
 
 var goodCfg = &config.Config{
 	Clusters: []config.Cluster{
@@ -157,7 +148,7 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 		},
 		{
 			name:     "max concurrent queries for cluster user",
-			expected: "limits for cluster user \"web\" are exceeded: max_concurrent_queries limit: 1",
+			expected: "limits for cluster user \"web\" are exceeded: max_concurrent_queries limit: 1 for query \"0s\"",
 			cfg:      goodCfg,
 			f: func(p *reverseProxy) string {
 				p.clusters["cluster"].users["web"].maxConcurrentQueries = 1
@@ -197,7 +188,7 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 		},
 		{
 			name:     "max concurrent queries for user",
-			expected: "limits for user \"default\" are exceeded: max_concurrent_queries limit: 1",
+			expected: "limits for user \"default\" are exceeded: max_concurrent_queries limit: 1 for query \"0s\"",
 			cfg:      goodCfg,
 			f: func(p *reverseProxy) string {
 				p.users["default"].maxConcurrentQueries = 1

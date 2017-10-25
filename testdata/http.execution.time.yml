@@ -1,15 +1,15 @@
-hack_me_please: true
-
 server:
   http:
       listen_addr: ":9090"
+      allowed_networks: ["127.0.0.1/24"]
 
 users:
   - name: "default"
     to_cluster: "default"
     to_user: "default"
-    allowed_networks: ["127.0.2.1/24"]
+    max_execution_time: 1ns
+
 
 clusters:
   - name: "default"
-    nodes: ["127.0.0.1:8123"]
+    nodes: ["127.0.0.1:8124"]

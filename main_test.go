@@ -1,14 +1,35 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
 	"crypto/tls"
 	"fmt"
-	"github.com/Vertamedia/chproxy/cache"
 	"io/ioutil"
 	"net"
 	"net/http"
+	"os"
 	"testing"
+	"time"
+
+	"github.com/Vertamedia/chproxy/cache"
+	"github.com/Vertamedia/chproxy/log"
 )
+
+var testDir = "./temp-test-data"
+
+func TestMain(m *testing.M) {
+	if _, err := os.Stat(testDir); os.IsNotExist(err) {
+		os.Mkdir(testDir, os.ModePerm)
+	}
+	log.SuppressOutput(true)
+	retCode := m.Run()
+	log.SuppressOutput(false)
+	if err := os.RemoveAll(testDir); err != nil {
+		log.Fatalf("cannot remove %q: %s", testDir, err)
+	}
+	os.Exit(retCode)
+}
 
 var tlsClient = &http.Client{Transport: &http.Transport{
 	TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
@@ -66,6 +87,15 @@ func startHTTP() (net.Listener, chan struct{}) {
 	return ln, done
 }
 
+func startCHServer() {
+	http.HandleFunc("/", fakeHandler)
+	http.ListenAndServe(":8124", nil)
+}
+
+func fakeHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprint(w, "Ok.\n")
+}
+
 func TestServe(t *testing.T) {
 	var testCases = []struct {
 		name     string
@@ -75,7 +105,7 @@ func TestServe(t *testing.T) {
 	}{
 		{
 			"https request",
-			"testdata/tls.conf.yml",
+			"testdata/https.yml",
 			func(t *testing.T) {
 				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query=asd", nil)
 				if err != nil {
@@ -99,8 +129,41 @@ func TestServe(t *testing.T) {
 				if err != nil {
 					t.Errorf("unexpected error: %s", err)
 				}
-				if resp.StatusCode != http.StatusInternalServerError {
-					t.Errorf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusInternalServerError)
+				if resp.StatusCode != http.StatusOK {
+					t.Errorf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
+				}
+				resp.Body.Close()
+			},
+			startTLS,
+		},
+		{
+			"https cache",
+			"testdata/https.cache.yml",
+			func(t *testing.T) {
+				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query=asd", nil)
+				if err != nil {
+					t.Errorf("unexpected erorr: %s", err)
+				}
+				resp, err := tlsClient.Do(req)
+				if err != nil {
+					t.Errorf("unexpected error: %s", err)
+				}
+				if resp.StatusCode != http.StatusUnauthorized {
+					t.Errorf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusUnauthorized)
+				}
+				resp.Body.Close()
+
+				req, err = http.NewRequest("GET", "https://127.0.0.1:8443?query=asd", nil)
+				if err != nil {
+					t.Errorf("unexpected erorr: %s", err)
+				}
+				req.SetBasicAuth("default", "qwerty")
+				resp, err = tlsClient.Do(req)
+				if err != nil {
+					t.Errorf("unexpected error: %s", err)
+				}
+				if resp.StatusCode != http.StatusOK {
+					t.Errorf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
 				}
 				resp.Body.Close()
 			},
@@ -108,7 +171,7 @@ func TestServe(t *testing.T) {
 		},
 		{
 			"deny https",
-			"testdata/tls.conf.deny.https.yml",
+			"testdata/https.deny.https.yml",
 			func(t *testing.T) {
 				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query=asd", nil)
 				if err != nil {
@@ -137,7 +200,7 @@ func TestServe(t *testing.T) {
 		},
 		{
 			"https networks",
-			"testdata/tls.conf.networks.yml",
+			"testdata/https.networks.yml",
 			func(t *testing.T) {
 				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query=asd", nil)
 				if err != nil {
@@ -167,7 +230,7 @@ func TestServe(t *testing.T) {
 		},
 		{
 			"https user networks",
-			"testdata/https.conf.user.networks.yml",
+			"testdata/https.user.networks.yml",
 			func(t *testing.T) {
 				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query=asd", nil)
 				if err != nil {
@@ -197,7 +260,7 @@ func TestServe(t *testing.T) {
 		},
 		{
 			"https cluster user networks",
-			"testdata/https.conf.cluster.user.networks.yml",
+			"testdata/https.cluster.user.networks.yml",
 			func(t *testing.T) {
 				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query=asd", nil)
 				if err != nil {
@@ -227,19 +290,93 @@ func TestServe(t *testing.T) {
 		},
 		{
 			"http request",
-			"testdata/http.conf.yml",
+			"testdata/http.yml",
 			func(t *testing.T) {
 				resp, err := http.Get("http://127.0.0.1:9090?query=asd")
 				if err != nil {
 					t.Errorf("unexpected erorr: %s", err)
 				}
-				if resp.StatusCode != http.StatusInternalServerError {
-					t.Errorf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusInternalServerError)
+				if resp.StatusCode != http.StatusOK {
+					t.Errorf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
 				}
 
 				resp, err = http.Get("http://127.0.0.1:9090/metrics")
 				if resp.StatusCode != http.StatusOK {
-					t.Errorf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusInternalServerError)
+					t.Errorf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
+				}
+				resp.Body.Close()
+			},
+			startHTTP,
+		},
+		{
+			"http gzipped POST request",
+			"testdata/http.yml",
+			func(t *testing.T) {
+				var buf bytes.Buffer
+				zw := gzip.NewWriter(&buf)
+				_, err := zw.Write([]byte("SELECT * FROM system.numbers LIMIT 10"))
+				if err != nil {
+					t.Error(err)
+				}
+				zw.Close()
+				req, err := http.NewRequest("POST", "http://127.0.0.1:9090", &buf)
+				req.Header.Set("Content-Encoding", "gzip")
+				if err != nil {
+					t.Error(err)
+				}
+				resp, err := http.DefaultClient.Do(req)
+				if err != nil {
+					t.Error(err)
+				}
+				if resp.StatusCode != http.StatusOK {
+					t.Errorf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
+				}
+				resp.Body.Close()
+			},
+			startHTTP,
+		},
+		{
+			"http POST request",
+			"testdata/http.yml",
+			func(t *testing.T) {
+				buf := bytes.NewBufferString("SELECT * FROM system.numbers LIMIT 10")
+				req, err := http.NewRequest("POST", "http://127.0.0.1:9090", buf)
+				if err != nil {
+					t.Error(err)
+				}
+				resp, err := http.DefaultClient.Do(req)
+				if err != nil {
+					t.Error(err)
+				}
+				if resp.StatusCode != http.StatusOK {
+					t.Errorf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
+				}
+				resp.Body.Close()
+			},
+			startHTTP,
+		},
+		{
+			"http gzipped POST execution time",
+			"testdata/http.execution.time.yml",
+			func(t *testing.T) {
+				var buf bytes.Buffer
+				zw := gzip.NewWriter(&buf)
+				_, err := zw.Write([]byte("SELECT * FROM system.numbers LIMIT 1000"))
+				if err != nil {
+					t.Error(err)
+				}
+				zw.Close()
+				req, err := http.NewRequest("POST", "http://127.0.0.1:9090", &buf)
+				req.Header.Set("Content-Encoding", "gzip")
+				if err != nil {
+					t.Error(err)
+				}
+				resp, err := http.DefaultClient.Do(req)
+				if err != nil {
+					t.Error(err)
+				}
+				if resp.StatusCode != http.StatusBadGateway {
+					t.Errorf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusBadGateway)
 				}
 				resp.Body.Close()
 			},
@@ -247,7 +384,7 @@ func TestServe(t *testing.T) {
 		},
 		{
 			"deny http",
-			"testdata/http.conf.deny.http.yml",
+			"testdata/http.deny.http.yml",
 			func(t *testing.T) {
 				resp, err := http.Get("http://127.0.0.1:9090?query=asd")
 				if err != nil {
@@ -271,7 +408,7 @@ func TestServe(t *testing.T) {
 		},
 		{
 			"http networks",
-			"testdata/http.conf.networks.yml",
+			"testdata/http.networks.yml",
 			func(t *testing.T) {
 				resp, err := http.Get("http://127.0.0.1:9090?query=asd")
 				if err != nil {
@@ -296,7 +433,7 @@ func TestServe(t *testing.T) {
 		},
 		{
 			"http metrics networks",
-			"testdata/http.conf.metrics.networks.yml",
+			"testdata/http.metrics.networks.yml",
 			func(t *testing.T) {
 				resp, err := http.Get("http://127.0.0.1:9090/metrics")
 				if err != nil {
@@ -321,7 +458,7 @@ func TestServe(t *testing.T) {
 		},
 		{
 			"http user networks",
-			"testdata/http.conf.user.networks.yml",
+			"testdata/http.user.networks.yml",
 			func(t *testing.T) {
 				resp, err := http.Get("http://127.0.0.1:9090?query=asd")
 				if err != nil {
@@ -346,7 +483,7 @@ func TestServe(t *testing.T) {
 		},
 		{
 			"http cluster user networks",
-			"testdata/http.conf.cluster.user.networks.yml",
+			"testdata/http.cluster.user.networks.yml",
 			func(t *testing.T) {
 				resp, err := http.Get("http://127.0.0.1:9090?query=asd")
 				if err != nil {
@@ -371,10 +508,12 @@ func TestServe(t *testing.T) {
 		},
 	}
 
+	go startCHServer()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			*configFile = tc.file
 			ln, done := tc.listenFn()
+			time.Sleep(time.Millisecond * 10)
 			tc.testFn(t)
 			if err := ln.Close(); err != nil {
 				t.Fatalf("unexpected error while closing listener: %s", err)

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -20,6 +19,17 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+type reverseProxy struct {
+	*httputil.ReverseProxy
+
+	reloadSignal chan struct{}
+	reloadWG     sync.WaitGroup
+
+	mu       sync.RWMutex
+	users    map[string]*user
+	clusters map[string]*cluster
+}
+
 func newReverseProxy() *reverseProxy {
 	return &reverseProxy{
 		ReverseProxy: &httputil.ReverseProxy{
@@ -34,29 +44,30 @@ func newReverseProxy() *reverseProxy {
 }
 
 func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	s, sc, err := rp.getScope(req)
+	s, status, err := rp.getScope(req)
 	if err != nil {
 		err = fmt.Errorf("scope error for %q: %s", req.RemoteAddr, err)
-		respondWith(rw, err, sc)
+		respondWith(rw, err, status)
 		return
 	}
+
 	log.Debugf("Request scope %s", s)
 	requestSum.With(s.labels).Inc()
 
-	query := getQuery(req)
-	req.Body = &statReadCloser{
+	req.Body = &readCloser{
 		ReadCloser:       req.Body,
 		requestBodyBytes: requestBodyBytes.With(s.labels),
 	}
-	rw = &statResponseWriter{
+	srw := &statResponseWriter{
 		ResponseWriter:    rw,
 		responseBodyBytes: responseBodyBytes.With(s.labels),
 	}
+
+	q := fetchQuery(req)
 	if err = s.inc(); err != nil {
 		limitExcess.With(s.labels).Inc()
-		log.Errorf("%s in query: %s", err, string(query))
-		rw.WriteHeader(http.StatusTooManyRequests)
-		rw.Write([]byte(err.Error()))
+		err = fmt.Errorf("%s for query %q", err, string(q))
+		respondWith(srw, err, http.StatusTooManyRequests)
 		return
 	}
 	defer s.dec()
@@ -66,18 +77,21 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		if len(origin) == 0 {
 			origin = "*"
 		}
-		rw.Header().Set("Access-Control-Allow-Origin", origin)
+		srw.Header().Set("Access-Control-Allow-Origin", origin)
 	}
-	timeStart := time.Now()
-	var timeoutErrMsg error
-	var timeout time.Duration
-	cw := &cachedWriter{
-		ResponseWriter: rw,
+
+	var key string
+	if s.cache != nil {
+		key = cache.GenerateKey(q)
 	}
-	resp, cacheOk := s.getFromCache(req, query)
-	if !cacheOk {
+	resp, ok := s.getFromCache(key)
+	if ok {
+		//just write cached response into connection
+		srw.Write(resp)
+	} else {
+		timeStart := time.Now()
 		req = s.decorateRequest(req)
-		timeout, timeoutErrMsg = s.getTimeoutWithErrMsg()
+		timeout, timeoutErrMsg := s.getTimeoutWithErrMsg()
 		ctx := context.Background()
 		if timeout != 0 {
 			var cancel context.CancelFunc
@@ -85,42 +99,46 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			defer cancel()
 		}
 		req = req.WithContext(ctx)
-		rp.ReverseProxy.ServeHTTP(cw, req)
-	} else {
-		// just write cached response into connection
-		cw.Write(resp)
-	}
-	if req.Context().Err() != nil {
-		// penalize host if responding is slow, probably it is overloaded
-		s.host.penalize()
-		cw.statusCode = http.StatusGatewayTimeout
-		if err := s.killQuery(); err != nil {
-			log.Errorf("error while killing query: %s", err)
+		if s.cache != nil {
+			crw := &cachedResponseWriter{
+				cc:                 s.cache,
+				key:                key,
+				statResponseWriter: *srw,
+			}
+			rp.ReverseProxy.ServeHTTP(crw, req)
+		} else {
+			rp.ReverseProxy.ServeHTTP(srw, req)
 		}
-		log.Errorf("node %q: %s in query: %s", s.host.addr, timeoutErrMsg, string(query))
-		fmt.Fprint(rw, timeoutErrMsg.Error())
-	} else {
-		switch cw.statusCode {
-		case http.StatusOK:
-			requestSuccess.With(s.labels).Inc()
-			log.Debugf("Request scope %s successfully proxied", s)
-		case http.StatusBadGateway:
+		if req.Context().Err() != nil {
+			// penalize host if responding is slow, probably it is overloaded
 			s.host.penalize()
-			fmt.Fprintf(rw, "unable to reach address: %s", req.URL.Host)
+			if err := s.killQuery(); err != nil {
+				log.Errorf("error while killing query: %s", err)
+			}
+			log.Errorf("node %q: %s in query: %q", s.host.addr, timeoutErrMsg, string(q))
+			fmt.Fprint(srw, timeoutErrMsg.Error())
 		}
+		since := float64(time.Since(timeStart).Seconds())
+		requestDuration.With(s.labels).Observe(since)
 	}
 
+	switch srw.statusCode {
+	case http.StatusOK:
+		requestSuccess.With(s.labels).Inc()
+		log.Debugf("Request scope %s successfully proxied", s)
+	case http.StatusBadGateway:
+		s.host.penalize()
+		fmt.Fprintf(srw, "unable to reach address: %s", req.URL.Host)
+	}
 	statusCodes.With(
 		prometheus.Labels{
 			"user":         s.user.name,
 			"cluster":      s.cluster.name,
 			"cluster_user": s.clusterUser.name,
 			"cluster_node": s.host.addr.Host,
-			"code":         strconv.Itoa(cw.statusCode),
+			"code":         strconv.Itoa(srw.statusCode),
 		},
 	).Inc()
-	since := float64(time.Since(timeStart).Seconds())
-	requestDuration.With(s.labels).Observe(since)
 }
 
 // ApplyConfig applies provided config to reverseProxy obj
@@ -253,17 +271,6 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 	return nil
 }
 
-type reverseProxy struct {
-	*httputil.ReverseProxy
-
-	reloadSignal chan struct{}
-	reloadWG     sync.WaitGroup
-
-	mu       sync.RWMutex
-	users    map[string]*user
-	clusters map[string]*cluster
-}
-
 func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 	name, password := getAuth(req)
 
@@ -320,44 +327,6 @@ func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 	}
 
 	return s, 0, nil
-}
-
-// cached writer supposed to intercept headers set
-type cachedWriter struct {
-	http.ResponseWriter
-	statusCode int
-}
-
-func (cw *cachedWriter) Write(b []byte) (int, error) {
-	cw.statusCode = http.StatusOK
-	return cw.ResponseWriter.Write(b)
-}
-
-func (cw *cachedWriter) WriteHeader(code int) {
-	cw.statusCode = code
-	cw.ResponseWriter.WriteHeader(code)
-}
-
-type statReadCloser struct {
-	io.ReadCloser
-	requestBodyBytes prometheus.Counter
-}
-
-func (src *statReadCloser) Read(p []byte) (int, error) {
-	n, err := src.ReadCloser.Read(p)
-	src.requestBodyBytes.Add(float64(n))
-	return n, err
-}
-
-type statResponseWriter struct {
-	http.ResponseWriter
-	responseBodyBytes prometheus.Counter
-}
-
-func (srw *statResponseWriter) Write(p []byte) (int, error) {
-	n, err := srw.ResponseWriter.Write(p)
-	srw.responseBodyBytes.Add(float64(n))
-	return n, err
 }
 
 type cacheTransport struct {
