@@ -69,42 +69,55 @@ func isHealthy(addr string) error {
 	return nil
 }
 
-func getQuery(req *http.Request) []byte {
-	return bytes.TrimSpace(fetchQuery(req))
-}
 
 // max bytes to read from requests body
-const maxQueryLength = 5 * 1024 // 5KB
+const maxQueryLength = 350//5 * 1024 // 5KB
 
-// fetchQuery fetches query from POST or GET request
-// @see http://clickhouse.readthedocs.io/en/latest/reference_en.html#HTTP interface
-func fetchQuery(req *http.Request) []byte {
-	if req.Method == http.MethodGet {
-		return []byte(req.URL.Query().Get("query"))
-	}
+func getQueryFull(req *http.Request) []byte {
+	result := fetchQuery(req, req.Body)
+	return result
+}
 
+func getQueryFirst(req *http.Request) []byte {
 	var result []byte
-	if req.Body == nil {
-		return result
-	}
 	rc := req.Body.(*readCloser)
-	// read only first maxQueryLength chars to save memory
-	result, err := rc.readFirstN(maxQueryLength)
-	if err != nil {
-		log.Errorf("error while reading body: %s", err)
-		return nil
+	if len(rc.cachedBytes) > 0 {
+		result = rc.cachedBytes
+	} else {
+		r := io.LimitReader(req.Body, maxQueryLength)
+		result = fetchQuery(req, r)
 	}
 	if req.Header.Get("Content-Encoding") != "gzip" {
 		return result
 	}
 	buf := bytes.NewBuffer(result)
-	r, err := gzip.NewReader(buf)
-	if err != nil && err != io.ErrUnexpectedEOF {
+	gr, err := gzip.NewReader(buf)
+	if err != nil  {
+		log.Errorf("error while creating gzip reader: %s", err)
 		return nil
 	}
-	result, err = ioutil.ReadAll(r)
-	if err != nil {
+	result, err = ioutil.ReadAll(gr)
+	if err != nil && err != io.ErrUnexpectedEOF {
 		log.Errorf("error while reading gzipped body: %s", err)
+		return nil
+	}
+	return result
+}
+
+
+// fetchQuery fetches query from POST or GET request
+// @see http://clickhouse.readthedocs.io/en/latest/reference_en.html#HTTP interface
+func fetchQuery(req *http.Request, r io.Reader) []byte {
+	if req.Method == http.MethodGet {
+		return []byte(req.URL.Query().Get("query"))
+	}
+	if req.Body == nil {
+		return nil
+	}
+	result, err := ioutil.ReadAll(r)
+	fmt.Println("ReadALl", len(result), string(result))
+	if err != nil {
+		log.Errorf("error while reading body: %s", err)
 		return nil
 	}
 	return result

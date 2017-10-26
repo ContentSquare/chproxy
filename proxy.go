@@ -60,9 +60,9 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		responseBodyBytes: responseBodyBytes.With(s.labels),
 	}
 
-	q := fetchQuery(req)
 	if err = s.inc(); err != nil {
 		limitExcess.With(s.labels).Inc()
+		q := getQueryFirst(req)
 		err = fmt.Errorf("%s for query %q", err, string(q))
 		respondWith(srw, err, http.StatusTooManyRequests)
 		return
@@ -79,11 +79,13 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	var key string
 	if s.cache != nil {
+		q := getQueryFull(req)
 		key = cache.GenerateKey(q)
 	}
 	resp, ok := s.getFromCache(key)
 	if ok {
 		//just write cached response into connection
+		srw.statusCode = http.StatusOK
 		srw.Write(resp)
 	} else {
 		timeStart := time.Now()
@@ -97,12 +99,13 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		}
 		req = req.WithContext(ctx)
 		if s.cache != nil {
-			crw := &cachedResponseWriter{
-				cc:                 s.cache,
-				key:                key,
-				statResponseWriter: *srw,
+			rr := newRecorder(srw)
+			rp.ReverseProxy.ServeHTTP(rr, req)
+			if srw.statusCode == http.StatusOK {
+				result := rr.result()
+				go s.cache.Store(key, result)
 			}
-			rp.ReverseProxy.ServeHTTP(crw, req)
+			rr.write()
 		} else {
 			rp.ReverseProxy.ServeHTTP(srw, req)
 		}
@@ -112,12 +115,15 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			if err := s.killQuery(); err != nil {
 				log.Errorf("error while killing query: %s", err)
 			}
+			q := getQueryFirst(req)
 			log.Errorf("node %q: %s in query: %q", s.host.addr, timeoutErrMsg, string(q))
 			fmt.Fprint(srw, timeoutErrMsg.Error())
 		}
 		since := float64(time.Since(timeStart).Seconds())
 		requestDuration.With(s.labels).Observe(since)
 	}
+
+	fmt.Println("SC:",srw.statusCode)
 
 	switch srw.statusCode {
 	case http.StatusOK:
