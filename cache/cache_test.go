@@ -74,6 +74,7 @@ func TestController_Get(t *testing.T) {
 		t.Fatalf("nil pointer; expected pointer to %s cache controller", cfg.Name)
 	}
 	k := "key"
+
 	cc.Store(k, []byte("body"))
 	if _, ok := cc.Get(k); !ok {
 		t.Fatalf("expected key %q to be present in cache reigster", k)

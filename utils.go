@@ -69,30 +69,24 @@ func isHealthy(addr string) error {
 	return nil
 }
 
-
 // max bytes to read from requests body
-const maxQueryLength = 350//5 * 1024 // 5KB
+const maxQueryLength = 350 //5 * 1024 // 5KB
 
 func getQueryFull(req *http.Request) []byte {
-	result := fetchQuery(req, req.Body)
-	return result
+	return fetchQuery(req, 0)
 }
 
-func getQueryFirst(req *http.Request) []byte {
-	var result []byte
-	rc := req.Body.(*readCloser)
-	if len(rc.cachedBytes) > 0 {
-		result = rc.cachedBytes
-	} else {
-		r := io.LimitReader(req.Body, maxQueryLength)
-		result = fetchQuery(req, r)
+func getQueryStart(req *http.Request) []byte {
+	result := fetchQuery(req, maxQueryLength)
+	if len(result) > maxQueryLength {
+		result = result[:maxQueryLength]
 	}
 	if req.Header.Get("Content-Encoding") != "gzip" {
 		return result
 	}
 	buf := bytes.NewBuffer(result)
 	gr, err := gzip.NewReader(buf)
-	if err != nil  {
+	if err != nil {
 		log.Errorf("error while creating gzip reader: %s", err)
 		return nil
 	}
@@ -104,18 +98,25 @@ func getQueryFirst(req *http.Request) []byte {
 	return result
 }
 
-
 // fetchQuery fetches query from POST or GET request
 // @see http://clickhouse.readthedocs.io/en/latest/reference_en.html#HTTP interface
-func fetchQuery(req *http.Request, r io.Reader) []byte {
+func fetchQuery(req *http.Request, n int64) []byte {
 	if req.Method == http.MethodGet {
 		return []byte(req.URL.Query().Get("query"))
 	}
 	if req.Body == nil {
 		return nil
 	}
+	var r io.Reader
+	r = req.Body
+	if n > 0 {
+		rc := req.Body.(*readCloser)
+		if len(rc.cachedBytes) > 0 {
+			return rc.cachedBytes
+		}
+		r = io.LimitReader(req.Body, n)
+	}
 	result, err := ioutil.ReadAll(r)
-	fmt.Println("ReadALl", len(result), string(result))
 	if err != nil {
 		log.Errorf("error while reading body: %s", err)
 		return nil

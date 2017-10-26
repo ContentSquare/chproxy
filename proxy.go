@@ -33,7 +33,7 @@ func newReverseProxy() *reverseProxy {
 		ReverseProxy: &httputil.ReverseProxy{
 			Director: func(*http.Request) {},
 			// @valyala: do we actually need error messages from ReverseProxy?
-			ErrorLog:  log.ErrorLogger,
+			ErrorLog: log.ErrorLogger,
 		},
 		reloadSignal: make(chan struct{}),
 		reloadWG:     sync.WaitGroup{},
@@ -62,7 +62,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	if err = s.inc(); err != nil {
 		limitExcess.With(s.labels).Inc()
-		q := getQueryFirst(req)
+		q := getQueryStart(req)
 		err = fmt.Errorf("%s for query %q", err, string(q))
 		respondWith(srw, err, http.StatusTooManyRequests)
 		return
@@ -82,11 +82,8 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		q := getQueryFull(req)
 		key = cache.GenerateKey(q)
 	}
-	resp, ok := s.getFromCache(key)
-	if ok {
-		//just write cached response into connection
+	if _, err := s.cache.RespondWith(key, srw); err == nil {
 		srw.statusCode = http.StatusOK
-		srw.Write(resp)
 	} else {
 		timeStart := time.Now()
 		req = s.decorateRequest(req)
@@ -99,31 +96,38 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		}
 		req = req.WithContext(ctx)
 		if s.cache != nil {
-			rr := newRecorder(srw)
-			rp.ReverseProxy.ServeHTTP(rr, req)
-			if srw.statusCode == http.StatusOK {
-				result := rr.result()
-				go s.cache.Store(key, result)
+			tf, err := s.cache.TempFile(key)
+			if err != nil {
+				log.Errorf("err while gettig writer: %s", err)
 			}
-			rr.write()
+			crw := &cachedResponseWriter{
+				ResponseWriter: rw,
+				file:           tf,
+			}
+
+			rp.ReverseProxy.ServeHTTP(crw, req)
+
+			s.cache.FinalizeTempFile(tf)
+			if _, err := s.cache.RespondWith(key, srw); err != nil {
+				log.Errorf("error while writing response: %s", err)
+			}
 		} else {
 			rp.ReverseProxy.ServeHTTP(srw, req)
 		}
+
 		if req.Context().Err() != nil {
 			// penalize host if responding is slow, probably it is overloaded
 			s.host.penalize()
 			if err := s.killQuery(); err != nil {
 				log.Errorf("error while killing query: %s", err)
 			}
-			q := getQueryFirst(req)
+			q := getQueryStart(req)
 			log.Errorf("node %q: %s in query: %q", s.host.addr, timeoutErrMsg, string(q))
 			fmt.Fprint(srw, timeoutErrMsg.Error())
 		}
 		since := float64(time.Since(timeStart).Seconds())
 		requestDuration.With(s.labels).Observe(since)
 	}
-
-	fmt.Println("SC:",srw.statusCode)
 
 	switch srw.statusCode {
 	case http.StatusOK:

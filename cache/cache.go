@@ -9,8 +9,10 @@ import (
 	"sync"
 	"time"
 
+	"bytes"
 	"github.com/Vertamedia/chproxy/config"
 	"github.com/Vertamedia/chproxy/log"
+	"net/http"
 )
 
 var (
@@ -64,7 +66,7 @@ type Controller struct {
 }
 
 type file struct {
-	mod time.Time
+	mod  time.Time
 	size int64
 }
 
@@ -124,35 +126,63 @@ func (c *Controller) Get(key string) ([]byte, bool) {
 	return resp, true
 }
 
-// Stores b to c.Dir/key cache file
-// thread-safe
-func (c *Controller) Store(key string, b []byte) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+const suffixLength = 16
 
+func (c *Controller) TempFile(key string) (*os.File, error) {
+	c.mu.Lock()
 	// exit if such key is already present in registry
 	if _, ok := c.registry[key]; ok {
-		return
+		c.mu.Unlock()
+		return nil, fmt.Errorf("key %q is already exists in registry", key)
 	}
-	path := fmt.Sprintf("%s/%s", c.Dir, key)
-	f, err := os.Create(path)
+	c.mu.Unlock()
+
+	tempPath := fmt.Sprintf("%s/%s.%s", c.Dir, key, randomString(suffixLength))
+	f, err := os.Create(tempPath)
 	if err != nil {
-		log.Errorf("err while creating file %q for cache %q: %s", path, c.Name, err)
-		return
+		return nil, fmt.Errorf("err while creating temp file %q for cache %q: %s", tempPath, c.Name, err)
 	}
-	if _, err = f.Write(b); err != nil {
-		log.Errorf("err while writing into file %q for cache %q: %s", f.Name(), c.Name, err)
-		return
-	}
-	info, err := f.Stat()
+	return f, nil
+}
+
+func (c *Controller) FinalizeTempFile(f *os.File) error {
+	oldName := f.Name()
+	newPath := oldName[:len(oldName)-(suffixLength+1)]
+	err := os.Rename(f.Name(), newPath)
 	if err != nil {
-		log.Errorf("err while reading file %q for cache %q: %s", f.Name(), c.Name, err)
-		f.Close()
-		return
+		return fmt.Errorf("error while renaming file %q: %s", f.Name(), err)
 	}
+
+	info, err := os.Stat(newPath)
+	if err != nil {
+		return fmt.Errorf("err while reading file %q for cache %q: %s", f.Name(), c.Name, err)
+	}
+
+	c.mu.Lock()
 	c.add(info)
-	f.Close()
-	log.Debugf("Cache for key %q stored", key)
+	c.mu.Unlock()
+	return nil
+}
+
+func (c *Controller) RespondWith(key string, rw http.ResponseWriter) (int64, error) {
+	c.mu.Lock()
+	// exit if such key is already present in registry
+	if _, ok := c.registry[key]; !ok {
+		c.mu.Unlock()
+		return 0, fmt.Errorf("key %q is absent in cache", key)
+	}
+	c.mu.Unlock()
+
+	filePath := fmt.Sprintf("%s/%s", c.Dir, key)
+	data, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		c.mu.Lock()
+		c.remove(key)
+		c.mu.Unlock()
+		log.Errorf("error while reading file %q: %s", filePath, err)
+	}
+	b := bytes.NewBuffer(data)
+	return b.WriteTo(rw)
 }
 
 func (c *Controller) cleanup() {
@@ -215,7 +245,7 @@ func (c *Controller) add(info os.FileInfo) {
 	size := info.Size()
 	c.size += size
 	c.registry[info.Name()] = file{
-		mod: info.ModTime(),
+		mod:  info.ModTime(),
 		size: size,
 	}
 }

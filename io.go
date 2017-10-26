@@ -5,34 +5,25 @@ import (
 	"net/http"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"bytes"
-	"fmt"
 )
 
-type responseRecorder struct {
-	body *bytes.Buffer
+type cachedResponseWriter struct {
+	file io.Writer
 
 	http.ResponseWriter
 }
 
-func newRecorder(rw http.ResponseWriter) *responseRecorder {
-	return &responseRecorder{
-		ResponseWriter: rw,
-		body: new(bytes.Buffer),
-	}
+func (rr *cachedResponseWriter) Write(b []byte) (int, error) {
+	return rr.file.Write(b)
 }
 
-func (rr *responseRecorder) Write(b []byte) (int, error) {
-	return rr.body.Write(b)
-}
+//func (rr responseRecorder) result() []byte {
+//	return rr.body.Bytes()
+//}
 
-func (rr responseRecorder) result() []byte {
-	return rr.body.Bytes()
-}
-
-func (rr responseRecorder) write() (int, error) {
-	return rr.ResponseWriter.Write(rr.body.Bytes())
-}
+//func (rr responseRecorder) write() (int, error) {
+//	return rr.ResponseWriter.Write(rr.body.Bytes())
+//}
 
 // cached writer supposed to intercept headers set
 type statResponseWriter struct {
@@ -56,9 +47,8 @@ type readCloser struct {
 	io.ReadCloser
 	requestBodyBytes prometheus.Counter
 
-	readBytes      []byte
-	cachedBytes	[]byte
-
+	readBytes   []byte
+	cachedBytes []byte
 }
 
 func (rc *readCloser) Read(p []byte) (int, error) {
