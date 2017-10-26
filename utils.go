@@ -10,10 +10,6 @@ import (
 	"github.com/Vertamedia/chproxy/log"
 )
 
-func respondWithErr(rw http.ResponseWriter, err error) {
-	respondWith(rw, err, http.StatusInternalServerError)
-}
-
 func respondWith(rw http.ResponseWriter, err error, status int) {
 	log.Error(err.Error())
 	rw.WriteHeader(status)
