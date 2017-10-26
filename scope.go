@@ -126,6 +126,11 @@ func (s *scope) killQuery() error {
 	return nil
 }
 
+// allowedParams contains query args allowed to be proxed.
+// See http://clickhouse-docs.readthedocs.io/en/latest/settings/
+//
+// All the other params passed via query args are stripped before
+// proxying the request. This is for the sake of security.
 var allowedParams = []string{
 	"query",
 	"database",
@@ -138,9 +143,11 @@ func (s *scope) decorateRequest(req *http.Request) *http.Request {
 
 	// set query_id as scope_id to have possibility kill query if needed
 	params.Set("query_id", fmt.Sprintf("%X", s.id))
-	// if query was passed - keep it
+
+	// keep allowed params
+	q := req.URL.Query()
 	for _, param := range allowedParams {
-		val := req.URL.Query().Get(param)
+		val := q.Get(param)
 		if len(val) > 0 {
 			params.Set(param, val)
 		}
