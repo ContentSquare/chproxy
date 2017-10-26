@@ -126,6 +126,12 @@ func (s *scope) killQuery() error {
 	return nil
 }
 
+var allowedParams = []string{
+	"query",
+	"database",
+	"default_format",
+}
+
 func (s *scope) decorateRequest(req *http.Request) *http.Request {
 	// make new params to purify URL
 	params := make(url.Values)
@@ -133,9 +139,11 @@ func (s *scope) decorateRequest(req *http.Request) *http.Request {
 	// set query_id as scope_id to have possibility kill query if needed
 	params.Set("query_id", fmt.Sprintf("%X", s.id))
 	// if query was passed - keep it
-	q := req.URL.Query().Get("query")
-	if len(q) > 0 {
-		params.Set("query", q)
+	for _, param := range allowedParams {
+		val := req.URL.Query().Get(param)
+		if len(val) > 0 {
+			params.Set(param, val)
+		}
 	}
 	req.URL.RawQuery = params.Encode()
 
