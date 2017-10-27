@@ -42,8 +42,8 @@ var scopeID = uint64(time.Now().UnixNano())
 func (s *scope) inc() error {
 	uQueries := s.user.queryCounter.inc()
 	cQueries := s.clusterUser.queryCounter.inc()
-	uRateLimit := s.user.rateLimiter.inc()
-	cRateLimit := s.clusterUser.rateLimiter.inc()
+	uRPM := s.user.rateLimiter.inc()
+	cRPM := s.clusterUser.rateLimiter.inc()
 	s.host.inc()
 	concurrentQueries.With(s.labels).Inc()
 
@@ -56,30 +56,33 @@ func (s *scope) inc() error {
 		err = fmt.Errorf("limits for cluster user %q are exceeded: max_concurrent_queries limit: %d",
 			s.clusterUser.name, s.clusterUser.maxConcurrentQueries)
 	}
-	if s.user.reqPerMin > 0 && uRateLimit > s.user.reqPerMin {
+
+	// int32(xRPM) > 0 check is required to detect races when RPM
+	// is decremented in scope.dec after per-minute zeroing
+	// in rateLimiter.run.
+	// These races become innocent with the given check.
+	if s.user.reqPerMin > 0 && int32(uRPM) > 0 && uRPM > s.user.reqPerMin {
 		err = fmt.Errorf("rate limit for user %q is exceeded: requests_per_minute limit: %d",
 			s.user.name, s.user.reqPerMin)
 	}
-	if s.clusterUser.reqPerMin > 0 && cRateLimit > s.clusterUser.reqPerMin {
+	if s.clusterUser.reqPerMin > 0 && int32(cRPM) > 0 && cRPM > s.clusterUser.reqPerMin {
 		err = fmt.Errorf("rate limit for cluster user %q is exceeded: requests_per_minute limit: %d",
 			s.clusterUser.name, s.clusterUser.reqPerMin)
 	}
+
 	if err != nil {
 		s.dec()
 		return err
 	}
-
 	return nil
 }
 
 func (s *scope) dec() {
-	// decrement only queryCounter because rateLimiter will be reset automatically
-	// and to avoid situation when rateLimiter will be reset before decrement,
-	// which would lead to negative values, rateLimiter will be increased for every request
-	// even if maxConcurrentQueries already generated an error
-	s.host.dec()
 	s.user.queryCounter.dec()
 	s.clusterUser.queryCounter.dec()
+	s.user.rateLimiter.dec()
+	s.clusterUser.rateLimiter.dec()
+	s.host.dec()
 	concurrentQueries.With(s.labels).Dec()
 }
 
@@ -345,7 +348,7 @@ func (rl *rateLimiter) run(done <-chan struct{}) {
 		case <-done:
 			return
 		case <-time.After(time.Minute):
-			atomic.StoreUint32(&rl.value, 0)
+			rl.store(0)
 		}
 	}
 }
@@ -353,6 +356,8 @@ func (rl *rateLimiter) run(done <-chan struct{}) {
 type counter struct {
 	value uint32
 }
+
+func (c *counter) store(n uint32) { atomic.StoreUint32(&c.value, n) }
 
 func (c *counter) load() uint32 { return atomic.LoadUint32(&c.value) }
 
