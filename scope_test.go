@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/url"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -31,7 +32,7 @@ func TestRunningQueries(t *testing.T) {
 	u1 := &user{
 		maxConcurrentQueries: 1,
 	}
-	s := newScope()
+	s := &scope{id: atomic.AddUint64(&scopeID, 1)}
 	s.host = c.getHost()
 	s.cluster = c
 	s.user = u1
@@ -76,7 +77,7 @@ func TestRunningQueries(t *testing.T) {
 	u2 := &user{
 		maxConcurrentQueries: 1,
 	}
-	s = newScope()
+	s = &scope{id: atomic.AddUint64(&scopeID, 1)}
 	s.host = c.getHost()
 	s.cluster = c
 	s.user = u2

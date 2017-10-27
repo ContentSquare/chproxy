@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Vertamedia/chproxy/config"
@@ -279,22 +280,26 @@ func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 	if h == nil {
 		return nil, http.StatusInternalServerError, fmt.Errorf("cluster %q - no active hosts", u.toCluster)
 	}
-	s := newScope()
-	s.host = h
-	s.cluster = c
-	s.user = u
-	s.clusterUser = cu
-	s.remoteAddr = req.RemoteAddr
-	if addr, ok := req.Context().Value(http.LocalAddrContextKey).(net.Addr); ok {
-		s.localAddr = addr.String()
-	}
-	s.labels = prometheus.Labels{
-		"user":         s.user.name,
-		"cluster":      s.cluster.name,
-		"cluster_user": s.clusterUser.name,
-		"cluster_node": s.host.addr.Host,
-	}
 
+	var localAddr string
+	if addr, ok := req.Context().Value(http.LocalAddrContextKey).(net.Addr); ok {
+		localAddr = addr.String()
+	}
+	s := &scope{
+		id:          atomic.AddUint64(&scopeID, 1),
+		host:        h,
+		cluster:     c,
+		user:        u,
+		clusterUser: cu,
+		remoteAddr:  req.RemoteAddr,
+		localAddr:   localAddr,
+		labels: prometheus.Labels{
+			"user":         u.name,
+			"cluster":      c.name,
+			"cluster_user": cu.name,
+			"cluster_node": h.addr.Host,
+		},
+	}
 	return s, 0, nil
 }
 

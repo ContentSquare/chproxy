@@ -39,10 +39,6 @@ type scope struct {
 
 var scopeID = uint64(time.Now().UnixNano())
 
-func newScope() *scope {
-	return &scope{id: atomic.AddUint64(&scopeID, 1)}
-}
-
 func (s *scope) inc() error {
 	uQueries := s.user.queryCounter.inc()
 	cQueries := s.clusterUser.queryCounter.inc()
