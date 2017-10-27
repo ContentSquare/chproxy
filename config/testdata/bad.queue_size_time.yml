@@ -1,0 +1,14 @@
+server:
+  http:
+    listen_addr: ":8080"
+    allowed_networks: ["127.0.0.1"]
+
+users:
+  - name: "default"
+    to_cluster: "cluster"
+    to_user: "default"
+    max_queue_time: 20s
+
+clusters:
+  - name: "cluster"
+    nodes: ["127.0.0.1:8123"]

@@ -80,13 +80,15 @@ func TestLoadConfig(t *testing.T) {
 				},
 				Users: []User{
 					{
-						Name:      "web",
-						Password:  "****",
-						ToCluster: "first cluster",
-						ToUser:    "web",
-						DenyHTTP:  true,
-						AllowCORS: true,
-						ReqPerMin: 4,
+						Name:         "web",
+						Password:     "****",
+						ToCluster:    "first cluster",
+						ToUser:       "web",
+						DenyHTTP:     true,
+						AllowCORS:    true,
+						ReqPerMin:    4,
+						MaxQueueSize: 100,
+						MaxQueueTime: 35 * time.Second,
 					},
 					{
 						Name:                 "default",
@@ -262,6 +264,11 @@ func TestBadConfig(t *testing.T) {
 			"network groups",
 			"testdata/bad.network_groups.yml",
 			"wrong network group name or address \"office\": invalid CIDR address: office/32",
+		},
+		{
+			"max queue size and time",
+			"testdata/bad.queue_size_time.yml",
+			"`max_queue_size` must be set if `max_queue_time` is set on the user \"default\"",
 		},
 	}
 

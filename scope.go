@@ -39,6 +39,70 @@ type scope struct {
 
 var scopeID = uint64(time.Now().UnixNano())
 
+func (s *scope) incQueued() error {
+	select {
+	case s.user.queueCh <- struct{}{}:
+		userLabels := prometheus.Labels{
+			"user": s.user.name,
+		}
+		requestQueueSizes.With(userLabels).Inc()
+		defer func() {
+			<-s.user.queueCh
+			requestQueueSizes.With(userLabels).Dec()
+		}()
+	default:
+		// Request queue is full. Give the request
+		// a single chance to run.
+		return s.inc()
+	}
+
+	// The request has been successfully queued.
+	// Try starting it during the given duration.
+	d := s.user.maxQueueTime
+	if d <= 0 {
+		// Default queue time.
+		d = 10 * time.Second
+	}
+	dSleep := d / 10
+	if dSleep > time.Second {
+		dSleep = time.Second
+	}
+	if dSleep < time.Millisecond {
+		dSleep = time.Millisecond
+	}
+	deadline := time.Now().Add(d)
+	for {
+		err := s.inc()
+		if err == nil {
+			// The request is allowed to start.
+			return nil
+		}
+
+		dLeft := time.Until(deadline)
+		if dLeft <= 0 {
+			// Give up: the request exceeded its wait time
+			// in the queue :(
+			return err
+		}
+
+		// The request has dLeft remaining time to wait in the queue.
+		// Sleep for a bit and try starting it again.
+		if dSleep > dLeft {
+			time.Sleep(dLeft)
+		} else {
+			time.Sleep(dSleep)
+		}
+
+		// Choose new host, since the previous one may become obsolete
+		// after sleeping.
+		h := s.cluster.getHost()
+		if h != nil {
+			s.host = h
+			s.labels["cluster_node"] = h.addr.Host
+		}
+	}
+}
+
 func (s *scope) inc() error {
 	uQueries := s.user.queryCounter.inc()
 	cQueries := s.clusterUser.queryCounter.inc()
@@ -195,11 +259,13 @@ type user struct {
 
 	name, password       string
 	maxExecutionTime     time.Duration
+	maxQueueTime         time.Duration
 	maxConcurrentQueries uint32
 	reqPerMin            uint32
 
 	rateLimiter  rateLimiter
 	queryCounter counter
+	queueCh      chan struct{}
 }
 
 type clusterUser struct {

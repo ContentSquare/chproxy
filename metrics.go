@@ -55,9 +55,16 @@ var (
 	concurrentQueries = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "concurrent_queries",
-			Help: "Number of concurrent queries at current time",
+			Help: "The number of concurrent queries at current time",
 		},
 		[]string{"user", "cluster", "cluster_user", "cluster_node"},
+	)
+	requestQueueSizes = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "request_queue_sizes",
+			Help: "The size of per-user request queues at the current time",
+		},
+		[]string{"user"},
 	)
 	requestBodyBytes = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -81,6 +88,6 @@ var (
 
 func init() {
 	prometheus.MustRegister(statusCodes, requestDuration, requestSum, requestSuccess,
-		limitExcess, hostPenalties, hostHealth, concurrentQueries,
+		limitExcess, hostPenalties, hostHealth, concurrentQueries, requestQueueSizes,
 		requestBodyBytes, responseBodyBytes, badRequest)
 }

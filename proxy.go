@@ -39,6 +39,13 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	log.Debugf("Request scope %s", s)
 	requestSum.With(s.labels).Inc()
 
+	if err := s.incQueued(); err != nil {
+		limitExcess.With(s.labels).Inc()
+		respondWith(rw, err, http.StatusTooManyRequests)
+		return
+	}
+	defer s.dec()
+
 	req.Body = &statReadCloser{
 		ReadCloser:       req.Body,
 		requestBodyBytes: requestBodyBytes.With(s.labels),
@@ -47,13 +54,6 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		ResponseWriter:    rw,
 		responseBodyBytes: responseBodyBytes.With(s.labels),
 	}
-
-	if err = s.inc(); err != nil {
-		limitExcess.With(s.labels).Inc()
-		respondWith(rw, err, http.StatusTooManyRequests)
-		return
-	}
-	defer s.dec()
 
 	if s.user.allowCORS {
 		origin := req.Header.Get("Origin")
@@ -68,7 +68,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	timeout, timeoutErrMsg := s.getTimeoutWithErrMsg()
 	ctx := context.Background()
-	if timeout != 0 {
+	if timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()
@@ -182,6 +182,8 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 			allowedNetworks:      u.AllowedNetworks,
 			maxExecutionTime:     u.MaxExecutionTime,
 			maxConcurrentQueries: u.MaxConcurrentQueries,
+			maxQueueTime:         u.MaxQueueTime,
+			queueCh:              make(chan struct{}, u.MaxQueueSize),
 		}
 	}
 
