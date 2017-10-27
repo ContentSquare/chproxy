@@ -117,17 +117,17 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 	clusters := make(map[string]*cluster, len(cfg.Clusters))
 	for _, c := range cfg.Clusters {
 		clusterUsers := make(map[string]*clusterUser, len(c.ClusterUsers))
-		for _, u := range c.ClusterUsers {
-			if _, ok := clusterUsers[u.Name]; ok {
-				return fmt.Errorf("cluster user %q already exists", u.Name)
+		for _, cu := range c.ClusterUsers {
+			if _, ok := clusterUsers[cu.Name]; ok {
+				return fmt.Errorf("cluster user %q already exists", cu.Name)
 			}
-			clusterUsers[u.Name] = &clusterUser{
-				name:                 u.Name,
-				password:             u.Password,
-				reqPerMin:            u.ReqPerMin,
-				allowedNetworks:      u.AllowedNetworks,
-				maxExecutionTime:     u.MaxExecutionTime,
-				maxConcurrentQueries: u.MaxConcurrentQueries,
+			clusterUsers[cu.Name] = &clusterUser{
+				name:                 cu.Name,
+				password:             cu.Password,
+				reqPerMin:            cu.ReqPerMin,
+				allowedNetworks:      cu.AllowedNetworks,
+				maxExecutionTime:     cu.MaxExecutionTime,
+				maxConcurrentQueries: cu.MaxConcurrentQueries,
 			}
 		}
 
