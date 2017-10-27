@@ -111,7 +111,7 @@ func fetchQuery(req *http.Request, n int64) []byte {
 	var r io.Reader
 	r = req.Body
 	if n > 0 {
-		cached := src.ReadCached()
+		cached := src.readCached()
 		if len(cached) > 0 {
 			return cached
 		}

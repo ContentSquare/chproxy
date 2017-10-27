@@ -3,9 +3,8 @@ package main
 import (
 	"io"
 	"net/http"
-
-	"github.com/prometheus/client_golang/prometheus"
 	"sync"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 // statResponseWriter allows to cache statusCode after proxying
@@ -37,7 +36,7 @@ type statReadCloser struct {
 	start, end []byte
 }
 
-func (src *statReadCloser) ReadCached() []byte {
+func (src *statReadCloser) readCached() []byte {
 	src.mu.Lock()
 	b := make([]byte, len(src.start)+len(src.end))
 	b = append(b, src.start...)
