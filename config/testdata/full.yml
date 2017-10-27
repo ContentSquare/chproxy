@@ -91,6 +91,22 @@ users:
     # Name of cache configuration to use
     cache: "longterm"
 
+    # The maximum number of requests that may wait for their chance
+    # to be executed because they cannot run now due to the current limits.
+    #
+    # This option may be useful for handling request bursts from `tabix`
+    # or `clickhouse-grafana`.
+    #
+    # By default all the requests are immediately executed without
+    # waiting in the queue.
+    max_queue_size: 100
+
+    # The maximum duration the queued requests may wait for their chance
+    # to be executed.
+    # This option makes sense only if max_queue_size is set.
+    # By default requests wait for up to 10 seconds in the queue.
+    max_queue_time: 35s
+
   - name: "default"
     to_cluster: "second cluster"
     to_user: "default"

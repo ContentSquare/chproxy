@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Vertamedia/chproxy/cache"
@@ -50,6 +51,15 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	log.Debugf("Request scope %s", s)
 	requestSum.With(s.labels).Inc()
 
+	if err := s.incQueued(); err != nil {
+		limitExcess.With(s.labels).Inc()
+		q := getQueryStart(req)
+		err = fmt.Errorf("%s for query %q", err, string(q))
+		respondWith(rw, err, http.StatusTooManyRequests)
+		return
+	}
+	defer s.dec()
+
 	req.Body = &statReadCloser{
 		ReadCloser:       req.Body,
 		requestBodyBytes: requestBodyBytes.With(s.labels),
@@ -58,15 +68,6 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		ResponseWriter:    rw,
 		responseBodyBytes: responseBodyBytes.With(s.labels),
 	}
-
-	if err = s.inc(); err != nil {
-		limitExcess.With(s.labels).Inc()
-		q := getQueryStart(req)
-		err = fmt.Errorf("%s for query %q", err, string(q))
-		respondWith(srw, err, http.StatusTooManyRequests)
-		return
-	}
-	defer s.dec()
 
 	if s.user.allowCORS {
 		origin := req.Header.Get("Origin")
@@ -85,7 +86,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		req = s.decorateRequest(req)
 		timeout, timeoutErrMsg := s.getTimeoutWithErrMsg()
 		ctx := context.Background()
-		if timeout != 0 {
+		if timeout > 0 {
 			var cancel context.CancelFunc
 			ctx, cancel = context.WithTimeout(ctx, timeout)
 			defer cancel()
@@ -158,17 +159,17 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 	clusters := make(map[string]*cluster, len(cfg.Clusters))
 	for _, c := range cfg.Clusters {
 		clusterUsers := make(map[string]*clusterUser, len(c.ClusterUsers))
-		for _, u := range c.ClusterUsers {
-			if _, ok := clusterUsers[u.Name]; ok {
-				return fmt.Errorf("cluster user %q already exists", u.Name)
+		for _, cu := range c.ClusterUsers {
+			if _, ok := clusterUsers[cu.Name]; ok {
+				return fmt.Errorf("cluster user %q already exists", cu.Name)
 			}
-			clusterUsers[u.Name] = &clusterUser{
-				name:                 u.Name,
-				password:             u.Password,
-				reqPerMin:            u.ReqPerMin,
-				allowedNetworks:      u.AllowedNetworks,
-				maxExecutionTime:     u.MaxExecutionTime,
-				maxConcurrentQueries: u.MaxConcurrentQueries,
+			clusterUsers[cu.Name] = &clusterUser{
+				name:                 cu.Name,
+				password:             cu.Password,
+				reqPerMin:            cu.ReqPerMin,
+				allowedNetworks:      cu.AllowedNetworks,
+				maxExecutionTime:     cu.MaxExecutionTime,
+				maxConcurrentQueries: cu.MaxConcurrentQueries,
 			}
 		}
 
@@ -223,6 +224,8 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 			allowedNetworks:      u.AllowedNetworks,
 			maxExecutionTime:     u.MaxExecutionTime,
 			maxConcurrentQueries: u.MaxConcurrentQueries,
+			maxQueueTime:         u.MaxQueueTime,
+			queueCh:              make(chan struct{}, u.MaxQueueSize),
 		}
 		if len(u.Cache) > 0 {
 			c := cache.GetController(u.Cache)
@@ -319,22 +322,25 @@ func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 		return nil, http.StatusInternalServerError, fmt.Errorf("cluster %q - no active hosts", u.toCluster)
 	}
 
-	s := newScope()
-	s.host = h
-	s.cluster = c
-	s.user = u
-	s.clusterUser = cu
-	s.remoteAddr = req.RemoteAddr
-	s.cache = cacheControllers.Load().(ccList)[u.name]
+	var localAddr string
 	if addr, ok := req.Context().Value(http.LocalAddrContextKey).(net.Addr); ok {
-		s.localAddr = addr.String()
+		localAddr = addr.String()
 	}
-	s.labels = prometheus.Labels{
-		"user":         s.user.name,
-		"cluster":      s.cluster.name,
-		"cluster_user": s.clusterUser.name,
-		"cluster_node": s.host.addr.Host,
+	s := &scope{
+		id:          atomic.AddUint64(&scopeID, 1),
+		host:        h,
+		cluster:     c,
+		user:        u,
+		clusterUser: cu,
+		remoteAddr:  req.RemoteAddr,
+		localAddr:   localAddr,
+		cache: cacheControllers.Load().(ccList)[u.name],
+		labels: prometheus.Labels{
+			"user":         u.name,
+			"cluster":      c.name,
+			"cluster_user": cu.name,
+			"cluster_node": h.addr.Host,
+		},
 	}
-
 	return s, 0, nil
 }

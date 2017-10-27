@@ -42,15 +42,75 @@ type scope struct {
 
 var scopeID = uint64(time.Now().UnixNano())
 
-func newScope() *scope {
-	return &scope{id: atomic.AddUint64(&scopeID, 1)}
+func (s *scope) incQueued() error {
+	select {
+	case s.user.queueCh <- struct{}{}:
+		userLabels := prometheus.Labels{
+			"user": s.user.name,
+		}
+		requestQueueSizes.With(userLabels).Inc()
+		defer func() {
+			<-s.user.queueCh
+			requestQueueSizes.With(userLabels).Dec()
+		}()
+	default:
+		// Request queue is full. Give the request
+		// a single chance to run.
+		return s.inc()
+	}
+
+	// The request has been successfully queued.
+	// Try starting it during the given duration.
+	d := s.user.maxQueueTime
+	if d <= 0 {
+		// Default queue time.
+		d = 10 * time.Second
+	}
+	dSleep := d / 10
+	if dSleep > time.Second {
+		dSleep = time.Second
+	}
+	if dSleep < time.Millisecond {
+		dSleep = time.Millisecond
+	}
+	deadline := time.Now().Add(d)
+	for {
+		err := s.inc()
+		if err == nil {
+			// The request is allowed to start.
+			return nil
+		}
+
+		dLeft := time.Until(deadline)
+		if dLeft <= 0 {
+			// Give up: the request exceeded its wait time
+			// in the queue :(
+			return err
+		}
+
+		// The request has dLeft remaining time to wait in the queue.
+		// Sleep for a bit and try starting it again.
+		if dSleep > dLeft {
+			time.Sleep(dLeft)
+		} else {
+			time.Sleep(dSleep)
+		}
+
+		// Choose new host, since the previous one may become obsolete
+		// after sleeping.
+		h := s.cluster.getHost()
+		if h != nil {
+			s.host = h
+			s.labels["cluster_node"] = h.addr.Host
+		}
+	}
 }
 
 func (s *scope) inc() error {
 	uQueries := s.user.queryCounter.inc()
 	cQueries := s.clusterUser.queryCounter.inc()
-	uRateLimit := s.user.rateLimiter.inc()
-	cRateLimit := s.clusterUser.rateLimiter.inc()
+	uRPM := s.user.rateLimiter.inc()
+	cRPM := s.clusterUser.rateLimiter.inc()
 	s.host.inc()
 	concurrentQueries.With(s.labels).Inc()
 
@@ -63,30 +123,33 @@ func (s *scope) inc() error {
 		err = fmt.Errorf("limits for cluster user %q are exceeded: max_concurrent_queries limit: %d",
 			s.clusterUser.name, s.clusterUser.maxConcurrentQueries)
 	}
-	if s.user.reqPerMin > 0 && uRateLimit > s.user.reqPerMin {
+
+	// int32(xRPM) > 0 check is required to detect races when RPM
+	// is decremented in scope.dec after per-minute zeroing
+	// in rateLimiter.run.
+	// These races become innocent with the given check.
+	if s.user.reqPerMin > 0 && int32(uRPM) > 0 && uRPM > s.user.reqPerMin {
 		err = fmt.Errorf("rate limit for user %q is exceeded: requests_per_minute limit: %d",
 			s.user.name, s.user.reqPerMin)
 	}
-	if s.clusterUser.reqPerMin > 0 && cRateLimit > s.clusterUser.reqPerMin {
+	if s.clusterUser.reqPerMin > 0 && int32(cRPM) > 0 && cRPM > s.clusterUser.reqPerMin {
 		err = fmt.Errorf("rate limit for cluster user %q is exceeded: requests_per_minute limit: %d",
 			s.clusterUser.name, s.clusterUser.reqPerMin)
 	}
+
 	if err != nil {
 		s.dec()
 		return err
 	}
-
 	return nil
 }
 
 func (s *scope) dec() {
-	// decrement only queryCounter because rateLimiter will be reset automatically
-	// and to avoid situation when rateLimiter will be reset before decrement,
-	// which would lead to negative values, rateLimiter will be increased for every request
-	// even if maxConcurrentQueries already generated an error
-	s.host.dec()
 	s.user.queryCounter.dec()
 	s.clusterUser.queryCounter.dec()
+	s.user.rateLimiter.dec()
+	s.clusterUser.rateLimiter.dec()
+	s.host.dec()
 	concurrentQueries.With(s.labels).Dec()
 }
 
@@ -223,11 +286,13 @@ type user struct {
 
 	name, password       string
 	maxExecutionTime     time.Duration
+	maxQueueTime         time.Duration
 	maxConcurrentQueries uint32
 	reqPerMin            uint32
 
 	rateLimiter  rateLimiter
 	queryCounter counter
+	queueCh      chan struct{}
 }
 
 type clusterUser struct {
@@ -376,7 +441,7 @@ func (rl *rateLimiter) run(done <-chan struct{}) {
 		case <-done:
 			return
 		case <-time.After(time.Minute):
-			atomic.StoreUint32(&rl.value, 0)
+			rl.store(0)
 		}
 	}
 }
@@ -384,6 +449,8 @@ func (rl *rateLimiter) run(done <-chan struct{}) {
 type counter struct {
 	value uint32
 }
+
+func (c *counter) store(n uint32) { atomic.StoreUint32(&c.value, n) }
 
 func (c *counter) load() uint32 { return atomic.LoadUint32(&c.value) }
 

@@ -11,6 +11,7 @@ Chproxy, is an http proxy for [ClickHouse](https://ClickHouse.yandex) database. 
 - May limit per-user requests rate.
 - May limit per-user number of concurrent requests.
 - All the limits may be independently set for each input user and for each per-cluster user.
+- May delay request execution until it fits per-user limits.
 - Evenly spreads requests among cluster nodes using `least loaded` + `round robin` technique.
 - Monitors node health and prevents from sending requests to unhealthy nodes.
 - Supports automatic HTTPS certificate issuing and renewal via [Let’s Encrypt](https://letsencrypt.org/).
@@ -377,6 +378,22 @@ users:
     # Name of cache configuration to use
     cache: "longterm"
 
+    # The maximum number of requests that may wait for their chance
+    # to be executed because they cannot run now due to the current limits.
+    #
+    # This option may be useful for handling request bursts from `tabix`
+    # or `clickhouse-grafana`.
+    #
+    # By default all the requests are immediately executed without
+    # waiting in the queue.
+    max_queue_size: 100
+
+    # The maximum duration the queued requests may wait for their chance
+    # to be executed.
+    # This option makes sense only if max_queue_size is set.
+    # By default requests wait for up to 10 seconds in the queue.
+    max_queue_time: 35s
+
   - name: "default"
     to_cluster: "second cluster"
     to_user: "default"
@@ -454,6 +471,7 @@ Metrics are exposed via [Prometheus](https://prometheus.io/) at `/metrics` path
 | host_penalties_total | Counter | The number of given penalties by host | `cluster`, `cluster_node` |
 | host_health | Gauge | Health state of hosts by clusters | `cluster`, `cluster_node` |
 | concurrent_queries | Gauge | The number of concurrent queries at the moment | `user`, `cluster`, `cluster_user`, `cluster_node` |
+| request_queue_sizes | Gauge | The number of requests in per-user queues at the moment | `user` |
 | request_body_bytes_total | Counter | The amount of bytes read from request bodies | `user`, `cluster`, `cluster_user`, `cluster_node` |
 | response_body_bytes_total | Counter | The amount of bytes written to response bodies | `user`, `cluster`, `cluster_user`, `cluster_node` |
 | cache_hits_total | Counter | The amount of successful cache hits | `user`, `cluster`, `cluster_user`, `cluster_node` |
