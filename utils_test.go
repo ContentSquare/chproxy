@@ -15,7 +15,7 @@ func TestFetchQueryGet(t *testing.T) {
 	q := "SELECT column FROM table"
 	params.Set("query", q)
 	req.URL.RawQuery = params.Encode()
-	query := getQuery(req)
+	query := getQueryStart(req)
 	if string(query) != q {
 		t.Errorf("got: %q; expected: %q", string(query), q)
 	}
@@ -25,11 +25,11 @@ func TestFetchQueryPost(t *testing.T) {
 	q := "SELECT column FROM table"
 	body := bytes.NewBufferString(q)
 	req, _ := http.NewRequest("POST", "", body)
-	req.Body = &readCloser{
+	req.Body = &statReadCloser{
 		ReadCloser:       req.Body,
 		requestBodyBytes: badRequest,
 	}
-	query := getQuery(req)
+	query := getQueryStart(req)
 	if string(query) != q {
 		t.Errorf("got: %q; expected: %q", string(query), q)
 	}
@@ -49,11 +49,11 @@ func TestFetchQueryPostGzipped(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	req.Body = &readCloser{
+	req.Body = &statReadCloser{
 		ReadCloser:       req.Body,
 		requestBodyBytes: badRequest,
 	}
-	query := getQuery(req)
+	query := getQueryStart(req)
 	if string(query[:100]) != string(q[:100]) {
 		t.Errorf("got: %q; expected: %q", string(query[:100]), string(q[:100]))
 	}

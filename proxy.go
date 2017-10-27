@@ -32,7 +32,6 @@ func newReverseProxy() *reverseProxy {
 	return &reverseProxy{
 		ReverseProxy: &httputil.ReverseProxy{
 			Director: func(*http.Request) {},
-			// @valyala: do we actually need error messages from ReverseProxy?
 			ErrorLog: log.ErrorLogger,
 		},
 		reloadSignal: make(chan struct{}),
@@ -51,7 +50,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	log.Debugf("Request scope %s", s)
 	requestSum.With(s.labels).Inc()
 
-	req.Body = &readCloser{
+	req.Body = &statReadCloser{
 		ReadCloser:       req.Body,
 		requestBodyBytes: requestBodyBytes.With(s.labels),
 	}
@@ -77,12 +76,9 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		srw.Header().Set("Access-Control-Allow-Origin", origin)
 	}
 
-	var key string
-	if s.cache != nil {
-		q := getQueryFull(req)
-		key = cache.GenerateKey(q)
-	}
-	if _, err := s.cache.RespondWith(key, srw); err == nil {
+	key := s.getCacheKey(req)
+	if _, err := s.cache.WriteTo(key, srw); err == nil {
+		cacheHit.With(s.labels).Inc()
 		srw.statusCode = http.StatusOK
 	} else {
 		timeStart := time.Now()
@@ -95,24 +91,28 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			defer cancel()
 		}
 		req = req.WithContext(ctx)
-		if s.cache != nil {
-			tf, err := s.cache.TempFile(key)
-			if err != nil {
-				log.Errorf("err while gettig writer: %s", err)
-			}
-			crw := &cachedResponseWriter{
-				ResponseWriter: rw,
-				file:           tf,
-			}
-
-			rp.ReverseProxy.ServeHTTP(crw, req)
-
-			s.cache.FinalizeTempFile(tf)
-			if _, err := s.cache.RespondWith(key, srw); err != nil {
-				log.Errorf("error while writing response: %s", err)
-			}
-		} else {
+		cw := s.getCachedWriter(srw)
+		if cw == nil {
 			rp.ReverseProxy.ServeHTTP(srw, req)
+		} else {
+			cacheMiss.With(s.labels).Inc()
+			rp.ReverseProxy.ServeHTTP(cw, req)
+			if srw.statusCode == http.StatusOK {
+				if err := s.cache.Flush(key, cw); err != nil {
+					log.Errorf("error while flushing cache file: %s", err)
+				}
+				s.cache.WriteTo(key, srw)
+			} else {
+				b, err := cw.Bytes()
+				if err != nil {
+					log.Errorf("error while getting data from temp cache file: %s", err)
+				} else {
+					srw.Write(b)
+					if err := cw.Delete(); err != nil {
+						log.Errorf("error while deleting temp cache file: %s", err)
+					}
+				}
+			}
 		}
 
 		if req.Context().Err() != nil {
@@ -129,14 +129,17 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		requestDuration.With(s.labels).Observe(since)
 	}
 
-	switch srw.statusCode {
-	case http.StatusOK:
-		requestSuccess.With(s.labels).Inc()
-		log.Debugf("Request scope %s successfully proxied", s)
-	case http.StatusBadGateway:
-		s.host.penalize()
-		fmt.Fprintf(srw, "unable to reach address: %s", req.URL.Host)
+	if req.Context().Err() == nil {
+		switch srw.statusCode {
+		case http.StatusOK:
+			requestSuccess.With(s.labels).Inc()
+			log.Debugf("Request scope %s successfully proxied", s)
+		case http.StatusBadGateway:
+			s.host.penalize()
+			fmt.Fprintf(srw, "unable to reach address: %s", req.URL.Host)
+		}
 	}
+
 	statusCodes.With(
 		prometheus.Labels{
 			"user":         s.user.name,
@@ -224,7 +227,7 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 		if len(u.Cache) > 0 {
 			c := cache.GetController(u.Cache)
 			if c == nil {
-				return fmt.Errorf("there is no such cache %q for user %q ", u.Cache, u.Name)
+				return fmt.Errorf("no such cache %q for user %q ", u.Cache, u.Name)
 			}
 			cc[u.Name] = c
 		}

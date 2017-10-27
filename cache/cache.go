@@ -1,18 +1,18 @@
 package cache
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
 	"sync"
 	"time"
 
-	"bytes"
 	"github.com/Vertamedia/chproxy/config"
 	"github.com/Vertamedia/chproxy/log"
-	"net/http"
 )
 
 var (
@@ -126,36 +126,29 @@ func (c *Controller) Get(key string) ([]byte, bool) {
 	return resp, true
 }
 
-const suffixLength = 16
-
-func (c *Controller) TempFile(key string) (*os.File, error) {
-	c.mu.Lock()
-	// exit if such key is already present in registry
-	if _, ok := c.registry[key]; ok {
-		c.mu.Unlock()
-		return nil, fmt.Errorf("key %q is already exists in registry", key)
-	}
-	c.mu.Unlock()
-
-	tempPath := fmt.Sprintf("%s/%s.%s", c.Dir, key, randomString(suffixLength))
-	f, err := os.Create(tempPath)
+func (c *Controller) NewResponseWriter(rw http.ResponseWriter) (*ResponseWriter, error) {
+	f, err := ioutil.TempFile(c.Dir, "temp")
 	if err != nil {
-		return nil, fmt.Errorf("err while creating temp file %q for cache %q: %s", tempPath, c.Name, err)
+		return nil, fmt.Errorf("error while creating temp-file: %s", err)
 	}
-	return f, nil
+	return &ResponseWriter{
+		ResponseWriter: rw,
+		file:           f,
+	}, nil
 }
 
-func (c *Controller) FinalizeTempFile(f *os.File) error {
-	oldName := f.Name()
-	newPath := oldName[:len(oldName)-(suffixLength+1)]
-	err := os.Rename(f.Name(), newPath)
+func (c *Controller) Flush(key string, rw *ResponseWriter) error {
+	rw.file.Close()
+	oldName := rw.file.Name()
+	newName := fmt.Sprintf("%s/%s", c.Dir, key)
+	err := os.Rename(oldName, newName)
 	if err != nil {
-		return fmt.Errorf("error while renaming file %q: %s", f.Name(), err)
+		return fmt.Errorf("error while renaming file %q for cache %q: %s", oldName, c.Name, err)
 	}
 
-	info, err := os.Stat(newPath)
+	info, err := os.Stat(newName)
 	if err != nil {
-		return fmt.Errorf("err while reading file %q for cache %q: %s", f.Name(), c.Name, err)
+		return fmt.Errorf("err while reading file %q for cache %q: %s", newName, c.Name, err)
 	}
 
 	c.mu.Lock()
@@ -164,12 +157,22 @@ func (c *Controller) FinalizeTempFile(f *os.File) error {
 	return nil
 }
 
-func (c *Controller) RespondWith(key string, rw http.ResponseWriter) (int64, error) {
+func (c *Controller) WriteTo(key string, rw http.ResponseWriter) (int64, error) {
+	if len(key) == 0 {
+		return 0, fmt.Errorf("empty cache key passed")
+	}
+
 	c.mu.Lock()
 	// exit if such key is already present in registry
-	if _, ok := c.registry[key]; !ok {
+	file, ok := c.registry[key]
+	if !ok {
 		c.mu.Unlock()
-		return 0, fmt.Errorf("key %q is absent in cache", key)
+		return 0, fmt.Errorf("cache key %q is absent in cache", key)
+	}
+	if file.mod.Before(time.Now().Add(-c.Expire)) {
+		c.remove(key)
+		c.mu.Unlock()
+		return 0, fmt.Errorf("cache key %q expired", key)
 	}
 	c.mu.Unlock()
 
@@ -249,3 +252,16 @@ func (c *Controller) add(info os.FileInfo) {
 		size: size,
 	}
 }
+
+// cachedResponseWriter supposed to intercept writing
+// and redirect it into provided writer
+type ResponseWriter struct {
+	file *os.File
+	http.ResponseWriter
+}
+
+func (rw *ResponseWriter) Write(b []byte) (int, error) { return rw.file.Write(b) }
+
+func (rw *ResponseWriter) Bytes() ([]byte, error) { return ioutil.ReadFile(rw.file.Name()) }
+
+func (rw *ResponseWriter) Delete() error { return os.Remove(rw.file.Name()) }

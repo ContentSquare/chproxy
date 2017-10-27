@@ -13,7 +13,7 @@ build:
 	go build
 
 test: build
-	go test -httptest.serve=127.0.0.1:8124 -race -v $(pkgs)
+	go test -race -v $(pkgs)
 
 run: build
 	./chproxy -config=testdata/http.yml

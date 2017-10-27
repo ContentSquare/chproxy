@@ -5,27 +5,10 @@ import (
 	"net/http"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"sync"
 )
 
-type cachedResponseWriter struct {
-	file io.Writer
-
-	http.ResponseWriter
-}
-
-func (rr *cachedResponseWriter) Write(b []byte) (int, error) {
-	return rr.file.Write(b)
-}
-
-//func (rr responseRecorder) result() []byte {
-//	return rr.body.Bytes()
-//}
-
-//func (rr responseRecorder) write() (int, error) {
-//	return rr.ResponseWriter.Write(rr.body.Bytes())
-//}
-
-// cached writer supposed to intercept headers set
+// statResponseWriter allows to cache statusCode after proxying
 type statResponseWriter struct {
 	http.ResponseWriter
 	statusCode        int
@@ -43,26 +26,35 @@ func (rw *statResponseWriter) WriteHeader(code int) {
 	rw.ResponseWriter.WriteHeader(code)
 }
 
-type readCloser struct {
+// readCloser allows to read requestBody twice
+// which is important for proper error logging
+// also provides body-bytes metric
+type statReadCloser struct {
 	io.ReadCloser
 	requestBodyBytes prometheus.Counter
 
-	readBytes   []byte
-	cachedBytes []byte
+	mu         sync.Mutex
+	start, end []byte
 }
 
-func (rc *readCloser) Read(p []byte) (int, error) {
-	n := copy(p, rc.readBytes)
-	if n > 0 {
-		rc.requestBodyBytes.Add(float64(n))
-		rc.readBytes = rc.readBytes[n:]
-		return n, nil
+func (src *statReadCloser) ReadCached() []byte {
+	src.mu.Lock()
+	b := make([]byte, len(src.start)+len(src.end))
+	b = append(b, src.start...)
+	b = append(b, src.end...)
+	src.mu.Unlock()
+	return b
+}
+
+func (src *statReadCloser) Read(p []byte) (int, error) {
+	n, err := src.ReadCloser.Read(p)
+	src.mu.Lock()
+	if len(src.start) == 0 {
+		src.start = p[:n]
+	} else {
+		src.end = p[:n]
 	}
-	n, err := rc.ReadCloser.Read(p)
-	if len(rc.cachedBytes) == 0 {
-		rc.cachedBytes = p[:n]
-		rc.readBytes = p[:n]
-	}
-	rc.requestBodyBytes.Add(float64(n))
+	src.mu.Unlock()
+	src.requestBodyBytes.Add(float64(n))
 	return n, err
 }

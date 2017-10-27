@@ -2,15 +2,15 @@ package main
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"time"
 
-	"compress/gzip"
 	"github.com/Vertamedia/chproxy/log"
-	"io"
 )
 
 func respondWith(rw http.ResponseWriter, err error, status int) {
@@ -70,7 +70,7 @@ func isHealthy(addr string) error {
 }
 
 // max bytes to read from requests body
-const maxQueryLength = 350 //5 * 1024 // 5KB
+const maxQueryLength = 900 //5 * 1024 // 5KB
 
 func getQueryFull(req *http.Request) []byte {
 	return fetchQuery(req, 0)
@@ -107,12 +107,13 @@ func fetchQuery(req *http.Request, n int64) []byte {
 	if req.Body == nil {
 		return nil
 	}
+	src := req.Body.(*statReadCloser)
 	var r io.Reader
 	r = req.Body
 	if n > 0 {
-		rc := req.Body.(*readCloser)
-		if len(rc.cachedBytes) > 0 {
-			return rc.cachedBytes
+		cached := src.ReadCached()
+		if len(cached) > 0 {
+			return cached
 		}
 		r = io.LimitReader(req.Body, n)
 	}

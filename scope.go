@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"bytes"
 	"github.com/Vertamedia/chproxy/cache"
 	"github.com/Vertamedia/chproxy/config"
 	"github.com/Vertamedia/chproxy/log"
@@ -177,17 +178,28 @@ func (s *scope) getTimeoutWithErrMsg() (time.Duration, error) {
 	return timeout, timeoutErrMsg
 }
 
-func (s scope) getFromCache(key string) ([]byte, bool) {
-	if s.cache == nil || len(key) == 0 {
-		return nil, false
+func (s *scope) getCacheKey(req *http.Request) string {
+	if s.cache == nil {
+		return ""
 	}
-	b, ok := s.cache.Get(key)
-	if ok {
-		cacheHit.With(s.labels).Inc()
-	} else {
-		cacheMiss.With(s.labels).Inc()
+	q := getQueryFull(req)
+	req.Body = &statReadCloser{
+		ReadCloser:       ioutil.NopCloser(bytes.NewBuffer(q)),
+		requestBodyBytes: requestBodyBytes.With(s.labels),
 	}
-	return b, ok
+	return cache.GenerateKey(q)
+}
+
+func (s *scope) getCachedWriter(rw http.ResponseWriter) *cache.ResponseWriter {
+	if s.cache == nil {
+		return nil
+	}
+	crw, err := s.cache.NewResponseWriter(rw)
+	if err != nil {
+		log.Errorf("error while creating cached response writer: %s", err)
+		return nil
+	}
+	return crw
 }
 
 type user struct {

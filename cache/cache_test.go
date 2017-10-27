@@ -1,7 +1,6 @@
 package cache
 
 import (
-	"bytes"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -57,7 +56,7 @@ func TestGenerateKey(t *testing.T) {
 	}
 }
 
-func TestController_Get(t *testing.T) {
+func TestController(t *testing.T) {
 	dir := testDir + "/TestController_Get"
 	cfg := config.Cache{
 		Name:    "TestController_Get",
@@ -73,61 +72,57 @@ func TestController_Get(t *testing.T) {
 	if cc == nil {
 		t.Fatalf("nil pointer; expected pointer to %s cache controller", cfg.Name)
 	}
-	k := "key"
 
-	cc.Store(k, []byte("body"))
-	if _, ok := cc.Get(k); !ok {
-		t.Fatalf("expected key %q to be present in cache reigster", k)
+	k := "key"
+	rw := httptest.NewRecorder()
+	err := store(cc, rw, k)
+	if err != nil {
+		t.Fatalf("unexpected err: %s", err)
+	}
+	if err := compareResponse(rw, "body"); err != nil {
+		t.Fatal(err)
 	}
 
-	time.Sleep(time.Millisecond * 110)
-	cc.Store(k, []byte("body"))
-	if _, ok := cc.Get(k); ok {
-		t.Fatalf("expected key %q to be absent in cache reigster", k)
+	rw2 := httptest.NewRecorder()
+	if _, err = cc.WriteTo(k, rw2); err != nil {
+		t.Fatal(err)
+	}
+	if err := compareResponse(rw2, "body"); err != nil {
+		t.Fatal(err)
+	}
+
+	time.Sleep(time.Millisecond * 120)
+	rw3 := httptest.NewRecorder()
+	if _, err = cc.WriteTo(k, rw3); err == nil {
+		t.Fatal("expected to get empty response")
 	}
 }
 
-func TestController_Store(t *testing.T) {
-	dir := testDir + "/TestController_Store"
-	cfg := config.Cache{
-		Name:    "TestController_Store",
-		Dir:     dir,
-		MaxSize: config.ByteSize(1024),
-		Expire:  time.Second * 10,
-	}
-	MustRegister(cfg)
-	if _, err := os.Stat(dir); err != nil {
-		t.Fatalf("err while getting folder %q info: %s", dir, err)
-	}
-	cc := GetController(cfg.Name)
-	if cc == nil {
-		t.Fatalf("nil pointer; expected pointer to %s cache controller", cfg.Name)
-	}
-
-	body := bytes.NewBufferString("SELECT 1")
-	req := httptest.NewRequest("POST", "http://localhost:8123", body)
-	b, err := ioutil.ReadAll(req.Body)
+func compareResponse(rr *httptest.ResponseRecorder, expected string) error {
+	response, err := ioutil.ReadAll(rr.Body)
 	if err != nil {
-		t.Fatalf("Error reading body: %v", err)
+		return fmt.Errorf("error while reading response: %s", err)
 	}
+	if string(response) != expected {
+		return fmt.Errorf("expected: %q; got: %q", expected, string(response))
+	}
+	return nil
+}
 
-	// generate key and store to cache
-	key := GenerateKey([]byte("key"), b)
-	cc.Store(key, []byte("1"))
-
-	// check that cached file exists
-	cacheFilePath := fmt.Sprintf("%s/%s", dir, key)
-	if _, err := os.Stat(cacheFilePath); err != nil {
-		t.Fatalf("err while getting file %q info: %s", cacheFilePath, err)
+func store(cc *Controller, rw http.ResponseWriter, key string) error {
+	cw, err := cc.NewResponseWriter(rw)
+	if err != nil {
+		return err
 	}
-	cachedResp, ok := cc.Get(key)
-	if !ok {
-		t.Fatalf("got nil; expected cached response")
+	if _, err := os.Stat(cw.file.Name()); err != nil {
+		return fmt.Errorf("err while getting file %q info: %s", cw.file.Name(), err)
 	}
-
-	if !bytes.Equal(cachedResp, []byte("1")) {
-		t.Fatalf("got cached resp: %q; expected: %q", string(cachedResp), string([]byte("1")))
+	cw.Write([]byte("body"))
+	if err := cc.Flush(key, cw); err != nil {
+		return fmt.Errorf("error while flushing cache file: %s", err)
 	}
+	_, err = cc.WriteTo(key, rw)
+	return err
 }
 
 func TestCleanup(t *testing.T) {
@@ -141,31 +136,37 @@ func TestCleanup(t *testing.T) {
 	MustRegister(cfg)
 	cc := GetController(cfg.Name)
 	key1 := "key1"
-	cc.Store(key1, []byte("body"))
+	rw1 := httptest.NewRecorder()
+	err := store(cc, rw1, key1)
+	if err != nil {
+		t.Fatalf("unexpected err: %s", err)
+	}
 	time.Sleep(time.Millisecond * 50)
 	key2 := "key2"
-	cc.Store(key2, []byte("body2"))
-
-	_, ok := cc.Get(key1)
-	if !ok {
-		t.Fatalf("expected key %q in cache reigster; got nil", key1)
+	rw2 := httptest.NewRecorder()
+	err = store(cc, rw2, key2)
+	if err != nil {
+		t.Fatalf("unexpected err: %s", err)
 	}
-	_, ok = cc.Get(key2)
-	if !ok {
-		t.Fatalf("expected key %q in cache reigster; got nil", key2)
+
+	rw3 := httptest.NewRecorder()
+	if _, err = cc.WriteTo(key1, rw3); err != nil {
+		t.Fatalf("expected key %q in cache reigster; got: %s", key1, err)
+	}
+
+	if _, err = cc.WriteTo(key2, rw3); err != nil {
+		t.Fatalf("expected key %q in cache reigster;  got: %s", key2, err)
 	}
 
 	time.Sleep(time.Millisecond * 60)
 	cc.cleanup()
-	_, ok = cc.Get(key1)
-	if ok {
+	if _, err = cc.WriteTo(key1, rw3); err == nil {
 		t.Fatalf("expected key %q to be removed from cache reigster", key1)
 	}
 
 	time.Sleep(time.Millisecond * 100)
 	cc.cleanup()
-	_, ok = cc.Get(key2)
-	if ok {
+	if _, err = cc.WriteTo(key2, rw3); err == nil {
 		t.Fatalf("expected key %q to be removed from cache reigster", key2)
 	}
 
@@ -189,7 +190,11 @@ func TestCleanup2(t *testing.T) {
 	// so it would be 40 after 10 iterations
 	for i := 0; i < 10; i++ {
 		key := fmt.Sprintf("key-%d", i)
-		cc.Store(key, []byte("body"))
+		rw := httptest.NewRecorder()
+		err := store(cc, rw, key)
+		if err != nil {
+			t.Fatalf("unexpected err: %s", err)
+		}
 		time.Sleep(time.Millisecond * 5)
 	}
 
@@ -222,11 +227,5 @@ func TestCleanup2(t *testing.T) {
 		if _, ok := cc.Get(key); !ok {
 			t.Fatalf("expected key %q to be in registry", key)
 		}
-	}
-}
-
-func responseWithBody(b string) *http.Response {
-	return &http.Response{
-		Body: ioutil.NopCloser(bytes.NewBufferString(b)),
 	}
 }
