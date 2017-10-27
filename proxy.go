@@ -51,6 +51,11 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	log.Debugf("Request scope %s", s)
 	requestSum.With(s.labels).Inc()
 
+	req.Body = &statReadCloser{
+		ReadCloser:       req.Body,
+		requestBodyBytes: requestBodyBytes.With(s.labels),
+	}
+
 	if err := s.incQueued(); err != nil {
 		limitExcess.With(s.labels).Inc()
 		q := getQueryStart(req)
@@ -60,10 +65,6 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 	defer s.dec()
 
-	req.Body = &statReadCloser{
-		ReadCloser:       req.Body,
-		requestBodyBytes: requestBodyBytes.With(s.labels),
-	}
 	srw := &statResponseWriter{
 		ResponseWriter:    rw,
 		responseBodyBytes: responseBodyBytes.With(s.labels),
@@ -334,7 +335,7 @@ func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 		clusterUser: cu,
 		remoteAddr:  req.RemoteAddr,
 		localAddr:   localAddr,
-		cache: cacheControllers.Load().(ccList)[u.name],
+		cache:       cacheControllers.Load().(ccList)[u.name],
 		labels: prometheus.Labels{
 			"user":         u.name,
 			"cluster":      c.name,

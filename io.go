@@ -39,7 +39,7 @@ func (src *statReadCloser) readCached() []byte {
 	src.mu.Lock()
 	b := make([]byte, len(src.start)+len(src.end))
 	b = append(b, src.start...)
-	if len(src.end) > 0{
+	if len(src.end) > 0 {
 		b = append(b, "..."...)
 		b = append(b, src.end...)
 	}

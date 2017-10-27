@@ -97,7 +97,7 @@ func TestLoadConfig(t *testing.T) {
 						ReqPerMin:    4,
 						MaxQueueSize: 100,
 						MaxQueueTime: 35 * time.Second,
-						Cache:     "longterm",
+						Cache:        "longterm",
 					},
 					{
 						Name:                 "default",
