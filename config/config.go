@@ -343,6 +343,10 @@ type User struct {
 	// if omitted or zero - no limits would be applied
 	MaxExecutionTime time.Duration `yaml:"max_execution_time,omitempty"`
 
+	// Maximum number of requests per minute for user
+	// if omitted or zero - no limits would be applied
+	ReqPerMin uint32 `yaml:"requests_per_minute,omitempty"`
+
 	NetworksOrGroups NetworksOrGroups `yaml:"allowed_networks,omitempty"`
 
 	// List of networks that access is allowed from
@@ -358,10 +362,6 @@ type User struct {
 
 	// Whether to allow CORS requests for this user
 	AllowCORS bool `yaml:"allow_cors,omitempty"`
-
-	// Maximum number of requests per minute for user
-	// if omitted or zero - no limits would be applied
-	ReqPerMin uint32 `yaml:"requests_per_minute,omitempty"`
 
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
@@ -477,7 +477,7 @@ type ClusterUser struct {
 	// if omitted or zero - no limits would be applied
 	MaxConcurrentQueries uint32 `yaml:"max_concurrent_queries,omitempty"`
 
-	// Maximum duration of query executing for user
+	// Maximum duration of query execution for user
 	// if omitted or zero - no limits would be applied
 	MaxExecutionTime time.Duration `yaml:"max_execution_time,omitempty"`
 
