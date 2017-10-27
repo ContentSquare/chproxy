@@ -129,21 +129,31 @@ func (s *scope) killQuery() error {
 	return nil
 }
 
-// decorateRequest purifies request from unsupported params
-// because proxy just can't handle and control it properly via HTTP
-// it is recommended to control CH settings in user's profiles
-// @see http://clickhouse.readthedocs.io/en/latest/reference_en.html#HTTP interface
-// @see http://clickhouse.readthedocs.io/en/latest/reference_en.html#Settings
+// allowedParams contains query args allowed to be proxed.
+// See http://clickhouse-docs.readthedocs.io/en/latest/settings/
+//
+// All the other params passed via query args are stripped before
+// proxying the request. This is for the sake of security.
+var allowedParams = []string{
+	"query",
+	"database",
+	"default_format",
+}
+
 func (s *scope) decorateRequest(req *http.Request) *http.Request {
-	// make new params to purify URL because settings might be changed only via GET params
+	// make new params to purify URL
 	params := make(url.Values)
 
 	// set query_id as scope_id to have possibility kill query if needed
 	params.Set("query_id", fmt.Sprintf("%X", s.id))
-	// if query was passed - keep it
-	q := req.URL.Query().Get("query")
-	if len(q) > 0 {
-		params.Set("query", q)
+
+	// keep allowed params
+	q := req.URL.Query()
+	for _, param := range allowedParams {
+		val := q.Get(param)
+		if len(val) > 0 {
+			params.Set(param, val)
+		}
 	}
 	req.URL.RawQuery = params.Encode()
 
