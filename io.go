@@ -1,10 +1,10 @@
 package main
 
 import (
+	"github.com/prometheus/client_golang/prometheus"
 	"io"
 	"net/http"
 	"sync"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 // statResponseWriter allows to cache statusCode after proxying

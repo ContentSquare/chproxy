@@ -75,29 +75,29 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		}
 		srw.Header().Set("Access-Control-Allow-Origin", origin)
 	}
-key := s.getCacheKey(req)
+
+	key := s.getCacheKey(req)
 	if _, err := s.cache.WriteTo(key, srw); err == nil {
 		cacheHit.With(s.labels).Inc()
 		srw.statusCode = http.StatusOK
-	} else {	timeStart := time.Now()
-	req = s.decorateRequest(req)
-
-	timeout, timeoutErrMsg := s.getTimeoutWithErrMsg()
-	ctx := context.Background()
-	if timeout != 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, timeout)
-		defer cancel()
-	}
-
-	req = req.WithContext(ctx)
-	cw := s.getCachedWriter(srw)
+	} else {
+		timeStart := time.Now()
+		req = s.decorateRequest(req)
+		timeout, timeoutErrMsg := s.getTimeoutWithErrMsg()
+		ctx := context.Background()
+		if timeout != 0 {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, timeout)
+			defer cancel()
+		}
+		req = req.WithContext(ctx)
+		cw := s.getCachedWriter(srw)
 		if cw == nil {
-	rp.ReverseProxy.ServeHTTP(srw, req)
+			rp.ReverseProxy.ServeHTTP(srw, req)
 		} else {
 			cacheMiss.With(s.labels).Inc()
-	rp.ReverseProxy.ServeHTTP(cw, req)
-	if srw.statusCode == http.StatusOK {
+			rp.ReverseProxy.ServeHTTP(cw, req)
+			if srw.statusCode == http.StatusOK {
 				if err := s.cache.Flush(key, cw); err != nil {
 					log.Errorf("error while flushing cache file: %s", err)
 				}
@@ -115,12 +115,12 @@ key := s.getCacheKey(req)
 			}
 		}
 
-		ifreq.Context().Err() != nil {
-		// penalize host if responding is slow, probably it is overloaded
-		s.host.penalize()
-
-		if err := s.killQuery(); err != nil {
-			log.Errorf("error while killing query: %s", err)}
+		if req.Context().Err() != nil {
+			// penalize host if responding is slow, probably it is overloaded
+			s.host.penalize()
+			if err := s.killQuery(); err != nil {
+				log.Errorf("error while killing query: %s", err)
+			}
 			q := getQueryStart(req)
 			log.Errorf("node %q: %s in query: %q", s.host.addr, timeoutErrMsg, string(q))
 			fmt.Fprint(srw, timeoutErrMsg.Error())
