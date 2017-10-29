@@ -2,6 +2,7 @@ package cache
 
 import (
 	"bytes"
+	"crypto/sha1"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -15,10 +16,7 @@ import (
 	"github.com/Vertamedia/chproxy/log"
 )
 
-var (
-	cMu   = sync.RWMutex{}
-	cList = make(map[string]*Controller)
-)
+var cList = make(map[string]*Controller)
 
 func MustRegister(cfgs ...config.Cache) {
 	if len(cfgs) == 0 {
@@ -28,6 +26,9 @@ func MustRegister(cfgs ...config.Cache) {
 	for _, cfg := range cfgs {
 		if _, ok := cList[cfg.Name]; ok {
 			log.Fatalf("cache controller %q is already registered", cfg.Name)
+		}
+		if len(cfg.Dir) == 0 {
+			log.Fatalf("dir cannot be empty")
 		}
 		if cfg.MaxSize == 0 {
 			log.Fatalf("max_size cannot be 0")
@@ -50,8 +51,6 @@ func MustRegister(cfgs ...config.Cache) {
 }
 
 func GetController(name string) *Controller {
-	cMu.RLock()
-	defer cMu.RUnlock()
 	return cList[name]
 }
 
@@ -71,13 +70,14 @@ type file struct {
 }
 
 // Runs a goroutine to watch limits exceeding.
-// Also re-reads already cached files to refresh registry after reload
+// Also re-reads already cached files
+// with names of proper length to refresh registry after reload
 func (c *Controller) Run() error {
 	if err := os.MkdirAll(c.Dir, 0700); err != nil {
 		return fmt.Errorf("error while creating folder %q: %s", c.Dir, err)
 	}
 	walkFn := func(_ string, info os.FileInfo, err error) error {
-		if !info.IsDir() {
+		if !info.IsDir() || len(info.Name()) == sha1.Size {
 			c.add(info)
 		}
 		return err
@@ -95,36 +95,7 @@ func (c *Controller) Run() error {
 	return nil
 }
 
-const cleanUpInterval = time.Second * 20
-
-func (c *Controller) Get(key string) ([]byte, bool) {
-	c.mu.Lock()
-
-	file, ok := c.registry[key]
-	if !ok {
-		c.mu.Unlock()
-		return nil, false
-	}
-	if file.mod.Before(time.Now().Add(-c.Expire)) {
-		c.remove(key)
-		c.mu.Unlock()
-		return nil, false
-	}
-	path := fmt.Sprintf("%s/%s", c.Dir, key)
-	name := c.Name
-	c.mu.Unlock()
-
-	resp, err := ioutil.ReadFile(path)
-	if err != nil {
-		log.Errorf("err while reading file %q for cache %q: %s", key, name, err)
-		c.mu.Lock()
-		c.remove(key)
-		c.mu.Unlock()
-		return nil, false
-	}
-	log.Debugf("Cache hit")
-	return resp, true
-}
+const cleanUpInterval = time.Minute
 
 func (c *Controller) NewResponseWriter(rw http.ResponseWriter) (*ResponseWriter, error) {
 	f, err := ioutil.TempFile(c.Dir, "temp")
@@ -248,7 +219,9 @@ func (c *Controller) add(info os.FileInfo) {
 	size := info.Size()
 	c.size += size
 	c.registry[info.Name()] = file{
-		mod:  info.ModTime(),
+		// we use time.Now() instead of file.ModeTime() because
+		// different OS may store this time with different precision
+		mod:  time.Now(),
 		size: size,
 	}
 }

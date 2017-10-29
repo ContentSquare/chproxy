@@ -212,11 +212,12 @@ func TestCleanup2(t *testing.T) {
 		t.Fatalf("expected size: 28; got: %d", cc.size)
 	}
 
+	rw := httptest.NewRecorder()
 	// and all keys must lower than 3 number must be absent in registry
 	// since they are the oldest
 	for i := 0; i < 3; i++ {
 		key := fmt.Sprintf("key-%d", i)
-		if _, ok := cc.Get(key); ok {
+		if _, err := cc.WriteTo(key, rw); err == nil {
 			t.Fatalf("expected key %q to be absent in registry", key)
 		}
 	}
@@ -224,7 +225,7 @@ func TestCleanup2(t *testing.T) {
 	// and all keys higher than 3 - to be present in registry
 	for i := 3; i < 10; i++ {
 		key := fmt.Sprintf("key-%d", i)
-		if _, ok := cc.Get(key); !ok {
+		if _, err := cc.WriteTo(key, rw); err != nil {
 			t.Fatalf("expected key %q to be in registry", key)
 		}
 	}
