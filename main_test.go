@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
@@ -40,7 +41,6 @@ func startTLS() (net.Listener, chan struct{}) {
 	if err != nil {
 		panic(fmt.Sprintf("error while loading config: %s", err))
 	}
-	cacheControllers.Store(make(ccList))
 	if len(cfg.Caches) > 0 {
 		cache.MustRegister(cfg.Caches...)
 	}
@@ -67,7 +67,6 @@ func startHTTP() (net.Listener, chan struct{}) {
 	if err != nil {
 		panic(fmt.Sprintf("error while loading config: %s", err))
 	}
-	cacheControllers.Store(make(ccList))
 	if len(cfg.Caches) > 0 {
 		cache.MustRegister(cfg.Caches...)
 	}
@@ -159,14 +158,19 @@ func TestServe(t *testing.T) {
 				if _, err := os.Stat(path); err != nil {
 					t.Errorf("err while getting file %q info: %s", path, err)
 				}
+				rw := httptest.NewRecorder()
 				cc := cache.GetController("https_cache")
-				cachedResp, ok := cc.Get(key)
-				if !ok {
-					t.Errorf("expected key %q to be cached", key)
+				if _, err := cc.WriteTo(key, rw); err != nil {
+					t.Errorf("unexpected error while writing reposnse from cache: %s", err)
 				}
+
 				expected := "Ok.\n"
-				if string(cachedResp) != expected {
-					t.Errorf("unexpected cache result: %q; expected: %q", string(cachedResp), expected)
+				got, err := ioutil.ReadAll(rw.Body)
+				if err != nil {
+					t.Errorf("unexpected error while reading body: %s", err)
+				}
+				if string(got) != expected {
+					t.Errorf("unexpected cache result: %q; expected: %q", string(got), expected)
 				}
 
 			},

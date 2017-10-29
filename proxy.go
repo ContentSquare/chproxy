@@ -77,7 +77,6 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		}
 		srw.Header().Set("Access-Control-Allow-Origin", origin)
 	}
-
 	key := s.getCacheKey(req)
 	if _, err := s.cache.WriteTo(key, srw); err == nil {
 		cacheHit.With(s.labels).Inc()
@@ -100,10 +99,10 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			cacheMiss.With(s.labels).Inc()
 			rp.ReverseProxy.ServeHTTP(cw, req)
 			if srw.statusCode == http.StatusOK {
-				if err := s.cache.Flush(key, cw); err != nil {
+				if err := s.user.cache.Flush(key, cw); err != nil {
 					log.Errorf("error while flushing cache file: %s", err)
 				}
-				s.cache.WriteTo(key, srw)
+				s.user.cache.WriteTo(key, srw)
 			} else {
 				b, err := cw.Bytes()
 				if err != nil {
@@ -200,7 +199,6 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 		cluster.hosts = hosts
 	}
 
-	cc := cacheControllers.Load().(ccList)
 	users := make(map[string]*user, len(cfg.Users))
 	for _, u := range cfg.Users {
 		c, ok := clusters[u.ToCluster]
@@ -213,10 +211,15 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 		if _, ok := users[u.Name]; ok {
 			return fmt.Errorf("user %q already exists", u.Name)
 		}
+		cc := cache.GetController(u.Cache)
+		if c == nil {
+			return fmt.Errorf("no such cache %q for user %q ", u.Cache, u.Name)
+		}
 		users[u.Name] = &user{
 			name:                 u.Name,
 			password:             u.Password,
 			toUser:               u.ToUser,
+			cache:                cc,
 			denyHTTP:             u.DenyHTTP,
 			denyHTTPS:            u.DenyHTTPS,
 			allowCORS:            u.AllowCORS,
@@ -228,15 +231,7 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 			maxQueueTime:         u.MaxQueueTime,
 			queueCh:              make(chan struct{}, u.MaxQueueSize),
 		}
-		if len(u.Cache) > 0 {
-			c := cache.GetController(u.Cache)
-			if c == nil {
-				return fmt.Errorf("no such cache %q for user %q ", u.Cache, u.Name)
-			}
-			cc[u.Name] = c
-		}
 	}
-	cacheControllers.Store(cc)
 
 	// if we are here then there are no errors with new config
 	// send signal for all listeners that proxy is going to reload
@@ -335,7 +330,6 @@ func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 		clusterUser: cu,
 		remoteAddr:  req.RemoteAddr,
 		localAddr:   localAddr,
-		cache:       cacheControllers.Load().(ccList)[u.name],
 		labels: prometheus.Labels{
 			"user":         u.name,
 			"cluster":      c.name,

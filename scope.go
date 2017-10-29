@@ -32,7 +32,6 @@ type scope struct {
 	cluster     *cluster
 	user        *user
 	clusterUser *clusterUser
-	cache       *cache.Controller
 
 	remoteAddr string
 	localAddr  string
@@ -252,7 +251,7 @@ func (s *scope) getTimeoutWithErrMsg() (time.Duration, error) {
 }
 
 func (s *scope) getCacheKey(req *http.Request) string {
-	if s.cache == nil {
+	if s.user.cache == nil {
 		return ""
 	}
 	q := getQueryFull(req)
@@ -264,10 +263,10 @@ func (s *scope) getCacheKey(req *http.Request) string {
 }
 
 func (s *scope) getCachedWriter(rw http.ResponseWriter) *cache.ResponseWriter {
-	if s.cache == nil {
+	if s.user.cache == nil {
 		return nil
 	}
-	crw, err := s.cache.NewResponseWriter(rw)
+	crw, err := s.user.cache.NewResponseWriter(rw)
 	if err != nil {
 		log.Errorf("error while creating cached response writer: %s", err)
 		return nil
@@ -283,6 +282,7 @@ type user struct {
 	allowCORS bool
 
 	allowedNetworks config.Networks
+	cache           *cache.Controller
 
 	name, password       string
 	maxExecutionTime     time.Duration

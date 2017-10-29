@@ -36,9 +36,6 @@ var (
 	allowedNetworksHTTP    atomic.Value
 	allowedNetworksHTTPS   atomic.Value
 	allowedNetworksMetrics atomic.Value
-
-	// list of cache controllers
-	cacheControllers atomic.Value
 )
 
 func main() {
@@ -54,7 +51,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("error while loading config: %s", err)
 	}
-	cacheControllers.Store(make(ccList))
 	if len(cfg.Caches) > 0 {
 		cache.MustRegister(cfg.Caches...)
 	}
