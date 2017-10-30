@@ -84,7 +84,7 @@ func TestController(t *testing.T) {
 	}
 
 	rw2 := httptest.NewRecorder()
-	if _, err = cc.WriteTo(k, rw2); err != nil {
+	if _, err = cc.WriteTo(rw2, k); err != nil {
 		t.Fatal(err)
 	}
 	if err := compareResponse(rw2, "body"); err != nil {
@@ -93,7 +93,7 @@ func TestController(t *testing.T) {
 
 	time.Sleep(time.Millisecond * 120)
 	rw3 := httptest.NewRecorder()
-	if _, err = cc.WriteTo(k, rw3); err == nil {
+	if _, err = cc.WriteTo(rw3, k); err == nil {
 		t.Fatal("expected to get empty response")
 	}
 }
@@ -121,7 +121,7 @@ func store(cc *Controller, rw http.ResponseWriter, key string) error {
 	if err := cc.Flush(key, cw); err != nil {
 		return fmt.Errorf("error while flushing cache file: %s", err)
 	}
-	_, err = cc.WriteTo(key, rw)
+	_, err = cc.WriteTo(rw, key)
 	return err
 }
 
@@ -150,23 +150,23 @@ func TestCleanup(t *testing.T) {
 	}
 
 	rw3 := httptest.NewRecorder()
-	if _, err = cc.WriteTo(key1, rw3); err != nil {
+	if _, err = cc.WriteTo(rw3, key1); err != nil {
 		t.Fatalf("expected key %q in cache reigster; got: %s", key1, err)
 	}
 
-	if _, err = cc.WriteTo(key2, rw3); err != nil {
+	if _, err = cc.WriteTo(rw3, key2); err != nil {
 		t.Fatalf("expected key %q in cache reigster;  got: %s", key2, err)
 	}
 
 	time.Sleep(time.Millisecond * 60)
 	cc.cleanup()
-	if _, err = cc.WriteTo(key1, rw3); err == nil {
+	if _, err = cc.WriteTo(rw3, key1); err == nil {
 		t.Fatalf("expected key %q to be removed from cache reigster", key1)
 	}
 
 	time.Sleep(time.Millisecond * 100)
 	cc.cleanup()
-	if _, err = cc.WriteTo(key2, rw3); err == nil {
+	if _, err = cc.WriteTo(rw3, key2); err == nil {
 		t.Fatalf("expected key %q to be removed from cache reigster", key2)
 	}
 
@@ -217,7 +217,7 @@ func TestCleanup2(t *testing.T) {
 	// since they are the oldest
 	for i := 0; i < 3; i++ {
 		key := fmt.Sprintf("key-%d", i)
-		if _, err := cc.WriteTo(key, rw); err == nil {
+		if _, err := cc.WriteTo(rw, key); err == nil {
 			t.Fatalf("expected key %q to be absent in registry", key)
 		}
 	}
@@ -225,7 +225,7 @@ func TestCleanup2(t *testing.T) {
 	// and all keys higher than 3 - to be present in registry
 	for i := 3; i < 10; i++ {
 		key := fmt.Sprintf("key-%d", i)
-		if _, err := cc.WriteTo(key, rw); err != nil {
+		if _, err := cc.WriteTo(rw, key); err != nil {
 			t.Fatalf("expected key %q to be in registry", key)
 		}
 	}

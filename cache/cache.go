@@ -128,7 +128,7 @@ func (c *Controller) Flush(key string, rw *ResponseWriter) error {
 	return nil
 }
 
-func (c *Controller) WriteTo(key string, rw http.ResponseWriter) (int64, error) {
+func (c *Controller) WriteTo(rw http.ResponseWriter, key string) (int64, error) {
 	if len(key) == 0 {
 		return 0, fmt.Errorf("empty cache key passed")
 	}

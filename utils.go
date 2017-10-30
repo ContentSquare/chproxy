@@ -72,10 +72,6 @@ func isHealthy(addr string) error {
 // max bytes to read from requests body
 const maxQueryLength = 900 //5 * 1024 // 5KB
 
-func getQueryFull(req *http.Request) []byte {
-	return fetchQuery(req, 0)
-}
-
 func getQueryStart(req *http.Request) []byte {
 	result := fetchQuery(req, maxQueryLength)
 	if len(result) > maxQueryLength {
@@ -107,14 +103,16 @@ func fetchQuery(req *http.Request, n int64) []byte {
 	if req.Body == nil {
 		return nil
 	}
-	src := req.Body.(*statReadCloser)
-	var r io.Reader
-	r = req.Body
-	if n > 0 {
+	src, ok := req.Body.(*cachedReadCloser)
+	if ok {
 		cached := src.readCached()
 		if len(cached) > 0 {
 			return cached
 		}
+	}
+	var r io.Reader
+	r = req.Body
+	if n > 0 {
 		r = io.LimitReader(req.Body, n)
 	}
 	result, err := ioutil.ReadAll(r)

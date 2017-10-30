@@ -160,7 +160,7 @@ func TestServe(t *testing.T) {
 				}
 				rw := httptest.NewRecorder()
 				cc := cache.GetController("https_cache")
-				if _, err := cc.WriteTo(key, rw); err != nil {
+				if _, err := cc.WriteTo(rw, key); err != nil {
 					t.Errorf("unexpected error while writing reposnse from cache: %s", err)
 				}
 

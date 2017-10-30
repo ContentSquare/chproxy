@@ -11,6 +11,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"bytes"
+	"io/ioutil"
 
 	"github.com/Vertamedia/chproxy/cache"
 	"github.com/Vertamedia/chproxy/config"
@@ -51,11 +53,6 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	log.Debugf("Request scope %s", s)
 	requestSum.With(s.labels).Inc()
 
-	req.Body = &statReadCloser{
-		ReadCloser:       req.Body,
-		requestBodyBytes: requestBodyBytes.With(s.labels),
-	}
-
 	if err := s.incQueued(); err != nil {
 		limitExcess.With(s.labels).Inc()
 		q := getQueryStart(req)
@@ -70,6 +67,11 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		responseBodyBytes: responseBodyBytes.With(s.labels),
 	}
 
+	req.Body = &statReadCloser{
+		ReadCloser:       req.Body,
+		requestBodyBytes: requestBodyBytes.With(s.labels),
+	}
+
 	if s.user.allowCORS {
 		origin := req.Header.Get("Origin")
 		if len(origin) == 0 {
@@ -77,68 +79,16 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		}
 		srw.Header().Set("Access-Control-Allow-Origin", origin)
 	}
-	key := s.getCacheKey(req)
-	if _, err := s.cache.WriteTo(key, srw); err == nil {
-		cacheHit.With(s.labels).Inc()
+
+	timeStart := time.Now()
+	if s.user.cache != nil {
+		if err := rp.serveFromCache(s, srw, req); err != nil {
+			log.Errorf("cache error: %s", err)
+			rp.serveHTTP(s, srw, req)
+		}
 		srw.statusCode = http.StatusOK
 	} else {
-		timeStart := time.Now()
-		req = s.decorateRequest(req)
-		timeout, timeoutErrMsg := s.getTimeoutWithErrMsg()
-		ctx := context.Background()
-		if timeout > 0 {
-			var cancel context.CancelFunc
-			ctx, cancel = context.WithTimeout(ctx, timeout)
-			defer cancel()
-		}
-		req = req.WithContext(ctx)
-		cw := s.getCachedWriter(srw)
-		if cw == nil {
-			rp.ReverseProxy.ServeHTTP(srw, req)
-		} else {
-			cacheMiss.With(s.labels).Inc()
-			rp.ReverseProxy.ServeHTTP(cw, req)
-			if srw.statusCode == http.StatusOK {
-				if err := s.user.cache.Flush(key, cw); err != nil {
-					log.Errorf("error while flushing cache file: %s", err)
-				}
-				s.user.cache.WriteTo(key, srw)
-			} else {
-				b, err := cw.Bytes()
-				if err != nil {
-					log.Errorf("error while getting data from temp cache file: %s", err)
-				} else {
-					srw.Write(b)
-					if err := cw.Delete(); err != nil {
-						log.Errorf("error while deleting temp cache file: %s", err)
-					}
-				}
-			}
-		}
-
-		if req.Context().Err() != nil {
-			// penalize host if responding is slow, probably it is overloaded
-			s.host.penalize()
-			if err := s.killQuery(); err != nil {
-				log.Errorf("error while killing query: %s", err)
-			}
-			q := getQueryStart(req)
-			log.Errorf("node %q: %s in query: %q", s.host.addr, timeoutErrMsg, string(q))
-			fmt.Fprint(srw, timeoutErrMsg.Error())
-		}
-		since := float64(time.Since(timeStart).Seconds())
-		requestDuration.With(s.labels).Observe(since)
-	}
-
-	if req.Context().Err() == nil {
-		switch srw.statusCode {
-		case http.StatusOK:
-			requestSuccess.With(s.labels).Inc()
-			log.Debugf("Request scope %s successfully proxied", s)
-		case http.StatusBadGateway:
-			s.host.penalize()
-			fmt.Fprintf(srw, "unable to reach address: %s", req.URL.Host)
-		}
+		rp.serveHTTP(s, srw, req)
 	}
 
 	statusCodes.With(
@@ -150,6 +100,59 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			"code":         strconv.Itoa(srw.statusCode),
 		},
 	).Inc()
+	since := float64(time.Since(timeStart).Seconds())
+	requestDuration.With(s.labels).Observe(since)
+}
+
+func (rp *reverseProxy) serveHTTP(s *scope, rw http.ResponseWriter, req *http.Request) {
+	req = s.decorateRequest(req)
+	req.Body = &cachedReadCloser{
+		ReadCloser: req.Body,
+	}
+	timeout, timeoutErrMsg := s.getTimeoutWithErrMsg()
+	ctx := context.Background()
+	if timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+	req = req.WithContext(ctx)
+
+	rp.ReverseProxy.ServeHTTP(rw, req)
+
+	if req.Context().Err() != nil {
+		// penalize host if responding is slow, probably it is overloaded
+		s.host.penalize()
+		if err := s.killQuery(); err != nil {
+			log.Errorf("error while killing query: %s", err)
+		}
+		q := getQueryStart(req)
+		log.Errorf("node %q: %s in query: %q", s.host.addr, timeoutErrMsg, string(q))
+		fmt.Fprint(rw, timeoutErrMsg.Error())
+	}
+}
+
+func (rp *reverseProxy) serveFromCache(s *scope, rw http.ResponseWriter, req *http.Request) error {
+	q := fetchQuery(req, 0)
+	if len(q) == 0 {
+		return fmt.Errorf("error while reading query from request: empty result")
+	}
+	req.Body = ioutil.NopCloser(bytes.NewBuffer(q))
+	key := cache.GenerateKey(q)
+	if _, err := s.user.cache.WriteTo(rw, key); err == nil {
+		cacheHit.With(s.labels).Inc()
+		return nil
+	}
+	crw, err := s.user.cache.NewResponseWriter(rw)
+	if err != nil {
+		return fmt.Errorf("error while creating cached response writer: %s", err)
+	}
+	rp.serveHTTP(s, crw, req)
+	if err := s.user.cache.Flush(key, crw); err != nil {
+		return fmt.Errorf("error while flushing cache file: %s", err)
+	}
+	_, err = s.user.cache.WriteTo(rw, key)
+	return err
 }
 
 // ApplyConfig applies provided config to reverseProxy obj

@@ -25,37 +25,47 @@ func (rw *statResponseWriter) WriteHeader(code int) {
 	rw.ResponseWriter.WriteHeader(code)
 }
 
-// readCloser allows to read end and beginning
-// of request even after body was close
+// statReadCloser allows to store amount of read bytes into metric
 type statReadCloser struct {
 	io.ReadCloser
 	requestBodyBytes prometheus.Counter
+}
+
+func (src *statReadCloser) Read(p []byte) (int, error) {
+	n, err := src.ReadCloser.Read(p)
+	src.requestBodyBytes.Add(float64(n))
+	return n, err
+}
+
+// cachedReadCloser allows to read end and beginning
+// of request even after body was close
+type cachedReadCloser struct {
+	io.ReadCloser
 
 	mu         sync.Mutex
 	start, end []byte
 }
 
-func (src *statReadCloser) readCached() []byte {
-	src.mu.Lock()
-	b := make([]byte, len(src.start)+len(src.end))
-	b = append(b, src.start...)
-	if len(src.end) > 0 {
-		b = append(b, "..."...)
-		b = append(b, src.end...)
+func (crc *cachedReadCloser) Read(p []byte) (int, error) {
+	n, err := crc.ReadCloser.Read(p)
+	crc.mu.Lock()
+	if len(crc.start) == 0 {
+		crc.start = p[:n]
+	} else {
+		crc.end = p[:n]
 	}
-	src.mu.Unlock()
-	return b
+	crc.mu.Unlock()
+	return n, err
 }
 
-func (src *statReadCloser) Read(p []byte) (int, error) {
-	n, err := src.ReadCloser.Read(p)
-	src.mu.Lock()
-	if len(src.start) == 0 {
-		src.start = p[:n]
-	} else {
-		src.end = p[:n]
+func (crc *cachedReadCloser) readCached() []byte {
+	var b []byte
+	crc.mu.Lock()
+	b = append(b, crc.start...)
+	if len(crc.end) > 0 {
+		b = append(b, "..."...)
+		b = append(b, crc.end...)
 	}
-	src.mu.Unlock()
-	src.requestBodyBytes.Add(float64(n))
-	return n, err
+	crc.mu.Unlock()
+	return b
 }
