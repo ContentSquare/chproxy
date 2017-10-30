@@ -83,6 +83,10 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	timeStart := time.Now()
 	if s.user.cache != nil {
+		params := make(url.Values)
+		// set readonly=1 to avoid caching non-select results
+		params.Set("readonly", "1")
+		req.URL.RawQuery = params.Encode()
 		if err := rp.serveFromCache(s, srw, req); err != nil {
 			log.Errorf("cache error: %s", err)
 			rp.serveHTTP(s, srw, req)

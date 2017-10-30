@@ -10,6 +10,7 @@ Chproxy, is an http proxy for [ClickHouse](https://ClickHouse.yandex) database. 
 - May limit per-user query duration. Timed out queries are forcibly killed via [KILL QUERY](http://clickhouse-docs.readthedocs.io/en/latest/query_language/queries.html#kill-query).
 - May limit per-user requests rate.
 - May limit per-user number of concurrent requests.
+- May cache responses with multiple cache configurations.
 - All the limits may be independently set for each input user and for each per-cluster user.
 - May delay request execution until it fits per-user limits.
 - Evenly spreads requests among cluster nodes using `least loaded` + `round robin` technique.

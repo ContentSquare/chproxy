@@ -236,6 +236,7 @@ var allowedParams = []string{
 	"query",
 	"database",
 	"default_format",
+	"readonly",
 }
 
 func (s *scope) decorateRequest(req *http.Request) *http.Request {
