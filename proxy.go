@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -11,13 +13,12 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-	"bytes"
-	"io/ioutil"
 
 	"github.com/Vertamedia/chproxy/cache"
 	"github.com/Vertamedia/chproxy/config"
 	"github.com/Vertamedia/chproxy/log"
 	"github.com/prometheus/client_golang/prometheus"
+	"io"
 )
 
 type reverseProxy struct {
@@ -86,7 +87,6 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			log.Errorf("cache error: %s", err)
 			rp.serveHTTP(s, srw, req)
 		}
-		srw.statusCode = http.StatusOK
 	} else {
 		rp.serveHTTP(s, srw, req)
 	}
@@ -132,26 +132,31 @@ func (rp *reverseProxy) serveHTTP(s *scope, rw http.ResponseWriter, req *http.Re
 	}
 }
 
-func (rp *reverseProxy) serveFromCache(s *scope, rw http.ResponseWriter, req *http.Request) error {
+func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *http.Request) error {
 	q := fetchQuery(req, 0)
 	if len(q) == 0 {
 		return fmt.Errorf("error while reading query from request: empty result")
 	}
 	req.Body = ioutil.NopCloser(bytes.NewBuffer(q))
 	key := cache.GenerateKey(q)
-	if _, err := s.user.cache.WriteTo(rw, key); err == nil {
+	if _, err := s.user.cache.WriteTo(srw, key); err == nil {
 		cacheHit.With(s.labels).Inc()
 		return nil
 	}
-	crw, err := s.user.cache.NewResponseWriter(rw)
+	crw, err := s.user.cache.NewResponseWriter(srw)
 	if err != nil {
 		return fmt.Errorf("error while creating cached response writer: %s", err)
 	}
 	rp.serveHTTP(s, crw, req)
+	if srw.statusCode != http.StatusOK {
+		_, err := io.Copy(srw, crw)
+		crw.Delete()
+		return err
+	}
 	if err := s.user.cache.Flush(key, crw); err != nil {
 		return fmt.Errorf("error while flushing cache file: %s", err)
 	}
-	_, err = s.user.cache.WriteTo(rw, key)
+	_, err = s.user.cache.WriteTo(srw, key)
 	return err
 }
 

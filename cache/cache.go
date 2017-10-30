@@ -1,9 +1,9 @@
 package cache
 
 import (
-	"bytes"
 	"crypto/sha1"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -128,6 +128,10 @@ func (c *Controller) Flush(key string, rw *ResponseWriter) error {
 	return nil
 }
 
+func (c *Controller) Delete(key string) {
+
+}
+
 func (c *Controller) WriteTo(rw http.ResponseWriter, key string) (int64, error) {
 	if len(key) == 0 {
 		return 0, fmt.Errorf("empty cache key passed")
@@ -148,15 +152,21 @@ func (c *Controller) WriteTo(rw http.ResponseWriter, key string) (int64, error) 
 	c.mu.Unlock()
 
 	filePath := fmt.Sprintf("%s/%s", c.Dir, key)
-	data, err := ioutil.ReadFile(filePath)
+	f, err := os.Open(filePath)
 	if err != nil {
 		c.mu.Lock()
 		c.remove(key)
 		c.mu.Unlock()
 		log.Errorf("error while reading file %q: %s", filePath, err)
 	}
-	b := bytes.NewBuffer(data)
-	return b.WriteTo(rw)
+	n, err := io.Copy(rw, f)
+	if err != nil {
+		c.mu.Lock()
+		c.remove(key)
+		c.mu.Unlock()
+		log.Errorf("error while writing from file %q to response: %s", filePath, err)
+	}
+	return n, err
 }
 
 func (c *Controller) cleanup() {
@@ -235,6 +245,6 @@ type ResponseWriter struct {
 
 func (rw *ResponseWriter) Write(b []byte) (int, error) { return rw.file.Write(b) }
 
-func (rw *ResponseWriter) Bytes() ([]byte, error) { return ioutil.ReadFile(rw.file.Name()) }
-
 func (rw *ResponseWriter) Delete() error { return os.Remove(rw.file.Name()) }
+
+func (rw *ResponseWriter) Read(b []byte) (int, error) { return rw.file.Read(b) }
