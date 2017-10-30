@@ -453,6 +453,8 @@ clusters:
         max_concurrent_queries: 4
         max_execution_time: 10s
         requests_per_minute: 10
+        max_queue_size: 50
+        max_queue_time: 70s
         allowed_networks: ["office"]
 ```
 
@@ -471,7 +473,9 @@ Metrics are exposed via [Prometheus](https://prometheus.io/) at `/metrics` path
 | host_penalties_total | Counter | The number of given penalties by host | `cluster`, `cluster_node` |
 | host_health | Gauge | Health state of hosts by clusters | `cluster`, `cluster_node` |
 | concurrent_queries | Gauge | The number of concurrent queries at the moment | `user`, `cluster`, `cluster_user`, `cluster_node` |
-| request_queue_sizes | Gauge | The number of requests in per-user queues at the moment | `user` |
+| request_queue_sizes | Gauge | Request queue sizes at the moment | `user`, `cluster`, `cluster_user` |
+| user_queue_overflow | Counter | The number of overflows for per-user request queues | `user` |
+| cluster_user_queue_overflow | Counter | The number of overflows for per-cluster_user request queues | `cluster_user` |
 | request_body_bytes_total | Counter | The amount of bytes read from request bodies | `user`, `cluster`, `cluster_user`, `cluster_node` |
 | response_body_bytes_total | Counter | The amount of bytes written to response bodies | `user`, `cluster`, `cluster_user`, `cluster_node` |
 | cache_hits_total | Counter | The amount of successful cache hits | `user`, `cluster`, `cluster_user`, `cluster_node` |

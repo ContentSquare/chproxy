@@ -81,6 +81,8 @@ func TestLoadConfig(t *testing.T) {
 								MaxConcurrentQueries: 4,
 								MaxExecutionTime:     time.Second * 10,
 								NetworksOrGroups:     []string{"office"},
+								MaxQueueSize:         50,
+								MaxQueueTime:         70 * time.Second,
 							},
 						},
 						HeartBeatInterval: time.Second * 5,
@@ -275,9 +277,14 @@ func TestBadConfig(t *testing.T) {
 			"wrong network group name or address \"office\": invalid CIDR address: office/32",
 		},
 		{
-			"max queue size and time",
-			"testdata/bad.queue_size_time.yml",
+			"max queue size and time on user",
+			"testdata/bad.queue_size_time_user.yml",
 			"`max_queue_size` must be set if `max_queue_time` is set on the user \"default\"",
+		},
+		{
+			"max queue size and time on cluster_user",
+			"testdata/bad.queue_size_time_cluster_user.yml",
+			"`max_queue_size` must be set if `max_queue_time` is set on the cluster_user \"default\"",
 		},
 		{
 			"max size",
