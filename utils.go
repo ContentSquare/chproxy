@@ -86,11 +86,10 @@ func getQueryStart(req *http.Request) []byte {
 		log.Errorf("error while creating gzip reader: %s", err)
 		return nil
 	}
-	result, err = ioutil.ReadAll(gr)
-	if err != nil && err != io.ErrUnexpectedEOF {
-		log.Errorf("error while reading gzipped body: %s", err)
-		return nil
-	}
+	// ignore errors while reading gzipped body
+	// because it's partial read and no warranties that
+	// we will read enough data to unzip it
+	result, _ = ioutil.ReadAll(gr)
 	return result
 }
 
