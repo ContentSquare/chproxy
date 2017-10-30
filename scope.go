@@ -253,16 +253,6 @@ func (s *scope) decorateRequest(req *http.Request) *http.Request {
 			params.Set(param, val)
 		}
 	}
-
-	// Request response compression from clickhouse
-	// if `Accept-Encoding: gzip` request header is set.
-	// By default clickhouse doesn't compress responses
-	// unless enable_http_compression=1 query param is set.
-	// See https://github.com/yandex/ClickHouse/blob/97277ed691ae479db9a06165d250033cba6fb215/dbms/src/Server/HTTPHandler.cpp#L503 .
-	if req.Header.Get("Accept-Encoding") == "gzip" {
-		params.Set("enable_http_compression", "1")
-	}
-
 	req.URL.RawQuery = params.Encode()
 
 	// rewrite possible previous Basic Auth
@@ -277,7 +267,6 @@ func (s *scope) decorateRequest(req *http.Request) *http.Request {
 	ua := fmt.Sprintf("RemoteAddr: %s; LocalAddr: %s; CHProxy-User: %s; CHProxy-ClusterUser: %s; %s",
 		s.remoteAddr, s.localAddr, s.user.name, s.clusterUser.name, req.UserAgent())
 	req.Header.Set("User-Agent", ua)
-
 	return req
 }
 
@@ -336,7 +325,6 @@ func (s *scope) getCachedWriter(rw http.ResponseWriter) *cache.ResponseWriter {
 type user struct {
 	toUser    string
 	toCluster string
-
 	denyHTTP  bool
 	denyHTTPS bool
 	allowCORS bool
