@@ -106,10 +106,6 @@ func (s *scope) incQueued() error {
 func (s *scope) inc() error {
 	uQueries := s.user.queryCounter.inc()
 	cQueries := s.clusterUser.queryCounter.inc()
-	uRPM := s.user.rateLimiter.inc()
-	cRPM := s.clusterUser.rateLimiter.inc()
-	s.host.inc()
-	concurrentQueries.With(s.labels).Inc()
 
 	var err error
 	if s.user.maxConcurrentQueries > 0 && uQueries > s.user.maxConcurrentQueries {
@@ -121,8 +117,11 @@ func (s *scope) inc() error {
 			s.clusterUser.name, s.clusterUser.maxConcurrentQueries)
 	}
 
+	uRPM := s.user.rateLimiter.inc()
+	cRPM := s.clusterUser.rateLimiter.inc()
+
 	// int32(xRPM) > 0 check is required to detect races when RPM
-	// is decremented in scope.dec after per-minute zeroing
+	// is decremented on error below after per-minute zeroing
 	// in rateLimiter.run.
 	// These races become innocent with the given check.
 	if s.user.reqPerMin > 0 && int32(uRPM) > 0 && uRPM > s.user.reqPerMin {
@@ -135,17 +134,27 @@ func (s *scope) inc() error {
 	}
 
 	if err != nil {
-		s.dec()
+		s.user.queryCounter.dec()
+		s.clusterUser.queryCounter.dec()
+
+		// Decrement rate limiter here, so it doesn't count requests
+		// that didn't start due to limits overflow.
+		s.user.rateLimiter.dec()
+		s.clusterUser.rateLimiter.dec()
 		return err
 	}
+
+	s.host.inc()
+	concurrentQueries.With(s.labels).Inc()
 	return nil
 }
 
 func (s *scope) dec() {
+	// There is no need in ratelimiter.dec here, since the rate limiter
+	// is automatically zeroed every minute in rateLimiter.run.
+
 	s.user.queryCounter.dec()
 	s.clusterUser.queryCounter.dec()
-	s.user.rateLimiter.dec()
-	s.clusterUser.rateLimiter.dec()
 	s.host.dec()
 	concurrentQueries.With(s.labels).Dec()
 }
