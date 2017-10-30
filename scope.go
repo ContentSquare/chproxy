@@ -309,30 +309,6 @@ func (s *scope) maxQueueTime() time.Duration {
 	return d
 }
 
-func (s *scope) getCacheKey(req *http.Request) string {
-	if s.cache == nil {
-		return ""
-	}
-	q := getQueryFull(req)
-	req.Body = &statReadCloser{
-		ReadCloser:       ioutil.NopCloser(bytes.NewBuffer(q)),
-		requestBodyBytes: requestBodyBytes.With(s.labels),
-	}
-	return cache.GenerateKey(q)
-}
-
-func (s *scope) getCachedWriter(rw http.ResponseWriter) *cache.ResponseWriter {
-	if s.cache == nil {
-		return nil
-	}
-	crw, err := s.cache.NewResponseWriter(rw)
-	if err != nil {
-		log.Errorf("error while creating cached response writer: %s", err)
-		return nil
-	}
-	return crw
-}
-
 type user struct {
 	toUser    string
 	toCluster string
