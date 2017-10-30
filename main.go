@@ -21,12 +21,10 @@ import (
 
 var (
 	configFile = flag.String("config", "", "Proxy configuration filename")
-	v          = flag.Bool("v", false, "Prints current version and exits")
+	version    = flag.Bool("version", false, "Prints current version and exits")
 )
 
 var (
-	version = "1.4.0"
-
 	proxy = newReverseProxy()
 
 	allowedNetworksHTTP    atomic.Value
@@ -36,12 +34,12 @@ var (
 
 func main() {
 	flag.Parse()
-	if *v {
-		fmt.Printf("Version %s\n", version)
+	if *version {
+		fmt.Printf("%s\n", versionString())
 		os.Exit(0)
 	}
 
-	log.Infof("Chproxy version: %s", version)
+	log.Infof("%s", versionString())
 	log.Infof("Loading config: %s", *configFile)
 	cfg, err := reloadConfig()
 	if err != nil {
@@ -216,3 +214,17 @@ func reloadConfig() (*config.Server, error) {
 	log.Infof("Loaded config: \n%s", cfg)
 	return &cfg.Server, nil
 }
+
+func versionString() string {
+	ver := buildTag
+	if len(ver) == 0 {
+		ver = "unknown"
+	}
+	return fmt.Sprintf("chproxy ver. %s, rev. %s, built at %s", ver, buildRevision, buildTime)
+}
+
+var (
+	buildTag      = "unknown"
+	buildRevision = "unknown"
+	buildTime     = "unknown"
+)
