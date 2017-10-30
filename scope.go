@@ -41,29 +41,57 @@ type scope struct {
 var scopeID = uint64(time.Now().UnixNano())
 
 func (s *scope) incQueued() error {
-	select {
-	case s.user.queueCh <- struct{}{}:
-		userLabels := prometheus.Labels{
-			"user": s.user.name,
-		}
-		requestQueueSizes.With(userLabels).Inc()
-		defer func() {
-			<-s.user.queueCh
-			requestQueueSizes.With(userLabels).Dec()
-		}()
-	default:
-		// Request queue is full. Give the request
-		// a single chance to run.
+	if s.user.queueCh == nil && s.clusterUser.queueCh == nil {
+		// Request queues in the current scope are disabled.
 		return s.inc()
 	}
 
-	// The request has been successfully queued.
-	// Try starting it during the given duration.
-	d := s.user.maxQueueTime
-	if d <= 0 {
-		// Default queue time.
-		d = 10 * time.Second
+	if s.user.queueCh != nil {
+		select {
+		case s.user.queueCh <- struct{}{}:
+			defer func() {
+				<-s.user.queueCh
+			}()
+		default:
+			// Per-user request queue is full.
+			// Give the request the last chance to run.
+			err := s.inc()
+			if err != nil {
+				userQueueOverflow.With(prometheus.Labels{"user": s.labels["user"]}).Inc()
+			}
+			return err
+		}
 	}
+
+	if s.clusterUser.queueCh != nil {
+		select {
+		case s.clusterUser.queueCh <- struct{}{}:
+			defer func() {
+				<-s.clusterUser.queueCh
+			}()
+		default:
+			// Per-clusterUser request queue is full.
+			// Give the request the last chance to run.
+			err := s.inc()
+			if err != nil {
+				clusterUserQueueOverflow.With(prometheus.Labels{"cluster_user": s.labels["cluster_user"]}).Inc()
+			}
+			return err
+		}
+	}
+
+	// The request has been successfully queued.
+	labels := prometheus.Labels{
+		"user":         s.labels["user"],
+		"cluster":      s.labels["cluster"],
+		"cluster_user": s.labels["cluster_user"],
+	}
+	queueSizes := requestQueueSizes.With(labels)
+	queueSizes.Inc()
+	defer queueSizes.Dec()
+
+	// Try starting the request during the given duration.
+	d := s.maxQueueTime()
 	dSleep := d / 10
 	if dSleep > time.Second {
 		dSleep = time.Second
@@ -107,10 +135,6 @@ func (s *scope) incQueued() error {
 func (s *scope) inc() error {
 	uQueries := s.user.queryCounter.inc()
 	cQueries := s.clusterUser.queryCounter.inc()
-	uRPM := s.user.rateLimiter.inc()
-	cRPM := s.clusterUser.rateLimiter.inc()
-	s.host.inc()
-	concurrentQueries.With(s.labels).Inc()
 
 	var err error
 	if s.user.maxConcurrentQueries > 0 && uQueries > s.user.maxConcurrentQueries {
@@ -122,8 +146,11 @@ func (s *scope) inc() error {
 			s.clusterUser.name, s.clusterUser.maxConcurrentQueries)
 	}
 
+	uRPM := s.user.rateLimiter.inc()
+	cRPM := s.clusterUser.rateLimiter.inc()
+
 	// int32(xRPM) > 0 check is required to detect races when RPM
-	// is decremented in scope.dec after per-minute zeroing
+	// is decremented on error below after per-minute zeroing
 	// in rateLimiter.run.
 	// These races become innocent with the given check.
 	if s.user.reqPerMin > 0 && int32(uRPM) > 0 && uRPM > s.user.reqPerMin {
@@ -136,17 +163,27 @@ func (s *scope) inc() error {
 	}
 
 	if err != nil {
-		s.dec()
+		s.user.queryCounter.dec()
+		s.clusterUser.queryCounter.dec()
+
+		// Decrement rate limiter here, so it doesn't count requests
+		// that didn't start due to limits overflow.
+		s.user.rateLimiter.dec()
+		s.clusterUser.rateLimiter.dec()
 		return err
 	}
+
+	s.host.inc()
+	concurrentQueries.With(s.labels).Inc()
 	return nil
 }
 
 func (s *scope) dec() {
+	// There is no need in ratelimiter.dec here, since the rate limiter
+	// is automatically zeroed every minute in rateLimiter.run.
+
 	s.user.queryCounter.dec()
 	s.clusterUser.queryCounter.dec()
-	s.user.rateLimiter.dec()
-	s.clusterUser.rateLimiter.dec()
 	s.host.dec()
 	concurrentQueries.With(s.labels).Dec()
 }
@@ -216,6 +253,16 @@ func (s *scope) decorateRequest(req *http.Request) *http.Request {
 			params.Set(param, val)
 		}
 	}
+
+	// Request response compression from clickhouse
+	// if `Accept-Encoding: gzip` request header is set.
+	// By default clickhouse doesn't compress responses
+	// unless enable_http_compression=1 query param is set.
+	// See https://github.com/yandex/ClickHouse/blob/97277ed691ae479db9a06165d250033cba6fb215/dbms/src/Server/HTTPHandler.cpp#L503 .
+	if req.Header.Get("Accept-Encoding") == "gzip" {
+		params.Set("enable_http_compression", "1")
+	}
+
 	req.URL.RawQuery = params.Encode()
 
 	// rewrite possible previous Basic Auth
@@ -230,6 +277,7 @@ func (s *scope) decorateRequest(req *http.Request) *http.Request {
 	ua := fmt.Sprintf("RemoteAddr: %s; LocalAddr: %s; CHProxy-User: %s; CHProxy-ClusterUser: %s; %s",
 		s.remoteAddr, s.localAddr, s.user.name, s.clusterUser.name, req.UserAgent())
 	req.Header.Set("User-Agent", ua)
+
 	return req
 }
 
@@ -249,9 +297,46 @@ func (s *scope) getTimeoutWithErrMsg() (time.Duration, error) {
 	return timeout, timeoutErrMsg
 }
 
+func (s *scope) maxQueueTime() time.Duration {
+	d := s.user.maxQueueTime
+	if d <= 0 || s.clusterUser.maxQueueTime > 0 && s.clusterUser.maxQueueTime < d {
+		d = s.clusterUser.maxQueueTime
+	}
+	if d <= 0 {
+		// Default queue time.
+		d = 10 * time.Second
+	}
+	return d
+}
+
+func (s *scope) getCacheKey(req *http.Request) string {
+	if s.cache == nil {
+		return ""
+	}
+	q := getQueryFull(req)
+	req.Body = &statReadCloser{
+		ReadCloser:       ioutil.NopCloser(bytes.NewBuffer(q)),
+		requestBodyBytes: requestBodyBytes.With(s.labels),
+	}
+	return cache.GenerateKey(q)
+}
+
+func (s *scope) getCachedWriter(rw http.ResponseWriter) *cache.ResponseWriter {
+	if s.cache == nil {
+		return nil
+	}
+	crw, err := s.cache.NewResponseWriter(rw)
+	if err != nil {
+		log.Errorf("error while creating cached response writer: %s", err)
+		return nil
+	}
+	return crw
+}
+
 type user struct {
 	toUser    string
 	toCluster string
+
 	denyHTTP  bool
 	denyHTTPS bool
 	allowCORS bool
@@ -261,13 +346,14 @@ type user struct {
 
 	name, password       string
 	maxExecutionTime     time.Duration
-	maxQueueTime         time.Duration
 	maxConcurrentQueries uint32
 	reqPerMin            uint32
 
+	maxQueueTime time.Duration
+	queueCh      chan struct{}
+
 	rateLimiter  rateLimiter
 	queryCounter counter
-	queueCh      chan struct{}
 }
 
 type clusterUser struct {
@@ -277,6 +363,9 @@ type clusterUser struct {
 	maxExecutionTime     time.Duration
 	maxConcurrentQueries uint32
 	reqPerMin            uint32
+
+	maxQueueTime time.Duration
+	queueCh      chan struct{}
 
 	rateLimiter  rateLimiter
 	queryCounter counter

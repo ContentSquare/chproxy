@@ -203,6 +203,14 @@ max_execution_time: <duration> | optional | default = 0
 
 # Maximum number of requests per minute for user
 requests_per_minute: <int> | optional | default = 0
+
+# Maximum number of requests waiting for execution in the queue.
+# By default requests are executed without waiting in the queue
+max_queue_size: <int> | optional | default = 0
+
+# Maximum duration the request may wait in the queue.
+# By default 10s duration is used
+max_queue_time: <duration> | optional | default = 10s
 ```
 
 ### <kill_query_user_config>
