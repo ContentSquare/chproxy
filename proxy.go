@@ -122,13 +122,20 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 			if _, ok := clusterUsers[cu.Name]; ok {
 				return fmt.Errorf("cluster user %q already exists", cu.Name)
 			}
+
+			var queueCh chan struct{}
+			if cu.MaxQueueSize > 0 {
+				queueCh = make(chan struct{}, cu.MaxQueueSize)
+			}
 			clusterUsers[cu.Name] = &clusterUser{
 				name:                 cu.Name,
 				password:             cu.Password,
-				reqPerMin:            cu.ReqPerMin,
 				allowedNetworks:      cu.AllowedNetworks,
+				reqPerMin:            cu.ReqPerMin,
 				maxExecutionTime:     cu.MaxExecutionTime,
 				maxConcurrentQueries: cu.MaxConcurrentQueries,
+				maxQueueTime:         cu.MaxQueueTime,
+				queueCh:              queueCh,
 			}
 		}
 
@@ -170,6 +177,11 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 		if _, ok := users[u.Name]; ok {
 			return fmt.Errorf("user %q already exists", u.Name)
 		}
+
+		var queueCh chan struct{}
+		if u.MaxQueueSize > 0 {
+			queueCh = make(chan struct{}, u.MaxQueueSize)
+		}
 		users[u.Name] = &user{
 			name:                 u.Name,
 			password:             u.Password,
@@ -178,12 +190,12 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 			denyHTTPS:            u.DenyHTTPS,
 			allowCORS:            u.AllowCORS,
 			toCluster:            u.ToCluster,
-			reqPerMin:            u.ReqPerMin,
 			allowedNetworks:      u.AllowedNetworks,
+			reqPerMin:            u.ReqPerMin,
 			maxExecutionTime:     u.MaxExecutionTime,
 			maxConcurrentQueries: u.MaxConcurrentQueries,
 			maxQueueTime:         u.MaxQueueTime,
-			queueCh:              make(chan struct{}, u.MaxQueueSize),
+			queueCh:              queueCh,
 		}
 	}
 

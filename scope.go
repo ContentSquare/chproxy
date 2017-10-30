@@ -40,29 +40,57 @@ type scope struct {
 var scopeID = uint64(time.Now().UnixNano())
 
 func (s *scope) incQueued() error {
-	select {
-	case s.user.queueCh <- struct{}{}:
-		userLabels := prometheus.Labels{
-			"user": s.user.name,
-		}
-		requestQueueSizes.With(userLabels).Inc()
-		defer func() {
-			<-s.user.queueCh
-			requestQueueSizes.With(userLabels).Dec()
-		}()
-	default:
-		// Request queue is full. Give the request
-		// a single chance to run.
+	if s.user.queueCh == nil && s.clusterUser.queueCh == nil {
+		// Request queues in the current scope are disabled.
 		return s.inc()
 	}
 
-	// The request has been successfully queued.
-	// Try starting it during the given duration.
-	d := s.user.maxQueueTime
-	if d <= 0 {
-		// Default queue time.
-		d = 10 * time.Second
+	if s.user.queueCh != nil {
+		select {
+		case s.user.queueCh <- struct{}{}:
+			defer func() {
+				<-s.user.queueCh
+			}()
+		default:
+			// Per-user request queue is full.
+			// Give the request the last chance to run.
+			err := s.inc()
+			if err != nil {
+				userQueueOverflow.With(prometheus.Labels{"user": s.labels["user"]}).Inc()
+			}
+			return err
+		}
 	}
+
+	if s.clusterUser.queueCh != nil {
+		select {
+		case s.clusterUser.queueCh <- struct{}{}:
+			defer func() {
+				<-s.clusterUser.queueCh
+			}()
+		default:
+			// Per-clusterUser request queue is full.
+			// Give the request the last chance to run.
+			err := s.inc()
+			if err != nil {
+				clusterUserQueueOverflow.With(prometheus.Labels{"cluster_user": s.labels["cluster_user"]}).Inc()
+			}
+			return err
+		}
+	}
+
+	// The request has been successfully queued.
+	labels := prometheus.Labels{
+		"user":         s.labels["user"],
+		"cluster":      s.labels["cluster"],
+		"cluster_user": s.labels["cluster_user"],
+	}
+	queueSizes := requestQueueSizes.With(labels)
+	queueSizes.Inc()
+	defer queueSizes.Dec()
+
+	// Try starting the request during the given duration.
+	d := s.maxQueueTime()
 	dSleep := d / 10
 	if dSleep > time.Second {
 		dSleep = time.Second
@@ -257,6 +285,18 @@ func (s *scope) getTimeoutWithErrMsg() (time.Duration, error) {
 	return timeout, timeoutErrMsg
 }
 
+func (s *scope) maxQueueTime() time.Duration {
+	d := s.user.maxQueueTime
+	if d <= 0 || s.clusterUser.maxQueueTime > 0 && s.clusterUser.maxQueueTime < d {
+		d = s.clusterUser.maxQueueTime
+	}
+	if d <= 0 {
+		// Default queue time.
+		d = 10 * time.Second
+	}
+	return d
+}
+
 type user struct {
 	toUser    string
 	toCluster string
@@ -268,13 +308,14 @@ type user struct {
 
 	name, password       string
 	maxExecutionTime     time.Duration
-	maxQueueTime         time.Duration
 	maxConcurrentQueries uint32
 	reqPerMin            uint32
 
+	maxQueueTime time.Duration
+	queueCh      chan struct{}
+
 	rateLimiter  rateLimiter
 	queryCounter counter
-	queueCh      chan struct{}
 }
 
 type clusterUser struct {
@@ -284,6 +325,9 @@ type clusterUser struct {
 	maxExecutionTime     time.Duration
 	maxConcurrentQueries uint32
 	reqPerMin            uint32
+
+	maxQueueTime time.Duration
+	queueCh      chan struct{}
 
 	rateLimiter  rateLimiter
 	queryCounter counter

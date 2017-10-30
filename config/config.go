@@ -498,6 +498,15 @@ type ClusterUser struct {
 	// if omitted or zero - no limits would be applied
 	ReqPerMin uint32 `yaml:"requests_per_minute,omitempty"`
 
+	// Maximum number of queries waiting for execution in the queue
+	// if omitted or zero - queries are executed without waiting
+	// in the queue
+	MaxQueueSize uint32 `yaml:"max_queue_size,omitempty"`
+
+	// Maximum duration the query may wait in the queue
+	// if omitted or zero - 10s duration is used
+	MaxQueueTime time.Duration `yaml:"max_queue_time,omitempty"`
+
 	NetworksOrGroups NetworksOrGroups `yaml:"allowed_networks,omitempty"`
 
 	// List of networks that access is allowed from
@@ -518,6 +527,10 @@ func (u *ClusterUser) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	if len(u.Name) == 0 {
 		return fmt.Errorf("field `cluster.user.name` cannot be empty")
+	}
+
+	if u.MaxQueueTime > 0 && u.MaxQueueSize == 0 {
+		return fmt.Errorf("`max_queue_size` must be set if `max_queue_time` is set on the cluster_user %q", u.Name)
 	}
 
 	return checkOverflow(u.XXX, "cluster.users")

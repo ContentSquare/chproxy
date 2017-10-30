@@ -156,4 +156,6 @@ clusters:
         max_concurrent_queries: 4
         max_execution_time: 10s
         requests_per_minute: 10
+        max_queue_size: 50
+        max_queue_time: 70s
         allowed_networks: ["office"]
