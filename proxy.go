@@ -63,27 +63,25 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 	defer s.dec()
 
-	srw := &statResponseWriter{
-		ResponseWriter:    rw,
-		responseBodyBytes: responseBodyBytes.With(s.labels),
+	if s.user.allowCORS {
+		origin := req.Header.Get("Origin")
+		if len(origin) == 0 {
+			origin = "*"
+		}
+		rw.Header().Set("Access-Control-Allow-Origin", origin)
 	}
 
 	req.Body = &statReadCloser{
 		ReadCloser:       req.Body,
 		requestBodyBytes: requestBodyBytes.With(s.labels),
 	}
-
-	if s.user.allowCORS {
-		origin := req.Header.Get("Origin")
-		if len(origin) == 0 {
-			origin = "*"
-		}
-		srw.Header().Set("Access-Control-Allow-Origin", origin)
+	srw := &statResponseWriter{
+		ResponseWriter:    rw,
+		responseBodyBytes: responseBodyBytes.With(s.labels),
 	}
-
 	timeStart := time.Now()
 	if s.user.cache != nil {
-		params := make(url.Values)
+		params := req.URL.Query()
 		// set readonly=1 to avoid caching non-select results
 		params.Set("readonly", "1")
 		req.URL.RawQuery = params.Encode()
