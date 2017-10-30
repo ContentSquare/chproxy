@@ -276,6 +276,15 @@ under `default` user. The user may be overriden with [kill_query_user](https://g
 
 If `cluster`'s [users](https://github.com/Vertamedia/chproxy/blob/master/config#cluster_user_config) section isn't specified, then `default` user is used with no limits.
 
+### Caching
+
+`Chproxy` allows to cache responses and control lifetime and size of cache. It is possible to add multiple 
+[cache-configurations](https://github.com/Vertamedia/chproxy/blob/master/config/#cache_config) and assign them to users.
+Caching will be enabled only if it's configuration is properly described and it is assigned by name to user. Caching configuration
+can be changed only after `Chproxy` restart, but user's cache-assignments can be changed via configuration reload.
+If user is assigned to cache-configuration then supposed that there will be only `select` queries, so `Chproxy` automatically sets
+`readonly=1` param to each request from such user.
+
 ### Security
 `Chproxy` removes all the query params from input requests (except the `query`, `database` and `default_format`) before proxying them to `ClickHouse` nodes. This prevents from unsafe overriding of various `ClickHouse` [settings](http://clickhouse-docs.readthedocs.io/en/latest/interfaces/http_interface.html).
 
