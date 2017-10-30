@@ -1,9 +1,11 @@
 pkgs = $(shell go list ./...)
 
+BUILD_TAG = $(shell git tag --points-at HEAD)
+
 BUILD_CONSTS = \
 	-X main.buildTime=`date -u '+%Y-%m-%d_%H:%M:%S'` \
 	-X main.buildRevision=`git rev-parse HEAD` \
-	-X main.buildTag=`git tag --points-at HEAD`
+	-X main.buildTag=$(BUILD_TAG)
 
 BUILD_OPTS = -ldflags="$(BUILD_CONSTS)"
 
@@ -29,3 +31,4 @@ reconfigure:
 
 release:
 	GOOS=linux GOARCH=amd64 go build $(BUILD_OPTS) -o chproxy-linux-amd64
+	tar czf chproxy-linux-amd64-$(BUILD_TAG).tar.gz chproxy-linux-amd64
