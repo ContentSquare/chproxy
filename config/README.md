@@ -112,7 +112,9 @@ to_cluster: <string>
 # whom credentials will be used for proxying request to CH
 to_user: <string>
 
-# Maximum number of concurrently running queries for user
+# Maximum number of concurrently running queries for user.
+# By default there is no limit on the number of concurrently
+# running queries.
 max_concurrent_queries: <int> | optional | default = 0
 
 # Maximum duration of query execution for user
@@ -177,6 +179,8 @@ name: <string>
 password: <string> | optional 
 
 # Maximum number of concurrently running queries for user
+# By default there is no limit on the number of concurrently
+# running queries.
 max_concurrent_queries: <int> | optional | default = 0
 
 # Maximum duration of query execution for user

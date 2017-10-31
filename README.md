@@ -392,6 +392,9 @@ users:
     allowed_networks: ["office", "1.2.3.0/24"]
 
     # The maximum number of concurrently running queries for the user.
+    #
+    # By default there is no limit on the number of concurrently
+    # running queries.
     max_concurrent_queries: 4
 
     # The maximum query duration for the user.
