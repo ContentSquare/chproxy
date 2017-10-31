@@ -63,20 +63,43 @@ func main() {
 		}
 	}()
 
-	if len(cfg.HTTP.ListenAddr) == 0 && len(cfg.HTTPS.ListenAddr) == 0 {
+	if len(cfg.Server.HTTP.ListenAddr) == 0 && len(cfg.Server.HTTPS.ListenAddr) == 0 {
 		panic("BUG: broken config validation - `listen_addr` is not configured")
 	}
-	if len(cfg.HTTPS.ListenAddr) != 0 {
-		go serveTLS(cfg.HTTPS)
+
+	maxResponseTime := getMaxResponseTime(cfg)
+	if len(cfg.Server.HTTPS.ListenAddr) != 0 {
+		go serveTLS(cfg.Server.HTTPS, maxResponseTime)
 	}
-	if len(cfg.HTTP.ListenAddr) != 0 {
-		go serve(cfg.HTTP)
+	if len(cfg.Server.HTTP.ListenAddr) != 0 {
+		go serve(cfg.Server.HTTP, maxResponseTime)
 	}
 
 	select {}
 }
 
-func serveTLS(cfg config.HTTPS) {
+// getMaxResponseTime returns the maximum possible response time
+// for the given cfg.
+func getMaxResponseTime(cfg *config.Config) time.Duration {
+	var d time.Duration
+	for _, u := range cfg.Users {
+		ud := u.MaxExecutionTime + u.MaxQueueTime
+		if ud > d {
+			d = ud
+		}
+	}
+	for _, c := range cfg.Clusters {
+		for _, cu := range c.ClusterUsers {
+			cud := cu.MaxExecutionTime + cu.MaxQueueTime
+			if cud > d {
+				d = cud
+			}
+		}
+	}
+	return d
+}
+
+func serveTLS(cfg config.HTTPS, maxResponseTime time.Duration) {
 	ln, err := net.Listen("tcp4", cfg.ListenAddr)
 	if err != nil {
 		log.Fatalf("cannot listen for %q: %s", cfg.ListenAddr, err)
@@ -84,18 +107,18 @@ func serveTLS(cfg config.HTTPS) {
 	tlsCfg := newTLSConfig(cfg)
 	tln := tls.NewListener(ln, tlsCfg)
 	log.Infof("Serving https on %q", cfg.ListenAddr)
-	if err := listenAndServe(tln); err != nil {
+	if err := listenAndServe(tln, maxResponseTime); err != nil {
 		log.Fatalf("TLS server error on %q: %s", cfg.ListenAddr, err)
 	}
 }
 
-func serve(cfg config.HTTP) {
+func serve(cfg config.HTTP, maxResponseTime time.Duration) {
 	ln, err := net.Listen("tcp4", cfg.ListenAddr)
 	if err != nil {
 		log.Fatalf("cannot listen for %q: %s", cfg.ListenAddr, err)
 	}
 	log.Infof("Serving http on %q", cfg.ListenAddr)
-	if err := listenAndServe(ln); err != nil {
+	if err := listenAndServe(ln, maxResponseTime); err != nil {
 		log.Fatalf("HTTP server error on %q: %s", cfg.ListenAddr, err)
 	}
 }
@@ -144,12 +167,19 @@ func newTLSConfig(cfg config.HTTPS) *tls.Config {
 	return &tlsCfg
 }
 
-func listenAndServe(ln net.Listener) error {
+func listenAndServe(ln net.Listener, maxResponseTime time.Duration) error {
+	if maxResponseTime < 0 {
+		maxResponseTime = 0
+	}
+	// Give an additional minute for the maximum response time,
+	// so the response body may be sent to the requester.
+	maxResponseTime += time.Minute
+
 	s := &http.Server{
 		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 		Handler:      http.HandlerFunc(serveHTTP),
 		ReadTimeout:  time.Minute,
-		WriteTimeout: time.Minute,
+		WriteTimeout: maxResponseTime,
 		IdleTimeout:  time.Minute * 10,
 		ErrorLog:     log.ErrorLogger,
 	}
@@ -196,7 +226,7 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func reloadConfig() (*config.Server, error) {
+func reloadConfig() (*config.Config, error) {
 	if *configFile == "" {
 		log.Fatalf("Missing -config flag")
 	}
@@ -212,7 +242,7 @@ func reloadConfig() (*config.Server, error) {
 	allowedNetworksMetrics.Store(&cfg.Server.Metrics.AllowedNetworks)
 	log.SetDebug(cfg.LogDebug)
 	log.Infof("Loaded config: \n%s", cfg)
-	return &cfg.Server, nil
+	return cfg, nil
 }
 
 func versionString() string {

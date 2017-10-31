@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"testing"
+	"time"
 )
 
 var tlsClient = &http.Client{Transport: &http.Transport{
@@ -20,14 +21,14 @@ func startTLS() (net.Listener, chan struct{}) {
 	}
 	done := make(chan struct{})
 
-	ln, err := net.Listen("tcp4", cfg.HTTPS.ListenAddr)
+	ln, err := net.Listen("tcp4", cfg.Server.HTTPS.ListenAddr)
 	if err != nil {
-		panic(fmt.Sprintf("cannot listen for %q: %s", cfg.HTTPS.ListenAddr, err))
+		panic(fmt.Sprintf("cannot listen for %q: %s", cfg.Server.HTTPS.ListenAddr, err))
 	}
-	tlsCfg := newTLSConfig(cfg.HTTPS)
+	tlsCfg := newTLSConfig(cfg.Server.HTTPS)
 	tln := tls.NewListener(ln, tlsCfg)
 	go func() {
-		listenAndServe(tln)
+		listenAndServe(tln, time.Minute)
 		close(done)
 	}()
 	return tln, done
@@ -40,12 +41,12 @@ func startHTTP() (net.Listener, chan struct{}) {
 	}
 	done := make(chan struct{})
 
-	ln, err := net.Listen("tcp4", cfg.HTTP.ListenAddr)
+	ln, err := net.Listen("tcp4", cfg.Server.HTTP.ListenAddr)
 	if err != nil {
-		panic(fmt.Sprintf("cannot listen for %q: %s", cfg.HTTP.ListenAddr, err))
+		panic(fmt.Sprintf("cannot listen for %q: %s", cfg.Server.HTTP.ListenAddr, err))
 	}
 	go func() {
-		listenAndServe(ln)
+		listenAndServe(ln, time.Minute)
 		close(done)
 	}()
 	return ln, done
