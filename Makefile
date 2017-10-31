@@ -7,7 +7,7 @@ BUILD_CONSTS = \
 	-X main.buildRevision=`git rev-parse HEAD` \
 	-X main.buildTag=$(BUILD_TAG)
 
-BUILD_OPTS = -ldflags="$(BUILD_CONSTS)"
+BUILD_OPTS = -ldflags="$(BUILD_CONSTS)" -gcflags="-trimpath=$(GOPATH)/src"
 
 install:
 	go get golang.org/x/crypto/acme/autocert
@@ -19,7 +19,7 @@ format:
 	go fmt $(pkgs)
 
 build:
-	go build $(BUILD_OPTS)
+	go build
 
 test: build
 	go test -race -v $(pkgs)

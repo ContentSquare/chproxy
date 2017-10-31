@@ -77,17 +77,40 @@ func main() {
 	if len(server.HTTP.ListenAddr) == 0 && len(server.HTTPS.ListenAddr) == 0 {
 		panic("BUG: broken config validation - `listen_addr` is not configured")
 	}
+
+	maxResponseTime := getMaxResponseTime(cfg)
 	if len(server.HTTPS.ListenAddr) != 0 {
-		go serveTLS(server.HTTPS)
+		go serveTLS(server.HTTPS, maxResponseTime)
 	}
 	if len(server.HTTP.ListenAddr) != 0 {
-		go serve(server.HTTP)
+		go serve(server.HTTP, maxResponseTime)
 	}
 
 	select {}
 }
 
-func serveTLS(cfg config.HTTPS) {
+// getMaxResponseTime returns the maximum possible response time
+// for the given cfg.
+func getMaxResponseTime(cfg *config.Config) time.Duration {
+	var d time.Duration
+	for _, u := range cfg.Users {
+		ud := u.MaxExecutionTime + u.MaxQueueTime
+		if ud > d {
+			d = ud
+		}
+	}
+	for _, c := range cfg.Clusters {
+		for _, cu := range c.ClusterUsers {
+			cud := cu.MaxExecutionTime + cu.MaxQueueTime
+			if cud > d {
+				d = cud
+			}
+		}
+	}
+	return d
+}
+
+func serveTLS(cfg config.HTTPS, maxResponseTime time.Duration) {
 	ln, err := net.Listen("tcp4", cfg.ListenAddr)
 	if err != nil {
 		log.Fatalf("cannot listen for %q: %s", cfg.ListenAddr, err)
@@ -95,18 +118,18 @@ func serveTLS(cfg config.HTTPS) {
 	tlsCfg := newTLSConfig(cfg)
 	tln := tls.NewListener(ln, tlsCfg)
 	log.Infof("Serving https on %q", cfg.ListenAddr)
-	if err := listenAndServe(tln); err != nil {
+	if err := listenAndServe(tln, maxResponseTime); err != nil {
 		log.Fatalf("TLS server error on %q: %s", cfg.ListenAddr, err)
 	}
 }
 
-func serve(cfg config.HTTP) {
+func serve(cfg config.HTTP, maxResponseTime time.Duration) {
 	ln, err := net.Listen("tcp4", cfg.ListenAddr)
 	if err != nil {
 		log.Fatalf("cannot listen for %q: %s", cfg.ListenAddr, err)
 	}
 	log.Infof("Serving http on %q", cfg.ListenAddr)
-	if err := listenAndServe(ln); err != nil {
+	if err := listenAndServe(ln, maxResponseTime); err != nil {
 		log.Fatalf("HTTP server error on %q: %s", cfg.ListenAddr, err)
 	}
 }
@@ -155,12 +178,19 @@ func newTLSConfig(cfg config.HTTPS) *tls.Config {
 	return &tlsCfg
 }
 
-func listenAndServe(ln net.Listener) error {
+func listenAndServe(ln net.Listener, maxResponseTime time.Duration) error {
+	if maxResponseTime < 0 {
+		maxResponseTime = 0
+	}
+	// Give an additional minute for the maximum response time,
+	// so the response body may be sent to the requester.
+	maxResponseTime += time.Minute
+
 	s := &http.Server{
 		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 		Handler:      http.HandlerFunc(serveHTTP),
 		ReadTimeout:  time.Minute,
-		WriteTimeout: time.Minute,
+		WriteTimeout: maxResponseTime,
 		IdleTimeout:  time.Minute * 10,
 		ErrorLog:     log.ErrorLogger,
 	}

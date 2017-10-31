@@ -132,13 +132,17 @@ to_cluster: <string>
 # whom credentials will be used for proxying request to CH
 to_user: <string>
 
-# Maximum number of concurrently running queries for user
+# Maximum number of concurrently running queries for user.
+# By default there is no limit on the number of concurrently
+# running queries.
 max_concurrent_queries: <int> | optional | default = 0
 
 # Maximum duration of query execution for user
+# By default there is no limit on the query duration.
 max_execution_time: <duration> | optional | default = 0
 
-# Maximum number of requests per minute for user
+# Maximum number of requests per minute for user.
+# By default there are no per-minute limits
 requests_per_minute: <int> | optional | default = 0
 
 # Maximum number of requests waiting for execution in the queue.
@@ -196,12 +200,16 @@ name: <string>
 password: <string> | optional 
 
 # Maximum number of concurrently running queries for user
+# By default there is no limit on the number of concurrently
+# running queries.
 max_concurrent_queries: <int> | optional | default = 0
 
 # Maximum duration of query execution for user
+# By default there is no limit on the query duration.
 max_execution_time: <duration> | optional | default = 0
 
-# Maximum number of requests per minute for user
+# Maximum number of requests per minute for user.
+# By default there are no per-minute limits
 requests_per_minute: <int> | optional | default = 0
 
 # Maximum number of requests waiting for execution in the queue.

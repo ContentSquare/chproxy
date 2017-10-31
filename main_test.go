@@ -56,7 +56,7 @@ func startTLS() (net.Listener, chan struct{}) {
 	tlsCfg := newTLSConfig(cfg.Server.HTTPS)
 	tln := tls.NewListener(ln, tlsCfg)
 	go func() {
-		listenAndServe(tln)
+		listenAndServe(tln, time.Minute)
 		close(done)
 	}()
 	return tln, done
@@ -80,7 +80,7 @@ func startHTTP() (net.Listener, chan struct{}) {
 		panic(fmt.Sprintf("cannot listen for %q: %s", cfg.Server.HTTP.ListenAddr, err))
 	}
 	go func() {
-		listenAndServe(ln)
+		listenAndServe(ln, time.Minute)
 		close(done)
 	}()
 	return ln, done
