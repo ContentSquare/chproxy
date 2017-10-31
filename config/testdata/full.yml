@@ -112,6 +112,8 @@ users:
 
     # The maximum query duration for the user.
     # Timed out queries are forcibly killed via `KILL QUERY`.
+    #
+    # By default there is no limit on the query duration.
     max_execution_time: 1m
 
     # Whether to deny input requests over HTTPS.
