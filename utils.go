@@ -36,7 +36,7 @@ func getAuth(req *http.Request) (string, string) {
 
 const (
 	okResponse       = "Ok.\n"
-	isHealthyTimeout = time.Second
+	isHealthyTimeout = 3 * time.Second
 )
 
 func isHealthy(addr string) error {
@@ -48,9 +48,10 @@ func isHealthy(addr string) error {
 	defer cancel()
 	req = req.WithContext(ctx)
 
+	startTime := time.Now()
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot send request in %s: %s", time.Since(startTime), err)
 	}
 	defer resp.Body.Close()
 
@@ -59,7 +60,7 @@ func isHealthy(addr string) error {
 	}
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot read response in %s: %s", time.Since(startTime), err)
 	}
 	r := string(body)
 	if r != okResponse {
