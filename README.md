@@ -366,6 +366,8 @@ users:
     allow_cors: true
 
     # Requests per minute limit for the given input user.
+    #
+    # By default there is no per-minute limit.
     requests_per_minute: 4
 
     # The maximum number of requests that may wait for their chance

@@ -118,7 +118,8 @@ max_concurrent_queries: <int> | optional | default = 0
 # Maximum duration of query execution for user
 max_execution_time: <duration> | optional | default = 0
 
-# Maximum number of requests per minute for user
+# Maximum number of requests per minute for user.
+# By default there are no per-minute limits
 requests_per_minute: <int> | optional | default = 0
 
 # Maximum number of requests waiting for execution in the queue.
@@ -181,7 +182,8 @@ max_concurrent_queries: <int> | optional | default = 0
 # Maximum duration of query execution for user
 max_execution_time: <duration> | optional | default = 0
 
-# Maximum number of requests per minute for user
+# Maximum number of requests per minute for user.
+# By default there are no per-minute limits
 requests_per_minute: <int> | optional | default = 0
 
 # Maximum number of requests waiting for execution in the queue.
