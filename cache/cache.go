@@ -220,6 +220,7 @@ func (c *Cache) clean() {
 			fn := fi.Name()
 			if err := os.Remove(fn); err != nil {
 				log.Errorf("cache %q: cannot remove file %q: %s", c.name, fn, err)
+				return
 			}
 			totalSize -= fs
 			totalItems--
