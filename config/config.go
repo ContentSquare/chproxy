@@ -135,7 +135,6 @@ func (c *HTTP) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-
 	return checkOverflow(c.XXX, "http")
 }
 
@@ -232,7 +231,6 @@ func (c *Metrics) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-
 	return checkOverflow(c.XXX, "metrics")
 }
 
@@ -279,18 +277,18 @@ func (c *Cluster) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("`cluster.name` cannot be empty")
 	}
 	if len(c.Nodes) == 0 {
-		return fmt.Errorf("`cluster.nodes` must contain at least 1 address")
+		return fmt.Errorf("`cluster.nodes` must contain at least 1 address for %q", c.Name)
 	}
 	if len(c.ClusterUsers) == 0 {
-		return fmt.Errorf("`cluster.users` must contain at least 1 user")
+		return fmt.Errorf("`cluster.users` must contain at least 1 user for %q", c.Name)
 	}
 	if c.Scheme != "http" && c.Scheme != "https" {
-		return fmt.Errorf("`cluster.scheme` must be `http` or `https`. Got %q instead", c.Scheme)
+		return fmt.Errorf("`cluster.scheme` must be `http` or `https`, got %q instead for %q", c.Scheme, c.Name)
 	}
 	if c.HeartBeatInterval == 0 {
 		c.HeartBeatInterval = time.Second * 5
 	}
-	return checkOverflow(c.XXX, "cluster")
+	return checkOverflow(c.XXX, fmt.Sprintf("cluster %q", c.Name))
 }
 
 // KillQueryUser - user configuration for killing
@@ -388,22 +386,22 @@ func (u *User) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	if len(u.ToUser) == 0 {
-		return fmt.Errorf("`user.to_user` for %q cannot be empty", u.Name)
+		return fmt.Errorf("`user.to_user` cannot be empty for %q", u.Name)
 	}
 
 	if len(u.ToCluster) == 0 {
-		return fmt.Errorf("`user.to_cluster` for %q cannot be empty", u.Name)
+		return fmt.Errorf("`user.to_cluster` cannot be empty for %q", u.Name)
 	}
 
 	if u.DenyHTTP && u.DenyHTTPS {
-		return fmt.Errorf("user %q has both `deny_http` and `deny_https` set to `true`", u.Name)
+		return fmt.Errorf("`deny_http` and `deny_https` cannot be simultaneously set to `true` for %q", u.Name)
 	}
 
 	if u.MaxQueueTime > 0 && u.MaxQueueSize == 0 {
-		return fmt.Errorf("`max_queue_size` must be set if `max_queue_time` is set on the user %q", u.Name)
+		return fmt.Errorf("`max_queue_size` must be set if `max_queue_time` is set for %q", u.Name)
 	}
 
-	return checkOverflow(u.XXX, "user")
+	return checkOverflow(u.XXX, fmt.Sprintf("user %q", u.Name))
 }
 
 // NetworkGroups describes a named Networks lists
@@ -519,21 +517,21 @@ type ClusterUser struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (u *ClusterUser) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (cu *ClusterUser) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	type plain ClusterUser
-	if err := unmarshal((*plain)(u)); err != nil {
+	if err := unmarshal((*plain)(cu)); err != nil {
 		return err
 	}
 
-	if len(u.Name) == 0 {
+	if len(cu.Name) == 0 {
 		return fmt.Errorf("`cluster.user.name` cannot be empty")
 	}
 
-	if u.MaxQueueTime > 0 && u.MaxQueueSize == 0 {
-		return fmt.Errorf("`max_queue_size` must be set if `max_queue_time` is set on the cluster_user %q", u.Name)
+	if cu.MaxQueueTime > 0 && cu.MaxQueueSize == 0 {
+		return fmt.Errorf("`max_queue_size` must be set if `max_queue_time` is set for %q", cu.Name)
 	}
 
-	return checkOverflow(u.XXX, "cluster.users")
+	return checkOverflow(cu.XXX, fmt.Sprintf("cluster.user %q", cu.Name))
 }
 
 // LoadFile loads and validates configuration from provided .yml file

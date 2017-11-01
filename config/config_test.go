@@ -200,7 +200,7 @@ func TestBadConfig(t *testing.T) {
 		{
 			"extra fields",
 			"testdata/bad.extra_fields.yml",
-			"unknown fields in cluster: unknown_field",
+			"unknown fields in cluster \"second cluster\": unknown_field",
 		},
 		{
 			"empty users",
@@ -210,12 +210,12 @@ func TestBadConfig(t *testing.T) {
 		{
 			"empty nodes",
 			"testdata/bad.empty_nodes.yml",
-			"`cluster.nodes` must contain at least 1 address",
+			"`cluster.nodes` must contain at least 1 address for \"second cluster\"",
 		},
 		{
 			"wrong scheme",
 			"testdata/bad.wrong_scheme.yml",
-			"`cluster.scheme` must be `http` or `https`. Got \"tcp\" instead",
+			"`cluster.scheme` must be `http` or `https`, got \"tcp\" instead for \"second cluster\"",
 		},
 		{
 			"empty https",
@@ -254,7 +254,7 @@ func TestBadConfig(t *testing.T) {
 		{
 			"deny all",
 			"testdata/bad.deny_all.yml",
-			"user \"dummy\" has both `deny_http` and `deny_https` set to `true`",
+			"`deny_http` and `deny_https` cannot be simultaneously set to `true` for \"dummy\"",
 		},
 		{
 			"autocert allowed networks",
@@ -270,12 +270,12 @@ func TestBadConfig(t *testing.T) {
 		{
 			"max queue size and time on user",
 			"testdata/bad.queue_size_time_user.yml",
-			"`max_queue_size` must be set if `max_queue_time` is set on the user \"default\"",
+			"`max_queue_size` must be set if `max_queue_time` is set for \"default\"",
 		},
 		{
 			"max queue size and time on cluster_user",
 			"testdata/bad.queue_size_time_cluster_user.yml",
-			"`max_queue_size` must be set if `max_queue_time` is set on the cluster_user \"default\"",
+			"`max_queue_size` must be set if `max_queue_time` is set for \"default\"",
 		},
 	}
 
