@@ -367,11 +367,13 @@ func TestServe(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			*configFile = tc.file
 			ln, done := tc.listenFn()
+			defer func() {
+				if err := ln.Close(); err != nil {
+					t.Fatalf("unexpected error while closing listener: %s", err)
+				}
+				<-done
+			}()
 			tc.testFn(t)
-			if err := ln.Close(); err != nil {
-				t.Fatalf("unexpected error while closing listener: %s", err)
-			}
-			<-done
 		})
 	}
 }
