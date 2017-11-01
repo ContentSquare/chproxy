@@ -6,7 +6,7 @@
  - `<duration>`: a duration matching the regular expression `[0-9]+(ms|[smhdwy])`
  - `<networks>`: string value consisting of IP, IP mask or named group, for example `"127.0.0.1"` or `"127.0.0.1/24"`. 
  - `<host_name>`: string value consisting of host name, for example `"example.com"`
- - `<byte_size>`: string value matching the regular expression `(?i)^(\d+(?:\.\d+)?)[KMGTP]?B?)$`, for example `"100MB"`
+ - `<byte_size>`: string value matching the regular expression `/^\d+(\.\d+)?[KMGTP]?B?$/i`, for example `"100MB"`
 
 ### Global configuration consist of:
 ```yml
