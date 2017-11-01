@@ -70,10 +70,10 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 	if len(c.Users) == 0 {
-		return fmt.Errorf("field `users` must contain at least 1 user")
+		return fmt.Errorf("`users` must contain at least 1 user")
 	}
 	if len(c.Clusters) == 0 {
-		return fmt.Errorf("field `clusters` must contain at least 1 cluster")
+		return fmt.Errorf("`clusters` must contain at least 1 cluster")
 	}
 	if len(c.Server.HTTP.ListenAddr) == 0 && len(c.Server.HTTPS.ListenAddr) == 0 {
 		return fmt.Errorf("neither HTTP nor HTTPS not configured")
@@ -183,10 +183,10 @@ func (c *HTTPS) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		}
 	}
 	if len(c.CertFile) > 0 && len(c.KeyFile) == 0 {
-		return fmt.Errorf("field `https.key_file` must be specified")
+		return fmt.Errorf("`https.key_file` must be specified")
 	}
 	if len(c.KeyFile) > 0 && len(c.CertFile) == 0 {
-		return fmt.Errorf("field `https.cert_file` must be specified")
+		return fmt.Errorf("`https.cert_file` must be specified")
 	}
 	return checkOverflow(c.XXX, "https")
 }
@@ -276,16 +276,16 @@ func (c *Cluster) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 	if len(c.Name) == 0 {
-		return fmt.Errorf("field `cluster.name` cannot be empty")
+		return fmt.Errorf("`cluster.name` cannot be empty")
 	}
 	if len(c.Nodes) == 0 {
-		return fmt.Errorf("field `cluster.nodes` must contain at least 1 address")
+		return fmt.Errorf("`cluster.nodes` must contain at least 1 address")
 	}
 	if len(c.ClusterUsers) == 0 {
-		return fmt.Errorf("field `cluster.users` must contain at least 1 user")
+		return fmt.Errorf("`cluster.users` must contain at least 1 user")
 	}
 	if c.Scheme != "http" && c.Scheme != "https" {
-		return fmt.Errorf("field `cluster.scheme` must be `http` or `https`. Got %q instead", c.Scheme)
+		return fmt.Errorf("`cluster.scheme` must be `http` or `https`. Got %q instead", c.Scheme)
 	}
 	if c.HeartBeatInterval == 0 {
 		c.HeartBeatInterval = time.Second * 5
@@ -313,7 +313,7 @@ func (u *KillQueryUser) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 	if len(u.Name) == 0 {
-		return fmt.Errorf("field `cluster.kill_query_user.name` must be specified")
+		return fmt.Errorf("`cluster.kill_query_user.name` must be specified")
 	}
 	return checkOverflow(u.XXX, "kill_query_user")
 }
@@ -384,15 +384,15 @@ func (u *User) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	if len(u.Name) == 0 {
-		return fmt.Errorf("field `user.name` cannot be empty")
+		return fmt.Errorf("`user.name` cannot be empty")
 	}
 
 	if len(u.ToUser) == 0 {
-		return fmt.Errorf("field `user.to_user` for %q cannot be empty", u.Name)
+		return fmt.Errorf("`user.to_user` for %q cannot be empty", u.Name)
 	}
 
 	if len(u.ToCluster) == 0 {
-		return fmt.Errorf("field `user.to_cluster` for %q cannot be empty", u.Name)
+		return fmt.Errorf("`user.to_cluster` for %q cannot be empty", u.Name)
 	}
 
 	if u.DenyHTTP && u.DenyHTTPS {
@@ -526,7 +526,7 @@ func (u *ClusterUser) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	if len(u.Name) == 0 {
-		return fmt.Errorf("field `cluster.user.name` cannot be empty")
+		return fmt.Errorf("`cluster.user.name` cannot be empty")
 	}
 
 	if u.MaxQueueTime > 0 && u.MaxQueueSize == 0 {

@@ -205,17 +205,17 @@ func TestBadConfig(t *testing.T) {
 		{
 			"empty users",
 			"testdata/bad.empty_users.yml",
-			"field `users` must contain at least 1 user",
+			"`users` must contain at least 1 user",
 		},
 		{
 			"empty nodes",
 			"testdata/bad.empty_nodes.yml",
-			"field `cluster.nodes` must contain at least 1 address",
+			"`cluster.nodes` must contain at least 1 address",
 		},
 		{
 			"wrong scheme",
 			"testdata/bad.wrong_scheme.yml",
-			"field `cluster.scheme` must be `http` or `https`. Got \"tcp\" instead",
+			"`cluster.scheme` must be `http` or `https`. Got \"tcp\" instead",
 		},
 		{
 			"empty https",
@@ -225,7 +225,7 @@ func TestBadConfig(t *testing.T) {
 		{
 			"empty https cert key",
 			"testdata/bad.empty_https_key_file.yml",
-			"field `https.key_file` must be specified",
+			"`https.key_file` must be specified",
 		},
 		{
 			"double certification",
