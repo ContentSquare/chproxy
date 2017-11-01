@@ -470,9 +470,9 @@ Metrics are exposed via [Prometheus](https://prometheus.io/) at `/metrics` path
 | host_penalties_total | Counter | The number of given penalties by host | `cluster`, `cluster_node` |
 | host_health | Gauge | Health state of hosts by clusters | `cluster`, `cluster_node` |
 | concurrent_queries | Gauge | The number of concurrent queries at the moment | `user`, `cluster`, `cluster_user`, `cluster_node` |
-| request_queue_sizes | Gauge | Request queue sizes at the moment | `user`, `cluster`, `cluster_user` |
-| user_queue_overflow | Counter | The number of overflows for per-user request queues | `user` |
-| cluster_user_queue_overflow | Counter | The number of overflows for per-cluster_user request queues | `cluster_user` |
+| request_queue_size | Gauge | Request queue size at the moment | `user`, `cluster`, `cluster_user` |
+| user_queue_overflow_total | Counter | The number of overflows for per-user request queues | `user`, `cluster`, `cluster_user` |
+| cluster_user_queue_overflow_total | Counter | The number of overflows for per-cluster_user request queues | `user`, `cluster`, `cluster_user` |
 | request_body_bytes_total | Counter | The amount of bytes read from request bodies | `user`, `cluster`, `cluster_user`, `cluster_node` |
 | response_body_bytes_total | Counter | The amount of bytes written to response bodies | `user`, `cluster`, `cluster_user`, `cluster_node` |
 | bad_requests_total | Counter | The number of unsupported requests | |

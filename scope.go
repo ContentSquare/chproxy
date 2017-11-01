@@ -45,6 +45,14 @@ func (s *scope) incQueued() error {
 		return s.inc()
 	}
 
+	// Do not store `cluster_node` in lables, since it has no sense
+	// for queue metrics.
+	labels := prometheus.Labels{
+		"user":         s.labels["user"],
+		"cluster":      s.labels["cluster"],
+		"cluster_user": s.labels["cluster_user"],
+	}
+
 	if s.user.queueCh != nil {
 		select {
 		case s.user.queueCh <- struct{}{}:
@@ -56,7 +64,7 @@ func (s *scope) incQueued() error {
 			// Give the request the last chance to run.
 			err := s.inc()
 			if err != nil {
-				userQueueOverflow.With(prometheus.Labels{"user": s.labels["user"]}).Inc()
+				userQueueOverflow.With(labels).Inc()
 			}
 			return err
 		}
@@ -73,21 +81,16 @@ func (s *scope) incQueued() error {
 			// Give the request the last chance to run.
 			err := s.inc()
 			if err != nil {
-				clusterUserQueueOverflow.With(prometheus.Labels{"cluster_user": s.labels["cluster_user"]}).Inc()
+				clusterUserQueueOverflow.With(labels).Inc()
 			}
 			return err
 		}
 	}
 
 	// The request has been successfully queued.
-	labels := prometheus.Labels{
-		"user":         s.labels["user"],
-		"cluster":      s.labels["cluster"],
-		"cluster_user": s.labels["cluster_user"],
-	}
-	queueSizes := requestQueueSizes.With(labels)
-	queueSizes.Inc()
-	defer queueSizes.Dec()
+	queueSize := requestQueueSize.With(labels)
+	queueSize.Inc()
+	defer queueSize.Dec()
 
 	// Try starting the request during the given duration.
 	d := s.maxQueueTime()

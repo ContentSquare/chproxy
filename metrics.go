@@ -59,26 +59,26 @@ var (
 		},
 		[]string{"user", "cluster", "cluster_user", "cluster_node"},
 	)
-	requestQueueSizes = prometheus.NewGaugeVec(
+	requestQueueSize = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "request_queue_sizes",
+			Name: "request_queue_size",
 			Help: "Request queue sizes at the current time",
 		},
 		[]string{"user", "cluster", "cluster_user"},
 	)
 	userQueueOverflow = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "user_queue_overflow",
+			Name: "user_queue_overflow_total",
 			Help: "The number of overflows for per-user request queues",
 		},
-		[]string{"user"},
+		[]string{"user", "cluster", "cluster_user"},
 	)
 	clusterUserQueueOverflow = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "cluster_user_queue_overflow",
+			Name: "cluster_user_queue_overflow_total",
 			Help: "The number of overflows for per-cluster_user request queues",
 		},
-		[]string{"cluster_user"},
+		[]string{"user", "cluster", "cluster_user"},
 	)
 	requestBodyBytes = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -103,6 +103,6 @@ var (
 func init() {
 	prometheus.MustRegister(statusCodes, requestDuration, requestSum, requestSuccess,
 		limitExcess, hostPenalties, hostHealth, concurrentQueries,
-		requestQueueSizes, userQueueOverflow, clusterUserQueueOverflow,
+		requestQueueSize, userQueueOverflow, clusterUserQueueOverflow,
 		requestBodyBytes, responseBodyBytes, badRequest)
 }
