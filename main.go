@@ -27,6 +27,7 @@ var (
 var (
 	proxy = newReverseProxy()
 
+	// networks allow lists
 	allowedNetworksHTTP    atomic.Value
 	allowedNetworksHTTPS   atomic.Value
 	allowedNetworksMetrics atomic.Value
@@ -41,9 +42,12 @@ func main() {
 
 	log.Infof("%s", versionString())
 	log.Infof("Loading config: %s", *configFile)
-	cfg, err := reloadConfig()
+	cfg, err := loadConfig()
 	if err != nil {
 		log.Fatalf("error while loading config: %s", err)
+	}
+	if err = applyConfig(cfg); err != nil {
+		log.Fatalf("error while applying config: %s", err)
 	}
 	log.Infof("Loading config %q: successful", *configFile)
 
@@ -54,7 +58,7 @@ func main() {
 			switch <-c {
 			case syscall.SIGHUP:
 				log.Infof("SIGHUP received. Going to reload config %s ...", *configFile)
-				if _, err := reloadConfig(); err != nil {
+				if err := reloadConfig(); err != nil {
 					log.Errorf("error while reloading config: %s", err)
 					continue
 				}
@@ -63,16 +67,17 @@ func main() {
 		}
 	}()
 
-	if len(cfg.Server.HTTP.ListenAddr) == 0 && len(cfg.Server.HTTPS.ListenAddr) == 0 {
+	server := cfg.Server
+	if len(server.HTTP.ListenAddr) == 0 && len(server.HTTPS.ListenAddr) == 0 {
 		panic("BUG: broken config validation - `listen_addr` is not configured")
 	}
 
 	maxResponseTime := getMaxResponseTime(cfg)
-	if len(cfg.Server.HTTPS.ListenAddr) != 0 {
-		go serveTLS(cfg.Server.HTTPS, maxResponseTime)
+	if len(server.HTTPS.ListenAddr) != 0 {
+		go serveTLS(server.HTTPS, maxResponseTime)
 	}
-	if len(cfg.Server.HTTP.ListenAddr) != 0 {
-		go serve(cfg.Server.HTTP, maxResponseTime)
+	if len(server.HTTP.ListenAddr) != 0 {
+		go serve(server.HTTP, maxResponseTime)
 	}
 
 	select {}
@@ -199,6 +204,7 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 			respondWith(rw, err, http.StatusForbidden)
 			return
 		}
+
 		promHandler.ServeHTTP(rw, r)
 	case "/":
 		var err error
@@ -226,7 +232,7 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func reloadConfig() (*config.Config, error) {
+func loadConfig() (*config.Config, error) {
 	if *configFile == "" {
 		log.Fatalf("Missing -config flag")
 	}
@@ -234,15 +240,28 @@ func reloadConfig() (*config.Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("can't load config %q: %s", *configFile, err)
 	}
+	return cfg, nil
+}
+
+func applyConfig(cfg *config.Config) error {
 	if err := proxy.ApplyConfig(cfg); err != nil {
-		return nil, err
+		return err
 	}
 	allowedNetworksHTTP.Store(&cfg.Server.HTTP.AllowedNetworks)
 	allowedNetworksHTTPS.Store(&cfg.Server.HTTPS.AllowedNetworks)
 	allowedNetworksMetrics.Store(&cfg.Server.Metrics.AllowedNetworks)
 	log.SetDebug(cfg.LogDebug)
-	log.Infof("Loaded config: \n%s", cfg)
-	return cfg, nil
+	log.Infof("Loaded config:\n%s", cfg)
+
+	return nil
+}
+
+func reloadConfig() error {
+	cfg, err := loadConfig()
+	if err != nil {
+		return err
+	}
+	return applyConfig(cfg)
 }
 
 func versionString() string {

@@ -15,9 +15,12 @@ var tlsClient = &http.Client{Transport: &http.Transport{
 }}
 
 func startTLS() (net.Listener, chan struct{}) {
-	cfg, err := reloadConfig()
+	cfg, err := loadConfig()
 	if err != nil {
-		panic(fmt.Sprintf("unexpected error while loading config: %s", err))
+		panic(fmt.Sprintf("error while loading config: %s", err))
+	}
+	if err = applyConfig(cfg); err != nil {
+		panic(fmt.Sprintf("error while applying config: %s", err))
 	}
 	done := make(chan struct{})
 
@@ -35,9 +38,12 @@ func startTLS() (net.Listener, chan struct{}) {
 }
 
 func startHTTP() (net.Listener, chan struct{}) {
-	cfg, err := reloadConfig()
+	cfg, err := loadConfig()
 	if err != nil {
-		panic(fmt.Sprintf("unexpected error while loading config: %s", err))
+		panic(fmt.Sprintf("error while loading config: %s", err))
+	}
+	if err = applyConfig(cfg); err != nil {
+		panic(fmt.Sprintf("error while applying config: %s", err))
 	}
 	done := make(chan struct{})
 
