@@ -130,8 +130,8 @@ var (
 
 func init() {
 	prometheus.MustRegister(statusCodes, requestDuration, requestSum, requestSuccess,
-		limitExcess, hostPenalties, hostHealth, concurrentQueries, cacheHit, cacheMiss,
+		limitExcess, hostPenalties, hostHealth, concurrentQueries,
 		requestQueueSize, userQueueOverflow, clusterUserQueueOverflow,
 		requestBodyBytes, responseBodyBytes, badRequest,
-		cacheSize, cacheItems)
+		cacheHit, cacheMiss, cacheSize, cacheItems)
 }
