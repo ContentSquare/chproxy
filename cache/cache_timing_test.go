@@ -1,23 +1,25 @@
 package cache
 
 import (
+	"sync/atomic"
 	"testing"
 )
 
-func BenchmarkGenerateKey(b *testing.B) {
-	v1 := []byte("http://localhost:8123/?")
-	v2 := []byte("SELECT 1 FORMAT Pretty")
-	for n := 0; n < b.N; n++ {
-		GenerateKey(v1, v2)
-	}
-}
+var Sink uint32
 
-func BenchmarkGenerateKey_Parallel(b *testing.B) {
-	v1 := []byte("http://localhost:8123/?")
-	v2 := []byte("SELECT 1 FORMAT Pretty")
+func BenchmarkKeyString(b *testing.B) {
+	k := Key{
+		Query:         []byte("SELECT 1 FROM system.numbers LIMIT 10"),
+		IsGzip:        true,
+		DefaultFormat: "JSON",
+		Database:      "foobar",
+	}
 	b.RunParallel(func(pb *testing.PB) {
+		n := 0
 		for pb.Next() {
-			GenerateKey(v1, v2)
+			s := k.String()
+			n += len(s)
 		}
+		atomic.AddUint32(&Sink, uint32(n))
 	})
 }

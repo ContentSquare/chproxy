@@ -1,22 +1,25 @@
 package main
 
 import (
-	"github.com/prometheus/client_golang/prometheus"
 	"io"
 	"net/http"
-	"sync"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
-// statResponseWriter allows to cache statusCode after proxying
+// statResponseWriter collects the amount of bytes written.
+//
+// Additionally it caches response status code.
 type statResponseWriter struct {
 	http.ResponseWriter
-	statusCode        int
-	responseBodyBytes prometheus.Counter
+
+	statusCode   int
+	bytesWritten prometheus.Counter
 }
 
 func (rw *statResponseWriter) Write(b []byte) (int, error) {
 	n, err := rw.ResponseWriter.Write(b)
-	rw.responseBodyBytes.Add(float64(n))
+	rw.bytesWritten.Add(float64(n))
 	return n, err
 }
 
@@ -25,47 +28,42 @@ func (rw *statResponseWriter) WriteHeader(code int) {
 	rw.ResponseWriter.WriteHeader(code)
 }
 
-// statReadCloser allows to store amount of read bytes into metric
+// statReadCloser collects the amount of bytes read.
 type statReadCloser struct {
 	io.ReadCloser
-	requestBodyBytes prometheus.Counter
+
+	bytesRead prometheus.Counter
 }
 
 func (src *statReadCloser) Read(p []byte) (int, error) {
 	n, err := src.ReadCloser.Read(p)
-	src.requestBodyBytes.Add(float64(n))
+	src.bytesRead.Add(float64(n))
 	return n, err
 }
 
-// cachedReadCloser allows to read end and beginning
-// of request even after body was close
+// cachedReadCloser caches the start and the end of the wrapped ReadCloser.
 type cachedReadCloser struct {
 	io.ReadCloser
 
-	mu         sync.Mutex
 	start, end []byte
 }
 
 func (crc *cachedReadCloser) Read(p []byte) (int, error) {
 	n, err := crc.ReadCloser.Read(p)
-	crc.mu.Lock()
-	if len(crc.start) == 0 {
-		crc.start = p[:n]
-	} else {
-		crc.end = p[:n]
+	if len(crc.start) < 1024 {
+		crc.start = append(crc.start, p[:n]...)
+	} else if err == nil {
+		crc.end = append(crc.end[:0], p[:n]...)
 	}
-	crc.mu.Unlock()
 	return n, err
 }
 
-func (crc *cachedReadCloser) readCached() []byte {
+func (crc *cachedReadCloser) String() string {
 	var b []byte
-	crc.mu.Lock()
 	b = append(b, crc.start...)
 	if len(crc.end) > 0 {
-		b = append(b, "..."...)
+		b = append(b, " ... "...)
 		b = append(b, crc.end...)
 	}
-	crc.mu.Unlock()
-	return b
+	return string(b)
 }

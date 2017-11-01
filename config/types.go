@@ -1,56 +1,64 @@
 package config
 
 import (
-	"errors"
 	"fmt"
+	"math"
 	"net"
 	"regexp"
 	"strconv"
 	"strings"
 )
 
-type ByteSize float64
+// ByteSize holds size in bytes.
+//
+// May be used in yaml for parsing byte size values.
+type ByteSize uint64
 
-const (
-	_           = iota
-	KB ByteSize = 1 << (10 * iota)
-	MB
-	GB
-	TB
-)
-
-var (
-	bytesPattern   *regexp.Regexp = regexp.MustCompile(`(?i)^(-?\d+(?:\.\d+)?)([KMGT]B?|B)$`)
-	errInvalidSize                = errors.New("wrong size format: must be a positive integer with a unit of measurement like M, MB, G, GB, T or TB")
-)
+var byteSizeRegexp = regexp.MustCompile(`^(\d+(?:\.\d+)?)\s*([KMGTP]?)B?$`)
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (ds *ByteSize) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (bs *ByteSize) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var s string
 	if err := unmarshal(&s); err != nil {
 		return err
 	}
+	s = strings.ToUpper(s)
 
-	parts := bytesPattern.FindStringSubmatch(strings.TrimSpace(s))
+	parts := byteSizeRegexp.FindStringSubmatch(strings.TrimSpace(s))
 	if len(parts) < 3 {
-		return errInvalidSize
+		return fmt.Errorf("cannot parse byte size %q: it must be positive float followed by optional units. For example, 1.5Gb, 3T", s)
 	}
 
 	value, err := strconv.ParseFloat(parts[1], 64)
-	if err != nil || value <= 0 {
-		return errInvalidSize
+	if err != nil {
+		return fmt.Errorf("cannot parse byte size %q: it must be positive float followed by optional units. For example, 1.5Gb, 3T; err: %s", s, err)
+	}
+	if value <= 0 {
+		return fmt.Errorf("byte size %q must be positive", s)
 	}
 
-	unit := strings.ToUpper(parts[2])
-	switch unit[:1] {
-	case "T", "TB":
-		*ds = ByteSize(value) * TB
-	case "G", "GB":
-		*ds = ByteSize(value) * GB
-	case "M", "MB":
-		*ds = ByteSize(value) * MB
-	case "K", "KB":
-		*ds = ByteSize(value) * KB
+	k := float64(1)
+	unit := parts[2]
+	switch unit {
+	case "P":
+		k = 1 << 50
+	case "T":
+		k = 1 << 40
+	case "G":
+		k = 1 << 30
+	case "M":
+		k = 1 << 20
+	case "K":
+		k = 1 << 10
+	}
+
+	value *= k
+	*bs = ByteSize(value)
+
+	// check for overflow
+	e := math.Abs(float64(*bs)-value) / value
+	if e > 1e-6 {
+		return fmt.Errorf("byte size %q is too big", s)
 	}
 
 	return nil

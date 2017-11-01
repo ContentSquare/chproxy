@@ -2,9 +2,10 @@ package config
 
 import (
 	"fmt"
-	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"time"
+
+	"gopkg.in/yaml.v2"
 )
 
 var (
@@ -69,10 +70,10 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 	if len(c.Users) == 0 {
-		return fmt.Errorf("field `users` must contain at least 1 user")
+		return fmt.Errorf("`users` must contain at least 1 user")
 	}
 	if len(c.Clusters) == 0 {
-		return fmt.Errorf("field `clusters` must contain at least 1 cluster")
+		return fmt.Errorf("`clusters` must contain at least 1 cluster")
 	}
 	if len(c.Server.HTTP.ListenAddr) == 0 && len(c.Server.HTTPS.ListenAddr) == 0 {
 		return fmt.Errorf("neither HTTP nor HTTPS not configured")
@@ -134,7 +135,6 @@ func (c *HTTP) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-
 	return checkOverflow(c.XXX, "http")
 }
 
@@ -182,10 +182,10 @@ func (c *HTTPS) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		}
 	}
 	if len(c.CertFile) > 0 && len(c.KeyFile) == 0 {
-		return fmt.Errorf("field `https.key_file` must be specified")
+		return fmt.Errorf("`https.key_file` must be specified")
 	}
 	if len(c.KeyFile) > 0 && len(c.CertFile) == 0 {
-		return fmt.Errorf("field `https.cert_file` must be specified")
+		return fmt.Errorf("`https.cert_file` must be specified")
 	}
 	return checkOverflow(c.XXX, "https")
 }
@@ -231,7 +231,6 @@ func (c *Metrics) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-
 	return checkOverflow(c.XXX, "metrics")
 }
 
@@ -275,21 +274,21 @@ func (c *Cluster) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 	if len(c.Name) == 0 {
-		return fmt.Errorf("field `cluster.name` cannot be empty")
+		return fmt.Errorf("`cluster.name` cannot be empty")
 	}
 	if len(c.Nodes) == 0 {
-		return fmt.Errorf("field `cluster.nodes` must contain at least 1 address")
+		return fmt.Errorf("`cluster.nodes` must contain at least 1 address for %q", c.Name)
 	}
 	if len(c.ClusterUsers) == 0 {
-		return fmt.Errorf("field `cluster.users` must contain at least 1 user")
+		return fmt.Errorf("`cluster.users` must contain at least 1 user for %q", c.Name)
 	}
 	if c.Scheme != "http" && c.Scheme != "https" {
-		return fmt.Errorf("field `cluster.scheme` must be `http` or `https`. Got %q instead", c.Scheme)
+		return fmt.Errorf("`cluster.scheme` must be `http` or `https`, got %q instead for %q", c.Scheme, c.Name)
 	}
 	if c.HeartBeatInterval == 0 {
 		c.HeartBeatInterval = time.Second * 5
 	}
-	return checkOverflow(c.XXX, "cluster")
+	return checkOverflow(c.XXX, fmt.Sprintf("cluster %q", c.Name))
 }
 
 // KillQueryUser - user configuration for killing
@@ -312,7 +311,7 @@ func (u *KillQueryUser) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 	if len(u.Name) == 0 {
-		return fmt.Errorf("field `cluster.kill_query_user.name` must be specified")
+		return fmt.Errorf("`cluster.kill_query_user.name` must be specified")
 	}
 	return checkOverflow(u.XXX, "kill_query_user")
 }
@@ -386,26 +385,26 @@ func (u *User) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	if len(u.Name) == 0 {
-		return fmt.Errorf("field `user.name` cannot be empty")
+		return fmt.Errorf("`user.name` cannot be empty")
 	}
 
 	if len(u.ToUser) == 0 {
-		return fmt.Errorf("field `user.to_user` for %q cannot be empty", u.Name)
+		return fmt.Errorf("`user.to_user` cannot be empty for %q", u.Name)
 	}
 
 	if len(u.ToCluster) == 0 {
-		return fmt.Errorf("field `user.to_cluster` for %q cannot be empty", u.Name)
+		return fmt.Errorf("`user.to_cluster` cannot be empty for %q", u.Name)
 	}
 
 	if u.DenyHTTP && u.DenyHTTPS {
-		return fmt.Errorf("user %q has both `deny_http` and `deny_https` set to `true`", u.Name)
+		return fmt.Errorf("`deny_http` and `deny_https` cannot be simultaneously set to `true` for %q", u.Name)
 	}
 
 	if u.MaxQueueTime > 0 && u.MaxQueueSize == 0 {
-		return fmt.Errorf("`max_queue_size` must be set if `max_queue_time` is set on the user %q", u.Name)
+		return fmt.Errorf("`max_queue_size` must be set if `max_queue_time` is set for %q", u.Name)
 	}
 
-	return checkOverflow(u.XXX, "user")
+	return checkOverflow(u.XXX, fmt.Sprintf("user %q", u.Name))
 }
 
 // NetworkGroups describes a named Networks lists
@@ -453,6 +452,10 @@ type Cache struct {
 	// on new request and re-cached
 	Expire time.Duration `yaml:"expire,omitempty"`
 
+	// Grace duration before the expired entry is deleted from the cache.
+	// By default grace time is 1m.
+	GraceTime time.Duration `yaml:"grace_time,omitempty"`
+
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
 }
@@ -464,15 +467,18 @@ func (c *Cache) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 	if len(c.Name) == 0 {
-		return fmt.Errorf("field `cache.name` must be specified")
+		return fmt.Errorf("`cache.name` must be specified")
 	}
 	if len(c.Dir) == 0 {
-		return fmt.Errorf("field `cache.dir` must be specified")
+		return fmt.Errorf("`cache.dir` must be specified for %q", c.Name)
 	}
-	if c.MaxSize == ByteSize(0) {
-		return fmt.Errorf("field `cache.max_size` must be specified")
+	if c.MaxSize <= 0 {
+		return fmt.Errorf("`cache.max_size` must be specified for %q", c.Name)
 	}
-	return checkOverflow(c.XXX, "cache")
+	if c.GraceTime < 0 {
+		return fmt.Errorf("`cache.grace_time` cannot be negative for %q", c.Name)
+	}
+	return checkOverflow(c.XXX, fmt.Sprintf("cache %q", c.Name))
 }
 
 // ClusterUser describes simplest <users> configuration
@@ -516,21 +522,21 @@ type ClusterUser struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (u *ClusterUser) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (cu *ClusterUser) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	type plain ClusterUser
-	if err := unmarshal((*plain)(u)); err != nil {
+	if err := unmarshal((*plain)(cu)); err != nil {
 		return err
 	}
 
-	if len(u.Name) == 0 {
-		return fmt.Errorf("field `cluster.user.name` cannot be empty")
+	if len(cu.Name) == 0 {
+		return fmt.Errorf("`cluster.user.name` cannot be empty")
 	}
 
-	if u.MaxQueueTime > 0 && u.MaxQueueSize == 0 {
-		return fmt.Errorf("`max_queue_size` must be set if `max_queue_time` is set on the cluster_user %q", u.Name)
+	if cu.MaxQueueTime > 0 && cu.MaxQueueSize == 0 {
+		return fmt.Errorf("`max_queue_size` must be set if `max_queue_time` is set for %q", cu.Name)
 	}
 
-	return checkOverflow(u.XXX, "cluster.users")
+	return checkOverflow(cu.XXX, fmt.Sprintf("cluster.user %q", cu.Name))
 }
 
 // LoadFile loads and validates configuration from provided .yml file

@@ -1,15 +1,43 @@
 # Whether to print debug logs.
+#
+# By default debug logs are disabled.
 log_debug: true
 
 # Whether to ignore security checks during config parsing.
+#
+# By default security checks are enabled.
 hack_me_please: true
 
-# Cache configuration
+# Optional response cache configs.
+#
+# Multiple distinct caches with different settings may be configured.
 caches:
+    # Cache name, which may be passed into `cache` option on the `user` level.
   - name: "longterm"
-    dir: "cache_dir"
-    max_size: "10G"
-    expire: "1h"
+
+    # Path to directory where cached responses will be stored.
+    dir: "/path/to/longterm/cachedir"
+
+    # Maximum cache size.
+    # `Kb`, `Mb`, `Gb` and `Tb` suffixes may be used.
+    max_size: 100Gb
+
+    # Expiration time for cached responses.
+    expire: 1h
+
+    # When multiple requests with identical query simultaneously hit `chproxy`
+    # and there is no cached response for the query, then only a single
+    # request will be proxied to clickhouse. Other requests will wait
+    # for the cached response during this grace duration.
+    # This is known as protection from `thundering herd` problem.
+    #
+    # By default `thundering herd` protection is disabled.
+    grace_time: 20s
+
+  - name: "shortterm"
+    dir: "/path/to/shortterm/cachedir"
+    max_size: 100Mb
+    expire: 10s
 
 # Named network lists, might be used as values for `allowed_networks`.
 network_groups:
@@ -90,7 +118,9 @@ users:
     # By default there is no per-minute limit.
     requests_per_minute: 4
 
-    # Name of cache configuration to use
+    # Response cache config name to use.
+    #
+    # By default responses aren't cached.
     cache: "longterm"
 
     # The maximum number of requests that may wait for their chance

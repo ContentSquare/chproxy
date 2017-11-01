@@ -13,7 +13,6 @@ install:
 	go get golang.org/x/crypto/acme/autocert
 	go get github.com/prometheus/client_golang/prometheus
 	go get gopkg.in/yaml.v2
-	go get github.com/valyala/bytebufferpool
 
 format:
 	go fmt $(pkgs)
@@ -31,5 +30,6 @@ reconfigure:
 	kill -HUP `pidof chproxy`
 
 release:
-	GOOS=linux GOARCH=amd64 go build $(BUILD_OPTS) -o chproxy-linux-amd64
-	tar czf chproxy-linux-amd64-$(BUILD_TAG).tar.gz chproxy-linux-amd64
+	rm -f chproxy
+	GOOS=linux GOARCH=amd64 go build $(BUILD_OPTS)
+	tar czf chproxy-linux-amd64-$(BUILD_TAG).tar.gz chproxy

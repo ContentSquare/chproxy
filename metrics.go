@@ -59,26 +59,26 @@ var (
 		},
 		[]string{"user", "cluster", "cluster_user", "cluster_node"},
 	)
-	requestQueueSizes = prometheus.NewGaugeVec(
+	requestQueueSize = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "request_queue_sizes",
+			Name: "request_queue_size",
 			Help: "Request queue sizes at the current time",
 		},
 		[]string{"user", "cluster", "cluster_user"},
 	)
 	userQueueOverflow = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "user_queue_overflow",
+			Name: "user_queue_overflow_total",
 			Help: "The number of overflows for per-user request queues",
 		},
-		[]string{"user"},
+		[]string{"user", "cluster", "cluster_user"},
 	)
 	clusterUserQueueOverflow = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "cluster_user_queue_overflow",
+			Name: "cluster_user_queue_overflow_total",
 			Help: "The number of overflows for per-cluster_user request queues",
 		},
-		[]string{"cluster_user"},
+		[]string{"user", "cluster", "cluster_user"},
 	)
 	requestBodyBytes = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -94,29 +94,44 @@ var (
 		},
 		[]string{"user", "cluster", "cluster_user", "cluster_node"},
 	)
+	badRequest = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "bad_requests_total",
+		Help: "Total number of unsupported requests",
+	})
 	cacheHit = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "cache_hits_total",
 			Help: "The amount of successful cache hits",
 		},
-		[]string{"user", "cluster", "cluster_user", "cluster_node"},
+		[]string{"user", "cluster", "cluster_user"},
 	)
 	cacheMiss = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "cache_miss_total",
 			Help: "The amount of cache miss",
 		},
-		[]string{"user", "cluster", "cluster_user", "cluster_node"},
+		[]string{"user", "cluster", "cluster_user"},
 	)
-	badRequest = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "bad_requests_total",
-		Help: "Total number of unsupported requests",
-	})
+	cacheSize = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "cache_size",
+			Help: "Cache size at the current time",
+		},
+		[]string{"cache"},
+	)
+	cacheItems = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "cache_items",
+			Help: "Cache items at the current time",
+		},
+		[]string{"cache"},
+	)
 )
 
 func init() {
 	prometheus.MustRegister(statusCodes, requestDuration, requestSum, requestSuccess,
 		limitExcess, hostPenalties, hostHealth, concurrentQueries, cacheHit, cacheMiss,
-		requestQueueSizes, userQueueOverflow, clusterUserQueueOverflow,
-		requestBodyBytes, responseBodyBytes, badRequest)
+		requestQueueSize, userQueueOverflow, clusterUserQueueOverflow,
+		requestBodyBytes, responseBodyBytes, badRequest,
+		cacheSize, cacheItems)
 }

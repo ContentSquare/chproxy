@@ -46,6 +46,14 @@ func (s *scope) incQueued() error {
 		return s.inc()
 	}
 
+	// Do not store `cluster_node` in lables, since it has no sense
+	// for queue metrics.
+	labels := prometheus.Labels{
+		"user":         s.labels["user"],
+		"cluster":      s.labels["cluster"],
+		"cluster_user": s.labels["cluster_user"],
+	}
+
 	if s.user.queueCh != nil {
 		select {
 		case s.user.queueCh <- struct{}{}:
@@ -57,7 +65,7 @@ func (s *scope) incQueued() error {
 			// Give the request the last chance to run.
 			err := s.inc()
 			if err != nil {
-				userQueueOverflow.With(prometheus.Labels{"user": s.labels["user"]}).Inc()
+				userQueueOverflow.With(labels).Inc()
 			}
 			return err
 		}
@@ -74,21 +82,16 @@ func (s *scope) incQueued() error {
 			// Give the request the last chance to run.
 			err := s.inc()
 			if err != nil {
-				clusterUserQueueOverflow.With(prometheus.Labels{"cluster_user": s.labels["cluster_user"]}).Inc()
+				clusterUserQueueOverflow.With(labels).Inc()
 			}
 			return err
 		}
 	}
 
 	// The request has been successfully queued.
-	labels := prometheus.Labels{
-		"user":         s.labels["user"],
-		"cluster":      s.labels["cluster"],
-		"cluster_user": s.labels["cluster_user"],
-	}
-	queueSizes := requestQueueSizes.With(labels)
-	queueSizes.Inc()
-	defer queueSizes.Dec()
+	queueSize := requestQueueSize.With(labels)
+	queueSize.Inc()
+	defer queueSize.Dec()
 
 	// Try starting the request during the given duration.
 	d := s.maxQueueTime()
@@ -240,13 +243,13 @@ var allowedParams = []string{
 }
 
 func (s *scope) decorateRequest(req *http.Request) *http.Request {
-	// make new params to purify URL
+	// Make new params to purify URL.
 	params := make(url.Values)
 
-	// set query_id as scope_id to have possibility kill query if needed
+	// Set query_id as scope_id to have possibility to kill query if needed.
 	params.Set("query_id", fmt.Sprintf("%X", s.id))
 
-	// keep allowed params
+	// Keep allowed params.
 	q := req.URL.Query()
 	for _, param := range allowedParams {
 		val := q.Get(param)
@@ -254,20 +257,29 @@ func (s *scope) decorateRequest(req *http.Request) *http.Request {
 			params.Set(param, val)
 		}
 	}
+
+	// Disable non-readonly queries for the user with enabled cache,
+	// since such queries cannot be cached.
+	if s.user.cache != nil {
+		params.Set("readonly", "1")
+	}
+
 	req.URL.RawQuery = params.Encode()
 
-	// rewrite possible previous Basic Auth
-	// and send request as cluster user
+	// Rewrite possible previous Basic Auth and send request
+	// as cluster user.
 	req.SetBasicAuth(s.clusterUser.name, s.clusterUser.password)
 
-	// send request to chosen host from cluster
+	// Send request to the chosen host from cluster.
 	req.URL.Scheme = s.host.addr.Scheme
 	req.URL.Host = s.host.addr.Host
 
-	// extend ua with additional info
+	// Extend ua with additional info, so it may be queried
+	// via system.query_log.http_user_agent.
 	ua := fmt.Sprintf("RemoteAddr: %s; LocalAddr: %s; CHProxy-User: %s; CHProxy-ClusterUser: %s; %s",
 		s.remoteAddr, s.localAddr, s.user.name, s.clusterUser.name, req.UserAgent())
 	req.Header.Set("User-Agent", ua)
+
 	return req
 }
 
@@ -307,7 +319,7 @@ type user struct {
 	allowCORS bool
 
 	allowedNetworks config.Networks
-	cache           *cache.Controller
+	cache           *cache.Cache
 
 	name, password       string
 	maxExecutionTime     time.Duration

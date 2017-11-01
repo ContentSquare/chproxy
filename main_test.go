@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -41,8 +42,9 @@ func startTLS() (net.Listener, chan struct{}) {
 	if err != nil {
 		panic(fmt.Sprintf("error while loading config: %s", err))
 	}
-	if len(cfg.Caches) > 0 {
-		cache.MustRegister(cfg.Caches...)
+	caches, err = cache.New(cfg.Caches)
+	if err != nil {
+		panic(fmt.Sprintf("cannot initialize caches: %s", err))
 	}
 	if err = applyConfig(cfg); err != nil {
 		panic(fmt.Sprintf("error while applying config: %s", err))
@@ -67,8 +69,9 @@ func startHTTP() (net.Listener, chan struct{}) {
 	if err != nil {
 		panic(fmt.Sprintf("error while loading config: %s", err))
 	}
-	if len(cfg.Caches) > 0 {
-		cache.MustRegister(cfg.Caches...)
+	caches, err = cache.New(cfg.Caches)
+	if err != nil {
+		panic(fmt.Sprintf("cannot initialize caches: %s", err))
 	}
 	if err = applyConfig(cfg); err != nil {
 		panic(fmt.Sprintf("error while applying config: %s", err))
@@ -108,28 +111,28 @@ func TestServe(t *testing.T) {
 			func(t *testing.T) {
 				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query=asd", nil)
 				if err != nil {
-					t.Errorf("unexpected erorr: %s", err)
+					t.Fatalf("unexpected erorr: %s", err)
 				}
 				resp, err := tlsClient.Do(req)
 				if err != nil {
-					t.Errorf("unexpected error: %s", err)
+					t.Fatalf("unexpected error: %s", err)
 				}
 				if resp.StatusCode != http.StatusUnauthorized {
-					t.Errorf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusUnauthorized)
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusUnauthorized)
 				}
 				resp.Body.Close()
 
 				req, err = http.NewRequest("GET", "https://127.0.0.1:8443?query=asd", nil)
 				if err != nil {
-					t.Errorf("unexpected erorr: %s", err)
+					t.Fatalf("unexpected erorr: %s", err)
 				}
 				req.SetBasicAuth("default", "qwerty")
 				resp, err = tlsClient.Do(req)
 				if err != nil {
-					t.Errorf("unexpected error: %s", err)
+					t.Fatalf("unexpected error: %s", err)
 				}
 				if resp.StatusCode != http.StatusOK {
-					t.Errorf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
 				}
 				resp.Body.Close()
 			},
@@ -142,35 +145,38 @@ func TestServe(t *testing.T) {
 				q := "asd"
 				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query="+q, nil)
 				if err != nil {
-					t.Errorf("unexpected erorr: %s", err)
+					t.Fatalf("unexpected erorr: %s", err)
 				}
 				req.SetBasicAuth("default", "qwerty")
 				resp, err := tlsClient.Do(req)
 				if err != nil {
-					t.Errorf("unexpected error: %s", err)
+					t.Fatalf("unexpected error: %s", err)
 				}
 				if resp.StatusCode != http.StatusOK {
-					t.Errorf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
 				}
 				resp.Body.Close()
-				key := cache.GenerateKey([]byte(q))
-				path := fmt.Sprintf("%s/cache/%s", testDir, key)
+				key := &cache.Key{
+					Query:  []byte(q),
+					IsGzip: true,
+				}
+				path := fmt.Sprintf("%s/cache/%s", testDir, key.String())
 				if _, err := os.Stat(path); err != nil {
-					t.Errorf("err while getting file %q info: %s", path, err)
+					t.Fatalf("err while getting file %q info: %s", path, err)
 				}
 				rw := httptest.NewRecorder()
-				cc := cache.GetController("https_cache")
-				if _, err := cc.WriteTo(rw, key); err != nil {
-					t.Errorf("unexpected error while writing reposnse from cache: %s", err)
+				cc := caches["https_cache"]
+				if err := cc.WriteTo(rw, key); err != nil {
+					t.Fatalf("unexpected error while writing reposnse from cache: %s", err)
 				}
 
 				expected := "Ok.\n"
 				got, err := ioutil.ReadAll(rw.Body)
 				if err != nil {
-					t.Errorf("unexpected error while reading body: %s", err)
+					t.Fatalf("unexpected error while reading body: %s", err)
 				}
 				if string(got) != expected {
-					t.Errorf("unexpected cache result: %q; expected: %q", string(got), expected)
+					t.Fatalf("unexpected cache result: %q; expected: %q", string(got), expected)
 				}
 
 			},
@@ -182,24 +188,24 @@ func TestServe(t *testing.T) {
 			func(t *testing.T) {
 				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query=asd", nil)
 				if err != nil {
-					t.Errorf("unexpected erorr: %s", err)
+					t.Fatalf("unexpected erorr: %s", err)
 				}
 				req.SetBasicAuth("default", "qwerty")
 				resp, err := tlsClient.Do(req)
 				if err != nil {
-					t.Errorf("unexpected error: %s", err)
+					t.Fatalf("unexpected error: %s", err)
 				}
 				if resp.StatusCode != http.StatusForbidden {
-					t.Errorf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
 				}
 				response, err := ioutil.ReadAll(resp.Body)
 				if err != nil {
-					t.Errorf("unexpected err while reading body: %s", err)
+					t.Fatalf("unexpected err while reading body: %s", err)
 				}
 				stringResponse := string(response)
 				expErr := "user \"default\" is not allowed to access via https"
-				if stringResponse[35:] != expErr {
-					t.Errorf("unexpected response: %q; expected: %q", string(response), expErr)
+				if !strings.Contains(stringResponse, expErr) {
+					t.Fatalf("unexpected response: %q; expected: %q", response, expErr)
 				}
 				resp.Body.Close()
 			},
@@ -211,25 +217,25 @@ func TestServe(t *testing.T) {
 			func(t *testing.T) {
 				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query=asd", nil)
 				if err != nil {
-					t.Errorf("unexpected erorr: %s", err)
+					t.Fatalf("unexpected erorr: %s", err)
 				}
 				req.SetBasicAuth("default", "qwerty")
 				resp, err := tlsClient.Do(req)
 				if err != nil {
-					t.Errorf("unexpected error: %s", err)
+					t.Fatalf("unexpected error: %s", err)
 				}
 				if resp.StatusCode != http.StatusForbidden {
-					t.Errorf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
 				}
 				response, err := ioutil.ReadAll(resp.Body)
 				if err != nil {
-					t.Errorf("unexpected err while reading body: %s", err)
+					t.Fatalf("unexpected err while reading body: %s", err)
 				}
 				res := string(response)
 				res = res[:48]
 				expErr := "https connections are not allowed from 127.0.0.1"
 				if res != expErr {
-					t.Errorf("unexpected response: %q; expected: %q", res, expErr)
+					t.Fatalf("unexpected response: %q; expected: %q", res, expErr)
 				}
 				resp.Body.Close()
 			},
@@ -241,37 +247,7 @@ func TestServe(t *testing.T) {
 			func(t *testing.T) {
 				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query=asd", nil)
 				if err != nil {
-					t.Errorf("unexpected erorr: %s", err)
-				}
-				req.SetBasicAuth("default", "qwerty")
-				resp, err := tlsClient.Do(req)
-				if err != nil {
-					t.Errorf("unexpected erorr: %s", err)
-				}
-				if resp.StatusCode != http.StatusForbidden {
-					t.Errorf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
-				}
-				response, err := ioutil.ReadAll(resp.Body)
-				if err != nil {
-					t.Errorf("unexpected err while reading body: %s", err)
-				}
-				res := string(response)
-				res = res[35:]
-				expErr := "user \"default\" is not allowed to access"
-				if res != expErr {
-					t.Errorf("unexpected response: %q; expected: %q", res, expErr)
-				}
-				resp.Body.Close()
-			},
-			startTLS,
-		},
-		{
-			"https cluster user networks",
-			"testdata/https.cluster.user.networks.yml",
-			func(t *testing.T) {
-				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query=asd", nil)
-				if err != nil {
-					t.Errorf("unexpected erorr: %s", err)
+					t.Fatalf("unexpected erorr: %s", err)
 				}
 				req.SetBasicAuth("default", "qwerty")
 				resp, err := tlsClient.Do(req)
@@ -286,9 +262,37 @@ func TestServe(t *testing.T) {
 					t.Fatalf("unexpected err while reading body: %s", err)
 				}
 				res := string(response)
-				res = res[35:]
+				expErr := "user \"default\" is not allowed to access"
+				if !strings.Contains(res, expErr) {
+					t.Fatalf("unexpected response: %q; expected: %q", res, expErr)
+				}
+				resp.Body.Close()
+			},
+			startTLS,
+		},
+		{
+			"https cluster user networks",
+			"testdata/https.cluster.user.networks.yml",
+			func(t *testing.T) {
+				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query=asd", nil)
+				if err != nil {
+					t.Fatalf("unexpected erorr: %s", err)
+				}
+				req.SetBasicAuth("default", "qwerty")
+				resp, err := tlsClient.Do(req)
+				if err != nil {
+					t.Fatalf("unexpected erorr: %s", err)
+				}
+				if resp.StatusCode != http.StatusForbidden {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
+				}
+				response, err := ioutil.ReadAll(resp.Body)
+				if err != nil {
+					t.Fatalf("unexpected err while reading body: %s", err)
+				}
+				res := string(response)
 				expErr := "cluster user \"web\" is not allowed to access"
-				if res != expErr {
+				if !strings.Contains(res, expErr) {
 					t.Fatalf("unexpected response: %q; expected: %q", res, expErr)
 				}
 				resp.Body.Close()
@@ -301,15 +305,15 @@ func TestServe(t *testing.T) {
 			func(t *testing.T) {
 				resp, err := http.Get("http://127.0.0.1:9090?query=asd")
 				if err != nil {
-					t.Errorf("unexpected erorr: %s", err)
+					t.Fatalf("unexpected erorr: %s", err)
 				}
 				if resp.StatusCode != http.StatusOK {
-					t.Errorf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
 				}
 
 				resp, err = http.Get("http://127.0.0.1:9090/metrics")
 				if resp.StatusCode != http.StatusOK {
-					t.Errorf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
 				}
 				resp.Body.Close()
 			},
@@ -323,20 +327,20 @@ func TestServe(t *testing.T) {
 				zw := gzip.NewWriter(&buf)
 				_, err := zw.Write([]byte("SELECT * FROM system.numbers LIMIT 10"))
 				if err != nil {
-					t.Error(err)
+					t.Fatal(err)
 				}
 				zw.Close()
 				req, err := http.NewRequest("POST", "http://127.0.0.1:9090", &buf)
 				req.Header.Set("Content-Encoding", "gzip")
 				if err != nil {
-					t.Error(err)
+					t.Fatal(err)
 				}
 				resp, err := http.DefaultClient.Do(req)
 				if err != nil {
-					t.Error(err)
+					t.Fatal(err)
 				}
 				if resp.StatusCode != http.StatusOK {
-					t.Errorf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
 				}
 				resp.Body.Close()
 			},
@@ -349,14 +353,14 @@ func TestServe(t *testing.T) {
 				buf := bytes.NewBufferString("SELECT * FROM system.numbers LIMIT 10")
 				req, err := http.NewRequest("POST", "http://127.0.0.1:9090", buf)
 				if err != nil {
-					t.Error(err)
+					t.Fatal(err)
 				}
 				resp, err := http.DefaultClient.Do(req)
 				if err != nil {
-					t.Error(err)
+					t.Fatal(err)
 				}
 				if resp.StatusCode != http.StatusOK {
-					t.Errorf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
 				}
 				resp.Body.Close()
 			},
@@ -370,20 +374,20 @@ func TestServe(t *testing.T) {
 				zw := gzip.NewWriter(&buf)
 				_, err := zw.Write([]byte("SELECT * FROM system.numbers LIMIT 1000"))
 				if err != nil {
-					t.Error(err)
+					t.Fatal(err)
 				}
 				zw.Close()
 				req, err := http.NewRequest("POST", "http://127.0.0.1:9090", &buf)
 				req.Header.Set("Content-Encoding", "gzip")
 				if err != nil {
-					t.Error(err)
+					t.Fatal(err)
 				}
 				resp, err := http.DefaultClient.Do(req)
 				if err != nil {
-					t.Error(err)
+					t.Fatal(err)
 				}
 				if resp.StatusCode != http.StatusBadGateway {
-					t.Errorf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusBadGateway)
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusBadGateway)
 				}
 				resp.Body.Close()
 			},
@@ -395,19 +399,19 @@ func TestServe(t *testing.T) {
 			func(t *testing.T) {
 				resp, err := http.Get("http://127.0.0.1:9090?query=asd")
 				if err != nil {
-					t.Errorf("unexpected erorr: %s", err)
+					t.Fatalf("unexpected erorr: %s", err)
 				}
 				if resp.StatusCode != http.StatusForbidden {
-					t.Errorf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
 				}
 				response, err := ioutil.ReadAll(resp.Body)
 				if err != nil {
-					t.Errorf("unexpected err while reading body: %s", err)
+					t.Fatalf("unexpected err while reading body: %s", err)
 				}
 				stringResponse := string(response)
 				expErr := "user \"default\" is not allowed to access via http"
-				if stringResponse[35:] != expErr {
-					t.Errorf("unexpected response: %q; expected: %q", string(response), expErr)
+				if !strings.Contains(stringResponse, expErr) {
+					t.Fatalf("unexpected response: %q; expected: %q", string(response), expErr)
 				}
 				resp.Body.Close()
 			},
@@ -419,20 +423,20 @@ func TestServe(t *testing.T) {
 			func(t *testing.T) {
 				resp, err := http.Get("http://127.0.0.1:9090?query=asd")
 				if err != nil {
-					t.Errorf("unexpected erorr: %s", err)
+					t.Fatalf("unexpected erorr: %s", err)
 				}
 				if resp.StatusCode != http.StatusForbidden {
-					t.Errorf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
 				}
 				response, err := ioutil.ReadAll(resp.Body)
 				if err != nil {
-					t.Errorf("unexpected err while reading body: %s", err)
+					t.Fatalf("unexpected err while reading body: %s", err)
 				}
 				res := string(response)
 				res = res[0:47]
 				expErr := "http connections are not allowed from 127.0.0.1"
 				if res != expErr {
-					t.Errorf("unexpected response: %q; expected: %q", res, expErr)
+					t.Fatalf("unexpected response: %q; expected: %q", res, expErr)
 				}
 				resp.Body.Close()
 			},
@@ -444,20 +448,20 @@ func TestServe(t *testing.T) {
 			func(t *testing.T) {
 				resp, err := http.Get("http://127.0.0.1:9090/metrics")
 				if err != nil {
-					t.Errorf("unexpected erorr: %s", err)
+					t.Fatalf("unexpected erorr: %s", err)
 				}
 				if resp.StatusCode != http.StatusForbidden {
-					t.Errorf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
 				}
 				response, err := ioutil.ReadAll(resp.Body)
 				if err != nil {
-					t.Errorf("unexpected err while reading body: %s", err)
+					t.Fatalf("unexpected err while reading body: %s", err)
 				}
 				res := string(response)
 				res = res[0:54]
 				expErr := "connections to /metrics are not allowed from 127.0.0.1"
 				if res != expErr {
-					t.Errorf("unexpected response: %q; expected: %q", res, expErr)
+					t.Fatalf("unexpected response: %q; expected: %q", res, expErr)
 				}
 				resp.Body.Close()
 			},
@@ -469,20 +473,19 @@ func TestServe(t *testing.T) {
 			func(t *testing.T) {
 				resp, err := http.Get("http://127.0.0.1:9090?query=asd")
 				if err != nil {
-					t.Errorf("unexpected erorr: %s", err)
+					t.Fatalf("unexpected erorr: %s", err)
 				}
 				if resp.StatusCode != http.StatusForbidden {
-					t.Errorf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
 				}
 				response, err := ioutil.ReadAll(resp.Body)
 				if err != nil {
-					t.Errorf("unexpected err while reading body: %s", err)
+					t.Fatalf("unexpected err while reading body: %s", err)
 				}
 				res := string(response)
-				res = res[35:]
 				expErr := "user \"default\" is not allowed to access"
-				if res != expErr {
-					t.Errorf("unexpected response: %q; expected: %q", res, expErr)
+				if !strings.Contains(res, expErr) {
+					t.Fatalf("unexpected response: %q; expected: %q", res, expErr)
 				}
 				resp.Body.Close()
 			},
@@ -504,9 +507,8 @@ func TestServe(t *testing.T) {
 					t.Fatalf("unexpected err while reading body: %s", err)
 				}
 				res := string(response)
-				res = res[35:]
 				expErr := "cluster user \"web\" is not allowed to access"
-				if res != expErr {
+				if !strings.Contains(res, expErr) {
 					t.Fatalf("unexpected response: %q; expected: %q", res, expErr)
 				}
 				resp.Body.Close()
@@ -520,12 +522,13 @@ func TestServe(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			*configFile = tc.file
 			ln, done := tc.listenFn()
-			time.Sleep(time.Millisecond * 10)
+			defer func() {
+				if err := ln.Close(); err != nil {
+					t.Fatalf("unexpected error while closing listener: %s", err)
+				}
+				<-done
+			}()
 			tc.testFn(t)
-			if err := ln.Close(); err != nil {
-				t.Fatalf("unexpected error while closing listener: %s", err)
-			}
-			<-done
 		})
 	}
 }

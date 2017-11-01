@@ -9,53 +9,71 @@ import (
 	"testing"
 )
 
-func TestFetchQueryGet(t *testing.T) {
+func TestGetQueryStartGET(t *testing.T) {
 	req, _ := http.NewRequest("GET", "", nil)
 	params := make(url.Values)
 	q := "SELECT column FROM table"
 	params.Set("query", q)
 	req.URL.RawQuery = params.Encode()
 	query := getQueryStart(req)
-	if string(query) != q {
-		t.Errorf("got: %q; expected: %q", string(query), q)
+	if query != q {
+		t.Fatalf("got: %q; expected: %q", query, q)
 	}
 }
 
-func TestFetchQueryPost(t *testing.T) {
+func TestGetQueryStartPOST(t *testing.T) {
 	q := "SELECT column FROM table"
 	body := bytes.NewBufferString(q)
-	req, _ := http.NewRequest("POST", "", body)
-	req.Body = &statReadCloser{
-		ReadCloser:       req.Body,
-		requestBodyBytes: badRequest,
+	req, err := http.NewRequest("POST", "", body)
+	if err != nil {
+		panic(fmt.Sprintf("BUG: unexpected error: %s", err))
 	}
 	query := getQueryStart(req)
-	if string(query) != q {
-		t.Errorf("got: %q; expected: %q", string(query), q)
+	if query != q {
+		t.Fatalf("got: %q; expected: %q", query, q)
 	}
 }
 
-func TestFetchQueryPostGzipped(t *testing.T) {
+func TestGetQueryStartGzipped(t *testing.T) {
 	var buf bytes.Buffer
 	zw := gzip.NewWriter(&buf)
 	q := makeQuery(1000)
 	_, err := zw.Write([]byte(q))
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	zw.Close()
 	req, err := http.NewRequest("POST", "http://127.0.0.1:9090", &buf)
 	req.Header.Set("Content-Encoding", "gzip")
 	if err != nil {
-		t.Error(err)
-	}
-	req.Body = &statReadCloser{
-		ReadCloser:       req.Body,
-		requestBodyBytes: badRequest,
+		t.Fatal(err)
 	}
 	query := getQueryStart(req)
-	if string(query[:100]) != string(q[:100]) {
-		t.Errorf("got: %q; expected: %q", string(query[:100]), string(q[:100]))
+	if query[:100] != string(q[:100]) {
+		t.Fatalf("got: %q; expected: %q", query[:100], q[:100])
+	}
+}
+
+func TestGetFullQueryGzipped(t *testing.T) {
+	var buf bytes.Buffer
+	zw := gzip.NewWriter(&buf)
+	q := makeQuery(1000)
+	_, err := zw.Write([]byte(q))
+	if err != nil {
+		t.Fatal(err)
+	}
+	zw.Close()
+	req, err := http.NewRequest("POST", "http://127.0.0.1:9090", &buf)
+	req.Header.Set("Content-Encoding", "gzip")
+	if err != nil {
+		t.Fatal(err)
+	}
+	query, err := getFullQuery(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(query) != string(q) {
+		t.Fatalf("got: %q; expected %q", query, q)
 	}
 }
 

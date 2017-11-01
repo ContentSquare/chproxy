@@ -6,7 +6,7 @@
  - `<duration>`: a duration matching the regular expression `[0-9]+(ms|[smhdwy])`
  - `<networks>`: string value consisting of IP, IP mask or named group, for example `"127.0.0.1"` or `"127.0.0.1/24"`. 
  - `<host_name>`: string value consisting of host name, for example `"example.com"`
- - `<byte_size>`: string value matching the regular expression `(?i)^(-?\d+(?:\.\d+)?)([KMGT]B?|B)$`, for example `"100MB"`
+ - `<byte_size>`: string value matching the regular expression `(?i)^(\d+(?:\.\d+)?)[KMGTP]?B?)$`, for example `"100MB"`
 
 ### Global configuration consist of:
 ```yml
@@ -19,7 +19,7 @@ hack_me_please bool | default = false [optional]
 # Named list of cache configurations
 caches:
   - <cache_config> ...
-    
+
 # Named network lists
 network_groups: <network_groups_config> ... [optional]
 
@@ -47,17 +47,26 @@ networks: <networks> ...
 
 ### <cache_config>
 ```yml
-# Name of configuration
+# Cache name, which may be passed into `cache` option on the `user` level.
 name: <string>
 
-# Path to directory where cache-files supposed to be stored
-dir: string
+# Path to directory where cached responses will be stored.
+dir: <string>
 
-# Maximum cache size. If size exceeds proxy will start dropping eldest cache-files until fitting max_size  
+# Maximum cache size.
 max_size: <byte_size>
 
-# Cache-files lifetime after which the will be dropped
+# Expiration time for cached responses.
 expire: <duration>
+
+# When multiple requests with identical query simultaneously hit `chproxy`
+# and there is no cached response for the query, then only a single
+# request will be proxied to clickhouse. Other requests will wait
+# for the cached response during this grace duration.
+# This is known as protection from `thundering herd` problem.
+#
+# By default `thundering herd` protection is disabled.
+grace_time: <duration>
 ```
 
 ### <server_config>
@@ -166,6 +175,10 @@ allow_cors: <bool> | optional | default = false
 # List of networks or network_groups access is allowed from
 # Each list item could be IP address or subnet mask
 allowed_networks: <network_groups>, <networks> ... | optional
+
+# Optioanl reponse cache name from <cache_config>
+# By default responses aren't cached.
+cache: <string> | optional
 ```
 
 ### <cluster_config>

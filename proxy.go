@@ -18,7 +18,6 @@ import (
 	"github.com/Vertamedia/chproxy/config"
 	"github.com/Vertamedia/chproxy/log"
 	"github.com/prometheus/client_golang/prometheus"
-	"io"
 )
 
 type reverseProxy struct {
@@ -44,24 +43,29 @@ func newReverseProxy() *reverseProxy {
 }
 
 func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	timeStart := time.Now()
+
 	s, status, err := rp.getScope(req)
 	if err != nil {
-		err = fmt.Errorf("scope error for %q: %s", req.RemoteAddr, err)
+		q := getQueryStart(req)
+		err = fmt.Errorf("%q: %s; query: %q", req.RemoteAddr, err, q)
 		respondWith(rw, err, status)
 		return
 	}
 
-	log.Debugf("Request scope %s", s)
-	requestSum.With(s.labels).Inc()
-
+	// WARNING: don't use s.labels before s.incQueued,
+	// since s.labels["cluster_node"] may change inside incQueued.
 	if err := s.incQueued(); err != nil {
 		limitExcess.With(s.labels).Inc()
 		q := getQueryStart(req)
-		err = fmt.Errorf("%s for query %q", err, string(q))
+		err = fmt.Errorf("%s: %s; query: %q", s, err, q)
 		respondWith(rw, err, http.StatusTooManyRequests)
 		return
 	}
 	defer s.dec()
+
+	log.Debugf("starting request %s", s)
+	requestSum.With(s.labels).Inc()
 
 	if s.user.allowCORS {
 		origin := req.Header.Get("Origin")
@@ -72,25 +76,18 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	req.Body = &statReadCloser{
-		ReadCloser:       req.Body,
-		requestBodyBytes: requestBodyBytes.With(s.labels),
+		ReadCloser: req.Body,
+		bytesRead:  requestBodyBytes.With(s.labels),
 	}
 	srw := &statResponseWriter{
-		ResponseWriter:    rw,
-		responseBodyBytes: responseBodyBytes.With(s.labels),
+		ResponseWriter: rw,
+		bytesWritten:   responseBodyBytes.With(s.labels),
 	}
-	timeStart := time.Now()
+
 	if s.user.cache != nil {
-		params := req.URL.Query()
-		// set readonly=1 to avoid caching non-select results
-		params.Set("readonly", "1")
-		req.URL.RawQuery = params.Encode()
-		if err := rp.serveFromCache(s, srw, req); err != nil {
-			log.Errorf("cache error: %s", err)
-			rp.serveHTTP(s, srw, req)
-		}
+		rp.serveFromCache(s, srw, req)
 	} else {
-		rp.serveHTTP(s, srw, req)
+		rp.proxyRequest(s, rw, req)
 	}
 
 	statusCodes.With(
@@ -106,8 +103,11 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	requestDuration.With(s.labels).Observe(since)
 }
 
-func (rp *reverseProxy) serveHTTP(s *scope, rw http.ResponseWriter, req *http.Request) {
+func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, req *http.Request) {
 	req = s.decorateRequest(req)
+
+	// wrap body into cachedReadCloser, so we could obtain the original
+	// request on error.
 	req.Body = &cachedReadCloser{
 		ReadCloser: req.Body,
 	}
@@ -122,50 +122,92 @@ func (rp *reverseProxy) serveHTTP(s *scope, rw http.ResponseWriter, req *http.Re
 
 	rp.ReverseProxy.ServeHTTP(rw, req)
 
-	if req.Context().Err() != nil {
-		// penalize host if responding is slow, probably it is overloaded
-		s.host.penalize()
-		if err := s.killQuery(); err != nil {
-			log.Errorf("error while killing query: %s", err)
-		}
-		q := getQueryStart(req)
-		log.Errorf("node %q: %s in query: %q", s.host.addr, timeoutErrMsg, string(q))
-		fmt.Fprint(rw, timeoutErrMsg.Error())
+	if req.Context().Err() == nil {
+		// The request has been successfully proxied.
+		return
 	}
+
+	// The request has been timed out.
+
+	// Penalize host with the timed out query, because it may be overloaded.
+	s.host.penalize()
+	q := getQueryStart(req)
+
+	// Forcibly kill the timed out query.
+	if err := s.killQuery(); err != nil {
+		log.Errorf("%s: cannot kill query: %s; query: %q", s, err, q)
+	}
+
+	log.Errorf("%s: %s; query %q", s, timeoutErrMsg, q)
+	fmt.Fprint(rw, timeoutErrMsg.Error())
 }
 
-func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *http.Request) error {
-	q := fetchQuery(req, 0)
-	if len(q) == 0 {
-		return fmt.Errorf("error while reading query from request: empty result")
+func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *http.Request) {
+	q, err := getFullQuery(req)
+	if err != nil {
+		err = fmt.Errorf("%s: cannot read query: %s", s, err)
+		respondWith(srw, err, http.StatusBadRequest)
+		return
+	}
+
+	params := req.URL.Query()
+	key := &cache.Key{
+		Query:         q,
+		IsGzip:        req.Header.Get("Accept-Encoding") == "gzip",
+		DefaultFormat: params.Get("default_format"),
+		Database:      params.Get("database"),
+	}
+	err = s.user.cache.WriteTo(srw, key)
+
+	// Do not store `cluster_node` in lables, since it has no sense
+	// for cache metrics.
+	labels := prometheus.Labels{
+		"user":         s.labels["user"],
+		"cluster":      s.labels["cluster"],
+		"cluster_user": s.labels["cluster_user"],
+	}
+
+	if err == nil {
+		// The response has been successfully served from cache.
+		cacheHit.With(labels).Inc()
+		return
+	}
+	if err != cache.ErrMissing {
+		// Unexpected error while serving the response.
+		err = fmt.Errorf("%s: %s; query: %q", s, err, q)
+		respondWith(srw, err, http.StatusInternalServerError)
+		return
+	}
+
+	// The response wasn't found in the cache.
+	// Request it from clickhouse.
+	cacheMiss.With(labels).Inc()
+	crw, err := s.user.cache.NewResponseWriter(srw, key)
+	if err != nil {
+		err = fmt.Errorf("%s: %s; query: %q", s, err, q)
+		respondWith(srw, err, http.StatusInternalServerError)
+		return
 	}
 	req.Body = ioutil.NopCloser(bytes.NewBuffer(q))
-	key := cache.GenerateKey(q)
-	if _, err := s.user.cache.WriteTo(srw, key); err == nil {
-		cacheHit.With(s.labels).Inc()
-		return nil
-	}
-	crw, err := s.user.cache.NewResponseWriter(srw)
-	if err != nil {
-		return fmt.Errorf("error while creating cached response writer: %s", err)
-	}
-	rp.serveHTTP(s, crw, req)
+	rp.proxyRequest(s, crw, req)
 	if srw.statusCode != http.StatusOK {
-		_, err := io.Copy(srw, crw)
-		crw.Delete()
-		return err
+		// Do not cache non-200 responses.
+		err = crw.Rollback()
+	} else {
+		err = crw.Commit()
 	}
-	if err := s.user.cache.Flush(key, crw); err != nil {
-		return fmt.Errorf("error while flushing cache file: %s", err)
+
+	if err != nil {
+		err = fmt.Errorf("%s: %s; query: %q", s, err, q)
+		respondWith(srw, err, http.StatusInternalServerError)
+		return
 	}
-	_, err = s.user.cache.WriteTo(srw, key)
-	return err
 }
 
-// ApplyConfig applies provided config to reverseProxy obj
+// ApplyConfig applies provided config to reverseProxy.
 // New config will be applied only if non-nil error returned
 // Otherwise old version will be kept
-func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
+func (rp *reverseProxy) ApplyConfig(cfg *config.Config, caches map[string]*cache.Cache) error {
 	clusters := make(map[string]*cluster, len(cfg.Clusters))
 	for _, c := range cfg.Clusters {
 		clusterUsers := make(map[string]*clusterUser, len(c.ClusterUsers))
@@ -232,10 +274,15 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 		if u.MaxQueueSize > 0 {
 			queueCh = make(chan struct{}, u.MaxQueueSize)
 		}
-		cc := cache.GetController(u.Cache)
-		if c == nil {
-			return fmt.Errorf("no such cache %q for user %q ", u.Cache, u.Name)
+
+		var cc *cache.Cache
+		if len(u.Cache) > 0 {
+			cc = caches[u.Cache]
+			if cc == nil {
+				return fmt.Errorf("unknown cache %q for user %q ", u.Cache, u.Name)
+			}
 		}
+
 		users[u.Name] = &user{
 			name:                 u.Name,
 			password:             u.Password,

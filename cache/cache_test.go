@@ -1,232 +1,270 @@
 package cache
 
 import (
+	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
+	"log"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/Vertamedia/chproxy/config"
-	"github.com/Vertamedia/chproxy/log"
 )
 
-var testDir = "./test-data"
+const testDir = "./test-data"
 
 func TestMain(m *testing.M) {
-	if _, err := os.Stat(testDir); os.IsNotExist(err) {
-		os.Mkdir(testDir, os.ModePerm)
-	}
-
-	log.SuppressOutput(true)
 	retCode := m.Run()
-	log.SuppressOutput(false)
-
 	if err := os.RemoveAll(testDir); err != nil {
 		log.Fatalf("cannot remove %q: %s", testDir, err)
 	}
 	os.Exit(retCode)
 }
 
-func TestGenerateKey(t *testing.T) {
+func TestKeyString(t *testing.T) {
 	testCases := []struct {
-		uri      []byte
-		body     []byte
+		key      *Key
 		expected string
 	}{
 		{
-			uri:      []byte("http://localhost:8123/?"),
-			body:     []byte("SELECT 1 FORMAT Pretty"),
-			expected: "8193f45cb25b311bb0ce6aa3e79237f952ff1054",
+			key: &Key{
+				Query: []byte("SELECT 1 FROM system.numbers LIMIT 10"),
+			},
+			expected: "c1366f1b0a3e284006c0a1be6e3f1f68",
 		},
 		{
-			uri:      []byte("http://localhost:8123/?query=SELECT%201%20FORMAT%20Pretty"),
-			body:     []byte(""),
-			expected: "5c6a5430b3364921e941bc07165ae1d69e6bbc50",
+			key: &Key{
+				Query:  []byte("SELECT 1 FROM system.numbers LIMIT 10"),
+				IsGzip: true,
+			},
+			expected: "5544a41f4cedc3b4fff2695a28b00594",
+		},
+		{
+			key: &Key{
+				Query:         []byte("SELECT 1 FROM system.numbers LIMIT 10"),
+				IsGzip:        true,
+				DefaultFormat: "JSON",
+			},
+			expected: "82fe18538028dfb0317037279ada6377",
+		},
+		{
+			key: &Key{
+				Query:         []byte("SELECT 1 FROM system.numbers LIMIT 10"),
+				IsGzip:        true,
+				DefaultFormat: "JSON",
+				Database:      "foobar",
+			},
+			expected: "3da029b8d18ee11a66f397e38d78b7f5",
 		},
 	}
 
 	for _, tc := range testCases {
-		key := GenerateKey(tc.uri, tc.body)
-		if key != tc.expected {
-			t.Fatalf("unexpected key value: %s; expected: %s", key, tc.expected)
+		s := tc.key.String()
+		if !cachefileRegexp.MatchString(s) {
+			t.Fatalf("invalid key string format: %q", s)
+		}
+		if s != tc.expected {
+			t.Fatalf("unexpected key string: %q; expecting: %q", s, tc.expected)
 		}
 	}
 }
 
-func TestController(t *testing.T) {
-	dir := testDir + "/TestController_Get"
-	cfg := config.Cache{
-		Name:    "TestController_Get",
-		Dir:     dir,
-		MaxSize: config.ByteSize(1024),
-		Expire:  time.Millisecond * 100,
-	}
-	MustRegister(cfg)
-	if _, err := os.Stat(dir); err != nil {
-		t.Fatalf("err while getting folder %q info: %s", dir, err)
-	}
-	cc := GetController(cfg.Name)
-	if cc == nil {
-		t.Fatalf("nil pointer; expected pointer to %s cache controller", cfg.Name)
-	}
-
-	k := "key"
-	rw := httptest.NewRecorder()
-	err := store(cc, rw, k)
-	if err != nil {
-		t.Fatalf("unexpected err: %s", err)
-	}
-	if err := compareResponse(rw, "body"); err != nil {
-		t.Fatal(err)
-	}
-
-	rw2 := httptest.NewRecorder()
-	if _, err = cc.WriteTo(rw2, k); err != nil {
-		t.Fatal(err)
-	}
-	if err := compareResponse(rw2, "body"); err != nil {
-		t.Fatal(err)
-	}
-
-	time.Sleep(time.Millisecond * 120)
-	rw3 := httptest.NewRecorder()
-	if _, err = cc.WriteTo(rw3, k); err == nil {
-		t.Fatal("expected to get empty response")
-	}
-}
-
-func compareResponse(rr *httptest.ResponseRecorder, expected string) error {
-	response, err := ioutil.ReadAll(rr.Body)
-	if err != nil {
-		return fmt.Errorf("error while reading response: %s", err)
-	}
-	if string(response) != expected {
-		return fmt.Errorf("expected: %q; got: %q", expected, string(response))
-	}
-	return nil
-}
-
-func store(cc *Controller, rw http.ResponseWriter, key string) error {
-	cw, err := cc.NewResponseWriter(rw)
-	if err != nil {
-		return err
-	}
-	if _, err := os.Stat(cw.file.Name()); err != nil {
-		return fmt.Errorf("err while getting file %q info: %s", cw.file.Name(), err)
-	}
-	cw.Write([]byte("body"))
-	if err := cc.Flush(key, cw); err != nil {
-		return fmt.Errorf("error while flushing cache file: %s", err)
-	}
-	_, err = cc.WriteTo(rw, key)
-	return err
-}
-
-func TestCleanup(t *testing.T) {
-	dir := testDir + "/TestCleanup"
-	cfg := config.Cache{
-		Name:    "TestCleanup",
-		Dir:     dir,
-		Expire:  time.Millisecond * 100,
-		MaxSize: config.ByteSize(100),
-	}
-	MustRegister(cfg)
-	cc := GetController(cfg.Name)
-	key1 := "key1"
-	rw1 := httptest.NewRecorder()
-	err := store(cc, rw1, key1)
-	if err != nil {
-		t.Fatalf("unexpected err: %s", err)
-	}
-	time.Sleep(time.Millisecond * 50)
-	key2 := "key2"
-	rw2 := httptest.NewRecorder()
-	err = store(cc, rw2, key2)
-	if err != nil {
-		t.Fatalf("unexpected err: %s", err)
-	}
-
-	rw3 := httptest.NewRecorder()
-	if _, err = cc.WriteTo(rw3, key1); err != nil {
-		t.Fatalf("expected key %q in cache reigster; got: %s", key1, err)
-	}
-
-	if _, err = cc.WriteTo(rw3, key2); err != nil {
-		t.Fatalf("expected key %q in cache reigster;  got: %s", key2, err)
-	}
-
-	time.Sleep(time.Millisecond * 60)
-	cc.cleanup()
-	if _, err = cc.WriteTo(rw3, key1); err == nil {
-		t.Fatalf("expected key %q to be removed from cache reigster", key1)
-	}
-
-	time.Sleep(time.Millisecond * 100)
-	cc.cleanup()
-	if _, err = cc.WriteTo(rw3, key2); err == nil {
-		t.Fatalf("expected key %q to be removed from cache reigster", key2)
-	}
-
-	if len(cc.registry) != 0 {
-		t.Fatalf("expected zero-length registry; got: %d", len(cc.registry))
-	}
-}
-
-func TestCleanup2(t *testing.T) {
-	dir := testDir + "/TestCleanup2"
-	cfg := config.Cache{
-		Name:    "TestCleanup2",
-		Dir:     dir,
-		Expire:  time.Second * 10,
-		MaxSize: config.ByteSize(30),
-	}
-	MustRegister(cfg)
-	cc := GetController(cfg.Name)
-
-	// every file for 4 bytes
-	// so it would be 40 after 10 iterations
+func TestCacheClose(t *testing.T) {
 	for i := 0; i < 10; i++ {
-		key := fmt.Sprintf("key-%d", i)
-		rw := httptest.NewRecorder()
-		err := store(cc, rw, key)
+		c := newTestCache(t)
+		c.Close()
+	}
+}
+
+func TestCacheAddGet(t *testing.T) {
+	c := newTestCache(t)
+	defer c.Close()
+
+	for i := 0; i < 10; i++ {
+		key := &Key{
+			Query: []byte(fmt.Sprintf("SELECT %d", i)),
+		}
+		trw := &testResponseWriter{}
+		crw, err := c.NewResponseWriter(trw, key)
 		if err != nil {
-			t.Fatalf("unexpected err: %s", err)
+			t.Fatalf("cannot create response writer: %s", err)
 		}
-		time.Sleep(time.Millisecond * 5)
-	}
 
-	// cache must be exceeded MaxSize for 10 bytes
-	cc.cleanup()
-	// if every file was 4 bytes than
-	// we must have 10/4 = 3 extra files
-	// so after cleanup it must be 10 - 3 = 7
-	if len(cc.registry) != 7 {
-		t.Fatalf("expected length: 7; got: %d", len(cc.registry))
-	}
+		value := fmt.Sprintf("value %d", i)
+		bs := bytes.NewBufferString(value)
+		if _, err := io.Copy(crw, bs); err != nil {
+			t.Fatalf("cannot send response to cache: %s", err)
+		}
+		if err := crw.Commit(); err != nil {
+			t.Fatalf("cannot commit response to cache: %s", err)
+		}
 
-	// or 7*4 = 28 size
-	if cc.size != int64(28) {
-		t.Fatalf("expected size: 28; got: %d", cc.size)
-	}
-
-	rw := httptest.NewRecorder()
-	// and all keys must lower than 3 number must be absent in registry
-	// since they are the oldest
-	for i := 0; i < 3; i++ {
-		key := fmt.Sprintf("key-%d", i)
-		if _, err := cc.WriteTo(rw, key); err == nil {
-			t.Fatalf("expected key %q to be absent in registry", key)
+		// Verify trw contains the response.
+		if string(trw.b) != value {
+			t.Fatalf("unexpected response sent to client: %q; expecting %q", trw.b, value)
 		}
 	}
 
-	// and all keys higher than 3 - to be present in registry
-	for i := 3; i < 10; i++ {
-		key := fmt.Sprintf("key-%d", i)
-		if _, err := cc.WriteTo(rw, key); err != nil {
-			t.Fatalf("expected key %q to be in registry", key)
+	// Verify the responses are actually cached.
+	for i := 0; i < 10; i++ {
+		key := &Key{
+			Query: []byte(fmt.Sprintf("SELECT %d", i)),
+		}
+		trw := &testResponseWriter{}
+		if err := c.WriteTo(trw, key); err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
+
+		value := fmt.Sprintf("value %d", i)
+		if string(trw.b) != value {
+			t.Fatalf("unexpected response sent to client: %q; expecting %q", trw.b, value)
 		}
 	}
+
+	// Verify the cache may be re-opened.
+	c1 := newTestCache(t)
+	defer c1.Close()
+
+	for i := 0; i < 10; i++ {
+		key := &Key{
+			Query: []byte(fmt.Sprintf("SELECT %d", i)),
+		}
+		trw := &testResponseWriter{}
+		if err := c1.WriteTo(trw, key); err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
+
+		value := fmt.Sprintf("value %d", i)
+		if string(trw.b) != value {
+			t.Fatalf("unexpected response sent to client: %q; expecting %q", trw.b, value)
+		}
+	}
+}
+
+func TestCacheMiss(t *testing.T) {
+	c := newTestCache(t)
+	defer c.Close()
+
+	for i := 0; i < 10; i++ {
+		key := &Key{
+			Query: []byte(fmt.Sprintf("SELECT %d cache miss", i)),
+		}
+		trw := &testResponseWriter{}
+		err := c.WriteTo(trw, key)
+		if err == nil {
+			t.Fatalf("expecting error")
+		}
+		if err != ErrMissing {
+			t.Fatalf("unexpected error: %s; expecting %s", err, ErrMissing)
+		}
+	}
+}
+
+func TestPendingEntries(t *testing.T) {
+	cfg := config.Cache{
+		Name:      "foobar",
+		Dir:       testDir,
+		MaxSize:   1e6,
+		Expire:    time.Minute,
+		GraceTime: 30 * time.Second,
+	}
+	c, err := newCache(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	key := &Key{
+		Query: []byte("SELECT pending entries"),
+	}
+	value := "value for pending entries"
+
+	trw := &testResponseWriter{}
+	err = c.WriteTo(trw, key)
+	if err == nil {
+		t.Fatalf("expecting error")
+	}
+	if err != ErrMissing {
+		t.Fatalf("unexpected error: %s; expecting %s", err, ErrMissing)
+	}
+
+	ch := make(chan error)
+	go func() {
+		trw := &testResponseWriter{}
+		// This should be delayed until the main goroutine writes
+		// the value for the given key.
+		if err := c.WriteTo(trw, key); err != nil {
+			ch <- fmt.Errorf("error in WriteTo: %s", err)
+			return
+		}
+		if string(trw.b) != value {
+			ch <- fmt.Errorf("unexpected response sent to client: %q; expecting %q", trw.b, value)
+			return
+		}
+		ch <- nil
+	}()
+
+	// Verify that the started goroutine is blocked.
+	select {
+	case err := <-ch:
+		t.Fatalf("the goroutine prematurely finished and returned err: %v", err)
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	// Write the value to the cache.
+	trw = &testResponseWriter{}
+	crw, err := c.NewResponseWriter(trw, key)
+	if err != nil {
+		t.Fatalf("cannot create response writer: %s", err)
+	}
+
+	bs := bytes.NewBufferString(value)
+	if _, err := io.Copy(crw, bs); err != nil {
+		t.Fatalf("cannot send response to cache: %s", err)
+	}
+	if err := crw.Commit(); err != nil {
+		t.Fatalf("cannot commit response to cache: %s", err)
+	}
+
+	// Verify that the started goroutine exits.
+	select {
+	case <-time.After(3 * time.Second):
+	case err := <-ch:
+		if err != nil {
+			t.Fatalf("unexpected error returned from the goroutine: %s", err)
+		}
+	}
+}
+
+type testResponseWriter struct {
+	b []byte
+}
+
+func (trw *testResponseWriter) Write(p []byte) (int, error) {
+	trw.b = append(trw.b, p...)
+	return len(p), nil
+}
+
+func (trw *testResponseWriter) Header() http.Header {
+	return http.Header{}
+}
+
+func (trw *testResponseWriter) WriteHeader(statusCode int) {}
+
+func newTestCache(t *testing.T) *Cache {
+	t.Helper()
+
+	cfg := config.Cache{
+		Name:    "foobar",
+		Dir:     testDir,
+		MaxSize: 1e6,
+		Expire:  time.Minute,
+	}
+	c, err := newCache(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c
 }

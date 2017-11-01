@@ -16,6 +16,7 @@ import (
 	"github.com/Vertamedia/chproxy/cache"
 	"github.com/Vertamedia/chproxy/config"
 	"github.com/Vertamedia/chproxy/log"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/crypto/acme/autocert"
 )
@@ -25,10 +26,9 @@ var (
 	version    = flag.Bool("version", false, "Prints current version and exits")
 )
 
-type ccList map[string]*cache.Controller
-
 var (
-	proxy = newReverseProxy()
+	proxy  = newReverseProxy()
+	caches map[string]*cache.Cache
 
 	// networks allow lists
 	allowedNetworksHTTP    atomic.Value
@@ -49,8 +49,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("error while loading config: %s", err)
 	}
-	if len(cfg.Caches) > 0 {
-		cache.MustRegister(cfg.Caches...)
+	caches, err = cache.New(cfg.Caches)
+	if err != nil {
+		log.Fatalf("cannot initialize caches: %s", err)
 	}
 	if err = applyConfig(cfg); err != nil {
 		log.Fatalf("error while applying config: %s", err)
@@ -210,6 +211,17 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 			respondWith(rw, err, http.StatusForbidden)
 			return
 		}
+
+		// Collect metrics for caches.
+		for cacheName, c := range caches {
+			stats := c.Stats()
+			labels := prometheus.Labels{
+				"cache": cacheName,
+			}
+			cacheSize.With(labels).Set(float64(stats.Size))
+			cacheItems.With(labels).Set(float64(stats.Items))
+		}
+
 		promHandler.ServeHTTP(rw, r)
 	case "/":
 		var err error
@@ -249,14 +261,14 @@ func loadConfig() (*config.Config, error) {
 }
 
 func applyConfig(cfg *config.Config) error {
-	if err := proxy.ApplyConfig(cfg); err != nil {
+	if err := proxy.ApplyConfig(cfg, caches); err != nil {
 		return err
 	}
 	allowedNetworksHTTP.Store(&cfg.Server.HTTP.AllowedNetworks)
 	allowedNetworksHTTPS.Store(&cfg.Server.HTTPS.AllowedNetworks)
 	allowedNetworksMetrics.Store(&cfg.Server.Metrics.AllowedNetworks)
 	log.SetDebug(cfg.LogDebug)
-	log.Infof("Loaded config: \n%s", cfg)
+	log.Infof("Loaded config:\n%s", cfg)
 
 	return nil
 }

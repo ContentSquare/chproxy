@@ -16,7 +16,7 @@ import (
 func respondWith(rw http.ResponseWriter, err error, status int) {
 	log.Error(err.Error())
 	rw.WriteHeader(status)
-	rw.Write([]byte(err.Error()))
+	fmt.Fprintf(rw, "%s", err)
 }
 
 // getAuth retrieves auth credentials from request
@@ -70,55 +70,68 @@ func isHealthy(addr string) error {
 	return nil
 }
 
-// max bytes to read from requests body
-const maxQueryLength = 900 //5 * 1024 // 5KB
-
-func getQueryStart(req *http.Request) []byte {
-	result := fetchQuery(req, maxQueryLength)
-	if len(result) > maxQueryLength {
-		result = result[:maxQueryLength]
-	}
-	if req.Header.Get("Content-Encoding") != "gzip" {
-		return result
-	}
-	buf := bytes.NewBuffer(result)
-	gr, err := gzip.NewReader(buf)
-	if err != nil {
-		log.Errorf("error while creating gzip reader: %s", err)
-		return nil
-	}
-	// ignore errors while reading gzipped body
-	// because it's partial read and no warranties that
-	// we will read enough data to unzip it
-	result, _ = ioutil.ReadAll(gr)
-	return result
-}
-
-// fetchQuery fetches query from POST or GET request
-// @see http://clickhouse.readthedocs.io/en/latest/reference_en.html#HTTP interface
-func fetchQuery(req *http.Request, n int64) []byte {
+// getQueryStart returns the start and, optionally, the end of the query
+// if the query size exceeds 1Kb.
+//
+// getQueryStart must be called only for error reporting.
+func getQueryStart(req *http.Request) string {
 	if req.Method == http.MethodGet {
-		return []byte(req.URL.Query().Get("query"))
+		return req.URL.Query().Get("query")
 	}
-	if req.Body == nil {
-		return nil
-	}
-	src, ok := req.Body.(*cachedReadCloser)
-	if ok {
-		cached := src.readCached()
-		if len(cached) > 0 {
-			return cached
+
+	crc, ok := req.Body.(*cachedReadCloser)
+	if !ok {
+		crc = &cachedReadCloser{
+			ReadCloser: req.Body,
 		}
 	}
-	var r io.Reader
-	r = req.Body
-	if n > 0 {
-		r = io.LimitReader(req.Body, n)
+
+	// 'read' request body, so it traps into to crc.
+	// Ignore any errors, since getQueryStart is called only
+	// during error reporting.
+	io.Copy(ioutil.Discard, crc)
+	data := crc.String()
+
+	if req.Header.Get("Content-Encoding") != "gzip" {
+		return data
 	}
-	result, err := ioutil.ReadAll(r)
+
+	bs := bytes.NewBufferString(data)
+	gr, err := gzip.NewReader(bs)
 	if err != nil {
-		log.Errorf("error while reading body: %s", err)
-		return nil
+		// It is better to return `gzipped` data instead
+		// of an empty string if the data cannot be ungzipped.
+		return data
 	}
-	return result
+
+	// Ignore errors while reading gzipped body because it's partial read
+	// and no warranties that we will read enough data to unzip it.
+	result, _ := ioutil.ReadAll(gr)
+	return string(result)
+}
+
+// getFullQuery returns full query from req.
+func getFullQuery(req *http.Request) ([]byte, error) {
+	if req.Method == http.MethodGet {
+		return []byte(req.URL.Query().Get("query")), nil
+	}
+	data, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		return nil, err
+	}
+	if req.Header.Get("Content-Encoding") != "gzip" {
+		return data, nil
+	}
+
+	br := bytes.NewReader(data)
+	gr, err := gzip.NewReader(br)
+	if err != nil {
+		return nil, fmt.Errorf("cannot ungzip query: %s", err)
+	}
+
+	result, err := ioutil.ReadAll(gr)
+	if err != nil {
+		return nil, fmt.Errorf("cannot ungzip query: %s", err)
+	}
+	return result, nil
 }
