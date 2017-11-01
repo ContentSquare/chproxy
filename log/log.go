@@ -13,10 +13,13 @@ var (
 	stdDebugLogFlags = log.LstdFlags | log.Lshortfile | log.LUTC
 	outputCallDepth  = 2
 
-	DebugLogger = log.New(os.Stderr, "DEBUG: ", stdDebugLogFlags)
-	InfoLogger  = log.New(os.Stderr, "INFO: ", stdLogFlags)
-	ErrorLogger = log.New(os.Stderr, "ERROR: ", stdLogFlags)
-	FatalLogger = log.New(os.Stderr, "FATAL: ", log.LstdFlags|log.Llongfile|log.LUTC)
+	debugLogger = log.New(os.Stderr, "DEBUG: ", stdDebugLogFlags)
+	infoLogger  = log.New(os.Stderr, "INFO: ", stdLogFlags)
+	errorLogger = log.New(os.Stderr, "ERROR: ", stdLogFlags)
+	fatalLogger = log.New(os.Stderr, "FATAL: ", log.LstdFlags|log.Llongfile|log.LUTC)
+
+	// ErrorLogger is used outside the package.
+	ErrorLogger = errorLogger
 )
 
 // SuppressOutput suppresses all output from logs if `suppress` is true
@@ -24,14 +27,14 @@ var (
 func SuppressOutput(suppress bool) {
 	if suppress {
 		atomic.StoreUint32(&forbidDebug, 1)
-		DebugLogger.SetOutput(ioutil.Discard)
-		InfoLogger.SetOutput(ioutil.Discard)
-		ErrorLogger.SetOutput(ioutil.Discard)
+		debugLogger.SetOutput(ioutil.Discard)
+		infoLogger.SetOutput(ioutil.Discard)
+		errorLogger.SetOutput(ioutil.Discard)
 	} else {
 		atomic.StoreUint32(&forbidDebug, 0)
-		DebugLogger.SetOutput(os.Stderr)
-		InfoLogger.SetOutput(os.Stderr)
-		ErrorLogger.SetOutput(os.Stderr)
+		debugLogger.SetOutput(os.Stderr)
+		infoLogger.SetOutput(os.Stderr)
+		errorLogger.SetOutput(os.Stderr)
 	}
 }
 
@@ -50,12 +53,12 @@ func SetDebug(val bool) {
 	}
 	if val {
 		atomic.StoreUint32(&debug, 1)
-		InfoLogger.SetFlags(stdDebugLogFlags)
-		ErrorLogger.SetFlags(stdDebugLogFlags)
+		infoLogger.SetFlags(stdDebugLogFlags)
+		errorLogger.SetFlags(stdDebugLogFlags)
 	} else {
 		atomic.StoreUint32(&debug, 0)
-		InfoLogger.SetFlags(stdLogFlags)
-		ErrorLogger.SetFlags(stdLogFlags)
+		infoLogger.SetFlags(stdLogFlags)
+		errorLogger.SetFlags(stdLogFlags)
 	}
 }
 
@@ -65,7 +68,7 @@ func Debugf(format string, args ...interface{}) {
 		return
 	}
 	s := fmt.Sprintf(format, args...)
-	DebugLogger.Output(outputCallDepth, s)
+	debugLogger.Output(outputCallDepth, s)
 }
 
 // Debug prints debug message
@@ -73,7 +76,7 @@ func Debug(s string) {
 	if atomic.LoadUint32(&debug) == 0 {
 		return
 	}
-	DebugLogger.Output(outputCallDepth, s)
+	debugLogger.Output(outputCallDepth, s)
 }
 
 // Infof prints info message according to a format
@@ -84,7 +87,7 @@ func Infof(format string, args ...interface{}) {
 
 // Info prints info message
 func Info(s string) {
-	InfoLogger.Output(outputCallDepth, s)
+	infoLogger.Output(outputCallDepth, s)
 }
 
 // Errorf prints warning message according to a format
@@ -95,7 +98,7 @@ func Errorf(format string, args ...interface{}) {
 
 // Error prints warning message
 func Error(s string) {
-	ErrorLogger.Output(outputCallDepth, s)
+	errorLogger.Output(outputCallDepth, s)
 }
 
 // Fatalf prints fatal message according to a format and exits program
@@ -106,6 +109,6 @@ func Fatalf(format string, args ...interface{}) {
 
 // Fatal prints fatal message and exits program
 func Fatal(s string) {
-	FatalLogger.Output(outputCallDepth+1, s)
+	fatalLogger.Output(outputCallDepth+1, s)
 	os.Exit(1)
 }
