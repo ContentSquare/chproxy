@@ -150,15 +150,6 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		return
 	}
 
-	params := req.URL.Query()
-	key := &cache.Key{
-		Query:         q,
-		IsGzip:        req.Header.Get("Accept-Encoding") == "gzip",
-		DefaultFormat: params.Get("default_format"),
-		Database:      params.Get("database"),
-	}
-	err = s.user.cache.WriteTo(srw, key)
-
 	// Do not store `cluster_node` in lables, since it has no sense
 	// for cache metrics.
 	labels := prometheus.Labels{
@@ -167,6 +158,14 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		"cluster_user": s.labels["cluster_user"],
 	}
 
+	params := req.URL.Query()
+	key := &cache.Key{
+		Query:         q,
+		IsGzip:        req.Header.Get("Accept-Encoding") == "gzip",
+		DefaultFormat: params.Get("default_format"),
+		Database:      params.Get("database"),
+	}
+	err = s.user.cache.WriteTo(srw, key)
 	if err == nil {
 		// The response has been successfully served from cache.
 		cacheHit.With(labels).Inc()
