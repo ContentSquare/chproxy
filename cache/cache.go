@@ -190,7 +190,7 @@ func (c *Cache) clean() {
 	// Calculate total cache size and remove expired files.
 	var totalSize uint64
 	var totalItems uint64
-	walkDir(c.dir, func(fi os.FileInfo) {
+	err := walkDir(c.dir, func(fi os.FileInfo) {
 		mt := fi.ModTime()
 		if currentTime.Sub(mt) > expire {
 			fn := fi.Name()
@@ -202,6 +202,10 @@ func (c *Cache) clean() {
 		totalSize += uint64(fi.Size())
 		totalItems++
 	})
+	if err != nil {
+		log.Errorf("cache %q: %s", c.name, err)
+		return
+	}
 
 	loopsCount := 0
 	rnd := rand.New(rand.NewSource(0))
@@ -211,7 +215,7 @@ func (c *Cache) clean() {
 		p := int32(float64(excessSize) / float64(totalSize) * 100)
 		// Remove +10% over totalSize.
 		p += 10
-		walkDir(c.dir, func(fi os.FileInfo) {
+		err := walkDir(c.dir, func(fi os.FileInfo) {
 			if rnd.Int31n(100) > p {
 				return
 			}
@@ -225,6 +229,10 @@ func (c *Cache) clean() {
 			totalSize -= fs
 			totalItems--
 		})
+		if err != nil {
+			log.Errorf("cache %q: %s", c.name, err)
+			return
+		}
 
 		// This should protect from infinite loop.
 		loopsCount++
