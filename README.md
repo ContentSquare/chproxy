@@ -276,7 +276,9 @@ under `default` user. The user may be overriden with [kill_query_user](https://g
 If `cluster`'s [users](https://github.com/Vertamedia/chproxy/blob/master/config#cluster_user_config) section isn't specified, then `default` user is used with no limits.
 
 ### Security
-`Chproxy` removes all the query params from input requests (except the `query`, `database` and `default_format`) before proxying them to `ClickHouse` nodes. This prevents from unsafe overriding of various `ClickHouse` [settings](http://clickhouse-docs.readthedocs.io/en/latest/interfaces/http_interface.html).
+`Chproxy` removes all the query params from input requests (except the `query`, `database`, `default_format` and `readonly`)
+before proxying them to `ClickHouse` nodes. This prevents from unsafe overriding
+of various `ClickHouse` [settings](http://clickhouse-docs.readthedocs.io/en/latest/interfaces/http_interface.html).
 
 Be careful when configuring limits, allowed networks, passwords etc.
 By default `chproxy` tries detecting the most obvious configuration errors such as `allowed_networks: ["0.0.0.0/0"]` or sending passwords via unencrypted HTTP.
