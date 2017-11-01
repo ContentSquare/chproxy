@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -17,6 +16,17 @@ import (
 	"github.com/Vertamedia/chproxy/log"
 	"github.com/prometheus/client_golang/prometheus"
 )
+
+type reverseProxy struct {
+	*httputil.ReverseProxy
+
+	reloadSignal chan struct{}
+	reloadWG     sync.WaitGroup
+
+	mu       sync.RWMutex
+	users    map[string]*user
+	clusters map[string]*cluster
+}
 
 func newReverseProxy() *reverseProxy {
 	return &reverseProxy{
@@ -36,9 +46,9 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		respondWith(rw, err, sc)
 		return
 	}
-	log.Debugf("Request scope %s", s)
-	requestSum.With(s.labels).Inc()
 
+	// WARNING: don't use s.labels before s.incQueued,
+	// since s.labels["cluster_node"] may change inside incQueued.
 	if err := s.incQueued(); err != nil {
 		limitExcess.With(s.labels).Inc()
 		respondWith(rw, err, http.StatusTooManyRequests)
@@ -46,14 +56,8 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 	defer s.dec()
 
-	req.Body = &statReadCloser{
-		ReadCloser:       req.Body,
-		requestBodyBytes: requestBodyBytes.With(s.labels),
-	}
-	rw = &statResponseWriter{
-		ResponseWriter:    rw,
-		responseBodyBytes: responseBodyBytes.With(s.labels),
-	}
+	log.Debugf("starting request %s", s)
+	requestSum.With(s.labels).Inc()
 
 	if s.user.allowCORS {
 		origin := req.Header.Get("Origin")
@@ -61,6 +65,15 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			origin = "*"
 		}
 		rw.Header().Set("Access-Control-Allow-Origin", origin)
+	}
+
+	req.Body = &statReadCloser{
+		ReadCloser: req.Body,
+		bytesRead:  requestBodyBytes.With(s.labels),
+	}
+	srw := &statResponseWriter{
+		ResponseWriter: rw,
+		bytesWritten:   responseBodyBytes.With(s.labels),
 	}
 
 	timeStart := time.Now()
@@ -75,27 +88,24 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	req = req.WithContext(ctx)
-	cw := &cachedWriter{
-		ResponseWriter: rw,
-	}
-	rp.ReverseProxy.ServeHTTP(cw, req)
+	rp.ReverseProxy.ServeHTTP(srw, req)
 
 	if req.Context().Err() != nil {
 		// penalize host if respond is slow, probably it is overloaded
 		s.host.penalize()
-		cw.statusCode = http.StatusGatewayTimeout
+		srw.statusCode = http.StatusGatewayTimeout
 		if err := s.killQuery(); err != nil {
 			log.Errorf("error while killing query: %s", err)
 		}
-		fmt.Fprint(rw, timeoutErrMsg.Error())
+		fmt.Fprint(srw, timeoutErrMsg.Error())
 	} else {
-		switch cw.statusCode {
+		switch srw.statusCode {
 		case http.StatusOK:
 			requestSuccess.With(s.labels).Inc()
 			log.Debugf("Request scope %s successfully proxied", s)
 		case http.StatusBadGateway:
 			s.host.penalize()
-			fmt.Fprintf(rw, "unable to reach address: %s", req.URL.Host)
+			fmt.Fprintf(srw, "unable to reach address: %s", req.URL.Host)
 		}
 	}
 	statusCodes.With(
@@ -104,7 +114,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			"cluster":      s.cluster.name,
 			"cluster_user": s.clusterUser.name,
 			"cluster_node": s.host.addr.Host,
-			"code":         strconv.Itoa(cw.statusCode),
+			"code":         strconv.Itoa(srw.statusCode),
 		},
 	).Inc()
 	since := float64(time.Since(timeStart).Seconds())
@@ -246,17 +256,6 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 	return nil
 }
 
-type reverseProxy struct {
-	*httputil.ReverseProxy
-
-	reloadSignal chan struct{}
-	reloadWG     sync.WaitGroup
-
-	mu       sync.RWMutex
-	users    map[string]*user
-	clusters map[string]*cluster
-}
-
 func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 	name, password := getAuth(req)
 
@@ -315,37 +314,4 @@ func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 		},
 	}
 	return s, 0, nil
-}
-
-// cache writer suppose to intercept headers set
-type cachedWriter struct {
-	http.ResponseWriter
-	statusCode int
-}
-
-func (cw *cachedWriter) WriteHeader(code int) {
-	cw.statusCode = code
-	cw.ResponseWriter.WriteHeader(code)
-}
-
-type statReadCloser struct {
-	io.ReadCloser
-	requestBodyBytes prometheus.Counter
-}
-
-func (src *statReadCloser) Read(p []byte) (int, error) {
-	n, err := src.ReadCloser.Read(p)
-	src.requestBodyBytes.Add(float64(n))
-	return n, err
-}
-
-type statResponseWriter struct {
-	http.ResponseWriter
-	responseBodyBytes prometheus.Counter
-}
-
-func (srw *statResponseWriter) Write(p []byte) (int, error) {
-	n, err := srw.ResponseWriter.Write(p)
-	srw.responseBodyBytes.Add(float64(n))
-	return n, err
 }
