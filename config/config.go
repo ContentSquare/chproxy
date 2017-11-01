@@ -453,7 +453,6 @@ type Cache struct {
 	Expire time.Duration `yaml:"expire,omitempty"`
 
 	// Grace duration before the expired entry is deleted from the cache.
-	// By default grace time is 1m.
 	GraceTime time.Duration `yaml:"grace_time,omitempty"`
 
 	// Catches all undefined fields
