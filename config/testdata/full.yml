@@ -1,7 +1,11 @@
 # Whether to print debug logs.
+#
+# By default debug logs are disabled.
 log_debug: true
 
 # Whether to ignore security checks during config parsing.
+#
+# By default security checks are enabled.
 hack_me_please: true
 
 # Named network lists, might be used as values for `allowed_networks`.
