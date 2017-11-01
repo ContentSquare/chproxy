@@ -87,7 +87,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if s.user.cache != nil {
 		rp.serveFromCache(s, srw, req)
 	} else {
-		rp.proxyRequest(s, rw, req)
+		rp.proxyRequest(s, srw, req)
 	}
 
 	statusCodes.With(
