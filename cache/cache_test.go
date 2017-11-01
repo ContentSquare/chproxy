@@ -238,6 +238,51 @@ func TestPendingEntries(t *testing.T) {
 	}
 }
 
+func TestCacheRollback(t *testing.T) {
+	c := newTestCache(t)
+	defer c.Close()
+
+	for i := 0; i < 10; i++ {
+		key := &Key{
+			Query: []byte(fmt.Sprintf("SELECT %d cache rollback", i)),
+		}
+		trw := &testResponseWriter{}
+		crw, err := c.NewResponseWriter(trw, key)
+		if err != nil {
+			t.Fatalf("cannot create response writer: %s", err)
+		}
+
+		value := fmt.Sprintf("very big value %d", i)
+		bs := bytes.NewBufferString(value)
+		if _, err := io.Copy(crw, bs); err != nil {
+			t.Fatalf("cannot send response to cache: %s", err)
+		}
+		if err := crw.Rollback(); err != nil {
+			t.Fatalf("cannot rollback response: %s", err)
+		}
+
+		// Verify trw contains valid response
+		if string(trw.b) != value {
+			t.Fatalf("unexpected value received: %q; expecting %q", trw.b, value)
+		}
+	}
+
+	// Verify that rolled back values aren't cached
+	for i := 0; i < 10; i++ {
+		key := &Key{
+			Query: []byte(fmt.Sprintf("SELECT %d cache rollback", i)),
+		}
+		trw := &testResponseWriter{}
+		err := c.WriteTo(trw, key)
+		if err == nil {
+			t.Fatalf("expecting non-nil error")
+		}
+		if err != ErrMissing {
+			t.Fatalf("unexpected error: %q; expecting %q", err, ErrMissing)
+		}
+	}
+}
+
 func TestCacheClean(t *testing.T) {
 	cfg := config.Cache{
 		Name:    "foobar",
