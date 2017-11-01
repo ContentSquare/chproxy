@@ -61,7 +61,7 @@ func TestServe(t *testing.T) {
 	}{
 		{
 			"https request",
-			"testdata/tls.conf.yml",
+			"testdata/https.yml",
 			func(t *testing.T) {
 				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query=asd", nil)
 				if err != nil {
@@ -94,7 +94,7 @@ func TestServe(t *testing.T) {
 		},
 		{
 			"deny https",
-			"testdata/tls.conf.deny.https.yml",
+			"testdata/https.deny.https.yml",
 			func(t *testing.T) {
 				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query=asd", nil)
 				if err != nil {
@@ -123,7 +123,7 @@ func TestServe(t *testing.T) {
 		},
 		{
 			"https networks",
-			"testdata/tls.conf.networks.yml",
+			"testdata/https.networks.yml",
 			func(t *testing.T) {
 				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query=asd", nil)
 				if err != nil {
@@ -153,7 +153,7 @@ func TestServe(t *testing.T) {
 		},
 		{
 			"https user networks",
-			"testdata/https.conf.user.networks.yml",
+			"testdata/https.user.networks.yml",
 			func(t *testing.T) {
 				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query=asd", nil)
 				if err != nil {
@@ -183,7 +183,7 @@ func TestServe(t *testing.T) {
 		},
 		{
 			"https cluster user networks",
-			"testdata/https.conf.cluster.user.networks.yml",
+			"testdata/https.cluster.user.networks.yml",
 			func(t *testing.T) {
 				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query=asd", nil)
 				if err != nil {
@@ -213,7 +213,7 @@ func TestServe(t *testing.T) {
 		},
 		{
 			"http request",
-			"testdata/http.conf.yml",
+			"testdata/http.yml",
 			func(t *testing.T) {
 				resp, err := http.Get("http://127.0.0.1:9090?query=asd")
 				if err != nil {
@@ -233,7 +233,7 @@ func TestServe(t *testing.T) {
 		},
 		{
 			"deny http",
-			"testdata/http.conf.deny.http.yml",
+			"testdata/http.deny.http.yml",
 			func(t *testing.T) {
 				resp, err := http.Get("http://127.0.0.1:9090?query=asd")
 				if err != nil {
@@ -257,7 +257,7 @@ func TestServe(t *testing.T) {
 		},
 		{
 			"http networks",
-			"testdata/http.conf.networks.yml",
+			"testdata/http.networks.yml",
 			func(t *testing.T) {
 				resp, err := http.Get("http://127.0.0.1:9090?query=asd")
 				if err != nil {
@@ -282,7 +282,7 @@ func TestServe(t *testing.T) {
 		},
 		{
 			"http metrics networks",
-			"testdata/http.conf.metrics.networks.yml",
+			"testdata/http.metrics.networks.yml",
 			func(t *testing.T) {
 				resp, err := http.Get("http://127.0.0.1:9090/metrics")
 				if err != nil {
@@ -307,7 +307,7 @@ func TestServe(t *testing.T) {
 		},
 		{
 			"http user networks",
-			"testdata/http.conf.user.networks.yml",
+			"testdata/http.user.networks.yml",
 			func(t *testing.T) {
 				resp, err := http.Get("http://127.0.0.1:9090?query=asd")
 				if err != nil {
@@ -332,7 +332,7 @@ func TestServe(t *testing.T) {
 		},
 		{
 			"http cluster user networks",
-			"testdata/http.conf.cluster.user.networks.yml",
+			"testdata/http.cluster.user.networks.yml",
 			func(t *testing.T) {
 				resp, err := http.Get("http://127.0.0.1:9090?query=asd")
 				if err != nil {

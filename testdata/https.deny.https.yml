@@ -9,7 +9,8 @@ users:
     password: "qwerty"
     to_cluster: "default"
     to_user: "default"
+    deny_https: true
 
 clusters:
   - name: "default"
-    nodes: ["127.0.0.1:8123"]
+    nodes: ["127.0.0.1:8124"]
