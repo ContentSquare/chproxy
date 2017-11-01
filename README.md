@@ -288,9 +288,13 @@ Special option `hack_me_please: true` may be used for disabling all the security
 #### Example of [full](https://github.com/Vertamedia/chproxy/blob/master/config/testdata/full.yml) configuration:
 ```yml
 # Whether to print debug logs.
+#
+# By default debug logs are disabled.
 log_debug: true
 
 # Whether to ignore security checks during config parsing.
+#
+# By default security checks are enabled.
 hack_me_please: true
 
 # Named network lists, might be used as values for `allowed_networks`.
