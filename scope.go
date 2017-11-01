@@ -242,13 +242,13 @@ var allowedParams = []string{
 }
 
 func (s *scope) decorateRequest(req *http.Request) *http.Request {
-	// make new params to purify URL
+	// Make new params to purify URL.
 	params := make(url.Values)
 
-	// set query_id as scope_id to have possibility kill query if needed
+	// Set query_id as scope_id to have possibility to kill query if needed.
 	params.Set("query_id", fmt.Sprintf("%X", s.id))
 
-	// keep allowed params
+	// Keep allowed params.
 	q := req.URL.Query()
 	for _, param := range allowedParams {
 		val := q.Get(param)
@@ -256,20 +256,23 @@ func (s *scope) decorateRequest(req *http.Request) *http.Request {
 			params.Set(param, val)
 		}
 	}
+
 	req.URL.RawQuery = params.Encode()
 
-	// rewrite possible previous Basic Auth
-	// and send request as cluster user
+	// Rewrite possible previous Basic Auth and send request
+	// as cluster user.
 	req.SetBasicAuth(s.clusterUser.name, s.clusterUser.password)
 
-	// send request to chosen host from cluster
+	// Send request to the chosen host from cluster.
 	req.URL.Scheme = s.host.addr.Scheme
 	req.URL.Host = s.host.addr.Host
 
-	// extend ua with additional info
+	// Extend ua with additional info, so it may be queried
+	// via system.query_log.http_user_agent.
 	ua := fmt.Sprintf("RemoteAddr: %s; LocalAddr: %s; CHProxy-User: %s; CHProxy-ClusterUser: %s; %s",
 		s.remoteAddr, s.localAddr, s.user.name, s.clusterUser.name, req.UserAgent())
 	req.Header.Set("User-Agent", ua)
+
 	return req
 }
 
