@@ -193,7 +193,7 @@ func (c *Cache) clean() {
 	err := walkDir(c.dir, func(fi os.FileInfo) {
 		mt := fi.ModTime()
 		if currentTime.Sub(mt) > expire {
-			fn := fi.Name()
+			fn := c.fileInfoPath(fi)
 			if err := os.Remove(fn); err != nil {
 				log.Errorf("cache %q: cannot remove file %q: %s", c.name, fn, err)
 			}
@@ -221,7 +221,7 @@ func (c *Cache) clean() {
 			}
 
 			fs := uint64(fi.Size())
-			fn := fi.Name()
+			fn := c.fileInfoPath(fi)
 			if err := os.Remove(fn); err != nil {
 				log.Errorf("cache %q: cannot remove file %q: %s", c.name, fn, err)
 				return
@@ -415,6 +415,10 @@ func (c *Cache) pendingEntriesCleaner() {
 func (c *Cache) filepath(key *Key) string {
 	k := key.String()
 	return filepath.Join(c.dir, k)
+}
+
+func (c *Cache) fileInfoPath(fi os.FileInfo) string {
+	return filepath.Join(c.dir, fi.Name())
 }
 
 // NewResponseWriter wraps rw into cached response writer

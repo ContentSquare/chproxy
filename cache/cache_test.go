@@ -238,6 +238,60 @@ func TestPendingEntries(t *testing.T) {
 	}
 }
 
+func TestCacheClean(t *testing.T) {
+	cfg := config.Cache{
+		Name:    "foobar",
+		Dir:     testDir,
+		MaxSize: 8192,
+		Expire:  time.Minute,
+	}
+	c, err := newCache(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	// populate the cache with a lot of entries
+	for i := 0; i < 1000; i++ {
+		key := &Key{
+			Query: []byte(fmt.Sprintf("SELECT %d cache clean", i)),
+		}
+		trw := &testResponseWriter{}
+		crw, err := c.NewResponseWriter(trw, key)
+		if err != nil {
+			t.Fatalf("cannot create response writer: %s", err)
+		}
+
+		value := fmt.Sprintf("very big value %d", i)
+		bs := bytes.NewBufferString(value)
+		if _, err := io.Copy(crw, bs); err != nil {
+			t.Fatalf("cannot send response to cache: %s", err)
+		}
+		if err := crw.Commit(); err != nil {
+			t.Fatalf("cannot commit response to cache: %s", err)
+		}
+	}
+
+	// Forcibly clean the cache
+	c.clean()
+
+	// Make sure the total cache size doesnt exceed MaxSize
+	stats := c.Stats()
+	if stats.Size <= 0 {
+		t.Fatalf("cache size must be greater than 0; got %d", stats.Size)
+	}
+	if stats.Size > c.maxSize {
+		t.Fatalf("cache size %d cannot exceed %d", stats.Size, c.maxSize)
+	}
+
+	if stats.Items <= 0 {
+		t.Fatalf("cache items must be greater than 0; got %d", stats.Items)
+	}
+	if stats.Items > 1000 {
+		t.Fatalf("cache items %d cannot exceed %d", stats.Items, 1000)
+	}
+}
+
 type testResponseWriter struct {
 	b []byte
 }
