@@ -187,6 +187,8 @@ func (c *Cache) cleaner() {
 func (c *Cache) clean() {
 	currentTime := time.Now()
 
+	log.Debugf("cache %q: start cleaning dir %q", c.name, c.dir)
+
 	// Remove cached files after a graceTime from their expiration,
 	// so they may be served until they are substituted with fresh files.
 	expire := c.expire + c.graceTime
@@ -194,16 +196,21 @@ func (c *Cache) clean() {
 	// Calculate total cache size and remove expired files.
 	var totalSize uint64
 	var totalItems uint64
+	var removedSize uint64
+	var removedItems uint64
 	err := walkDir(c.dir, func(fi os.FileInfo) {
 		mt := fi.ModTime()
+		fs := uint64(fi.Size())
 		if currentTime.Sub(mt) > expire {
 			fn := c.fileInfoPath(fi)
 			if err := os.Remove(fn); err != nil {
 				log.Errorf("cache %q: cannot remove file %q: %s", c.name, fn, err)
 			}
+			removedSize += fs
+			removedItems++
 			return
 		}
-		totalSize += uint64(fi.Size())
+		totalSize += fs
 		totalItems++
 	})
 	if err != nil {
@@ -230,6 +237,8 @@ func (c *Cache) clean() {
 				log.Errorf("cache %q: cannot remove file %q: %s", c.name, fn, err)
 				return
 			}
+			removedSize += fs
+			removedItems++
 			totalSize -= fs
 			totalItems--
 		})
@@ -244,6 +253,11 @@ func (c *Cache) clean() {
 
 	atomic.StoreUint64(&c.stats.Size, totalSize)
 	atomic.StoreUint64(&c.stats.Items, totalItems)
+
+	log.Debugf("cache %q: final size %d; final items %d; removed size %d; removed items %d",
+		c.name, totalSize, totalItems, removedSize, removedItems)
+
+	log.Debugf("cache %q: finish cleaning dir %q", c.name, c.dir)
 }
 
 // walkDir calls f on all the cache files in the given dir.
