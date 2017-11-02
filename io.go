@@ -41,29 +41,26 @@ func (src *statReadCloser) Read(p []byte) (int, error) {
 	return n, err
 }
 
-// cachedReadCloser caches the start and the end of the wrapped ReadCloser.
+// cachedReadCloser caches the first 1Kb form the wrapped ReadCloser.
 type cachedReadCloser struct {
 	io.ReadCloser
 
-	start, end []byte
+	start []byte
 }
 
 func (crc *cachedReadCloser) Read(p []byte) (int, error) {
 	n, err := crc.ReadCloser.Read(p)
 	if len(crc.start) < 1024 {
 		crc.start = append(crc.start, p[:n]...)
-	} else if err == nil {
-		crc.end = append(crc.end[:0], p[:n]...)
+		if len(crc.start) >= 1024 {
+			crc.start = append(crc.start[:1024], "..."...)
+		}
 	}
+	// Do not cache the last read operation, since it slows down
+	// reading large amounts of data such as large INSERT queries.
 	return n, err
 }
 
 func (crc *cachedReadCloser) String() string {
-	var b []byte
-	b = append(b, crc.start...)
-	if len(crc.end) > 0 {
-		b = append(b, " ... "...)
-		b = append(b, crc.end...)
-	}
-	return string(b)
+	return string(crc.start)
 }
