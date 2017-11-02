@@ -208,6 +208,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	if err == nil {
 		// The response has been successfully served from cache.
 		cacheHit.With(labels).Inc()
+		log.Debugf("cache hit %s", s)
 		return
 	}
 	if err != cache.ErrMissing {
@@ -220,6 +221,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	// The response wasn't found in the cache.
 	// Request it from clickhouse.
 	cacheMiss.With(labels).Inc()
+	log.Debugf("cache miss %s", s)
 	crw, err := s.user.cache.NewResponseWriter(srw, key)
 	if err != nil {
 		err = fmt.Errorf("%s: %s; query: %q", s, err, q)
