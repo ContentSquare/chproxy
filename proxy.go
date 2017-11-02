@@ -91,48 +91,23 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	req.Body = &cachedReadCloser{
 		ReadCloser: req.Body,
 	}
-	timeout, timeoutErrMsg := s.getTimeoutWithErrMsg()
-	ctx := context.Background()
-	if timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, timeout)
-		defer cancel()
-	}
 
-	req = req.WithContext(ctx)
-	rp.ReverseProxy.ServeHTTP(srw, req)
-
-	if req.Context().Err() != nil {
-		// The request has been timed out.
-
-		// Penalize host with the timed out query, because it may be overloaded.
-		s.host.penalize()
+	if !rp.proxyRequest(s, srw, req) {
+		// Request timeout.
 		srw.statusCode = http.StatusGatewayTimeout
-		q := getQuerySnippet(req)
-
-		// Forcibly kill the timed out query.
-		if err := s.killQuery(); err != nil {
-			log.Errorf("%s: cannot kill query: %s; query: %q", s, err, q)
-			// Return is skipped intentionally, so the error below
-			// may be written to log.
-		}
-
-		err := fmt.Errorf("%s: %s; query: %q", s, timeoutErrMsg, q)
-		respondWith(srw, err, srw.statusCode)
-		// Return is skipped intentionally, so metrics below
-		// may be updated.
-	} else {
-		switch srw.statusCode {
-		case http.StatusOK:
-			requestSuccess.With(s.labels).Inc()
-			log.Debugf("request success %s", s)
-		case http.StatusBadGateway:
-			s.host.penalize()
-			q := getQuerySnippet(req)
-			err := fmt.Errorf("%s: cannot reach %s; query: %q", s, s.host.addr.Host, q)
-			respondWith(srw, err, srw.statusCode)
-		}
 	}
+
+	switch srw.statusCode {
+	case http.StatusOK:
+		requestSuccess.With(s.labels).Inc()
+		log.Debugf("request success %s", s)
+	case http.StatusBadGateway:
+		s.host.penalize()
+		q := getQuerySnippet(req)
+		err := fmt.Errorf("%s: cannot reach %s; query: %q", s, s.host.addr.Host, q)
+		respondWith(srw, err, srw.statusCode)
+	}
+
 	statusCodes.With(
 		prometheus.Labels{
 			"user":         s.user.name,
@@ -144,6 +119,49 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	).Inc()
 	since := float64(time.Since(timeStart).Seconds())
 	requestDuration.With(s.labels).Observe(since)
+}
+
+func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, req *http.Request) bool {
+	// wrap body into cachedReadCloser, so we could obtain the original
+	// request on error.
+	if _, ok := req.Body.(*cachedReadCloser); !ok {
+		req.Body = &cachedReadCloser{
+			ReadCloser: req.Body,
+		}
+	}
+
+	timeout, timeoutErrMsg := s.getTimeoutWithErrMsg()
+	ctx := context.Background()
+	if timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+	req = req.WithContext(ctx)
+
+	rp.ReverseProxy.ServeHTTP(rw, req)
+
+	if req.Context().Err() == nil {
+		// The request has been successfully proxied.
+		return true
+	}
+
+	// The request has been timed out.
+
+	// Penalize host with the timed out query, because it may be overloaded.
+	s.host.penalize()
+	q := getQuerySnippet(req)
+
+	// Forcibly kill the timed out query.
+	if err := s.killQuery(); err != nil {
+		log.Errorf("%s: cannot kill query: %s; query: %q", s, err, q)
+		// Return is skipped intentionally, so the error below
+		// may be written to log.
+	}
+
+	err := fmt.Errorf("%s: %s; query %q", s, timeoutErrMsg, q)
+	respondWith(rw, err, http.StatusGatewayTimeout)
+	return false
 }
 
 // ApplyConfig applies provided config to reverseProxy.
