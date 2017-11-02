@@ -57,9 +57,8 @@ type Key struct {
 	// Query must contain full request query.
 	Query []byte
 
-	// IsGzip must be set to true if request header contains
-	// 'Accept-Encoding: gzip'.
-	IsGzip bool
+	// AcceptEncoding must contain 'Accept-Encoding' request header value.
+	AcceptEncoding string
 
 	// DefaultFormat must contain `default_format` query arg.
 	DefaultFormat string
@@ -70,7 +69,8 @@ type Key struct {
 
 // String returns string representation of the key.
 func (k *Key) String() string {
-	s := fmt.Sprintf("Query=%q, IsGzip=%v, DefaultFormat=%q, Database=%q", k.Query, k.IsGzip, k.DefaultFormat, k.Database)
+	s := fmt.Sprintf("Query=%q, AcceptEncoding=%q, DefaultFormat=%q, Database=%q",
+		k.Query, k.AcceptEncoding, k.DefaultFormat, k.Database)
 	h := sha256.Sum256([]byte(s))
 
 	// The first 16 bytes of the hash should be enough

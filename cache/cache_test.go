@@ -32,31 +32,31 @@ func TestKeyString(t *testing.T) {
 			key: &Key{
 				Query: []byte("SELECT 1 FROM system.numbers LIMIT 10"),
 			},
-			expected: "c1366f1b0a3e284006c0a1be6e3f1f68",
+			expected: "3585e113d656127286fd9827be85e595",
 		},
 		{
 			key: &Key{
-				Query:  []byte("SELECT 1 FROM system.numbers LIMIT 10"),
-				IsGzip: true,
+				Query:          []byte("SELECT 1 FROM system.numbers LIMIT 10"),
+				AcceptEncoding: "gzip",
 			},
-			expected: "5544a41f4cedc3b4fff2695a28b00594",
+			expected: "1a8e8cb8508a8c40b750138117a2a4ac",
 		},
 		{
 			key: &Key{
-				Query:         []byte("SELECT 1 FROM system.numbers LIMIT 10"),
-				IsGzip:        true,
-				DefaultFormat: "JSON",
+				Query:          []byte("SELECT 1 FROM system.numbers LIMIT 10"),
+				AcceptEncoding: "gzip",
+				DefaultFormat:  "JSON",
 			},
-			expected: "82fe18538028dfb0317037279ada6377",
+			expected: "9a5e1a82be969490fda2314560f7e357",
 		},
 		{
 			key: &Key{
-				Query:         []byte("SELECT 1 FROM system.numbers LIMIT 10"),
-				IsGzip:        true,
-				DefaultFormat: "JSON",
-				Database:      "foobar",
+				Query:          []byte("SELECT 1 FROM system.numbers LIMIT 10"),
+				AcceptEncoding: "gzip",
+				DefaultFormat:  "JSON",
+				Database:       "foobar",
 			},
-			expected: "3da029b8d18ee11a66f397e38d78b7f5",
+			expected: "66475c5f66ee06c211f116efa837b40f",
 		},
 	}
 

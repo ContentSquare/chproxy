@@ -173,10 +173,10 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 
 	params := req.URL.Query()
 	key := &cache.Key{
-		Query:         q,
-		IsGzip:        req.Header.Get("Accept-Encoding") == "gzip",
-		DefaultFormat: params.Get("default_format"),
-		Database:      params.Get("database"),
+		Query:          q,
+		AcceptEncoding: req.Header.Get("Accept-Encoding"),
+		DefaultFormat:  params.Get("default_format"),
+		Database:       params.Get("database"),
 	}
 	err = s.user.cache.WriteTo(srw, key)
 	if err == nil {

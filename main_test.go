@@ -157,8 +157,8 @@ func TestServe(t *testing.T) {
 				}
 				resp.Body.Close()
 				key := &cache.Key{
-					Query:  []byte(q),
-					IsGzip: true,
+					Query:          []byte(q),
+					AcceptEncoding: "gzip",
 				}
 				path := fmt.Sprintf("%s/cache/%s", testDir, key.String())
 				if _, err := os.Stat(path); err != nil {
