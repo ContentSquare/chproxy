@@ -18,9 +18,6 @@ var (
 	errorLogger = log.New(os.Stderr, "ERROR: ", stdLogFlags)
 	fatalLogger = log.New(os.Stderr, "FATAL: ", log.LstdFlags|log.Llongfile|log.LUTC)
 
-	// ErrorLogger is used outside the package.
-	ErrorLogger = errorLogger
-
 	// NilLogger suppresses all the log messages.
 	NilLogger = log.New(ioutil.Discard, "", stdLogFlags)
 )

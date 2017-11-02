@@ -186,7 +186,10 @@ func listenAndServe(ln net.Listener, maxResponseTime time.Duration) error {
 		ReadTimeout:  time.Minute,
 		WriteTimeout: maxResponseTime,
 		IdleTimeout:  time.Minute * 10,
-		ErrorLog:     log.ErrorLogger,
+
+		// Suppress error logging from the server, since chproxy
+		// must handle all these errors in the code.
+		ErrorLog: log.NilLogger,
 	}
 	return s.Serve(ln)
 }

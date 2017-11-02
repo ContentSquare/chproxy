@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"time"
@@ -22,7 +25,6 @@ func getAuth(req *http.Request) (string, string) {
 	if name, pass, ok := req.BasicAuth(); ok {
 		return name, pass
 	}
-
 	// if basicAuth is empty - check URL params `user` and `password`
 	params := req.URL.Query()
 	if name := params.Get("user"); name != "" {
@@ -30,7 +32,6 @@ func getAuth(req *http.Request) (string, string) {
 			return name, pass
 		}
 	}
-
 	// if still no credentials - treat it as `default` user request
 	return "default", ""
 }
@@ -68,4 +69,43 @@ func isHealthy(addr string) error {
 		return fmt.Errorf("unexpected response: %s", r)
 	}
 	return nil
+}
+
+// getQuerySnippet returns query snippet.
+//
+// getQuerySnippet must be called only for error reporting.
+func getQuerySnippet(req *http.Request) string {
+	if req.Method == http.MethodGet {
+		return req.URL.Query().Get("query")
+	}
+
+	crc, ok := req.Body.(*cachedReadCloser)
+	if !ok {
+		crc = &cachedReadCloser{
+			ReadCloser: req.Body,
+		}
+	}
+
+	// 'read' request body, so it traps into to crc.
+	// Ignore any errors, since getQuerySnippet is called only
+	// during error reporting.
+	io.Copy(ioutil.Discard, crc)
+	data := crc.String()
+
+	if req.Header.Get("Content-Encoding") != "gzip" {
+		return data
+	}
+
+	bs := bytes.NewBufferString(data)
+	gr, err := gzip.NewReader(bs)
+	if err != nil {
+		// It is better to return `gzipped` data instead
+		// of an empty string if the data cannot be ungzipped.
+		return data
+	}
+
+	// Ignore errors while reading gzipped body because it's partial read
+	// and no warranties that we will read enough data to unzip it.
+	result, _ := ioutil.ReadAll(gr)
+	return string(result)
 }

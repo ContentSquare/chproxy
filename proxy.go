@@ -47,7 +47,8 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	s, status, err := rp.getScope(req)
 	if err != nil {
-		err = fmt.Errorf("scope error for %q: %s", req.RemoteAddr, err)
+		q := getQuerySnippet(req)
+		err = fmt.Errorf("%q: %s; query: %q", req.RemoteAddr, err, q)
 		respondWith(rw, err, status)
 		return
 	}
@@ -56,6 +57,8 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	// since s.labels["cluster_node"] may change inside incQueued.
 	if err := s.incQueued(); err != nil {
 		limitExcess.With(s.labels).Inc()
+		q := getQuerySnippet(req)
+		err = fmt.Errorf("%s: %s; query: %q", s, err, q)
 		respondWith(rw, err, http.StatusTooManyRequests)
 		return
 	}
@@ -83,6 +86,11 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	req = s.decorateRequest(req)
 
+	// wrap body into cachedReadCloser, so we could obtain the original
+	// request on error.
+	req.Body = &cachedReadCloser{
+		ReadCloser: req.Body,
+	}
 	timeout, timeoutErrMsg := s.getTimeoutWithErrMsg()
 	ctx := context.Background()
 	if timeout > 0 {
@@ -95,23 +103,34 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	rp.ReverseProxy.ServeHTTP(srw, req)
 
 	if req.Context().Err() != nil {
-		// penalize host if respond is slow, probably it is overloaded
+		// The request has been timed out.
+
+		// Penalize host with the timed out query, because it may be overloaded.
 		s.host.penalize()
 		srw.statusCode = http.StatusGatewayTimeout
+		q := getQuerySnippet(req)
+
+		// Forcibly kill the timed out query.
 		if err := s.killQuery(); err != nil {
-			log.Errorf("error while killing query: %s", err)
+			log.Errorf("%s: cannot kill query: %s; query: %q", s, err, q)
+			// Return is skipped intentionally, so the error below
+			// may be written to log.
 		}
-		respondWith(srw, timeoutErrMsg, http.StatusGatewayTimeout)
-		// return is skipped intentionally, so metrics below
+
+		err := fmt.Errorf("%s: %s; query: %q", s, timeoutErrMsg, q)
+		respondWith(srw, err, srw.statusCode)
+		// Return is skipped intentionally, so metrics below
 		// may be updated.
 	} else {
 		switch srw.statusCode {
 		case http.StatusOK:
 			requestSuccess.With(s.labels).Inc()
-			log.Debugf("Request scope %s successfully proxied", s)
+			log.Debugf("request success %s", s)
 		case http.StatusBadGateway:
 			s.host.penalize()
-			fmt.Fprintf(srw, "unable to reach address: %s", req.URL.Host)
+			q := getQuerySnippet(req)
+			err := fmt.Errorf("%s: cannot reach %s; query: %q", s, s.host.addr.Host, q)
+			respondWith(srw, err, srw.statusCode)
 		}
 	}
 	statusCodes.With(

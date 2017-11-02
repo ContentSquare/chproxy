@@ -157,7 +157,7 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 		},
 		{
 			name:     "max concurrent queries for cluster user",
-			expected: "limits for cluster user \"web\" are exceeded: max_concurrent_queries limit: 1",
+			expected: "limits for cluster user \"web\" are exceeded: max_concurrent_queries limit: 1;",
 			cfg:      goodCfg,
 			f: func(p *reverseProxy) string {
 				p.clusters["cluster"].users["web"].maxConcurrentQueries = 1
@@ -197,7 +197,7 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 		},
 		{
 			name:     "max concurrent queries for user",
-			expected: "limits for user \"default\" are exceeded: max_concurrent_queries limit: 1",
+			expected: "limits for user \"default\" are exceeded: max_concurrent_queries limit: 1;",
 			cfg:      goodCfg,
 			f: func(p *reverseProxy) string {
 				p.users["default"].maxConcurrentQueries = 1
@@ -208,7 +208,7 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 		},
 		{
 			name:     "disallow https",
-			expected: "scope error for \"192.0.2.1:1234\": user \"default\" is not allowed to access via https",
+			expected: "user \"default\" is not allowed to access via https",
 			cfg:      authCfg,
 			f: func(p *reverseProxy) string {
 				p.users["default"].denyHTTPS = true
@@ -230,7 +230,7 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 		},
 		{
 			name:     "disallow http",
-			expected: "scope error for \"192.0.2.1:1234\": user \"default\" is not allowed to access via http",
+			expected: "user \"default\" is not allowed to access via http",
 			cfg:      authCfg,
 			f: func(p *reverseProxy) string {
 				p.users["default"].denyHTTP = true
@@ -241,7 +241,7 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 		},
 		{
 			name:     "basicauth wrong name",
-			expected: "scope error for \"192.0.2.1:1234\": invalid username or password for user \"fooo\"",
+			expected: "invalid username or password for user \"fooo\"",
 			cfg:      authCfg,
 			f: func(p *reverseProxy) string {
 				req := httptest.NewRequest("POST", fakeServer.URL, nil)
@@ -251,7 +251,7 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 		},
 		{
 			name:     "basicauth wrong pass",
-			expected: "scope error for \"192.0.2.1:1234\": invalid username or password for user \"foo\"",
+			expected: "invalid username or password for user \"foo\"",
 			cfg:      authCfg,
 			f: func(p *reverseProxy) string {
 				req := httptest.NewRequest("POST", fakeServer.URL, nil)
@@ -261,7 +261,7 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 		},
 		{
 			name:     "auth wrong name",
-			expected: "scope error for \"192.0.2.1:1234\": invalid username or password for user \"fooo\"",
+			expected: "invalid username or password for user \"fooo\"",
 			cfg:      authCfg,
 			f: func(p *reverseProxy) string {
 				uri := fmt.Sprintf("%s?user=fooo&password=bar", fakeServer.URL)
@@ -271,7 +271,7 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 		},
 		{
 			name:     "auth wrong name",
-			expected: "scope error for \"192.0.2.1:1234\": invalid username or password for user \"foo\"",
+			expected: "invalid username or password for user \"foo\"",
 			cfg:      authCfg,
 			f: func(p *reverseProxy) string {
 				uri := fmt.Sprintf("%s?user=foo&password=baar", fakeServer.URL)
@@ -288,7 +288,7 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 				t.Fatalf("unexpected error: %s", err)
 			}
 			res := tc.f(proxy)
-			if res != tc.expected {
+			if !strings.Contains(res, tc.expected) {
 				t.Fatalf("expected response: %q; got: %q", tc.expected, res)
 			}
 		})
@@ -382,7 +382,7 @@ func TestReverseProxy_ServeHTTP2(t *testing.T) {
 				t.Fatalf("unexpected error: %s", err)
 			}
 			resp := makeRequest(proxy)
-			if resp != tc.expected {
+			if !strings.Contains(resp, tc.expected) {
 				t.Fatalf("expected response: %q; got: %q", tc.expected, resp)
 			}
 		})
@@ -395,8 +395,8 @@ func TestReverseProxy_ServeHTTP2(t *testing.T) {
 			t.Fatalf("unexpected error: %s", err)
 		}
 		resp := makeRequest(proxy)
-		expected := "scope error for \"192.0.2.1:1234\": cluster user \"web\" is not allowed to access"
-		if resp != expected {
+		expected := "cluster user \"web\" is not allowed to access"
+		if !strings.Contains(resp, expected) {
 			t.Fatalf("expected response: %q; got: %q", expected, resp)
 		}
 	})
@@ -408,8 +408,8 @@ func TestReverseProxy_ServeHTTP2(t *testing.T) {
 			t.Fatalf("unexpected error: %s", err)
 		}
 		resp := makeRequest(proxy)
-		expected := "scope error for \"192.0.2.1:1234\": user \"default\" is not allowed to access"
-		if resp != expected {
+		expected := "user \"default\" is not allowed to access"
+		if !strings.Contains(resp, expected) {
 			t.Fatalf("expected response: %q; got: %q", expected, resp)
 		}
 	})
