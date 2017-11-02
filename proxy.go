@@ -174,6 +174,8 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, req *http
 }
 
 func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *http.Request) {
+	timeStart := time.Now()
+
 	q, err := getFullQuery(req)
 	if err != nil {
 		err = fmt.Errorf("%s: cannot read query: %s", s, err)
@@ -210,6 +212,8 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	if err == nil {
 		// The response has been successfully served from cache.
 		cacheHit.With(labels).Inc()
+		since := float64(time.Since(timeStart).Seconds())
+		cachedResponseDuration.With(labels).Observe(since)
 		log.Debugf("%s: cache hit", s)
 		return
 	}
