@@ -530,6 +530,8 @@ Metrics are exposed via [Prometheus](https://prometheus.io/) at `/metrics` path
 | response_body_bytes_total | Counter | The amount of bytes written to response bodies | `user`, `cluster`, `cluster_user`, `cluster_node` |
 | cache_hits_total | Counter | The amount of successful cache hits | `user`, `cluster`, `cluster_user` |
 | cache_miss_total | Counter | The amount of cache miss | `user`, `cluster`, `cluster_user` |
+| cache_size | Gauge | Size of each cache | `cache` |
+| cache_items | Gauge | The number of items in each cache | `cache` |
 | cached_response_duration_seconds | Summary | Duration for cached responses | `user`, `cluster`, `cluster_user` |
 | bad_requests_total | Counter | The number of unsupported requests | |
 
