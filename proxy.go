@@ -67,7 +67,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 	defer s.dec()
 
-	log.Debugf("starting request %s", s)
+	log.Debugf("%s: request start", s)
 	requestSum.With(s.labels).Inc()
 
 	if s.user.allowCORS {
@@ -107,12 +107,14 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	switch srw.statusCode {
 	case http.StatusOK:
 		requestSuccess.With(s.labels).Inc()
-		log.Debugf("request success %s", s)
+		log.Debugf("%s: request success", s)
 	case http.StatusBadGateway:
 		s.host.penalize()
 		q := getQuerySnippet(req)
 		err := fmt.Errorf("%s: cannot reach %s; query: %q", s, s.host.addr.Host, q)
 		respondWith(srw, err, srw.statusCode)
+	default:
+		log.Debugf("%s: request failure: non-200 status code %d", s, srw.statusCode)
 	}
 
 	statusCodes.With(
@@ -208,7 +210,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	if err == nil {
 		// The response has been successfully served from cache.
 		cacheHit.With(labels).Inc()
-		log.Debugf("cache hit %s", s)
+		log.Debugf("%s: cache hit", s)
 		return
 	}
 	if err != cache.ErrMissing {
@@ -221,7 +223,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	// The response wasn't found in the cache.
 	// Request it from clickhouse.
 	cacheMiss.With(labels).Inc()
-	log.Debugf("cache miss %s", s)
+	log.Debugf("%s: cache miss", s)
 	crw, err := s.user.cache.NewResponseWriter(srw, key)
 	if err != nil {
 		err = fmt.Errorf("%s: %s; query: %q", s, err, q)
