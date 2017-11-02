@@ -261,7 +261,7 @@ func (s *scope) decorateRequest(req *http.Request) *http.Request {
 	// Disable non-readonly queries for the user with enabled cache,
 	// since such queries cannot be cached.
 	if s.user.cache != nil {
-		params.Set("readonly", "1")
+		params.Set("readonly", "2")
 	}
 
 	req.URL.RawQuery = params.Encode()
