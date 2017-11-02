@@ -24,8 +24,9 @@ func getAuth(req *http.Request) (string, string) {
 	}
 
 	// if basicAuth is empty - check URL params `user` and `password`
-	if name := req.URL.Query().Get("user"); name != "" {
-		if pass := req.URL.Query().Get("password"); name != "" {
+	params := req.URL.Query()
+	if name := params.Get("user"); name != "" {
+		if pass := params.Get("password"); name != "" {
 			return name, pass
 		}
 	}
