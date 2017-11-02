@@ -47,7 +47,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	s, status, err := rp.getScope(req)
 	if err != nil {
-		q := getQueryStart(req)
+		q := getQuerySnippet(req)
 		err = fmt.Errorf("%q: %s; query: %q", req.RemoteAddr, err, q)
 		respondWith(rw, err, status)
 		return
@@ -57,7 +57,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	// since s.labels["cluster_node"] may change inside incQueued.
 	if err := s.incQueued(); err != nil {
 		limitExcess.With(s.labels).Inc()
-		q := getQueryStart(req)
+		q := getQuerySnippet(req)
 		err = fmt.Errorf("%s: %s; query: %q", s, err, q)
 		respondWith(rw, err, http.StatusTooManyRequests)
 		return
@@ -143,7 +143,7 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, req *http
 
 	// Penalize host with the timed out query, because it may be overloaded.
 	s.host.penalize()
-	q := getQueryStart(req)
+	q := getQuerySnippet(req)
 
 	// Forcibly kill the timed out query.
 	if err := s.killQuery(); err != nil {

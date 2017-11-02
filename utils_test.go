@@ -9,32 +9,32 @@ import (
 	"testing"
 )
 
-func TestGetQueryStartGET(t *testing.T) {
+func TestGetQuerySnippetGET(t *testing.T) {
 	req, _ := http.NewRequest("GET", "", nil)
 	params := make(url.Values)
 	q := "SELECT column FROM table"
 	params.Set("query", q)
 	req.URL.RawQuery = params.Encode()
-	query := getQueryStart(req)
+	query := getQuerySnippet(req)
 	if query != q {
 		t.Fatalf("got: %q; expected: %q", query, q)
 	}
 }
 
-func TestGetQueryStartPOST(t *testing.T) {
+func TestGetQuerySnippetPOST(t *testing.T) {
 	q := "SELECT column FROM table"
 	body := bytes.NewBufferString(q)
 	req, err := http.NewRequest("POST", "", body)
 	if err != nil {
 		panic(fmt.Sprintf("BUG: unexpected error: %s", err))
 	}
-	query := getQueryStart(req)
+	query := getQuerySnippet(req)
 	if query != q {
 		t.Fatalf("got: %q; expected: %q", query, q)
 	}
 }
 
-func TestGetQueryStartGzipped(t *testing.T) {
+func TestGetQuerySnippetGzipped(t *testing.T) {
 	var buf bytes.Buffer
 	zw := gzip.NewWriter(&buf)
 	q := makeQuery(1000)
@@ -48,7 +48,7 @@ func TestGetQueryStartGzipped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	query := getQueryStart(req)
+	query := getQuerySnippet(req)
 	if query[:100] != string(q[:100]) {
 		t.Fatalf("got: %q; expected: %q", query[:100], q[:100])
 	}

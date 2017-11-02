@@ -70,11 +70,10 @@ func isHealthy(addr string) error {
 	return nil
 }
 
-// getQueryStart returns the start and, optionally, the end of the query
-// if the query size exceeds 1Kb.
+// getQuerySnippet returns query snippet.
 //
-// getQueryStart must be called only for error reporting.
-func getQueryStart(req *http.Request) string {
+// getQuerySnippet must be called only for error reporting.
+func getQuerySnippet(req *http.Request) string {
 	if req.Method == http.MethodGet {
 		return req.URL.Query().Get("query")
 	}
@@ -87,7 +86,7 @@ func getQueryStart(req *http.Request) string {
 	}
 
 	// 'read' request body, so it traps into to crc.
-	// Ignore any errors, since getQueryStart is called only
+	// Ignore any errors, since getQuerySnippet is called only
 	// during error reporting.
 	io.Copy(ioutil.Discard, crc)
 	data := crc.String()
