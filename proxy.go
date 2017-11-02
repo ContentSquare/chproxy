@@ -122,7 +122,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	requestDuration.With(s.labels).Observe(since)
 }
 
-// ApplyConfig applies provided config to reverseProxy obj
+// ApplyConfig applies provided config to reverseProxy.
 // New config will be applied only if non-nil error returned
 // Otherwise old version will be kept
 func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
