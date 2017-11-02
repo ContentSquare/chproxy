@@ -162,6 +162,8 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, req *http
 	// Forcibly kill the timed out query.
 	if err := s.killQuery(); err != nil {
 		log.Errorf("%s: cannot kill query: %s; query: %q", s, err, q)
+		// Return is skipped intentionally, so the error below
+		// may be written to log.
 	}
 
 	err := fmt.Errorf("%s: %s; query %q", s, timeoutErrMsg, q)
