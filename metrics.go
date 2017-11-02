@@ -26,8 +26,9 @@ var (
 	)
 	requestDuration = prometheus.NewSummaryVec(
 		prometheus.SummaryOpts{
-			Name: "request_duration_seconds",
-			Help: "Request duration",
+			Name:       "request_duration_seconds",
+			Help:       "Request duration",
+			Objectives: map[float64]float64{0.5: 1e-1, 0.9: 1e-2, 0.99: 1e-3, 0.999: 1e-4, 1: 1e-5},
 		},
 		[]string{"user", "cluster", "cluster_user", "cluster_node"},
 	)
