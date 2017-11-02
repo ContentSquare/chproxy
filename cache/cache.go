@@ -21,6 +21,10 @@ import (
 	"github.com/Vertamedia/chproxy/log"
 )
 
+// cacheVersion must be increased with each backwads-incompatible change
+// in the cache storage.
+const cacheVersion = 1
+
 // Cache represents a file cache.
 type Cache struct {
 	name      string
@@ -69,8 +73,8 @@ type Key struct {
 
 // String returns string representation of the key.
 func (k *Key) String() string {
-	s := fmt.Sprintf("Query=%q, AcceptEncoding=%q, DefaultFormat=%q, Database=%q",
-		k.Query, k.AcceptEncoding, k.DefaultFormat, k.Database)
+	s := fmt.Sprintf("V%d; Query=%q; AcceptEncoding=%q; DefaultFormat=%q; Database=%q",
+		cacheVersion, k.Query, k.AcceptEncoding, k.DefaultFormat, k.Database)
 	h := sha256.Sum256([]byte(s))
 
 	// The first 16 bytes of the hash should be enough
