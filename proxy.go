@@ -40,6 +40,8 @@ func newReverseProxy() *reverseProxy {
 }
 
 func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	timeStart := time.Now()
+
 	s, sc, err := rp.getScope(req)
 	if err != nil {
 		err = fmt.Errorf("scope error for %q: %s", req.RemoteAddr, err)
@@ -76,7 +78,6 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		bytesWritten:   responseBodyBytes.With(s.labels),
 	}
 
-	timeStart := time.Now()
 	req = s.decorateRequest(req)
 
 	timeout, timeoutErrMsg := s.getTimeoutWithErrMsg()
