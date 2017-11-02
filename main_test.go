@@ -8,18 +8,26 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/Vertamedia/chproxy/cache"
 	"github.com/Vertamedia/chproxy/log"
 )
+
+var testDir = "./temp-test-data"
 
 func TestMain(m *testing.M) {
 	log.SuppressOutput(true)
 	retCode := m.Run()
 	log.SuppressOutput(false)
+	if err := os.RemoveAll(testDir); err != nil {
+		log.Fatalf("cannot remove %q: %s", testDir, err)
+	}
 	os.Exit(retCode)
 }
 
@@ -31,6 +39,10 @@ func startTLS() (net.Listener, chan struct{}) {
 	cfg, err := loadConfig()
 	if err != nil {
 		panic(fmt.Sprintf("error while loading config: %s", err))
+	}
+	caches, err = cache.New(cfg.Caches)
+	if err != nil {
+		panic(fmt.Sprintf("cannot initialize caches: %s", err))
 	}
 	if err = applyConfig(cfg); err != nil {
 		panic(fmt.Sprintf("error while applying config: %s", err))
@@ -54,6 +66,10 @@ func startHTTP() (net.Listener, chan struct{}) {
 	cfg, err := loadConfig()
 	if err != nil {
 		panic(fmt.Sprintf("error while loading config: %s", err))
+	}
+	caches, err = cache.New(cfg.Caches)
+	if err != nil {
+		panic(fmt.Sprintf("cannot initialize caches: %s", err))
 	}
 	if err = applyConfig(cfg); err != nil {
 		panic(fmt.Sprintf("error while applying config: %s", err))
@@ -117,6 +133,50 @@ func TestServe(t *testing.T) {
 					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
 				}
 				resp.Body.Close()
+			},
+			startTLS,
+		},
+		{
+			"https cache",
+			"testdata/https.cache.yml",
+			func(t *testing.T) {
+				q := "SELECT 123"
+				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query="+url.QueryEscape(q), nil)
+				if err != nil {
+					t.Fatalf("unexpected erorr: %s", err)
+				}
+				req.SetBasicAuth("default", "qwerty")
+				resp, err := tlsClient.Do(req)
+				if err != nil {
+					t.Fatalf("unexpected error: %s", err)
+				}
+				if resp.StatusCode != http.StatusOK {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
+				}
+				resp.Body.Close()
+				key := &cache.Key{
+					Query:          []byte(q),
+					AcceptEncoding: "gzip",
+				}
+				path := fmt.Sprintf("%s/cache/%s", testDir, key.String())
+				if _, err := os.Stat(path); err != nil {
+					t.Fatalf("err while getting file %q info: %s", path, err)
+				}
+				rw := httptest.NewRecorder()
+				cc := caches["https_cache"]
+				if err := cc.WriteTo(rw, key); err != nil {
+					t.Fatalf("unexpected error while writing reposnse from cache: %s", err)
+				}
+
+				expected := "Ok.\n"
+				got, err := ioutil.ReadAll(rw.Body)
+				if err != nil {
+					t.Fatalf("unexpected error while reading body: %s", err)
+				}
+				if string(got) != expected {
+					t.Fatalf("unexpected cache result: %q; expected: %q", string(got), expected)
+				}
+
 			},
 			startTLS,
 		},

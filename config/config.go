@@ -44,6 +44,8 @@ type Config struct {
 
 	NetworkGroups []NetworkGroups `yaml:"network_groups,omitempty"`
 
+	Caches []Cache `yaml:"caches,omitempty"`
+
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
 
@@ -368,6 +370,9 @@ type User struct {
 	// Whether to allow CORS requests for this user
 	AllowCORS bool `yaml:"allow_cors,omitempty"`
 
+	// Name of Cache configuration to use for responses of this user
+	Cache string `yaml:"cache,omitempty"`
+
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
 }
@@ -427,6 +432,53 @@ func (ng *NetworkGroups) UnmarshalYAML(unmarshal func(interface{}) error) error 
 // NetworksOrGroups is a list of strings with names of NetworkGroups
 // or just Networks
 type NetworksOrGroups []string
+
+// Cache describes configuration options for caching
+// responses from CH clusters
+type Cache struct {
+	// Name of configuration for further assign
+	Name string `yaml:"name"`
+
+	// Path to directory where cached files will be saved
+	Dir string `yaml:"dir"`
+
+	// Maximum total size of all cached to Dir files
+	// If size is exceeded - the oldest files in Dir will be deleted
+	// until total size becomes normal
+	MaxSize ByteSize `yaml:"max_size"`
+
+	// Expiration period for cached response
+	// Files which are older than expiration period will be deleted
+	// on new request and re-cached
+	Expire time.Duration `yaml:"expire,omitempty"`
+
+	// Grace duration before the expired entry is deleted from the cache.
+	GraceTime time.Duration `yaml:"grace_time,omitempty"`
+
+	// Catches all undefined fields
+	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *Cache) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain Cache
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if len(c.Name) == 0 {
+		return fmt.Errorf("`cache.name` must be specified")
+	}
+	if len(c.Dir) == 0 {
+		return fmt.Errorf("`cache.dir` must be specified for %q", c.Name)
+	}
+	if c.MaxSize <= 0 {
+		return fmt.Errorf("`cache.max_size` must be specified for %q", c.Name)
+	}
+	if c.GraceTime < 0 {
+		return fmt.Errorf("`cache.grace_time` cannot be negative for %q", c.Name)
+	}
+	return checkOverflow(c.XXX, fmt.Sprintf("cache %q", c.Name))
+}
 
 // ClusterUser describes simplest <users> configuration
 type ClusterUser struct {

@@ -1,0 +1,23 @@
+# cache configuration
+caches:
+  - name: "https_cache"
+    dir: "temp-test-data/cache"
+    max_size: "10M"
+    expire: "1m"
+
+server:
+  https:
+      listen_addr: ":8443"
+      cert_file: "testdata/example.com.cert"
+      key_file: "testdata/example.com.key"
+
+users:
+  - name: "default"
+    password: "qwerty"
+    to_cluster: "default"
+    to_user: "default"
+    cache: "https_cache"
+
+clusters:
+  - name: "default"
+    nodes: ["127.0.0.1:8124"]

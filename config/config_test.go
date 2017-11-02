@@ -18,6 +18,21 @@ func TestLoadConfig(t *testing.T) {
 			"full description",
 			"testdata/full.yml",
 			Config{
+				Caches: []Cache{
+					{
+						Name:      "longterm",
+						Dir:       "/path/to/longterm/cachedir",
+						MaxSize:   ByteSize(100 << 30),
+						Expire:    time.Hour,
+						GraceTime: 20 * time.Second,
+					},
+					{
+						Name:    "shortterm",
+						Dir:     "/path/to/shortterm/cachedir",
+						MaxSize: ByteSize(100 << 20),
+						Expire:  10 * time.Second,
+					},
+				},
 				HackMePlease: true,
 				Server: Server{
 					HTTP: HTTP{
@@ -91,6 +106,7 @@ func TestLoadConfig(t *testing.T) {
 						ReqPerMin:    4,
 						MaxQueueSize: 100,
 						MaxQueueTime: 35 * time.Second,
+						Cache:        "longterm",
 					},
 					{
 						Name:                 "default",
@@ -276,6 +292,11 @@ func TestBadConfig(t *testing.T) {
 			"max queue size and time on cluster_user",
 			"testdata/bad.queue_size_time_cluster_user.yml",
 			"`max_queue_size` must be set if `max_queue_time` is set for \"default\"",
+		},
+		{
+			"cache max size",
+			"testdata/bad.cache_max_size.yml",
+			"cannot parse byte size \"-10B\": it must be positive float followed by optional units. For example, 1.5Gb, 3T",
 		},
 	}
 

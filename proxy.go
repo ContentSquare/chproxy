@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -12,6 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Vertamedia/chproxy/cache"
 	"github.com/Vertamedia/chproxy/config"
 	"github.com/Vertamedia/chproxy/log"
 	"github.com/prometheus/client_golang/prometheus"
@@ -92,9 +95,13 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		ReadCloser: req.Body,
 	}
 
-	if !rp.proxyRequest(s, srw, req) {
-		// Request timeout.
-		srw.statusCode = http.StatusGatewayTimeout
+	if s.user.cache != nil {
+		rp.serveFromCache(s, srw, req)
+	} else {
+		if !rp.proxyRequest(s, srw, req) {
+			// Request timeout.
+			srw.statusCode = http.StatusGatewayTimeout
+		}
 	}
 
 	switch srw.statusCode {
@@ -166,10 +173,89 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, req *http
 	return false
 }
 
+func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *http.Request) {
+	timeStart := time.Now()
+
+	q, err := getFullQuery(req)
+	if err != nil {
+		err = fmt.Errorf("%s: cannot read query: %s", s, err)
+		respondWith(srw, err, http.StatusBadRequest)
+		return
+	}
+	req.Body = ioutil.NopCloser(bytes.NewBuffer(q))
+
+	if !canCacheQuery(q) {
+		// The query cannot be cached, so just proxy it.
+		if !rp.proxyRequest(s, srw, req) {
+			// Request timeout.
+			srw.statusCode = http.StatusGatewayTimeout
+		}
+		return
+	}
+
+	// Do not store `cluster_node` in lables, since it has no sense
+	// for cache metrics.
+	labels := prometheus.Labels{
+		"user":         s.labels["user"],
+		"cluster":      s.labels["cluster"],
+		"cluster_user": s.labels["cluster_user"],
+	}
+
+	params := req.URL.Query()
+	key := &cache.Key{
+		Query:          q,
+		AcceptEncoding: req.Header.Get("Accept-Encoding"),
+		DefaultFormat:  params.Get("default_format"),
+		Database:       params.Get("database"),
+	}
+	err = s.user.cache.WriteTo(srw, key)
+	if err == nil {
+		// The response has been successfully served from cache.
+		cacheHit.With(labels).Inc()
+		since := float64(time.Since(timeStart).Seconds())
+		cachedResponseDuration.With(labels).Observe(since)
+		log.Debugf("%s: cache hit", s)
+		return
+	}
+	if err != cache.ErrMissing {
+		// Unexpected error while serving the response.
+		err = fmt.Errorf("%s: %s; query: %q", s, err, q)
+		respondWith(srw, err, http.StatusInternalServerError)
+		return
+	}
+
+	// The response wasn't found in the cache.
+	// Request it from clickhouse.
+	cacheMiss.With(labels).Inc()
+	log.Debugf("%s: cache miss", s)
+	crw, err := s.user.cache.NewResponseWriter(srw, key)
+	if err != nil {
+		err = fmt.Errorf("%s: %s; query: %q", s, err, q)
+		respondWith(srw, err, http.StatusInternalServerError)
+		return
+	}
+	if !rp.proxyRequest(s, crw, req) {
+		// Request timeout.
+		srw.statusCode = http.StatusGatewayTimeout
+	}
+	if srw.statusCode != http.StatusOK {
+		// Do not cache non-200 responses.
+		err = crw.Rollback()
+	} else {
+		err = crw.Commit()
+	}
+
+	if err != nil {
+		err = fmt.Errorf("%s: %s; query: %q", s, err, q)
+		respondWith(srw, err, http.StatusInternalServerError)
+		return
+	}
+}
+
 // ApplyConfig applies provided config to reverseProxy.
 // New config will be applied only if non-nil error returned
 // Otherwise old version will be kept
-func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
+func (rp *reverseProxy) ApplyConfig(cfg *config.Config, caches map[string]*cache.Cache) error {
 	clusters := make(map[string]*cluster, len(cfg.Clusters))
 	for _, c := range cfg.Clusters {
 		clusterUsers := make(map[string]*clusterUser, len(c.ClusterUsers))
@@ -232,15 +318,24 @@ func (rp *reverseProxy) ApplyConfig(cfg *config.Config) error {
 		if _, ok := users[u.Name]; ok {
 			return fmt.Errorf("user %q already exists", u.Name)
 		}
-
 		var queueCh chan struct{}
 		if u.MaxQueueSize > 0 {
 			queueCh = make(chan struct{}, u.MaxQueueSize)
 		}
+
+		var cc *cache.Cache
+		if len(u.Cache) > 0 {
+			cc = caches[u.Cache]
+			if cc == nil {
+				return fmt.Errorf("unknown cache %q for user %q ", u.Cache, u.Name)
+			}
+		}
+
 		users[u.Name] = &user{
 			name:                 u.Name,
 			password:             u.Password,
 			toUser:               u.ToUser,
+			cache:                cc,
 			denyHTTP:             u.DenyHTTP,
 			denyHTTPS:            u.DenyHTTPS,
 			allowCORS:            u.AllowCORS,

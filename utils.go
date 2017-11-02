@@ -109,3 +109,40 @@ func getQuerySnippet(req *http.Request) string {
 	result, _ := ioutil.ReadAll(gr)
 	return string(result)
 }
+
+// getFullQuery returns full query from req.
+func getFullQuery(req *http.Request) ([]byte, error) {
+	if req.Method == http.MethodGet {
+		return []byte(req.URL.Query().Get("query")), nil
+	}
+	data, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		return nil, err
+	}
+	if req.Header.Get("Content-Encoding") != "gzip" {
+		return data, nil
+	}
+
+	br := bytes.NewReader(data)
+	gr, err := gzip.NewReader(br)
+	if err != nil {
+		return nil, fmt.Errorf("cannot ungzip query: %s", err)
+	}
+
+	result, err := ioutil.ReadAll(gr)
+	if err != nil {
+		return nil, fmt.Errorf("cannot ungzip query: %s", err)
+	}
+	return result, nil
+}
+
+// canCacheQuery returns true if q can be cached.
+func canCacheQuery(q []byte) bool {
+	// Currently only SELECT queries may be cached.
+	q = bytes.TrimSpace(q)
+	if len(q) < len("SELECT") {
+		return false
+	}
+	q = bytes.ToUpper(q[:len("SELECT")])
+	return bytes.HasPrefix(q, []byte("SELECT"))
+}

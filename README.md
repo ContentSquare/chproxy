@@ -12,6 +12,8 @@ Chproxy, is an http proxy for [ClickHouse](https://ClickHouse.yandex) database. 
 - May limit per-user number of concurrent requests.
 - All the limits may be independently set for each input user and for each per-cluster user.
 - May delay request execution until it fits per-user limits.
+- Per-user response caching may be configured.
+- Protection from [thundering herd](https://en.wikipedia.org/wiki/Cache_stampede) problem may be enabled on response caches.
 - Evenly spreads requests among cluster nodes using `least loaded` + `round robin` technique.
 - Monitors node health and prevents from sending requests to unhealthy nodes.
 - Supports automatic HTTPS certificate issuing and renewal via [Let’s Encrypt](https://letsencrypt.org/).
@@ -275,6 +277,15 @@ under `default` user. The user may be overriden with [kill_query_user](https://g
 
 If `cluster`'s [users](https://github.com/Vertamedia/chproxy/blob/master/config#cluster_user_config) section isn't specified, then `default` user is used with no limits.
 
+### Caching
+
+`Chproxy` may be configured to cache responses. It is possible to create multiple
+[cache-configurations](https://github.com/Vertamedia/chproxy/blob/master/config/#cache_config) with various settings.
+Caching will be enabled only if it is assigned by name to user. Caching configuration
+can be updated only after `chproxy` restart, but user's cache-assignments can be changed
+via configuration reload (i.e. without `chproxy` restart).
+Currently only `SELECT` request results are cached.
+
 ### Security
 `Chproxy` removes all the query params from input requests (except the `query`, `database`, `default_format`)
 before proxying them to `ClickHouse` nodes. This prevents from unsafe overriding
@@ -296,6 +307,39 @@ log_debug: true
 #
 # By default security checks are enabled.
 hack_me_please: true
+
+# Optional response cache configs.
+#
+# Multiple distinct caches with different settings may be configured.
+caches:
+    # Cache name, which may be passed into `cache` option on the `user` level.
+    #
+    # Multiple users may share the same cache.
+  - name: "longterm"
+
+    # Path to directory where cached responses will be stored.
+    dir: "/path/to/longterm/cachedir"
+
+    # Maximum cache size.
+    # `Kb`, `Mb`, `Gb` and `Tb` suffixes may be used.
+    max_size: 100Gb
+
+    # Expiration time for cached responses.
+    expire: 1h
+
+    # When multiple requests with identical query simultaneously hit `chproxy`
+    # and there is no cached response for the query, then only a single
+    # request will be proxied to clickhouse. Other requests will wait
+    # for the cached response during this grace duration.
+    # This is known as protection from `thundering herd` problem.
+    #
+    # By default `thundering herd` protection is disabled.
+    grace_time: 20s
+
+  - name: "shortterm"
+    dir: "/path/to/shortterm/cachedir"
+    max_size: 100Mb
+    expire: 10s
 
 # Named network lists, might be used as values for `allowed_networks`.
 network_groups:
@@ -375,6 +419,11 @@ users:
     #
     # By default there is no per-minute limit.
     requests_per_minute: 4
+
+    # Response cache config name to use.
+    #
+    # By default responses aren't cached.
+    cache: "longterm"
 
     # The maximum number of requests that may wait for their chance
     # to be executed because they cannot run now due to the current limits.
@@ -481,6 +530,11 @@ Metrics are exposed in [prometheus text format](https://prometheus.io/docs/instr
 | cluster_user_queue_overflow_total | Counter | The number of overflows for per-cluster_user request queues | `user`, `cluster`, `cluster_user` |
 | request_body_bytes_total | Counter | The amount of bytes read from request bodies | `user`, `cluster`, `cluster_user`, `cluster_node` |
 | response_body_bytes_total | Counter | The amount of bytes written to response bodies | `user`, `cluster`, `cluster_user`, `cluster_node` |
+| cache_hits_total | Counter | The amount of successful cache hits | `user`, `cluster`, `cluster_user` |
+| cache_miss_total | Counter | The amount of cache miss | `user`, `cluster`, `cluster_user` |
+| cache_size | Gauge | Size of each cache | `cache` |
+| cache_items | Gauge | The number of items in each cache | `cache` |
+| cached_response_duration_seconds | Summary | Duration for cached responses | `user`, `cluster`, `cluster_user` |
 | bad_requests_total | Counter | The number of unsupported requests | |
 
 An example of [Grafana's](https://grafana.com) dashboard for `chproxy` metrics is available [here](https://github.com/Vertamedia/chproxy/blob/master/chproxy_overview.json)
