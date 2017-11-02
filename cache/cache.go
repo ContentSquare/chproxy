@@ -286,8 +286,8 @@ func (c *Cache) WriteTo(rw http.ResponseWriter, key *Key) error {
 	}
 	defer f.Close()
 
-	if _, err := io.Copy(rw, f); err != nil {
-		return fmt.Errorf("cache %q: cannot send %q to client: %s", c.name, f.Name(), err)
+	if err := sendResponseFromFile(rw, f); err != nil {
+		return fmt.Errorf("cache %q: %s", c.name, err)
 	}
 	return nil
 }
@@ -449,6 +449,8 @@ func (c *Cache) NewResponseWriter(rw http.ResponseWriter, key *Key) (*ResponseWr
 type ResponseWriter struct {
 	http.ResponseWriter // the original response writer
 
+	headersCaptured bool
+
 	key *Key
 	c   *Cache
 
@@ -456,8 +458,25 @@ type ResponseWriter struct {
 	bw      *bufio.Writer // buffered writer for the temporary file
 }
 
+func (rw *ResponseWriter) captureContentType() error {
+	if rw.headersCaptured {
+		return nil
+	}
+
+	rw.headersCaptured = true
+	ct := rw.Header().Get("Content-Type")
+	if err := writeContentType(rw.bw, ct); err != nil {
+		fn := rw.tmpFile.Name()
+		return fmt.Errorf("cache %q: cannot write Content-Type to %q: %s", rw.c.name, fn, err)
+	}
+	return nil
+}
+
 // Write writes b into rw.
 func (rw *ResponseWriter) Write(b []byte) (int, error) {
+	if err := rw.captureContentType(); err != nil {
+		return 0, err
+	}
 	return rw.bw.Write(b)
 }
 
@@ -466,8 +485,14 @@ func (rw *ResponseWriter) Write(b []byte) (int, error) {
 func (rw *ResponseWriter) Commit() error {
 	fp := rw.c.filepath(rw.key)
 	defer rw.c.unregisterPendingEntry(fp)
-
 	fn := rw.tmpFile.Name()
+
+	if err := rw.captureContentType(); err != nil {
+		rw.tmpFile.Close()
+		os.Remove(fn)
+		return err
+	}
+
 	if err := rw.bw.Flush(); err != nil {
 		rw.tmpFile.Close()
 		os.Remove(fn)
@@ -490,8 +515,14 @@ func (rw *ResponseWriter) Commit() error {
 func (rw *ResponseWriter) Rollback() error {
 	fp := rw.c.filepath(rw.key)
 	defer rw.c.unregisterPendingEntry(fp)
-
 	fn := rw.tmpFile.Name()
+
+	if err := rw.captureContentType(); err != nil {
+		rw.tmpFile.Close()
+		os.Remove(fn)
+		return err
+	}
+
 	if err := rw.bw.Flush(); err != nil {
 		rw.tmpFile.Close()
 		os.Remove(fn)
@@ -502,10 +533,10 @@ func (rw *ResponseWriter) Rollback() error {
 		panic(fmt.Sprintf("BUG: cache %q: cannot seek to the beginning of %q: %s", rw.c.name, fn, err))
 	}
 
-	if _, err := io.Copy(rw.ResponseWriter, rw.tmpFile); err != nil {
+	if err := sendResponseFromFile(rw.ResponseWriter, rw.tmpFile); err != nil {
 		rw.tmpFile.Close()
 		os.Remove(fn)
-		return fmt.Errorf("cache %q: cannot send %q to client: %s", rw.c.name, fn, err)
+		return fmt.Errorf("cache %q: %s", rw.c.name, err)
 	}
 
 	if err := rw.tmpFile.Close(); err != nil {
@@ -516,4 +547,42 @@ func (rw *ResponseWriter) Rollback() error {
 		return fmt.Errorf("cache %q: cannot remove %q: %s", rw.c.name, fn, err)
 	}
 	return nil
+}
+
+// sendResponseFromFile sends response to rw from f.
+func sendResponseFromFile(rw http.ResponseWriter, f *os.File) error {
+	ct, err := readContentType(f)
+	if err != nil {
+		return fmt.Errorf("cannot read Content-Type from %q: %s", f.Name(), err)
+	}
+	if len(ct) > 0 {
+		rw.Header().Set("Content-Type", ct)
+	}
+	if _, err := io.Copy(rw, f); err != nil {
+		return fmt.Errorf("cannot send %q to client: %s", f.Name(), err)
+	}
+	return nil
+}
+
+func writeContentType(w io.Writer, ct string) error {
+	n := uint32(len(ct))
+
+	b := make([]byte, 0, n+4)
+	b = append(b, byte(n>>24), byte(n>>16), byte(n>>8), byte(n))
+	b = append(b, ct...)
+	_, err := w.Write(b)
+	return err
+}
+
+func readContentType(r io.Reader) (string, error) {
+	b := make([]byte, 4)
+	if _, err := io.ReadFull(r, b); err != nil {
+		return "", fmt.Errorf("cannot read Content-Type length: %s", err)
+	}
+	n := uint32(b[3]) | (uint32(b[2]) << 8) | (uint32(b[1]) << 16) | (uint32(b[0]) << 24)
+	ct := make([]byte, n)
+	if _, err := io.ReadFull(r, ct); err != nil {
+		return "", fmt.Errorf("cannot read Content-Type value with length %d: %s", n, err)
+	}
+	return string(ct), nil
 }

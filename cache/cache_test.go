@@ -23,6 +23,22 @@ func TestMain(m *testing.M) {
 	os.Exit(retCode)
 }
 
+func TestWriteReadContentType(t *testing.T) {
+	expectedCT := "foo-bar1; baz"
+	bb := &bytes.Buffer{}
+	if err := writeContentType(bb, expectedCT); err != nil {
+		t.Fatalf("cannot write Content-Type: %q", err)
+	}
+
+	ct, err := readContentType(bb)
+	if err != nil {
+		t.Fatalf("cannot read Content-Type: %q", err)
+	}
+	if ct != expectedCT {
+		t.Fatalf("unexpected Content-Type %q; expecting %q", ct, expectedCT)
+	}
+}
+
 func TestKeyString(t *testing.T) {
 	testCases := []struct {
 		key      *Key
@@ -92,6 +108,9 @@ func TestCacheAddGet(t *testing.T) {
 			t.Fatalf("cannot create response writer: %s", err)
 		}
 
+		ct := fmt.Sprintf("text/html; %d", i)
+		crw.Header().Set("Content-Type", ct)
+
 		value := fmt.Sprintf("value %d", i)
 		bs := bytes.NewBufferString(value)
 		if _, err := io.Copy(crw, bs); err != nil {
@@ -99,6 +118,12 @@ func TestCacheAddGet(t *testing.T) {
 		}
 		if err := crw.Commit(); err != nil {
 			t.Fatalf("cannot commit response to cache: %s", err)
+		}
+
+		// Verify trw contains valid Content-Type.
+		gotCT := trw.Header().Get("Content-Type")
+		if gotCT != ct {
+			t.Fatalf("unexpected Content-Type: %q; expecting %q", gotCT, ct)
 		}
 
 		// Verify trw contains the response.
@@ -115,6 +140,12 @@ func TestCacheAddGet(t *testing.T) {
 		trw := &testResponseWriter{}
 		if err := c.WriteTo(trw, key); err != nil {
 			t.Fatalf("unexpected error: %s", err)
+		}
+
+		ct := fmt.Sprintf("text/html; %d", i)
+		gotCT := trw.Header().Get("Content-Type")
+		if gotCT != ct {
+			t.Fatalf("unexpected Content-Type: %q; expecting %q", gotCT, ct)
 		}
 
 		value := fmt.Sprintf("value %d", i)
@@ -134,6 +165,12 @@ func TestCacheAddGet(t *testing.T) {
 		trw := &testResponseWriter{}
 		if err := c1.WriteTo(trw, key); err != nil {
 			t.Fatalf("unexpected error: %s", err)
+		}
+
+		ct := fmt.Sprintf("text/html; %d", i)
+		gotCT := trw.Header().Get("Content-Type")
+		if gotCT != ct {
+			t.Fatalf("unexpected Content-Type: %q; expecting %q", gotCT, ct)
 		}
 
 		value := fmt.Sprintf("value %d", i)
@@ -338,6 +375,7 @@ func TestCacheClean(t *testing.T) {
 }
 
 type testResponseWriter struct {
+	h http.Header
 	b []byte
 }
 
@@ -347,7 +385,10 @@ func (trw *testResponseWriter) Write(p []byte) (int, error) {
 }
 
 func (trw *testResponseWriter) Header() http.Header {
-	return http.Header{}
+	if trw.h == nil {
+		trw.h = make(http.Header)
+	}
+	return trw.h
 }
 
 func (trw *testResponseWriter) WriteHeader(statusCode int) {}
