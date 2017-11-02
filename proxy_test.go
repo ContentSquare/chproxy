@@ -382,7 +382,7 @@ func TestReverseProxy_ServeHTTP2(t *testing.T) {
 				t.Fatalf("unexpected error: %s", err)
 			}
 			resp := makeRequest(proxy)
-			if !strings.Contains(resp, tc.expected) {
+			if resp != tc.expected {
 				t.Fatalf("expected response: %q; got: %q", tc.expected, resp)
 			}
 		})
