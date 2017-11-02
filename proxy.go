@@ -35,7 +35,10 @@ func newReverseProxy() *reverseProxy {
 	return &reverseProxy{
 		ReverseProxy: &httputil.ReverseProxy{
 			Director: func(*http.Request) {},
-			ErrorLog: log.ErrorLogger,
+
+			// Suppress error logging in ReverseProxy, since all the errors
+			// are handled and logged in the code below.
+			ErrorLog: log.NilLogger,
 		},
 		reloadSignal: make(chan struct{}),
 		reloadWG:     sync.WaitGroup{},
@@ -150,8 +153,8 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, req *http
 		log.Errorf("%s: cannot kill query: %s; query: %q", s, err, q)
 	}
 
-	log.Errorf("%s: %s; query %q", s, timeoutErrMsg, q)
-	fmt.Fprint(rw, timeoutErrMsg.Error())
+	err := fmt.Errorf("%s: %s; query %q", s, timeoutErrMsg, q)
+	respondWith(rw, err, http.StatusGatewayTimeout)
 	return false
 }
 
