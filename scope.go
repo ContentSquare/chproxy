@@ -239,7 +239,6 @@ var allowedParams = []string{
 	"query",
 	"database",
 	"default_format",
-	"readonly",
 }
 
 func (s *scope) decorateRequest(req *http.Request) *http.Request {
@@ -256,12 +255,6 @@ func (s *scope) decorateRequest(req *http.Request) *http.Request {
 		if len(val) > 0 {
 			params.Set(param, val)
 		}
-	}
-
-	// Disable non-readonly queries for the user with enabled cache,
-	// since such queries cannot be cached.
-	if s.user.cache != nil {
-		params.Set("readonly", "2")
 	}
 
 	req.URL.RawQuery = params.Encode()

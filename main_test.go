@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -142,8 +143,8 @@ func TestServe(t *testing.T) {
 			"https cache",
 			"testdata/https.cache.yml",
 			func(t *testing.T) {
-				q := "asd"
-				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query="+q, nil)
+				q := "SELECT 123"
+				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query="+url.QueryEscape(q), nil)
 				if err != nil {
 					t.Fatalf("unexpected erorr: %s", err)
 				}

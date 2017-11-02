@@ -9,6 +9,24 @@ import (
 	"testing"
 )
 
+func TestCanCacheQuery(t *testing.T) {
+	testCanCacheQuery(t, "", false)
+	testCanCacheQuery(t, "   ", false)
+	testCanCacheQuery(t, "INSERT aaa", false)
+	testCanCacheQuery(t, "\t  INSERT aaa   ", false)
+	testCanCacheQuery(t, "select", true)
+	testCanCacheQuery(t, "\t\t   SELECT 123   ", true)
+	testCanCacheQuery(t, "\t\t   sElECt 123   ", true)
+}
+
+func testCanCacheQuery(t *testing.T, q string, expected bool) {
+	t.Helper()
+	canCache := canCacheQuery([]byte(q))
+	if canCache != expected {
+		t.Fatalf("unexpected result %v; expecting %v", canCache, expected)
+	}
+}
+
 func TestGetQuerySnippetGET(t *testing.T) {
 	req, _ := http.NewRequest("GET", "", nil)
 	params := make(url.Values)

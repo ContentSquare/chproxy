@@ -135,3 +135,14 @@ func getFullQuery(req *http.Request) ([]byte, error) {
 	}
 	return result, nil
 }
+
+// canCacheQuery returns true if q can be cached.
+func canCacheQuery(q []byte) bool {
+	// Currently only SELECT queries may be cached.
+	q = bytes.TrimSpace(q)
+	if len(q) < len("SELECT") {
+		return false
+	}
+	q = bytes.ToUpper(q[:len("SELECT")])
+	return bytes.HasPrefix(q, []byte("SELECT"))
+}

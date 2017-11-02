@@ -178,6 +178,16 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		respondWith(srw, err, http.StatusBadRequest)
 		return
 	}
+	req.Body = ioutil.NopCloser(bytes.NewBuffer(q))
+
+	if !canCacheQuery(q) {
+		// The query cannot be cached, so just proxy it.
+		if !rp.proxyRequest(s, srw, req) {
+			// Request timeout.
+			srw.statusCode = http.StatusGatewayTimeout
+		}
+		return
+	}
 
 	// Do not store `cluster_node` in lables, since it has no sense
 	// for cache metrics.
@@ -216,7 +226,6 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		respondWith(srw, err, http.StatusInternalServerError)
 		return
 	}
-	req.Body = ioutil.NopCloser(bytes.NewBuffer(q))
 	if !rp.proxyRequest(s, crw, req) {
 		// Request timeout.
 		srw.statusCode = http.StatusGatewayTimeout

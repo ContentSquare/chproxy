@@ -284,11 +284,10 @@ If `cluster`'s [users](https://github.com/Vertamedia/chproxy/blob/master/config#
 Caching will be enabled only if it is assigned by name to user. Caching configuration
 can be updated only after `chproxy` restart, but user's cache-assignments can be changed
 via configuration reload (i.e. without `chproxy` restart).
-`chproxy` automatically sets `readonly=1` param for each user's request if response caching is enabled.
-This prevents from caching non-`SELECT` request results.
+Currently only `SELECT` request results are cached.
 
 ### Security
-`Chproxy` removes all the query params from input requests (except the `query`, `database`, `default_format` and `readonly`)
+`Chproxy` removes all the query params from input requests (except the `query`, `database`, `default_format`)
 before proxying them to `ClickHouse` nodes. This prevents from unsafe overriding
 of various `ClickHouse` [settings](http://clickhouse-docs.readthedocs.io/en/latest/interfaces/http_interface.html).
 
