@@ -36,7 +36,6 @@ type Cache struct {
 	pendingEntries     map[string]pendingEntry
 	pendingEntriesLock sync.Mutex
 
-	// Stats from the last clean call
 	stats Stats
 
 	wg     sync.WaitGroup
@@ -104,6 +103,8 @@ func New(cfgs []config.Cache) (map[string]*Cache, error) {
 }
 
 // Stats returns cache stats.
+//
+// The returned stats is approximate.
 func (c *Cache) Stats() Stats {
 	var s Stats
 	s.Size = atomic.LoadUint64(&c.stats.Size)
@@ -516,6 +517,17 @@ func (rw *ResponseWriter) Commit() error {
 		os.Remove(fn)
 		return fmt.Errorf("cache %q: cannot flush data into %q: %s", rw.c.name, fn, err)
 	}
+
+	// Update cache stats.
+	fi, err := rw.tmpFile.Stat()
+	if err != nil {
+		os.Remove(fn)
+		return fmt.Errorf("cache %q: cannot stat %q: %s", rw.c.name, fn)
+	}
+	fs := uint64(fi.Size())
+	atomic.AddUint64(&rw.c.stats.Size, fs)
+	atomic.AddUint64(&rw.c.stats.Items, 1)
+
 	if err := rw.tmpFile.Close(); err != nil {
 		os.Remove(fn)
 		return fmt.Errorf("cache %q: cannot close %q: %s", rw.c.name, fn, err)
