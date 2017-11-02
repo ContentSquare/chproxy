@@ -87,6 +87,14 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		bytesWritten:   responseBodyBytes.With(s.labels),
 	}
 
+	req = s.decorateRequest(req)
+
+	// wrap body into cachedReadCloser, so we could obtain the original
+	// request on error.
+	req.Body = &cachedReadCloser{
+		ReadCloser: req.Body,
+	}
+
 	if s.user.cache != nil {
 		rp.serveFromCache(s, srw, req)
 	} else {
@@ -102,7 +110,9 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		log.Debugf("request success %s", s)
 	case http.StatusBadGateway:
 		s.host.penalize()
-		fmt.Fprintf(srw, "%s: cannot reach %s", s, s.host.addr.Host)
+		q := getQuerySnippet(req)
+		err := fmt.Errorf("%s: cannot reach %s; query: %q", s, s.host.addr.Host, q)
+		respondWith(srw, err, srw.statusCode)
 	}
 
 	statusCodes.With(
@@ -119,13 +129,14 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 }
 
 func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, req *http.Request) bool {
-	req = s.decorateRequest(req)
-
 	// wrap body into cachedReadCloser, so we could obtain the original
 	// request on error.
-	req.Body = &cachedReadCloser{
-		ReadCloser: req.Body,
+	if _, ok := req.Body.(*cachedReadCloser); !ok {
+		req.Body = &cachedReadCloser{
+			ReadCloser: req.Body,
+		}
 	}
+
 	timeout, timeoutErrMsg := s.getTimeoutWithErrMsg()
 	ctx := context.Background()
 	if timeout > 0 {
