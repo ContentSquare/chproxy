@@ -511,7 +511,7 @@ clusters:
 #### Full specification is located [here](https://github.com/Vertamedia/chproxy/blob/master/config)
 
 ## Metrics
-Metrics are exposed via [Prometheus](https://prometheus.io/) at `/metrics` path
+Metrics are exposed in [prometheus text format](https://prometheus.io/docs/instrumenting/exposition_formats/) at `/metrics` path.
 
 | Name | Type | Description | Labels |
 | ------------- | ------------- | ------------- | ------------- |
