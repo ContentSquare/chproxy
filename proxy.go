@@ -87,7 +87,19 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if s.user.cache != nil {
 		rp.serveFromCache(s, srw, req)
 	} else {
-		rp.proxyRequest(s, srw, req)
+		if !rp.proxyRequest(s, srw, req) {
+			// Request timeout.
+			srw.statusCode = http.StatusGatewayTimeout
+		}
+	}
+
+	switch srw.statusCode {
+	case http.StatusOK:
+		requestSuccess.With(s.labels).Inc()
+		log.Debugf("request success %s", s)
+	case http.StatusBadGateway:
+		s.host.penalize()
+		fmt.Fprintf(srw, "%s: cannot reach %s", s, s.host.addr.Host)
 	}
 
 	statusCodes.With(
@@ -103,7 +115,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	requestDuration.With(s.labels).Observe(since)
 }
 
-func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, req *http.Request) {
+func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, req *http.Request) bool {
 	req = s.decorateRequest(req)
 
 	// wrap body into cachedReadCloser, so we could obtain the original
@@ -124,7 +136,7 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, req *http
 
 	if req.Context().Err() == nil {
 		// The request has been successfully proxied.
-		return
+		return true
 	}
 
 	// The request has been timed out.
@@ -140,6 +152,7 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, req *http
 
 	log.Errorf("%s: %s; query %q", s, timeoutErrMsg, q)
 	fmt.Fprint(rw, timeoutErrMsg.Error())
+	return false
 }
 
 func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *http.Request) {
@@ -188,7 +201,10 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		return
 	}
 	req.Body = ioutil.NopCloser(bytes.NewBuffer(q))
-	rp.proxyRequest(s, crw, req)
+	if !rp.proxyRequest(s, crw, req) {
+		// Request timeout.
+		srw.statusCode = http.StatusGatewayTimeout
+	}
 	if srw.statusCode != http.StatusOK {
 		// Do not cache non-200 responses.
 		err = crw.Rollback()
