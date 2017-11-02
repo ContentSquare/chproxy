@@ -20,6 +20,9 @@ var (
 
 	// ErrorLogger is used outside the package.
 	ErrorLogger = errorLogger
+
+	// NilLogger suppresses all the log messages.
+	NilLogger = log.New(ioutil.Discard, "", stdLogFlags)
 )
 
 // SuppressOutput suppresses all output from logs if `suppress` is true

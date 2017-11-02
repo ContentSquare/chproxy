@@ -32,7 +32,10 @@ func newReverseProxy() *reverseProxy {
 	return &reverseProxy{
 		ReverseProxy: &httputil.ReverseProxy{
 			Director: func(*http.Request) {},
-			ErrorLog: log.ErrorLogger,
+
+			// Suppress error logging in ReverseProxy, since all the errors
+			// are handled and logged in the code below.
+			ErrorLog: log.NilLogger,
 		},
 		reloadSignal: make(chan struct{}),
 		reloadWG:     sync.WaitGroup{},
@@ -98,7 +101,9 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		if err := s.killQuery(); err != nil {
 			log.Errorf("error while killing query: %s", err)
 		}
-		fmt.Fprint(srw, timeoutErrMsg.Error())
+		respondWith(srw, timeoutErrMsg, http.StatusGatewayTimeout)
+		// return is skipped intentionally, so metrics below
+		// may be updated.
 	} else {
 		switch srw.statusCode {
 		case http.StatusOK:
