@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"net"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -17,15 +16,7 @@ import (
 	"net/url"
 
 	"github.com/Vertamedia/chproxy/config"
-	"github.com/Vertamedia/chproxy/log"
 )
-
-func TestMain(m *testing.M) {
-	log.SuppressOutput(true)
-	retCode := m.Run()
-	log.SuppressOutput(false)
-	os.Exit(retCode)
-}
 
 var goodCfg = &config.Config{
 	Clusters: []config.Cluster{

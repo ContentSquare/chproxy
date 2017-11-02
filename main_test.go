@@ -6,10 +6,20 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/Vertamedia/chproxy/log"
 )
+
+func TestMain(m *testing.M) {
+	log.SuppressOutput(true)
+	retCode := m.Run()
+	log.SuppressOutput(false)
+	os.Exit(retCode)
+}
 
 var tlsClient = &http.Client{Transport: &http.Transport{
 	TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
