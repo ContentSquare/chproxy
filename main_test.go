@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 )
@@ -120,8 +121,8 @@ func TestServe(t *testing.T) {
 				}
 				stringResponse := string(response)
 				expErr := "user \"default\" is not allowed to access via https"
-				if stringResponse[35:] != expErr {
-					t.Fatalf("unexpected response: %q; expected: %q", string(response), expErr)
+				if !strings.Contains(stringResponse, expErr) {
+					t.Fatalf("unexpected response: %q; expected: %q", response, expErr)
 				}
 				resp.Body.Close()
 			},
@@ -148,9 +149,8 @@ func TestServe(t *testing.T) {
 					t.Fatalf("unexpected err while reading body: %s", err)
 				}
 				res := string(response)
-				res = res[:48]
 				expErr := "https connections are not allowed from 127.0.0.1"
-				if res != expErr {
+				if !strings.Contains(res, expErr) {
 					t.Fatalf("unexpected response: %q; expected: %q", res, expErr)
 				}
 				resp.Body.Close()
@@ -178,9 +178,8 @@ func TestServe(t *testing.T) {
 					t.Fatalf("unexpected err while reading body: %s", err)
 				}
 				res := string(response)
-				res = res[35:]
 				expErr := "user \"default\" is not allowed to access"
-				if res != expErr {
+				if !strings.Contains(res, expErr) {
 					t.Fatalf("unexpected response: %q; expected: %q", res, expErr)
 				}
 				resp.Body.Close()
@@ -208,9 +207,8 @@ func TestServe(t *testing.T) {
 					t.Fatalf("unexpected err while reading body: %s", err)
 				}
 				res := string(response)
-				res = res[35:]
 				expErr := "cluster user \"web\" is not allowed to access"
-				if res != expErr {
+				if !strings.Contains(res, expErr) {
 					t.Fatalf("unexpected response: %q; expected: %q", res, expErr)
 				}
 				resp.Body.Close()
@@ -254,8 +252,8 @@ func TestServe(t *testing.T) {
 				}
 				stringResponse := string(response)
 				expErr := "user \"default\" is not allowed to access via http"
-				if stringResponse[35:] != expErr {
-					t.Fatalf("unexpected response: %q; expected: %q", string(response), expErr)
+				if !strings.Contains(stringResponse, expErr) {
+					t.Fatalf("unexpected response: %q; expected: %q", response, expErr)
 				}
 				resp.Body.Close()
 			},
@@ -277,9 +275,8 @@ func TestServe(t *testing.T) {
 					t.Fatalf("unexpected err while reading body: %s", err)
 				}
 				res := string(response)
-				res = res[0:47]
 				expErr := "http connections are not allowed from 127.0.0.1"
-				if res != expErr {
+				if !strings.Contains(res, expErr) {
 					t.Fatalf("unexpected response: %q; expected: %q", res, expErr)
 				}
 				resp.Body.Close()
@@ -302,9 +299,8 @@ func TestServe(t *testing.T) {
 					t.Fatalf("unexpected err while reading body: %s", err)
 				}
 				res := string(response)
-				res = res[0:54]
 				expErr := "connections to /metrics are not allowed from 127.0.0.1"
-				if res != expErr {
+				if !strings.Contains(res, expErr) {
 					t.Fatalf("unexpected response: %q; expected: %q", res, expErr)
 				}
 				resp.Body.Close()
@@ -327,9 +323,8 @@ func TestServe(t *testing.T) {
 					t.Fatalf("unexpected err while reading body: %s", err)
 				}
 				res := string(response)
-				res = res[35:]
 				expErr := "user \"default\" is not allowed to access"
-				if res != expErr {
+				if !strings.Contains(res, expErr) {
 					t.Fatalf("unexpected response: %q; expected: %q", res, expErr)
 				}
 				resp.Body.Close()
@@ -352,9 +347,8 @@ func TestServe(t *testing.T) {
 					t.Fatalf("unexpected err while reading body: %s", err)
 				}
 				res := string(response)
-				res = res[35:]
 				expErr := "cluster user \"web\" is not allowed to access"
-				if res != expErr {
+				if !strings.Contains(res, expErr) {
 					t.Fatalf("unexpected response: %q; expected: %q", res, expErr)
 				}
 				resp.Body.Close()
