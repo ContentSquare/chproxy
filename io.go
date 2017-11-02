@@ -3,6 +3,7 @@ package main
 import (
 	"io"
 	"net/http"
+	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -45,22 +46,34 @@ func (src *statReadCloser) Read(p []byte) (int, error) {
 type cachedReadCloser struct {
 	io.ReadCloser
 
-	start []byte
+	// bLock protects b from concurrent access when Read and String
+	// are called from concurrent goroutines.
+	bLock sync.Mutex
+
+	// b holds up to 1Kb of the initial data read from ReadCloser.
+	b []byte
 }
 
 func (crc *cachedReadCloser) Read(p []byte) (int, error) {
 	n, err := crc.ReadCloser.Read(p)
-	if len(crc.start) < 1024 {
-		crc.start = append(crc.start, p[:n]...)
-		if len(crc.start) >= 1024 {
-			crc.start = append(crc.start[:1024], "..."...)
+
+	crc.bLock.Lock()
+	if len(crc.b) < 1024 {
+		crc.b = append(crc.b, p[:n]...)
+		if len(crc.b) >= 1024 {
+			crc.b = append(crc.b[:1024], "..."...)
 		}
 	}
+	crc.bLock.Unlock()
+
 	// Do not cache the last read operation, since it slows down
 	// reading large amounts of data such as large INSERT queries.
 	return n, err
 }
 
 func (crc *cachedReadCloser) String() string {
-	return string(crc.start)
+	crc.bLock.Lock()
+	s := string(crc.b)
+	crc.bLock.Unlock()
+	return s
 }
