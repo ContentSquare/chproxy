@@ -19,6 +19,9 @@ type statResponseWriter struct {
 }
 
 func (rw *statResponseWriter) Write(b []byte) (int, error) {
+	if rw.statusCode == 0 {
+		rw.statusCode = http.StatusOK
+	}
 	n, err := rw.ResponseWriter.Write(b)
 	rw.bytesWritten.Add(float64(n))
 	return n, err
