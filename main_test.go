@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
 	"crypto/tls"
 	"fmt"
 	"io/ioutil"
@@ -69,6 +71,15 @@ func startHTTP() (net.Listener, chan struct{}) {
 	return ln, done
 }
 
+func startCHServer() {
+	http.HandleFunc("/", fakeHandler)
+	http.ListenAndServe(":8124", nil)
+}
+
+func fakeHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprint(w, "Ok.\n")
+}
+
 func TestServe(t *testing.T) {
 	var testCases = []struct {
 		name     string
@@ -102,8 +113,8 @@ func TestServe(t *testing.T) {
 				if err != nil {
 					t.Fatalf("unexpected error: %s", err)
 				}
-				if resp.StatusCode != http.StatusInternalServerError {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusInternalServerError)
+				if resp.StatusCode != http.StatusOK {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
 				}
 				resp.Body.Close()
 			},
@@ -233,13 +244,87 @@ func TestServe(t *testing.T) {
 				if err != nil {
 					t.Fatalf("unexpected erorr: %s", err)
 				}
-				if resp.StatusCode != http.StatusInternalServerError {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusInternalServerError)
+				if resp.StatusCode != http.StatusOK {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
 				}
 
 				resp, err = http.Get("http://127.0.0.1:9090/metrics")
 				if resp.StatusCode != http.StatusOK {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusInternalServerError)
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
+				}
+				resp.Body.Close()
+			},
+			startHTTP,
+		},
+		{
+			"http gzipped POST request",
+			"testdata/http.yml",
+			func(t *testing.T) {
+				var buf bytes.Buffer
+				zw := gzip.NewWriter(&buf)
+				_, err := zw.Write([]byte("SELECT * FROM system.numbers LIMIT 10"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				zw.Close()
+				req, err := http.NewRequest("POST", "http://127.0.0.1:9090", &buf)
+				req.Header.Set("Content-Encoding", "gzip")
+				if err != nil {
+					t.Fatal(err)
+				}
+				resp, err := http.DefaultClient.Do(req)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if resp.StatusCode != http.StatusOK {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
+				}
+				resp.Body.Close()
+			},
+			startHTTP,
+		},
+		{
+			"http POST request",
+			"testdata/http.yml",
+			func(t *testing.T) {
+				buf := bytes.NewBufferString("SELECT * FROM system.numbers LIMIT 10")
+				req, err := http.NewRequest("POST", "http://127.0.0.1:9090", buf)
+				if err != nil {
+					t.Fatal(err)
+				}
+				resp, err := http.DefaultClient.Do(req)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if resp.StatusCode != http.StatusOK {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
+				}
+				resp.Body.Close()
+			},
+			startHTTP,
+		},
+		{
+			"http gzipped POST execution time",
+			"testdata/http.execution.time.yml",
+			func(t *testing.T) {
+				var buf bytes.Buffer
+				zw := gzip.NewWriter(&buf)
+				_, err := zw.Write([]byte("SELECT * FROM system.numbers LIMIT 1000"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				zw.Close()
+				req, err := http.NewRequest("POST", "http://127.0.0.1:9090", &buf)
+				req.Header.Set("Content-Encoding", "gzip")
+				if err != nil {
+					t.Fatal(err)
+				}
+				resp, err := http.DefaultClient.Do(req)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if resp.StatusCode != http.StatusBadGateway {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusBadGateway)
 				}
 				resp.Body.Close()
 			},
@@ -367,6 +452,7 @@ func TestServe(t *testing.T) {
 		},
 	}
 
+	go startCHServer()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			*configFile = tc.file
