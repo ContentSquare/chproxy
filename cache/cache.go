@@ -174,11 +174,19 @@ func (c *Cache) cleaner() {
 	if d > time.Hour {
 		d = time.Hour
 	}
-
+	forceCleanCh := time.After(d)
 	for {
-		c.clean()
 		select {
-		case <-time.After(d):
+		case <-time.After(time.Second):
+			// Clean cache only on cache size overflow.
+			stats := c.Stats()
+			if stats.Size > c.maxSize {
+				c.clean()
+			}
+		case <-forceCleanCh:
+			// Forcibly clean cache from expired items.
+			c.clean()
+			forceCleanCh = time.After(d)
 		case <-c.stopCh:
 			return
 		}
