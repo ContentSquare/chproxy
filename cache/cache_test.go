@@ -23,19 +23,19 @@ func TestMain(m *testing.M) {
 	os.Exit(retCode)
 }
 
-func TestWriteReadContentType(t *testing.T) {
-	expectedCT := "foo-bar1; baz"
+func TestWriteReadHeader(t *testing.T) {
+	expectedS := "foo-bar1; baz"
 	bb := &bytes.Buffer{}
-	if err := writeContentType(bb, expectedCT); err != nil {
-		t.Fatalf("cannot write Content-Type: %q", err)
+	if err := writeHeader(bb, expectedS); err != nil {
+		t.Fatalf("cannot write header: %q", err)
 	}
 
-	ct, err := readContentType(bb)
+	s, err := readHeader(bb)
 	if err != nil {
-		t.Fatalf("cannot read Content-Type: %q", err)
+		t.Fatalf("cannot read header: %q", err)
 	}
-	if ct != expectedCT {
-		t.Fatalf("unexpected Content-Type %q; expecting %q", ct, expectedCT)
+	if s != expectedS {
+		t.Fatalf("unexpected header %q; expecting %q", s, expectedS)
 	}
 }
 
@@ -48,14 +48,14 @@ func TestKeyString(t *testing.T) {
 			key: &Key{
 				Query: []byte("SELECT 1 FROM system.numbers LIMIT 10"),
 			},
-			expected: "367315878a67fb82a3bf412fcc104b2d",
+			expected: "2935c3e4c88dbf8a93b25839807eaccc",
 		},
 		{
 			key: &Key{
 				Query:          []byte("SELECT 1 FROM system.numbers LIMIT 10"),
 				AcceptEncoding: "gzip",
 			},
-			expected: "096ba6f59916583f2c26230aacf1dc69",
+			expected: "177dcdb0456adcaa9662c38d4787be5a",
 		},
 		{
 			key: &Key{
@@ -63,7 +63,7 @@ func TestKeyString(t *testing.T) {
 				AcceptEncoding: "gzip",
 				DefaultFormat:  "JSON",
 			},
-			expected: "4654b2c1a1b83e815d17f7ef53a89ca2",
+			expected: "8ef50cfaf4bc2c437c5546e2b36acb59",
 		},
 		{
 			key: &Key{
@@ -72,7 +72,7 @@ func TestKeyString(t *testing.T) {
 				DefaultFormat:  "JSON",
 				Database:       "foobar",
 			},
-			expected: "f9d2db009993e5a9640de12c9466f16c",
+			expected: "3ce42ec71dfc9275c61b78da3be10084",
 		},
 	}
 
@@ -110,6 +110,8 @@ func TestCacheAddGet(t *testing.T) {
 
 		ct := fmt.Sprintf("text/html; %d", i)
 		crw.Header().Set("Content-Type", ct)
+		ce := fmt.Sprintf("gzip; %d", i)
+		crw.Header().Set("Content-Encoding", ce)
 
 		value := fmt.Sprintf("value %d", i)
 		bs := bytes.NewBufferString(value)
@@ -124,6 +126,10 @@ func TestCacheAddGet(t *testing.T) {
 		gotCT := trw.Header().Get("Content-Type")
 		if gotCT != ct {
 			t.Fatalf("unexpected Content-Type: %q; expecting %q", gotCT, ct)
+		}
+		gotCE := trw.Header().Get("Content-Encoding")
+		if gotCE != ce {
+			t.Fatalf("unexpected Content-Encoding: %q; expecting %q", gotCE, ce)
 		}
 
 		// Verify trw contains the response.
@@ -146,6 +152,11 @@ func TestCacheAddGet(t *testing.T) {
 		gotCT := trw.Header().Get("Content-Type")
 		if gotCT != ct {
 			t.Fatalf("unexpected Content-Type: %q; expecting %q", gotCT, ct)
+		}
+		ce := fmt.Sprintf("gzip; %d", i)
+		gotCE := trw.Header().Get("Content-Encoding")
+		if gotCE != ce {
+			t.Fatalf("unexpected Content-Encoding: %q; expecting %q", gotCE, ce)
 		}
 
 		value := fmt.Sprintf("value %d", i)
@@ -171,6 +182,11 @@ func TestCacheAddGet(t *testing.T) {
 		gotCT := trw.Header().Get("Content-Type")
 		if gotCT != ct {
 			t.Fatalf("unexpected Content-Type: %q; expecting %q", gotCT, ct)
+		}
+		ce := fmt.Sprintf("gzip; %d", i)
+		gotCE := trw.Header().Get("Content-Encoding")
+		if gotCE != ce {
+			t.Fatalf("unexpected Content-Encoding: %q; expecting %q", gotCE, ce)
 		}
 
 		value := fmt.Sprintf("value %d", i)

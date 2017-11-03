@@ -23,7 +23,7 @@ import (
 
 // cacheVersion must be increased with each backwads-incompatible change
 // in the cache storage.
-const cacheVersion = 1
+const cacheVersion = 2
 
 // Cache represents a file cache.
 type Cache struct {
@@ -492,23 +492,30 @@ type ResponseWriter struct {
 	bw      *bufio.Writer // buffered writer for the temporary file
 }
 
-func (rw *ResponseWriter) captureContentType() error {
+func (rw *ResponseWriter) captureHeaders() error {
 	if rw.headersCaptured {
 		return nil
 	}
 
 	rw.headersCaptured = true
-	ct := rw.Header().Get("Content-Type")
-	if err := writeContentType(rw.bw, ct); err != nil {
+	h := rw.Header()
+
+	ct := h.Get("Content-Type")
+	if err := writeHeader(rw.bw, ct); err != nil {
 		fn := rw.tmpFile.Name()
 		return fmt.Errorf("cache %q: cannot write Content-Type to %q: %s", rw.c.name, fn, err)
+	}
+	ce := h.Get("Content-Encoding")
+	if err := writeHeader(rw.bw, ce); err != nil {
+		fn := rw.tmpFile.Name()
+		return fmt.Errorf("cache %q: cannot write Content-Encoding to %q: %s", rw.c.name, fn, err)
 	}
 	return nil
 }
 
 // Write writes b into rw.
 func (rw *ResponseWriter) Write(b []byte) (int, error) {
-	if err := rw.captureContentType(); err != nil {
+	if err := rw.captureHeaders(); err != nil {
 		return 0, err
 	}
 	return rw.bw.Write(b)
@@ -521,7 +528,7 @@ func (rw *ResponseWriter) Commit() error {
 	defer rw.c.unregisterPendingEntry(fp)
 	fn := rw.tmpFile.Name()
 
-	if err := rw.captureContentType(); err != nil {
+	if err := rw.captureHeaders(); err != nil {
 		rw.tmpFile.Close()
 		os.Remove(fn)
 		return err
@@ -562,7 +569,7 @@ func (rw *ResponseWriter) Rollback() error {
 	defer rw.c.unregisterPendingEntry(fp)
 	fn := rw.tmpFile.Name()
 
-	if err := rw.captureContentType(); err != nil {
+	if err := rw.captureHeaders(); err != nil {
 		rw.tmpFile.Close()
 		os.Remove(fn)
 		return err
@@ -596,38 +603,46 @@ func (rw *ResponseWriter) Rollback() error {
 
 // sendResponseFromFile sends response to rw from f.
 func sendResponseFromFile(rw http.ResponseWriter, f *os.File) error {
-	ct, err := readContentType(f)
+	ct, err := readHeader(f)
 	if err != nil {
 		return fmt.Errorf("cannot read Content-Type from %q: %s", f.Name(), err)
 	}
 	if len(ct) > 0 {
 		rw.Header().Set("Content-Type", ct)
 	}
+	ce, err := readHeader(f)
+	if err != nil {
+		return fmt.Errorf("cannot read Content-Encoding from %q: %s", f.Name(), err)
+	}
+	if len(ce) > 0 {
+		rw.Header().Set("Content-Encoding", ce)
+	}
+
 	if _, err := io.Copy(rw, f); err != nil {
 		return fmt.Errorf("cannot send %q to client: %s", f.Name(), err)
 	}
 	return nil
 }
 
-func writeContentType(w io.Writer, ct string) error {
-	n := uint32(len(ct))
+func writeHeader(w io.Writer, s string) error {
+	n := uint32(len(s))
 
 	b := make([]byte, 0, n+4)
 	b = append(b, byte(n>>24), byte(n>>16), byte(n>>8), byte(n))
-	b = append(b, ct...)
+	b = append(b, s...)
 	_, err := w.Write(b)
 	return err
 }
 
-func readContentType(r io.Reader) (string, error) {
+func readHeader(r io.Reader) (string, error) {
 	b := make([]byte, 4)
 	if _, err := io.ReadFull(r, b); err != nil {
-		return "", fmt.Errorf("cannot read Content-Type length: %s", err)
+		return "", fmt.Errorf("cannot read header length: %s", err)
 	}
 	n := uint32(b[3]) | (uint32(b[2]) << 8) | (uint32(b[1]) << 16) | (uint32(b[0]) << 24)
-	ct := make([]byte, n)
-	if _, err := io.ReadFull(r, ct); err != nil {
-		return "", fmt.Errorf("cannot read Content-Type value with length %d: %s", n, err)
+	s := make([]byte, n)
+	if _, err := io.ReadFull(r, s); err != nil {
+		return "", fmt.Errorf("cannot read header value with length %d: %s", n, err)
 	}
-	return string(ct), nil
+	return string(s), nil
 }
