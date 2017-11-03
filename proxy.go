@@ -246,8 +246,6 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		err = crw.Rollback()
 	} else {
 		err = crw.Commit()
-		since := float64(time.Since(timeStart).Seconds())
-		proxiedResponseDuration.With(s.labels).Observe(since)
 	}
 
 	if err != nil {
