@@ -21,15 +21,19 @@ build:
 	go build
 
 test: build
-	go test -race -v $(pkgs)
+	go test -race $(pkgs)
 
 run: build
 	./chproxy -config=testdata/http.yml
 
+lint:
+	go vet $(pkgs)
+	golint ./...
+
 reconfigure:
 	kill -HUP `pidof chproxy`
 
-release:
+release: format lint test
 	rm -f chproxy
 	GOOS=linux GOARCH=amd64 go build $(BUILD_OPTS)
 	tar czf chproxy-linux-amd64-$(BUILD_TAG).tar.gz chproxy
