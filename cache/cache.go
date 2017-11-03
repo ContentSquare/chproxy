@@ -228,7 +228,14 @@ func (c *Cache) clean() {
 	}
 
 	loopsCount := 0
-	rnd := rand.New(rand.NewSource(0))
+
+	// Use dedicated random generator instead of global one from math/rand,
+	// since the global generator is slow due to locking.
+	//
+	// Seed the generator with the current time in order to randomize
+	// set of files to be removed below.
+	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+
 	for totalSize > c.maxSize && loopsCount < 3 {
 		// Remove some files in order to reduce cache size.
 		excessSize := totalSize - c.maxSize
@@ -530,7 +537,7 @@ func (rw *ResponseWriter) Commit() error {
 	fi, err := rw.tmpFile.Stat()
 	if err != nil {
 		os.Remove(fn)
-		return fmt.Errorf("cache %q: cannot stat %q: %s", rw.c.name, fn)
+		return fmt.Errorf("cache %q: cannot stat %q: %s", rw.c.name, fn, err)
 	}
 	fs := uint64(fi.Size())
 	atomic.AddUint64(&rw.c.stats.Size, fs)
