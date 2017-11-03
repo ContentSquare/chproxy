@@ -24,14 +24,6 @@ var (
 		},
 		[]string{"user", "cluster", "cluster_user", "cluster_node"},
 	)
-	requestDuration = prometheus.NewSummaryVec(
-		prometheus.SummaryOpts{
-			Name:       "request_duration_seconds",
-			Help:       "Request duration",
-			Objectives: map[float64]float64{0.5: 1e-1, 0.9: 1e-2, 0.99: 1e-3, 0.999: 1e-4, 1: 1e-5},
-		},
-		[]string{"user", "cluster", "cluster_user", "cluster_node"},
-	)
 	limitExcess = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "concurrent_limit_excess_total",
@@ -127,6 +119,22 @@ var (
 		},
 		[]string{"cache"},
 	)
+	requestDuration = prometheus.NewSummaryVec(
+		prometheus.SummaryOpts{
+			Name:       "request_duration_seconds",
+			Help:       "Request duration. Includes possible wait time in the queue",
+			Objectives: map[float64]float64{0.5: 1e-1, 0.9: 1e-2, 0.99: 1e-3, 0.999: 1e-4, 1: 1e-5},
+		},
+		[]string{"user", "cluster", "cluster_user", "cluster_node"},
+	)
+	proxiedResponseDuration = prometheus.NewSummaryVec(
+		prometheus.SummaryOpts{
+			Name:       "proxied_response_duration_seconds",
+			Help:       "Response duration proxied from clickhouse",
+			Objectives: map[float64]float64{0.5: 1e-1, 0.9: 1e-2, 0.99: 1e-3, 0.999: 1e-4, 1: 1e-5},
+		},
+		[]string{"user", "cluster", "cluster_user", "cluster_node"},
+	)
 	cachedResponseDuration = prometheus.NewSummaryVec(
 		prometheus.SummaryOpts{
 			Name:       "cached_response_duration_seconds",
@@ -138,9 +146,10 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(statusCodes, requestDuration, requestSum, requestSuccess,
+	prometheus.MustRegister(statusCodes, requestSum, requestSuccess,
 		limitExcess, hostPenalties, hostHealth, concurrentQueries,
 		requestQueueSize, userQueueOverflow, clusterUserQueueOverflow,
 		requestBodyBytes, responseBodyBytes, badRequest,
-		cacheHit, cacheMiss, cacheSize, cacheItems, cachedResponseDuration)
+		cacheHit, cacheMiss, cacheSize, cacheItems,
+		requestDuration, proxiedResponseDuration, cachedResponseDuration)
 }

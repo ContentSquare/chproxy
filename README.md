@@ -520,7 +520,6 @@ Metrics are exposed in [prometheus text format](https://prometheus.io/docs/instr
 | status_codes_total | Counter | Distribution by response status codes | `user`, `cluster`, `cluster_user`, `cluster_node`, `code` |
 | request_sum_total | Counter | The number of processed requests | `user`, `cluster`, `cluster_user`, `cluster_node` |
 | request_success_total | Counter | The number of successfully proxied requests | `user`, `cluster`, `cluster_user`, `cluster_node` |
-| request_duration_seconds | Summary | Request duration | `user`, `cluster`, `cluster_user`, `cluster_node` |
 | concurrent_limit_excess_total | Counter | The number of rejected requests due to max_concurrent_queries limit | `user`, `cluster`, `cluster_user`, `cluster_node` |
 | host_penalties_total | Counter | The number of given penalties by host | `cluster`, `cluster_node` |
 | host_health | Gauge | Health state of hosts by clusters | `cluster`, `cluster_node` |
@@ -534,6 +533,8 @@ Metrics are exposed in [prometheus text format](https://prometheus.io/docs/instr
 | cache_miss_total | Counter | The amount of cache miss | `user`, `cluster`, `cluster_user` |
 | cache_size | Gauge | Size of each cache | `cache` |
 | cache_items | Gauge | The number of items in each cache | `cache` |
+| request_duration_seconds | Summary | Request duration. Includes possible queue wait time | `user`, `cluster`, `cluster_user`, `cluster_node` |
+| proxied_response_duration_seconds | Summary | Duration for responses proxied from clickhouse | `user`, `cluster`, `cluster_user`, `cluster_node` |
 | cached_response_duration_seconds | Summary | Duration for cached responses | `user`, `cluster`, `cluster_user` |
 | bad_requests_total | Counter | The number of unsupported requests | |
 

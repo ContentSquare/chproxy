@@ -147,11 +147,14 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, req *http
 		defer cancel()
 	}
 	req = req.WithContext(ctx)
+	timeStart := time.Now()
 
 	rp.ReverseProxy.ServeHTTP(rw, req)
 
 	if req.Context().Err() == nil {
 		// The request has been successfully proxied.
+		since := float64(time.Since(timeStart).Seconds())
+		proxiedResponseDuration.With(s.labels).Observe(since)
 		return true
 	}
 
@@ -243,6 +246,8 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		err = crw.Rollback()
 	} else {
 		err = crw.Commit()
+		since := float64(time.Since(timeStart).Seconds())
+		proxiedResponseDuration.With(s.labels).Observe(since)
 	}
 
 	if err != nil {
