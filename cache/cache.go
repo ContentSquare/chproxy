@@ -581,7 +581,7 @@ func (rw *ResponseWriter) Rollback() error {
 		return fmt.Errorf("cache %q: cannot flush data into %q: %s", rw.c.name, fn, err)
 	}
 
-	if _, err := rw.tmpFile.Seek(0, 0); err != nil {
+	if _, err := rw.tmpFile.Seek(0, io.SeekStart); err != nil {
 		panic(fmt.Sprintf("BUG: cache %q: cannot seek to the beginning of %q: %s", rw.c.name, fn, err))
 	}
 
@@ -603,20 +603,35 @@ func (rw *ResponseWriter) Rollback() error {
 
 // sendResponseFromFile sends response to rw from f.
 func sendResponseFromFile(rw http.ResponseWriter, f *os.File) error {
+	h := rw.Header()
+
 	ct, err := readHeader(f)
 	if err != nil {
 		return fmt.Errorf("cannot read Content-Type from %q: %s", f.Name(), err)
 	}
 	if len(ct) > 0 {
-		rw.Header().Set("Content-Type", ct)
+		h.Set("Content-Type", ct)
 	}
 	ce, err := readHeader(f)
 	if err != nil {
 		return fmt.Errorf("cannot read Content-Encoding from %q: %s", f.Name(), err)
 	}
 	if len(ce) > 0 {
-		rw.Header().Set("Content-Encoding", ce)
+		h.Set("Content-Encoding", ce)
 	}
+
+	// Determine Content-Length
+	off, err := f.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return fmt.Errorf("cannot determine the current position in %q: %s", f.Name(), err)
+	}
+	fi, err := f.Stat()
+	if err != nil {
+		return fmt.Errorf("cannot stat %q: %s", f.Name(), err)
+	}
+	fs := fi.Size()
+	cl := fs - off
+	h.Set("Content-Length", fmt.Sprintf("%d", cl))
 
 	if _, err := io.Copy(rw, f); err != nil {
 		return fmt.Errorf("cannot send %q to client: %s", f.Name(), err)

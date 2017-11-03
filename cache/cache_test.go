@@ -122,7 +122,7 @@ func TestCacheAddGet(t *testing.T) {
 			t.Fatalf("cannot commit response to cache: %s", err)
 		}
 
-		// Verify trw contains valid Content-Type.
+		// Verify trw contains valid headers.
 		gotCT := trw.Header().Get("Content-Type")
 		if gotCT != ct {
 			t.Fatalf("unexpected Content-Type: %q; expecting %q", gotCT, ct)
@@ -130,6 +130,11 @@ func TestCacheAddGet(t *testing.T) {
 		gotCE := trw.Header().Get("Content-Encoding")
 		if gotCE != ce {
 			t.Fatalf("unexpected Content-Encoding: %q; expecting %q", gotCE, ce)
+		}
+		cl := fmt.Sprintf("%d", len(value))
+		gotCL := trw.Header().Get("Content-Length")
+		if gotCL != cl {
+			t.Fatalf("unexpected Content-Length: %q; expecting %q", gotCL, cl)
 		}
 
 		// Verify trw contains the response.
@@ -147,6 +152,7 @@ func TestCacheAddGet(t *testing.T) {
 		if err := c.WriteTo(trw, key); err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
+		value := fmt.Sprintf("value %d", i)
 
 		ct := fmt.Sprintf("text/html; %d", i)
 		gotCT := trw.Header().Get("Content-Type")
@@ -158,8 +164,12 @@ func TestCacheAddGet(t *testing.T) {
 		if gotCE != ce {
 			t.Fatalf("unexpected Content-Encoding: %q; expecting %q", gotCE, ce)
 		}
+		cl := fmt.Sprintf("%d", len(value))
+		gotCL := trw.Header().Get("Content-Length")
+		if gotCL != cl {
+			t.Fatalf("unexpected Content-Length: %q; expecting %q", gotCL, cl)
+		}
 
-		value := fmt.Sprintf("value %d", i)
 		if string(trw.b) != value {
 			t.Fatalf("unexpected response sent to client: %q; expecting %q", trw.b, value)
 		}
@@ -177,6 +187,7 @@ func TestCacheAddGet(t *testing.T) {
 		if err := c1.WriteTo(trw, key); err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
+		value := fmt.Sprintf("value %d", i)
 
 		ct := fmt.Sprintf("text/html; %d", i)
 		gotCT := trw.Header().Get("Content-Type")
@@ -188,8 +199,12 @@ func TestCacheAddGet(t *testing.T) {
 		if gotCE != ce {
 			t.Fatalf("unexpected Content-Encoding: %q; expecting %q", gotCE, ce)
 		}
+		cl := fmt.Sprintf("%d", len(value))
+		gotCL := trw.Header().Get("Content-Length")
+		if gotCL != cl {
+			t.Fatalf("unexpected Content-Length: %q; expecting %q", gotCL, cl)
+		}
 
-		value := fmt.Sprintf("value %d", i)
 		if string(trw.b) != value {
 			t.Fatalf("unexpected response sent to client: %q; expecting %q", trw.b, value)
 		}
