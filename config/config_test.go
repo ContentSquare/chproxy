@@ -74,7 +74,7 @@ func TestLoadConfig(t *testing.T) {
 					{
 						Name:   "second cluster",
 						Scheme: "https",
-						Nodes:  []string{"127.0.1.1:8123", "127.0.1.2:8123"},
+						Nodes:  []string{"127.0.1.1:8443", "127.0.1.2:8443"},
 						ClusterUsers: []ClusterUser{
 							{
 								Name:                 "default",

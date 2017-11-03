@@ -195,7 +195,7 @@ clusters:
 
   - name: "second cluster"
     scheme: "https"
-    nodes: ["127.0.1.1:8123", "127.0.1.2:8123"]
+    nodes: ["127.0.1.1:8443", "127.0.1.2:8443"]
     users:
       - name: "default"
         max_concurrent_queries: 4
