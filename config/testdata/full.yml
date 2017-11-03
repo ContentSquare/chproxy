@@ -41,7 +41,7 @@ caches:
     max_size: 100Mb
     expire: 10s
 
-# Named network lists, might be used as values for `allowed_networks`.
+# Optional network lists, might be used as values for `allowed_networks`.
 network_groups:
   - name: "office"
     # Each item may contain either IP or IP subnet mask.
