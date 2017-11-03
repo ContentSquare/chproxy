@@ -72,10 +72,9 @@ func TestLoadConfig(t *testing.T) {
 						HeartBeatInterval: time.Minute,
 					},
 					{
-						Name:          "second cluster",
-						Scheme:        "https",
-						Nodes:         []string{"127.0.1.1:8123", "127.0.1.2:8123"},
-						KillQueryUser: KillQueryUser{Name: "default"},
+						Name:   "second cluster",
+						Scheme: "https",
+						Nodes:  []string{"127.0.1.1:8123", "127.0.1.2:8123"},
 						ClusterUsers: []ClusterUser{
 							{
 								Name:                 "default",
@@ -163,9 +162,6 @@ func TestLoadConfig(t *testing.T) {
 							{
 								Name: "default",
 							},
-						},
-						KillQueryUser: KillQueryUser{
-							Name: "default",
 						},
 						HeartBeatInterval: time.Second * 5,
 					},

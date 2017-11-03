@@ -14,13 +14,8 @@ var (
 	}
 
 	defaultCluster = Cluster{
-		Scheme:        "http",
-		ClusterUsers:  []ClusterUser{defaultClusterUser},
-		KillQueryUser: defaultKillQueryUser,
-	}
-
-	defaultKillQueryUser = KillQueryUser{
-		Name: "default",
+		Scheme:       "http",
+		ClusterUsers: []ClusterUser{defaultClusterUser},
 	}
 
 	defaultClusterUser = ClusterUser{
@@ -252,9 +247,8 @@ type Cluster struct {
 	// ClusterUsers - list of ClickHouse users
 	ClusterUsers []ClusterUser `yaml:"users"`
 
-	// KillQueryUser - user configuration for killing
-	// queries which has exceeded limits
-	// if not specified - killing queries will be omitted
+	// KillQueryUser - user configuration for killing timed out queries.
+	// By default timed out queries are killed under `default` user.
 	KillQueryUser KillQueryUser `yaml:"kill_query_user,omitempty"`
 
 	// HeartBeatInterval is an interval of checking
@@ -291,8 +285,7 @@ func (c *Cluster) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return checkOverflow(c.XXX, fmt.Sprintf("cluster %q", c.Name))
 }
 
-// KillQueryUser - user configuration for killing
-// queries which has exceeded limits
+// KillQueryUser - user configuration for killing timed out queries.
 type KillQueryUser struct {
 	// User name
 	Name string `yaml:"name"`

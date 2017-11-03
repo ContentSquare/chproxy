@@ -198,8 +198,8 @@ nodes: <addr> ...
 users:
     - <cluster_user_config> ...
 
-# KillQueryUser - user configuration for killing
-# queries which has exceeded limits
+# KillQueryUser - user configuration for killing timed out queries.
+# By default timed out queries are killed from `default` user.
 kill_query_user: <kill_query_user_config> | optional
 
 # An interval for checking all cluster nodes for availability

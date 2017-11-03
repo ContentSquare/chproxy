@@ -194,12 +194,9 @@ func (s *scope) dec() {
 const killQueryTimeout = time.Second * 30
 
 func (s *scope) killQuery() error {
-	if len(s.cluster.killQueryUserName) == 0 {
-		return nil
-	}
-	query := fmt.Sprintf("KILL QUERY WHERE query_id = '%d'", s.id)
-	log.Debugf("ExecutionTime exceeded. Going to call query %q", query)
+	log.Debugf("killing timed out query with query_id=%X", s.id)
 
+	query := fmt.Sprintf("KILL QUERY WHERE query_id = '%X'", s.id)
 	r := strings.NewReader(query)
 	addr := s.host.addr.String()
 	req, err := http.NewRequest("POST", addr, r)
@@ -212,7 +209,11 @@ func (s *scope) killQuery() error {
 	req = req.WithContext(ctx)
 
 	// send request as kill_query_user
-	req.SetBasicAuth(s.cluster.killQueryUserName, s.cluster.killQueryUserPassword)
+	userName := s.cluster.killQueryUserName
+	if len(userName) == 0 {
+		userName = "default"
+	}
+	req.SetBasicAuth(userName, s.cluster.killQueryUserPassword)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -226,7 +227,7 @@ func (s *scope) killQuery() error {
 			query, addr, resp.StatusCode, responseBody)
 	}
 
-	log.Debugf("Query with id=%d successfully killed", s.id)
+	log.Debugf("timed out query with query_id=%X has been successfully killed", s.id)
 	return nil
 }
 
@@ -399,7 +400,6 @@ func (h *host) penalize() {
 	if p >= penaltyMaxSize {
 		return
 	}
-	log.Debugf("Penalizing host %q", h.addr)
 	hostPenalties.With(prometheus.Labels{
 		"cluster":      h.cluster.name,
 		"cluster_node": h.addr.Host,
