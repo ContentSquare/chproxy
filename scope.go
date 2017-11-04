@@ -306,40 +306,120 @@ func (s *scope) maxQueueTime() time.Duration {
 }
 
 type user struct {
-	toUser    string
+	name     string
+	password string
+
 	toCluster string
+	toUser    string
+
+	maxConcurrentQueries uint32
+	queryCounter         counter
+
+	maxExecutionTime time.Duration
+
+	reqPerMin   uint32
+	rateLimiter rateLimiter
+
+	queueCh      chan struct{}
+	maxQueueTime time.Duration
+
+	allowedNetworks config.Networks
+
 	denyHTTP  bool
 	denyHTTPS bool
 	allowCORS bool
 
-	allowedNetworks config.Networks
-	cache           *cache.Cache
+	cache *cache.Cache
+}
 
-	name, password       string
-	maxExecutionTime     time.Duration
-	maxConcurrentQueries uint32
-	reqPerMin            uint32
+func newUser(u config.User, clusters map[string]*cluster, caches map[string]*cache.Cache) (*user, error) {
+	c, ok := clusters[u.ToCluster]
+	if !ok {
+		return nil, fmt.Errorf("unknown `to_cluster` %q", u.ToCluster)
+	}
+	if _, ok := c.users[u.ToUser]; !ok {
+		return nil, fmt.Errorf("unknown `to_user` %q in cluster %q", u.ToUser, u.ToCluster)
+	}
 
-	maxQueueTime time.Duration
-	queueCh      chan struct{}
+	var queueCh chan struct{}
+	if u.MaxQueueSize > 0 {
+		queueCh = make(chan struct{}, u.MaxQueueSize)
+	}
 
-	rateLimiter  rateLimiter
-	queryCounter counter
+	var cc *cache.Cache
+	if len(u.Cache) > 0 {
+		cc = caches[u.Cache]
+		if cc == nil {
+			return nil, fmt.Errorf("unknown `cache` %q", u.Cache)
+		}
+	}
+
+	return &user{
+		name:                 u.Name,
+		password:             u.Password,
+		toCluster:            u.ToCluster,
+		toUser:               u.ToUser,
+		maxConcurrentQueries: u.MaxConcurrentQueries,
+		maxExecutionTime:     u.MaxExecutionTime,
+		reqPerMin:            u.ReqPerMin,
+		queueCh:              queueCh,
+		maxQueueTime:         u.MaxQueueTime,
+		allowedNetworks:      u.AllowedNetworks,
+		denyHTTP:             u.DenyHTTP,
+		denyHTTPS:            u.DenyHTTPS,
+		allowCORS:            u.AllowCORS,
+		cache:                cc,
+	}, nil
+}
+
+func newUsers(cfg []config.User, clusters map[string]*cluster, caches map[string]*cache.Cache) (map[string]*user, error) {
+	users := make(map[string]*user, len(cfg))
+	for _, u := range cfg {
+		if _, ok := users[u.Name]; ok {
+			return nil, fmt.Errorf("duplicate config for user %q", u.Name)
+		}
+		tmpU, err := newUser(u, clusters, caches)
+		if err != nil {
+			return nil, fmt.Errorf("cannot initialize user %q: %s", u.Name, err)
+		}
+		users[u.Name] = tmpU
+	}
+	return users, nil
 }
 
 type clusterUser struct {
-	allowedNetworks config.Networks
+	name     string
+	password string
 
-	name, password       string
-	maxExecutionTime     time.Duration
 	maxConcurrentQueries uint32
-	reqPerMin            uint32
+	queryCounter         counter
 
-	maxQueueTime time.Duration
+	maxExecutionTime time.Duration
+
+	reqPerMin   uint32
+	rateLimiter rateLimiter
+
 	queueCh      chan struct{}
+	maxQueueTime time.Duration
 
-	rateLimiter  rateLimiter
-	queryCounter counter
+	allowedNetworks config.Networks
+}
+
+func newClusterUser(cu config.ClusterUser) *clusterUser {
+	var queueCh chan struct{}
+	if cu.MaxQueueSize > 0 {
+		queueCh = make(chan struct{}, cu.MaxQueueSize)
+	}
+	return &clusterUser{
+		name:                 cu.Name,
+		password:             cu.Password,
+		maxConcurrentQueries: cu.MaxConcurrentQueries,
+		maxExecutionTime:     cu.MaxExecutionTime,
+		reqPerMin:            cu.ReqPerMin,
+		queueCh:              queueCh,
+		maxQueueTime:         cu.MaxQueueTime,
+		allowedNetworks:      cu.AllowedNetworks,
+	}
 }
 
 type host struct {
@@ -418,13 +498,65 @@ func (h *host) load() uint32 {
 }
 
 type cluster struct {
-	name                  string
-	nextIdx               uint32
-	hosts                 []*host
-	users                 map[string]*clusterUser
+	name string
+
+	nextIdx uint32
+	hosts   []*host
+
+	users map[string]*clusterUser
+
 	killQueryUserName     string
 	killQueryUserPassword string
-	heartBeatInterval     time.Duration
+
+	heartBeatInterval time.Duration
+}
+
+func newCluster(c config.Cluster) (*cluster, error) {
+	clusterUsers := make(map[string]*clusterUser, len(c.ClusterUsers))
+	for _, cu := range c.ClusterUsers {
+		if _, ok := clusterUsers[cu.Name]; ok {
+			return nil, fmt.Errorf("duplicate config for cluster user %q", cu.Name)
+		}
+		clusterUsers[cu.Name] = newClusterUser(cu)
+	}
+
+	newC := &cluster{
+		name:                  c.Name,
+		users:                 clusterUsers,
+		killQueryUserName:     c.KillQueryUser.Name,
+		killQueryUserPassword: c.KillQueryUser.Password,
+		heartBeatInterval:     c.HeartBeatInterval,
+	}
+
+	hosts := make([]*host, len(c.Nodes))
+	for i, node := range c.Nodes {
+		addr, err := url.Parse(fmt.Sprintf("%s://%s", c.Scheme, node))
+		if err != nil {
+			return nil, fmt.Errorf("cannot parse `node` %q with `scheme` %q: %s", node, c.Scheme, err)
+		}
+		hosts[i] = &host{
+			cluster: newC,
+			addr:    addr,
+		}
+	}
+	newC.hosts = hosts
+
+	return newC, nil
+}
+
+func newClusters(cfg []config.Cluster) (map[string]*cluster, error) {
+	clusters := make(map[string]*cluster, len(cfg))
+	for _, c := range cfg {
+		if _, ok := clusters[c.Name]; ok {
+			return nil, fmt.Errorf("duplicate config for cluster %q", c.Name)
+		}
+		tmpC, err := newCluster(c)
+		if err != nil {
+			return nil, fmt.Errorf("cannot initialize cluster %q: %s", c.Name, err)
+		}
+		clusters[c.Name] = tmpC
+	}
+	return clusters, nil
 }
 
 // get least loaded + round-robin host from cluster

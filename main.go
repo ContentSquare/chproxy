@@ -13,10 +13,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Vertamedia/chproxy/cache"
 	"github.com/Vertamedia/chproxy/config"
 	"github.com/Vertamedia/chproxy/log"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/crypto/acme/autocert"
 )
@@ -27,8 +25,7 @@ var (
 )
 
 var (
-	proxy  = newReverseProxy()
-	caches map[string]*cache.Cache
+	proxy = newReverseProxy()
 
 	// networks allow lists
 	allowedNetworksHTTP    atomic.Value
@@ -48,10 +45,6 @@ func main() {
 	cfg, err := loadConfig()
 	if err != nil {
 		log.Fatalf("error while loading config: %s", err)
-	}
-	caches, err = cache.New(cfg.Caches)
-	if err != nil {
-		log.Fatalf("cannot initialize caches: %s", err)
 	}
 	if err = applyConfig(cfg); err != nil {
 		log.Fatalf("error while applying config: %s", err)
@@ -215,16 +208,7 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Collect metrics for caches.
-		for cacheName, c := range caches {
-			stats := c.Stats()
-			labels := prometheus.Labels{
-				"cache": cacheName,
-			}
-			cacheSize.With(labels).Set(float64(stats.Size))
-			cacheItems.With(labels).Set(float64(stats.Items))
-		}
-
+		proxy.refreshCacheMetrics()
 		promHandler.ServeHTTP(rw, r)
 	case "/":
 		var err error
@@ -264,7 +248,7 @@ func loadConfig() (*config.Config, error) {
 }
 
 func applyConfig(cfg *config.Config) error {
-	if err := proxy.ApplyConfig(cfg, caches); err != nil {
+	if err := proxy.applyConfig(cfg); err != nil {
 		return err
 	}
 	allowedNetworksHTTP.Store(&cfg.Server.HTTP.AllowedNetworks)

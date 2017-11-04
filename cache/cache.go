@@ -84,24 +84,6 @@ func (k *Key) String() string {
 // This regexp must match Key.String output
 var cachefileRegexp = regexp.MustCompile(`^[0-9a-f]{32}$`)
 
-// New returns new map of caches created from the given configs.
-//
-// The map is keyed by cache name.
-func New(cfgs []config.Cache) (map[string]*Cache, error) {
-	caches := make(map[string]*Cache, len(cfgs))
-	for _, cfg := range cfgs {
-		if _, ok := caches[cfg.Name]; ok {
-			return nil, fmt.Errorf("duplicate cache name %q", cfg.Name)
-		}
-		c, err := newCache(cfg)
-		if err != nil {
-			return nil, fmt.Errorf("cannot initialize cache %q: %s", cfg.Name, err)
-		}
-		caches[cfg.Name] = c
-	}
-	return caches, nil
-}
-
 // Stats returns cache stats.
 //
 // The returned stats is approximate.
@@ -112,7 +94,8 @@ func (c *Cache) Stats() Stats {
 	return s
 }
 
-func newCache(cfg config.Cache) (*Cache, error) {
+// New returns new cache for the given cfg.
+func New(cfg config.Cache) (*Cache, error) {
 	if len(cfg.Dir) == 0 {
 		return nil, fmt.Errorf("`dir` cannot be empty")
 	}
@@ -160,10 +143,12 @@ func newCache(cfg config.Cache) (*Cache, error) {
 
 // Close stops the cache.
 //
-// The cache mustn't be used after it is stopped.
+// The cache may be used after it is stopped, but it is no longer cleaned.
 func (c *Cache) Close() {
+	log.Debugf("cache %q: stopping", c.name)
 	close(c.stopCh)
 	c.wg.Wait()
+	log.Debugf("cache %q: stopped", c.name)
 }
 
 func (c *Cache) cleaner() {
@@ -188,6 +173,7 @@ func (c *Cache) cleaner() {
 			c.clean()
 			forceCleanCh = time.After(d)
 		case <-c.stopCh:
+			log.Debugf("cache %q: cleaner stopped", c.name)
 			return
 		}
 	}
@@ -441,6 +427,7 @@ func (c *Cache) pendingEntriesCleaner() {
 		select {
 		case <-time.After(d):
 		case <-c.stopCh:
+			log.Debugf("cache %q: pendingEntriesCleaner stopped", c.name)
 			return
 		}
 	}

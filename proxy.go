@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
-	"net/url"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -21,19 +20,27 @@ import (
 )
 
 type reverseProxy struct {
-	*httputil.ReverseProxy
+	rp *httputil.ReverseProxy
+
+	// configLock serializes access to applyConfig.
+	// It protects reload* fields.
+	configLock sync.Mutex
 
 	reloadSignal chan struct{}
 	reloadWG     sync.WaitGroup
 
-	mu       sync.RWMutex
+	// lock protects users, clusters and caches.
+	// RWMutex enables concurrent access to getScope.
+	lock sync.RWMutex
+
 	users    map[string]*user
 	clusters map[string]*cluster
+	caches   map[string]*cache.Cache
 }
 
 func newReverseProxy() *reverseProxy {
 	return &reverseProxy{
-		ReverseProxy: &httputil.ReverseProxy{
+		rp: &httputil.ReverseProxy{
 			Director: func(*http.Request) {},
 
 			// Suppress error logging in ReverseProxy, since all the errors
@@ -149,7 +156,7 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, req *http
 	req = req.WithContext(ctx)
 	timeStart := time.Now()
 
-	rp.ReverseProxy.ServeHTTP(rw, req)
+	rp.rp.ServeHTTP(rw, req)
 
 	if req.Context().Err() == nil {
 		// The request has been successfully proxied.
@@ -255,155 +262,125 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	}
 }
 
-// ApplyConfig applies provided config to reverseProxy.
-// New config will be applied only if non-nil error returned
-// Otherwise old version will be kept
-func (rp *reverseProxy) ApplyConfig(cfg *config.Config, caches map[string]*cache.Cache) error {
-	clusters := make(map[string]*cluster, len(cfg.Clusters))
-	for _, c := range cfg.Clusters {
-		clusterUsers := make(map[string]*clusterUser, len(c.ClusterUsers))
-		for _, cu := range c.ClusterUsers {
-			if _, ok := clusterUsers[cu.Name]; ok {
-				return fmt.Errorf("cluster user %q already exists", cu.Name)
-			}
+// applyConfig applies the given cfg to reverseProxy.
+//
+// New config is applied only if non-nil error returned.
+// Otherwise old config version is kept.
+func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
+	// configLock protects from concurrent calls to applyConfig
+	// by serializing such calls.
+	// configLock shouldn't be used in other places.
+	rp.configLock.Lock()
+	defer rp.configLock.Unlock()
 
-			var queueCh chan struct{}
-			if cu.MaxQueueSize > 0 {
-				queueCh = make(chan struct{}, cu.MaxQueueSize)
-			}
-			clusterUsers[cu.Name] = &clusterUser{
-				name:                 cu.Name,
-				password:             cu.Password,
-				allowedNetworks:      cu.AllowedNetworks,
-				reqPerMin:            cu.ReqPerMin,
-				maxExecutionTime:     cu.MaxExecutionTime,
-				maxConcurrentQueries: cu.MaxConcurrentQueries,
-				maxQueueTime:         cu.MaxQueueTime,
-				queueCh:              queueCh,
-			}
-		}
-
-		if _, ok := clusters[c.Name]; ok {
-			return fmt.Errorf("cluster %q already exists", c.Name)
-		}
-		cluster := &cluster{
-			name:                  c.Name,
-			users:                 clusterUsers,
-			heartBeatInterval:     c.HeartBeatInterval,
-			killQueryUserName:     c.KillQueryUser.Name,
-			killQueryUserPassword: c.KillQueryUser.Password,
-		}
-		clusters[c.Name] = cluster
-
-		hosts := make([]*host, len(c.Nodes))
-		for i, node := range c.Nodes {
-			addr, err := url.Parse(fmt.Sprintf("%s://%s", c.Scheme, node))
-			if err != nil {
-				return err
-			}
-			hosts[i] = &host{
-				cluster: cluster,
-				addr:    addr,
-			}
-		}
-		cluster.hosts = hosts
+	clusters, err := newClusters(cfg.Clusters)
+	if err != nil {
+		return err
 	}
 
-	users := make(map[string]*user, len(cfg.Users))
-	for _, u := range cfg.Users {
-		c, ok := clusters[u.ToCluster]
-		if !ok {
-			return fmt.Errorf("error while mapping user %q to cluster %q: no such cluster", u.Name, u.ToCluster)
+	caches := make(map[string]*cache.Cache, len(cfg.Caches))
+	defer func() {
+		// caches is swapped with old caches from rp.caches
+		// on successful config reload - see the end of reloadConfig.
+		for _, tmpCache := range caches {
+			// Speed up applyConfig by closing caches in background,
+			// since the process of cache closing may be lengthy
+			// due to cleaning.
+			go tmpCache.Close()
 		}
-		if _, ok := c.users[u.ToUser]; !ok {
-			return fmt.Errorf("error while mapping user %q to cluster's %q user %q: no such user", u.Name, u.ToCluster, u.ToUser)
+	}()
+	for _, cc := range cfg.Caches {
+		if _, ok := caches[cc.Name]; ok {
+			return fmt.Errorf("duplicate config for cache %q", cc.Name)
 		}
-		if _, ok := users[u.Name]; ok {
-			return fmt.Errorf("user %q already exists", u.Name)
+		tmpCache, err := cache.New(cc)
+		if err != nil {
+			return fmt.Errorf("cannot initialize cache %q: %s", cc.Name, err)
 		}
-		var queueCh chan struct{}
-		if u.MaxQueueSize > 0 {
-			queueCh = make(chan struct{}, u.MaxQueueSize)
-		}
-
-		var cc *cache.Cache
-		if len(u.Cache) > 0 {
-			cc = caches[u.Cache]
-			if cc == nil {
-				return fmt.Errorf("unknown cache %q for user %q ", u.Cache, u.Name)
-			}
-		}
-
-		users[u.Name] = &user{
-			name:                 u.Name,
-			password:             u.Password,
-			toUser:               u.ToUser,
-			cache:                cc,
-			denyHTTP:             u.DenyHTTP,
-			denyHTTPS:            u.DenyHTTPS,
-			allowCORS:            u.AllowCORS,
-			toCluster:            u.ToCluster,
-			allowedNetworks:      u.AllowedNetworks,
-			reqPerMin:            u.ReqPerMin,
-			maxExecutionTime:     u.MaxExecutionTime,
-			maxConcurrentQueries: u.MaxConcurrentQueries,
-			maxQueueTime:         u.MaxQueueTime,
-			queueCh:              queueCh,
-		}
+		caches[cc.Name] = tmpCache
 	}
 
-	// if we are here then there are no errors with new config
-	// send signal for all listeners that proxy is going to reload
+	users, err := newUsers(cfg.Users, clusters, caches)
+	if err != nil {
+		return err
+	}
+
+	// New configs have been successfully prepared.
+	// Restart service goroutines with new configs.
+
+	// Stop the previous service goroutines.
 	close(rp.reloadSignal)
-	// wait till all goroutines will stop
 	rp.reloadWG.Wait()
-	// reset previous hostHealth to remove old hosts
-	hostHealth.Reset()
-	// recover channel for further reloads
 	rp.reloadSignal = make(chan struct{})
 
-	// run checkers
+	// Reset metrics from the previous configs, which may become irrelevant
+	// with new configs.
+	// Counters and Summary metrics are always relevant.
+	// Gauge metrics may become irrelevant if they may freeze at non-zero
+	// value after config reload.
+	hostHealth.Reset()
+	cacheSize.Reset()
+	cacheItems.Reset()
+
+	// Start service goroutines with new configs.
 	for _, c := range clusters {
-		for _, host := range c.hosts {
-			h := host
+		for _, h := range c.hosts {
 			rp.reloadWG.Add(1)
-			go func() {
+			go func(h *host) {
 				h.runHeartbeat(rp.reloadSignal)
 				rp.reloadWG.Done()
-			}()
+			}(h)
 		}
-		for _, user := range c.users {
-			u := user
+		for _, cu := range c.users {
 			rp.reloadWG.Add(1)
-			go func() {
-				u.rateLimiter.run(rp.reloadSignal)
+			go func(cu *clusterUser) {
+				cu.rateLimiter.run(rp.reloadSignal)
 				rp.reloadWG.Done()
-			}()
+			}(cu)
 		}
 	}
-	for _, user := range users {
-		u := user
+	for _, u := range users {
 		rp.reloadWG.Add(1)
-		go func() {
+		go func(u *user) {
 			u.rateLimiter.run(rp.reloadSignal)
 			rp.reloadWG.Done()
-		}()
+		}(u)
 	}
 
-	// update configuration
-	rp.mu.Lock()
+	// Substitute old configs with the new configs in rp.
+	// All the currently running requests will continue with old configs,
+	// while all the new requests will use new configs.
+	rp.lock.Lock()
 	rp.clusters = clusters
 	rp.users = users
-	rp.mu.Unlock()
+	// Swap is needed for deferred closing of old caches.
+	// See the code above where new caches are created.
+	caches, rp.caches = rp.caches, caches
+	rp.lock.Unlock()
 
 	return nil
+}
+
+// refreshCacheMetrics refresehs cacheSize and cacheItems metrics.
+func (rp *reverseProxy) refreshCacheMetrics() {
+	rp.lock.RLock()
+	defer rp.lock.RUnlock()
+
+	for cacheName, c := range rp.caches {
+		stats := c.Stats()
+		labels := prometheus.Labels{
+			"cache": cacheName,
+		}
+		cacheSize.With(labels).Set(float64(stats.Size))
+		cacheItems.With(labels).Set(float64(stats.Items))
+	}
 }
 
 func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 	name, password := getAuth(req)
 
-	rp.mu.RLock()
-	defer rp.mu.RUnlock()
+	rp.lock.RLock()
+	defer rp.lock.RUnlock()
 
 	u, ok := rp.users[name]
 	if !ok {

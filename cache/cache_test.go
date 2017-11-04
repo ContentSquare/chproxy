@@ -238,7 +238,7 @@ func TestPendingEntries(t *testing.T) {
 		Expire:    time.Minute,
 		GraceTime: 30 * time.Second,
 	}
-	c, err := newCache(cfg)
+	c, err := New(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -358,7 +358,7 @@ func TestCacheClean(t *testing.T) {
 		MaxSize: 8192,
 		Expire:  time.Minute,
 	}
-	c, err := newCache(cfg)
+	c, err := New(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -433,7 +433,7 @@ func newTestCache(t *testing.T) *Cache {
 		MaxSize: 1e6,
 		Expire:  time.Minute,
 	}
-	c, err := newCache(cfg)
+	c, err := New(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}

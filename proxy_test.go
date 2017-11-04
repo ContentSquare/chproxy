@@ -43,7 +43,7 @@ var goodCfg = &config.Config{
 
 func newConfiguredProxy(cfg *config.Config) (*reverseProxy, error) {
 	p := newReverseProxy()
-	if err := p.ApplyConfig(cfg, caches); err != nil {
+	if err := p.applyConfig(cfg); err != nil {
 		return p, fmt.Errorf("error while loading config: %s", err)
 	}
 	return p, nil
@@ -51,7 +51,7 @@ func newConfiguredProxy(cfg *config.Config) (*reverseProxy, error) {
 
 func TestNewReverseProxy(t *testing.T) {
 	proxy := newReverseProxy()
-	if err := proxy.ApplyConfig(goodCfg, caches); err != nil {
+	if err := proxy.applyConfig(goodCfg); err != nil {
 		t.Fatalf("error while loading config: %s", err)
 	}
 	if len(proxy.clusters) != 1 {
@@ -100,7 +100,7 @@ func TestApplyConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
-	if err = proxy.ApplyConfig(badCfg, caches); err == nil {
+	if err = proxy.applyConfig(badCfg); err == nil {
 		t.Fatalf("error expected; got nil")
 	}
 	if _, ok := proxy.clusters["badCfg"]; ok {
@@ -498,7 +498,7 @@ func TestReverseProxy_ServeHTTPConcurrent(t *testing.T) {
 	})
 	t.Run("parallel requests with config reloading", func(t *testing.T) {
 		f := func() {
-			go proxy.ApplyConfig(newConfig(), caches)
+			go proxy.applyConfig(newConfig())
 			makeRequest(proxy)
 		}
 		if err := testConcurrent(f, 100); err != nil {

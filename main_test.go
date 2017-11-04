@@ -40,10 +40,6 @@ func startTLS() (net.Listener, chan struct{}) {
 	if err != nil {
 		panic(fmt.Sprintf("error while loading config: %s", err))
 	}
-	caches, err = cache.New(cfg.Caches)
-	if err != nil {
-		panic(fmt.Sprintf("cannot initialize caches: %s", err))
-	}
 	if err = applyConfig(cfg); err != nil {
 		panic(fmt.Sprintf("error while applying config: %s", err))
 	}
@@ -66,10 +62,6 @@ func startHTTP() (net.Listener, chan struct{}) {
 	cfg, err := loadConfig()
 	if err != nil {
 		panic(fmt.Sprintf("error while loading config: %s", err))
-	}
-	caches, err = cache.New(cfg.Caches)
-	if err != nil {
-		panic(fmt.Sprintf("cannot initialize caches: %s", err))
 	}
 	if err = applyConfig(cfg); err != nil {
 		panic(fmt.Sprintf("error while applying config: %s", err))
@@ -163,7 +155,7 @@ func TestServe(t *testing.T) {
 					t.Fatalf("err while getting file %q info: %s", path, err)
 				}
 				rw := httptest.NewRecorder()
-				cc := caches["https_cache"]
+				cc := proxy.caches["https_cache"]
 				if err := cc.WriteTo(rw, key); err != nil {
 					t.Fatalf("unexpected error while writing reposnse from cache: %s", err)
 				}
