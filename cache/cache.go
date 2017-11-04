@@ -128,13 +128,17 @@ func New(cfg config.Cache) (*Cache, error) {
 
 	c.wg.Add(1)
 	go func() {
+		log.Debugf("cache %q: cleaner start", c.name)
 		c.cleaner()
+		log.Debugf("cache %q: cleaner stop", c.name)
 		c.wg.Done()
 	}()
 
 	c.wg.Add(1)
 	go func() {
+		log.Debugf("cache %q: pendingEntriesCleaner start", c.name)
 		c.pendingEntriesCleaner()
+		log.Debugf("cache %q: pendingEntriesCleander stop", c.name)
 		c.wg.Done()
 	}()
 
@@ -173,7 +177,6 @@ func (c *Cache) cleaner() {
 			c.clean()
 			forceCleanCh = time.After(d)
 		case <-c.stopCh:
-			log.Debugf("cache %q: cleaner stopped", c.name)
 			return
 		}
 	}
@@ -427,7 +430,6 @@ func (c *Cache) pendingEntriesCleaner() {
 		select {
 		case <-time.After(d):
 		case <-c.stopCh:
-			log.Debugf("cache %q: pendingEntriesCleaner stopped", c.name)
 			return
 		}
 	}
