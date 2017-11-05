@@ -504,7 +504,21 @@ func TestServe(t *testing.T) {
 		},
 	}
 
+	// Wait until CHServer starts.
 	go startCHServer()
+	startTime := time.Now()
+	i := 0
+	for i < 10 {
+		if _, err := http.Get("http://127.0.0.1:8124/"); err == nil {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+		i++
+	}
+	if i >= 10 {
+		t.Fatalf("CHServer didn't start in %s", time.Since(startTime))
+	}
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			*configFile = tc.file
