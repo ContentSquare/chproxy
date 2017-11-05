@@ -13,7 +13,7 @@ Chproxy, is an http proxy for [ClickHouse](https://ClickHouse.yandex) database. 
 - All the limits may be independently set for each input user and for each per-cluster user.
 - May delay request execution until it fits per-user limits.
 - Per-user [response caching](#caching) may be configured.
-- Protection from [thundering herd](https://en.wikipedia.org/wiki/Cache_stampede) problem may be enabled on response caches.
+- Response caches have built-in protection against [thundering herd](https://en.wikipedia.org/wiki/Cache_stampede) aka `dogpile effect`.
 - Evenly spreads requests among cluster nodes using `least loaded` + `round robin` technique.
 - Monitors node health and prevents from sending requests to unhealthy nodes.
 - Supports automatic HTTPS certificate issuing and renewal via [Let’s Encrypt](https://letsencrypt.org/).
@@ -353,7 +353,8 @@ caches:
     # for the cached response during this grace duration.
     # This is known as protection from `thundering herd` problem.
     #
-    # By default `thundering herd` protection is disabled.
+    # By default `grace_time` is 5s. Negative value disables the protection
+    # from `thundering herd` problem.
     grace_time: 20s
 
   - name: "shortterm"

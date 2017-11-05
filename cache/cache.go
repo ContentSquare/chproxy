@@ -107,7 +107,12 @@ func New(cfg config.Cache) (*Cache, error) {
 	}
 
 	graceTime := cfg.GraceTime
-	if graceTime <= 0 {
+	if graceTime == 0 {
+		// Default grace time.
+		graceTime = 5*time.Second
+	}
+	if graceTime < 0 {
+		// Disable protection from `dogpile effect`.
 		graceTime = 0
 	}
 

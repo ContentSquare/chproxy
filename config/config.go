@@ -467,9 +467,6 @@ func (c *Cache) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if c.MaxSize <= 0 {
 		return fmt.Errorf("`cache.max_size` must be specified for %q", c.Name)
 	}
-	if c.GraceTime < 0 {
-		return fmt.Errorf("`cache.grace_time` cannot be negative for %q", c.Name)
-	}
 	return checkOverflow(c.XXX, fmt.Sprintf("cache %q", c.Name))
 }
 

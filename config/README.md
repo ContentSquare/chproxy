@@ -67,7 +67,8 @@ expire: <duration>
 # for the cached response during this grace duration.
 # This is known as protection from `thundering herd` problem.
 #
-# By default `thundering herd` protection is disabled.
+# By default `grace_time` is 5s. Negative value disables the protection
+# from `thundering herd` problem.
 grace_time: <duration>
 ```
 
