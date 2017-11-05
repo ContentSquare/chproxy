@@ -197,6 +197,19 @@ func listenAndServe(ln net.Listener, maxResponseTime time.Duration) error {
 var promHandler = promhttp.Handler()
 
 func serveHTTP(rw http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet, http.MethodPost:
+		// Only GET and POST methods are supported.
+	case http.MethodOptions:
+		// This is required for CORS shit :)
+		rw.Header().Set("Allow", "GET,POST")
+		return
+	default:
+		err := fmt.Errorf("unsupported method %q", r.Method)
+		respondWith(rw, err, http.StatusMethodNotAllowed)
+		return
+	}
+
 	switch r.URL.Path {
 	case "/favicon.ico":
 	case "/metrics":
