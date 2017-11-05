@@ -164,6 +164,8 @@ func (c *Cache) cleaner() {
 		d = time.Hour
 	}
 	forceCleanCh := time.After(d)
+
+	c.clean()
 	for {
 		select {
 		case <-time.After(time.Second):
