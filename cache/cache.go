@@ -303,15 +303,20 @@ func walkDir(dir string, f func(fi os.FileInfo)) error {
 //
 // Returns ErrMissing if the response isn't found in the cache.
 func (c *Cache) WriteTo(rw http.ResponseWriter, key *Key) error {
+	return c.writeTo(rw, key, http.StatusOK)
+}
+
+func (c *Cache) writeTo(rw http.ResponseWriter, key *Key, statusCode int) error {
 	f, err := c.get(key)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 
-	if err := sendResponseFromFile(rw, f); err != nil {
+	if err := sendResponseFromFile(rw, f, c.expire, statusCode); err != nil {
 		return fmt.Errorf("cache %q: %s", c.name, err)
 	}
+
 	return nil
 }
 
@@ -473,6 +478,7 @@ type ResponseWriter struct {
 	http.ResponseWriter // the original response writer
 
 	headersCaptured bool
+	statusCode      int
 
 	key *Key
 	c   *Cache
@@ -500,6 +506,21 @@ func (rw *ResponseWriter) captureHeaders() error {
 		return fmt.Errorf("cache %q: cannot write Content-Encoding to %q: %s", rw.c.name, fn, err)
 	}
 	return nil
+}
+
+// WriteHeader captures response status code.
+func (rw *ResponseWriter) WriteHeader(statusCode int) {
+	rw.statusCode = statusCode
+	// Do not call rw.ResponseWriter.WriteHeader here
+	// It will be called explicitly in Commit / Rollback.
+}
+
+// StatusCode returns captured status code from WriteHeader.
+func (rw *ResponseWriter) StatusCode() int {
+	if rw.statusCode == 0 {
+		return http.StatusOK
+	}
+	return rw.statusCode
 }
 
 // Write writes b into rw.
@@ -548,7 +569,7 @@ func (rw *ResponseWriter) Commit() error {
 		return fmt.Errorf("cache %q: cannot rename %q to %q: %s", rw.c.name, fn, fp, err)
 	}
 
-	return rw.c.WriteTo(rw.ResponseWriter, rw.key)
+	return rw.c.writeTo(rw.ResponseWriter, rw.key, rw.StatusCode())
 }
 
 // Rollback writes the response to the wrapped response writer and discards
@@ -574,7 +595,7 @@ func (rw *ResponseWriter) Rollback() error {
 		panic(fmt.Sprintf("BUG: cache %q: cannot seek to the beginning of %q: %s", rw.c.name, fn, err))
 	}
 
-	if err := sendResponseFromFile(rw.ResponseWriter, rw.tmpFile); err != nil {
+	if err := sendResponseFromFile(rw.ResponseWriter, rw.tmpFile, 0, rw.StatusCode()); err != nil {
 		rw.tmpFile.Close()
 		os.Remove(fn)
 		return fmt.Errorf("cache %q: %s", rw.c.name, err)
@@ -591,7 +612,10 @@ func (rw *ResponseWriter) Rollback() error {
 }
 
 // sendResponseFromFile sends response to rw from f.
-func sendResponseFromFile(rw http.ResponseWriter, f *os.File) error {
+//
+// Sets 'Cache-Control: max-age' header if expire > 0.
+// Sets the given response status code.
+func sendResponseFromFile(rw http.ResponseWriter, f *os.File, expire time.Duration, statusCode int) error {
 	h := rw.Header()
 
 	ct, err := readHeader(f)
@@ -622,6 +646,18 @@ func sendResponseFromFile(rw http.ResponseWriter, f *os.File) error {
 	cl := fs - off
 	h.Set("Content-Length", fmt.Sprintf("%d", cl))
 
+	// Set 'Cache-Control: max-age' on non-temporary file
+	if expire > 0 {
+		mt := fi.ModTime()
+		age := time.Since(mt)
+		left := expire - age
+		if left > 0 {
+			leftSeconds := uint(left / time.Second)
+			h.Set("Cache-Control", fmt.Sprintf("max-age=%d", leftSeconds))
+		}
+	}
+
+	rw.WriteHeader(statusCode)
 	if _, err := io.Copy(rw, f); err != nil {
 		return fmt.Errorf("cannot send %q to client: %s", f.Name(), err)
 	}

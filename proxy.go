@@ -248,7 +248,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		// Request timeout.
 		srw.statusCode = http.StatusGatewayTimeout
 	}
-	if srw.statusCode != http.StatusOK {
+	if crw.StatusCode() != http.StatusOK {
 		// Do not cache non-200 responses.
 		err = crw.Rollback()
 	} else {
