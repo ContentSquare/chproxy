@@ -305,6 +305,7 @@ If `cluster`'s [users](https://github.com/Vertamedia/chproxy/blob/master/config#
 [cache-configs](https://github.com/Vertamedia/chproxy/blob/master/config/#cache_config) with various settings.
 Response caching is enabled by assigning cache name to user. Multiple users may share the same cache.
 Currently only `SELECT` responses are cached.
+Caching is disabled for request with `no_cache=1` in query string.
 
 ### Security
 `Chproxy` removes all the query params from input requests (except the `query`, `database`, `default_format`)

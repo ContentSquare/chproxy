@@ -94,6 +94,9 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		bytesWritten:   responseBodyBytes.With(s.labels),
 	}
 
+	nc := req.URL.Query().Get("no_cache")
+	noCache := (nc == "1" || nc == "true")
+
 	req = s.decorateRequest(req)
 
 	// wrap body into cachedReadCloser, so we could obtain the original
@@ -102,13 +105,13 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		ReadCloser: req.Body,
 	}
 
-	if s.user.cache != nil {
-		rp.serveFromCache(s, srw, req)
-	} else {
+	if s.user.cache == nil || noCache {
 		if !rp.proxyRequest(s, srw, req) {
 			// Request timeout.
 			srw.statusCode = http.StatusGatewayTimeout
 		}
+	} else {
+		rp.serveFromCache(s, srw, req)
 	}
 
 	switch srw.statusCode {
