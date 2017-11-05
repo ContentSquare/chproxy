@@ -14,7 +14,7 @@ import (
 )
 
 func respondWith(rw http.ResponseWriter, err error, status int) {
-	log.Errorf("%s", err)
+	log.ErrorWithCallDepth(err, 1)
 	rw.WriteHeader(status)
 	fmt.Fprintf(rw, "%s", err)
 }

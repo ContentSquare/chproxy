@@ -67,6 +67,12 @@ func Errorf(format string, args ...interface{}) {
 	errorLogger.Output(outputCallDepth, s)
 }
 
+// ErrorWithCallDepth prints err into error log using the given callDepth.
+func ErrorWithCallDepth(err error, callDepth int) {
+	s := err.Error()
+	errorLogger.Output(outputCallDepth+callDepth, s)
+}
+
 // Fatalf prints fatal message according to a format and exits program
 func Fatalf(format string, args ...interface{}) {
 	s := fmt.Sprintf(format, args...)
