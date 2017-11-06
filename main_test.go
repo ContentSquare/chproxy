@@ -543,7 +543,7 @@ func TestServe(t *testing.T) {
 					break
 				}
 				i++
-				time.Sleep(time.Millisecond*10)
+				time.Sleep(time.Millisecond * 10)
 			}
 
 			tc.testFn(t)
