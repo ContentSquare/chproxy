@@ -301,8 +301,6 @@ func TestServe(t *testing.T) {
 
 				resp, err = http.Get("http://127.0.0.1:9090/metrics")
 				if resp.StatusCode != http.StatusOK {
-					response, _ := ioutil.ReadAll(resp.Body)
-					fmt.Println(string(response))
 					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
 				}
 				resp.Body.Close()
@@ -330,8 +328,6 @@ func TestServe(t *testing.T) {
 					t.Fatal(err)
 				}
 				if resp.StatusCode != http.StatusOK {
-					response, _ := ioutil.ReadAll(resp.Body)
-					fmt.Println(string(response))
 					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
 				}
 				resp.Body.Close()
@@ -352,8 +348,6 @@ func TestServe(t *testing.T) {
 					t.Fatal(err)
 				}
 				if resp.StatusCode != http.StatusOK {
-					response, _ := ioutil.ReadAll(resp.Body)
-					fmt.Println(string(response))
 					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
 				}
 				resp.Body.Close()
