@@ -157,8 +157,8 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, req *http
 		defer cancel()
 	}
 	req = req.WithContext(ctx)
-	timeStart := time.Now()
 
+	timeStart := time.Now()
 	rp.rp.ServeHTTP(rw, req)
 
 	if req.Context().Err() == nil {
@@ -187,7 +187,6 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, req *http
 }
 
 func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *http.Request) {
-	timeStart := time.Now()
 
 	q, err := getFullQuery(req)
 	if err != nil {
@@ -222,6 +221,8 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		DefaultFormat:  params.Get("default_format"),
 		Database:       params.Get("database"),
 	}
+
+	timeStart := time.Now()
 	err = s.user.cache.WriteTo(srw, key)
 	if err == nil {
 		// The response has been successfully served from cache.
