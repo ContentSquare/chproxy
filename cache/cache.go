@@ -208,12 +208,14 @@ func (c *Cache) clean() {
 		fs := uint64(fi.Size())
 		if currentTime.Sub(mt) > expire {
 			fn := c.fileInfoPath(fi)
-			if err := os.Remove(fn); err != nil {
-				log.Errorf("cache %q: cannot remove file %q: %s", c.name, fn, err)
+			err := os.Remove(fn)
+			if err == nil {
+				removedSize += fs
+				removedItems++
+				return
 			}
-			removedSize += fs
-			removedItems++
-			return
+			log.Errorf("cache %q: cannot remove file %q: %s", c.name, fn, err)
+			// Return skipped intentionally.
 		}
 		totalSize += fs
 		totalItems++
