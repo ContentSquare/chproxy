@@ -80,11 +80,10 @@ func startHTTP() (net.Listener, chan struct{}) {
 }
 
 func startCHServer() {
-	http.HandleFunc("/", fakeHandler)
-	http.ListenAndServe(":8124", nil)
+	http.ListenAndServe(":8124", http.HandlerFunc(fakeHandler))
 }
 
-func fakeHandler(w http.ResponseWriter, r *http.Request) {
+func fakeHandler(w http.ResponseWriter, _ *http.Request) {
 	fmt.Fprint(w, "Ok.\n")
 }
 
@@ -302,6 +301,8 @@ func TestServe(t *testing.T) {
 
 				resp, err = http.Get("http://127.0.0.1:9090/metrics")
 				if resp.StatusCode != http.StatusOK {
+					response, _ := ioutil.ReadAll(resp.Body)
+					fmt.Println(string(response))
 					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
 				}
 				resp.Body.Close()
@@ -329,6 +330,8 @@ func TestServe(t *testing.T) {
 					t.Fatal(err)
 				}
 				if resp.StatusCode != http.StatusOK {
+					response, _ := ioutil.ReadAll(resp.Body)
+					fmt.Println(string(response))
 					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
 				}
 				resp.Body.Close()
@@ -349,6 +352,8 @@ func TestServe(t *testing.T) {
 					t.Fatal(err)
 				}
 				if resp.StatusCode != http.StatusOK {
+					response, _ := ioutil.ReadAll(resp.Body)
+					fmt.Println(string(response))
 					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
 				}
 				resp.Body.Close()
@@ -529,6 +534,24 @@ func TestServe(t *testing.T) {
 				}
 				<-done
 			}()
+
+			var c *cluster
+			for _, cluster := range proxy.clusters {
+				c = cluster
+				break
+			}
+			var i int
+			for {
+				if i > 3 {
+					t.Fatal("unable to find active hosts")
+				}
+				if h := c.getHost(); h != nil {
+					break
+				}
+				i++
+				time.Sleep(time.Millisecond*10)
+			}
+
 			tc.testFn(t)
 		})
 	}
