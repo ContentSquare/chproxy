@@ -27,7 +27,9 @@ const cacheVersion = 2
 
 // Cache represents a file cache.
 type Cache struct {
-	name      string
+	// Name is cache name.
+	Name string
+
 	dir       string
 	maxSize   uint64
 	expire    time.Duration
@@ -117,7 +119,8 @@ func New(cfg config.Cache) (*Cache, error) {
 	}
 
 	c := &Cache{
-		name:      cfg.Name,
+		Name: cfg.Name,
+
 		dir:       cfg.Dir,
 		maxSize:   uint64(cfg.MaxSize),
 		expire:    cfg.Expire,
@@ -133,17 +136,17 @@ func New(cfg config.Cache) (*Cache, error) {
 
 	c.wg.Add(1)
 	go func() {
-		log.Debugf("cache %q: cleaner start", c.name)
+		log.Debugf("cache %q: cleaner start", c.Name)
 		c.cleaner()
-		log.Debugf("cache %q: cleaner stop", c.name)
+		log.Debugf("cache %q: cleaner stop", c.Name)
 		c.wg.Done()
 	}()
 
 	c.wg.Add(1)
 	go func() {
-		log.Debugf("cache %q: pendingEntriesCleaner start", c.name)
+		log.Debugf("cache %q: pendingEntriesCleaner start", c.Name)
 		c.pendingEntriesCleaner()
-		log.Debugf("cache %q: pendingEntriesCleander stop", c.name)
+		log.Debugf("cache %q: pendingEntriesCleander stop", c.Name)
 		c.wg.Done()
 	}()
 
@@ -154,10 +157,10 @@ func New(cfg config.Cache) (*Cache, error) {
 //
 // The cache may be used after it is stopped, but it is no longer cleaned.
 func (c *Cache) Close() {
-	log.Debugf("cache %q: stopping", c.name)
+	log.Debugf("cache %q: stopping", c.Name)
 	close(c.stopCh)
 	c.wg.Wait()
-	log.Debugf("cache %q: stopped", c.name)
+	log.Debugf("cache %q: stopped", c.Name)
 }
 
 func (c *Cache) cleaner() {
@@ -192,7 +195,7 @@ func (c *Cache) cleaner() {
 func (c *Cache) clean() {
 	currentTime := time.Now()
 
-	log.Debugf("cache %q: start cleaning dir %q", c.name, c.dir)
+	log.Debugf("cache %q: start cleaning dir %q", c.Name, c.dir)
 
 	// Remove cached files after a graceTime from their expiration,
 	// so they may be served until they are substituted with fresh files.
@@ -214,14 +217,14 @@ func (c *Cache) clean() {
 				removedItems++
 				return
 			}
-			log.Errorf("cache %q: cannot remove file %q: %s", c.name, fn, err)
+			log.Errorf("cache %q: cannot remove file %q: %s", c.Name, fn, err)
 			// Return skipped intentionally.
 		}
 		totalSize += fs
 		totalItems++
 	})
 	if err != nil {
-		log.Errorf("cache %q: %s", c.name, err)
+		log.Errorf("cache %q: %s", c.Name, err)
 		return
 	}
 
@@ -248,7 +251,7 @@ func (c *Cache) clean() {
 			fs := uint64(fi.Size())
 			fn := c.fileInfoPath(fi)
 			if err := os.Remove(fn); err != nil {
-				log.Errorf("cache %q: cannot remove file %q: %s", c.name, fn, err)
+				log.Errorf("cache %q: cannot remove file %q: %s", c.Name, fn, err)
 				return
 			}
 			removedSize += fs
@@ -257,7 +260,7 @@ func (c *Cache) clean() {
 			totalItems--
 		})
 		if err != nil {
-			log.Errorf("cache %q: %s", c.name, err)
+			log.Errorf("cache %q: %s", c.Name, err)
 			return
 		}
 
@@ -269,9 +272,9 @@ func (c *Cache) clean() {
 	atomic.StoreUint64(&c.stats.Items, totalItems)
 
 	log.Debugf("cache %q: final size %d; final items %d; removed size %d; removed items %d",
-		c.name, totalSize, totalItems, removedSize, removedItems)
+		c.Name, totalSize, totalItems, removedSize, removedItems)
 
-	log.Debugf("cache %q: finish cleaning dir %q", c.name, c.dir)
+	log.Debugf("cache %q: finish cleaning dir %q", c.Name, c.dir)
 }
 
 // walkDir calls f on all the cache files in the given dir.
@@ -323,7 +326,7 @@ func (c *Cache) writeTo(rw http.ResponseWriter, key *Key, statusCode int) error 
 	defer f.Close()
 
 	if err := sendResponseFromFile(rw, f, c.expire, statusCode); err != nil {
-		return fmt.Errorf("cache %q: %s", c.name, err)
+		return fmt.Errorf("cache %q: %s", c.Name, err)
 	}
 
 	return nil
@@ -339,7 +342,7 @@ again:
 	if err != nil {
 		if !os.IsNotExist(err) {
 			// Unexpected error.
-			return nil, fmt.Errorf("cache %q: cannot open %q: %s", c.name, fp, err)
+			return nil, fmt.Errorf("cache %q: cannot open %q: %s", c.Name, fp, err)
 		}
 
 		// The entry doesn't exist. Signal the caller that it must
@@ -371,7 +374,7 @@ again:
 	fi, err := f.Stat()
 	if err != nil {
 		f.Close()
-		return nil, fmt.Errorf("cache %q: cannot stat %q: %s", c.name, fp, err)
+		return nil, fmt.Errorf("cache %q: cannot stat %q: %s", c.Name, fp, err)
 	}
 	mt := fi.ModTime()
 	age := time.Since(mt)
@@ -466,7 +469,7 @@ func (c *Cache) fileInfoPath(fi os.FileInfo) string {
 func (c *Cache) NewResponseWriter(rw http.ResponseWriter, key *Key) (*ResponseWriter, error) {
 	f, err := ioutil.TempFile(c.dir, "tmp")
 	if err != nil {
-		return nil, fmt.Errorf("cache %q: cannot create temporary file in %q: %s", c.name, c.dir, err)
+		return nil, fmt.Errorf("cache %q: cannot create temporary file in %q: %s", c.Name, c.dir, err)
 	}
 	return &ResponseWriter{
 		ResponseWriter: rw,
@@ -507,12 +510,12 @@ func (rw *ResponseWriter) captureHeaders() error {
 	ct := h.Get("Content-Type")
 	if err := writeHeader(rw.bw, ct); err != nil {
 		fn := rw.tmpFile.Name()
-		return fmt.Errorf("cache %q: cannot write Content-Type to %q: %s", rw.c.name, fn, err)
+		return fmt.Errorf("cache %q: cannot write Content-Type to %q: %s", rw.c.Name, fn, err)
 	}
 	ce := h.Get("Content-Encoding")
 	if err := writeHeader(rw.bw, ce); err != nil {
 		fn := rw.tmpFile.Name()
-		return fmt.Errorf("cache %q: cannot write Content-Encoding to %q: %s", rw.c.name, fn, err)
+		return fmt.Errorf("cache %q: cannot write Content-Encoding to %q: %s", rw.c.Name, fn, err)
 	}
 	return nil
 }
@@ -556,14 +559,14 @@ func (rw *ResponseWriter) Commit() error {
 	if err := rw.bw.Flush(); err != nil {
 		rw.tmpFile.Close()
 		os.Remove(fn)
-		return fmt.Errorf("cache %q: cannot flush data into %q: %s", rw.c.name, fn, err)
+		return fmt.Errorf("cache %q: cannot flush data into %q: %s", rw.c.Name, fn, err)
 	}
 
 	// Update cache stats.
 	fi, err := rw.tmpFile.Stat()
 	if err != nil {
 		os.Remove(fn)
-		return fmt.Errorf("cache %q: cannot stat %q: %s", rw.c.name, fn, err)
+		return fmt.Errorf("cache %q: cannot stat %q: %s", rw.c.Name, fn, err)
 	}
 	fs := uint64(fi.Size())
 	atomic.AddUint64(&rw.c.stats.Size, fs)
@@ -571,11 +574,11 @@ func (rw *ResponseWriter) Commit() error {
 
 	if err := rw.tmpFile.Close(); err != nil {
 		os.Remove(fn)
-		return fmt.Errorf("cache %q: cannot close %q: %s", rw.c.name, fn, err)
+		return fmt.Errorf("cache %q: cannot close %q: %s", rw.c.Name, fn, err)
 	}
 
 	if err := os.Rename(fn, fp); err != nil {
-		return fmt.Errorf("cache %q: cannot rename %q to %q: %s", rw.c.name, fn, fp, err)
+		return fmt.Errorf("cache %q: cannot rename %q to %q: %s", rw.c.Name, fn, fp, err)
 	}
 
 	return rw.c.writeTo(rw.ResponseWriter, rw.key, rw.StatusCode())
@@ -597,25 +600,25 @@ func (rw *ResponseWriter) Rollback() error {
 	if err := rw.bw.Flush(); err != nil {
 		rw.tmpFile.Close()
 		os.Remove(fn)
-		return fmt.Errorf("cache %q: cannot flush data into %q: %s", rw.c.name, fn, err)
+		return fmt.Errorf("cache %q: cannot flush data into %q: %s", rw.c.Name, fn, err)
 	}
 
 	if _, err := rw.tmpFile.Seek(0, io.SeekStart); err != nil {
-		panic(fmt.Sprintf("BUG: cache %q: cannot seek to the beginning of %q: %s", rw.c.name, fn, err))
+		panic(fmt.Sprintf("BUG: cache %q: cannot seek to the beginning of %q: %s", rw.c.Name, fn, err))
 	}
 
 	if err := sendResponseFromFile(rw.ResponseWriter, rw.tmpFile, 0, rw.StatusCode()); err != nil {
 		rw.tmpFile.Close()
 		os.Remove(fn)
-		return fmt.Errorf("cache %q: %s", rw.c.name, err)
+		return fmt.Errorf("cache %q: %s", rw.c.Name, err)
 	}
 
 	if err := rw.tmpFile.Close(); err != nil {
 		os.Remove(fn)
-		return fmt.Errorf("cache %q: cannot close %q: %s", rw.c.name, fn, err)
+		return fmt.Errorf("cache %q: cannot close %q: %s", rw.c.Name, fn, err)
 	}
 	if err := os.Remove(fn); err != nil {
-		return fmt.Errorf("cache %q: cannot remove %q: %s", rw.c.name, fn, err)
+		return fmt.Errorf("cache %q: cannot remove %q: %s", rw.c.Name, fn, err)
 	}
 	return nil
 }

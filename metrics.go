@@ -94,16 +94,16 @@ var (
 	cacheHit = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "cache_hits_total",
-			Help: "The amount of successful cache hits",
+			Help: "The amount of cache hits",
 		},
-		[]string{"user", "cluster", "cluster_user"},
+		[]string{"cache", "user", "cluster", "cluster_user"},
 	)
 	cacheMiss = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "cache_miss_total",
-			Help: "The amount of cache miss",
+			Help: "The amount of cache misses",
 		},
-		[]string{"user", "cluster", "cluster_user"},
+		[]string{"cache", "user", "cluster", "cluster_user"},
 	)
 	cacheSize = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -141,7 +141,7 @@ var (
 			Help:       "Response duration served from the cache",
 			Objectives: map[float64]float64{0.5: 1e-1, 0.9: 1e-2, 0.99: 1e-3, 0.999: 1e-4, 1: 1e-5},
 		},
-		[]string{"user", "cluster", "cluster_user"},
+		[]string{"cache", "user", "cluster", "cluster_user"},
 	)
 )
 

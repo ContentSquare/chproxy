@@ -573,13 +573,13 @@ Metrics are exposed in [prometheus text format](https://prometheus.io/docs/instr
 | cluster_user_queue_overflow_total | Counter | The number of overflows for per-cluster_user request queues | `user`, `cluster`, `cluster_user` |
 | request_body_bytes_total | Counter | The amount of bytes read from request bodies | `user`, `cluster`, `cluster_user`, `cluster_node` |
 | response_body_bytes_total | Counter | The amount of bytes written to response bodies | `user`, `cluster`, `cluster_user`, `cluster_node` |
-| cache_hits_total | Counter | The amount of successful cache hits | `user`, `cluster`, `cluster_user` |
-| cache_miss_total | Counter | The amount of cache miss | `user`, `cluster`, `cluster_user` |
+| cache_hits_total | Counter | The amount of cache hits | `cache`, `user`, `cluster`, `cluster_user` |
+| cache_miss_total | Counter | The amount of cache misses | `cache`, `user`, `cluster`, `cluster_user` |
 | cache_size | Gauge | Size of each cache | `cache` |
 | cache_items | Gauge | The number of items in each cache | `cache` |
 | request_duration_seconds | Summary | Request duration. Includes possible queue wait time | `user`, `cluster`, `cluster_user`, `cluster_node` |
 | proxied_response_duration_seconds | Summary | Duration for responses proxied from clickhouse | `user`, `cluster`, `cluster_user`, `cluster_node` |
-| cached_response_duration_seconds | Summary | Duration for cached responses | `user`, `cluster`, `cluster_user` |
+| cached_response_duration_seconds | Summary | Duration for cached responses | `cache`, `user`, `cluster`, `cluster_user` |
 | bad_requests_total | Counter | The number of unsupported requests | |
 
 An example of [Grafana's](https://grafana.com) dashboard for `chproxy` metrics is available [here](https://github.com/Vertamedia/chproxy/blob/master/chproxy_overview.json)

@@ -209,6 +209,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	// Do not store `cluster_node` in lables, since it has no sense
 	// for cache metrics.
 	labels := prometheus.Labels{
+		"cache":        s.user.cache.Name,
 		"user":         s.labels["user"],
 		"cluster":      s.labels["cluster"],
 		"cluster_user": s.labels["cluster_user"],
@@ -369,10 +370,10 @@ func (rp *reverseProxy) refreshCacheMetrics() {
 	rp.lock.RLock()
 	defer rp.lock.RUnlock()
 
-	for cacheName, c := range rp.caches {
+	for _, c := range rp.caches {
 		stats := c.Stats()
 		labels := prometheus.Labels{
-			"cache": cacheName,
+			"cache": c.Name,
 		}
 		cacheSize.With(labels).Set(float64(stats.Size))
 		cacheItems.With(labels).Set(float64(stats.Items))
