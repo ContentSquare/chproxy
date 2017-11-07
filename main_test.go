@@ -300,6 +300,9 @@ func TestServe(t *testing.T) {
 				}
 
 				resp, err = http.Get("http://127.0.0.1:9090/metrics")
+				if err != nil {
+					t.Fatalf("unexpected error while doing request: %s", err)
+				}
 				if resp.StatusCode != http.StatusOK {
 					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
 				}
