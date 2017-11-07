@@ -16,6 +16,7 @@ install:
 
 format:
 	go fmt $(pkgs)
+	gofmt -w -s .
 
 build:
 	go build

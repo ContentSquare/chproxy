@@ -109,7 +109,7 @@ func TestRunningQueries(t *testing.T) {
 func TestGetHost(t *testing.T) {
 	c := &cluster{
 		name:     "default",
-		replicas: []*replica{&replica{}},
+		replicas: []*replica{{}},
 	}
 	r := c.replicas[0]
 	r.cluster = c
