@@ -67,6 +67,9 @@ func (bs *ByteSize) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // Networks is a list of IPNet entities
 type Networks []*net.IPNet
 
+// MarshalYAML implements yaml.Marshaler interface.
+//
+// It prettifies yaml output for Networks.
 func (n Networks) MarshalYAML() (interface{}, error) {
 	var a []string
 	for _, x := range n {
