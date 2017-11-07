@@ -110,6 +110,8 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		rp.serveFromCache(s, srw, req)
 	}
 
+	// It is safe calling getQuerySnippet here, since the request
+	// has been already read in proxyRequest or serveFromCache.
 	q := getQuerySnippet(req)
 	if srw.statusCode == http.StatusOK {
 		requestSuccess.With(s.labels).Inc()
