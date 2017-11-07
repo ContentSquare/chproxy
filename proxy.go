@@ -10,7 +10,6 @@ import (
 	"net/http/httputil"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/Vertamedia/chproxy/cache"
@@ -424,7 +423,7 @@ func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 		localAddr = addr.String()
 	}
 	s := &scope{
-		id:          atomic.AddUint64(&scopeID, 1),
+		id:          newScopeID(),
 		host:        h,
 		cluster:     c,
 		user:        u,

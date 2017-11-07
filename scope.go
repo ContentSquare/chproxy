@@ -16,17 +16,21 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-func (s *scope) String() string {
-	return fmt.Sprintf("[ Id: %X; User %q(%d) proxying as %q(%d) to %q(%d); RemoteAddr: %q; LocalAddr: %q ]",
-		s.id,
-		s.user.name, s.user.queryCounter.load(),
-		s.clusterUser.name, s.clusterUser.queryCounter.load(),
-		s.host.addr.Host, s.host.load(),
-		s.remoteAddr, s.localAddr)
+type scopeID uint64
+
+func (sid scopeID) String() string {
+	return fmt.Sprintf("%08X", uint64(sid))
 }
 
+func newScopeID() scopeID {
+	sid := atomic.AddUint64(&nextScopeID, 1)
+	return scopeID(sid)
+}
+
+var nextScopeID = uint64(time.Now().UnixNano())
+
 type scope struct {
-	id          uint64
+	id          scopeID
 	host        *host
 	cluster     *cluster
 	user        *user
@@ -38,7 +42,14 @@ type scope struct {
 	labels prometheus.Labels
 }
 
-var scopeID = uint64(time.Now().UnixNano())
+func (s *scope) String() string {
+	return fmt.Sprintf("[ Id: %s; User %q(%d) proxying as %q(%d) to %q(%d); RemoteAddr: %q; LocalAddr: %q ]",
+		s.id,
+		s.user.name, s.user.queryCounter.load(),
+		s.clusterUser.name, s.clusterUser.queryCounter.load(),
+		s.host.addr.Host, s.host.load(),
+		s.remoteAddr, s.localAddr)
+}
 
 func (s *scope) incQueued() error {
 	if s.user.queueCh == nil && s.clusterUser.queueCh == nil {
@@ -194,9 +205,9 @@ func (s *scope) dec() {
 const killQueryTimeout = time.Second * 30
 
 func (s *scope) killQuery() error {
-	log.Debugf("killing timed out query with query_id=%X", s.id)
+	log.Debugf("killing timed out query with query_id=%s", s.id)
 
-	query := fmt.Sprintf("KILL QUERY WHERE query_id = '%X'", s.id)
+	query := fmt.Sprintf("KILL QUERY WHERE query_id = '%s'", s.id)
 	r := strings.NewReader(query)
 	addr := s.host.addr.String()
 	req, err := http.NewRequest("POST", addr, r)
@@ -227,7 +238,12 @@ func (s *scope) killQuery() error {
 			query, addr, resp.StatusCode, responseBody)
 	}
 
-	log.Debugf("timed out query with query_id=%X has been successfully killed", s.id)
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("cannot read response body for the query %q: %s", query, err)
+	}
+
+	log.Debugf("killed timed out query with query_id=%s; respBody: %q", s.id, respBody)
 	return nil
 }
 
@@ -247,7 +263,7 @@ func (s *scope) decorateRequest(req *http.Request) *http.Request {
 	params := make(url.Values)
 
 	// Set query_id as scope_id to have possibility to kill query if needed.
-	params.Set("query_id", fmt.Sprintf("%X", s.id))
+	params.Set("query_id", s.id.String())
 
 	// Keep allowed params.
 	q := req.URL.Query()
