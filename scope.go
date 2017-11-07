@@ -57,8 +57,8 @@ func (s *scope) incQueued() error {
 		return s.inc()
 	}
 
-	// Do not store `cluster_node` in lables, since it has no sense
-	// for queue metrics.
+	// Do not store `replica` and `cluster_node` in lables, since they have
+	// no sense for queue metrics.
 	labels := prometheus.Labels{
 		"user":         s.labels["user"],
 		"cluster":      s.labels["cluster"],
@@ -140,6 +140,7 @@ func (s *scope) incQueued() error {
 		// after sleeping.
 		h := s.cluster.getHost()
 		s.host = h
+		s.labels["replica"] = h.replica.name
 		s.labels["cluster_node"] = h.addr.Host
 	}
 }
@@ -437,7 +438,7 @@ func newClusterUser(cu config.ClusterUser) *clusterUser {
 }
 
 type host struct {
-	cluster *cluster
+	replica *replica
 
 	// Counter of unsuccessful requests to decrease host priority.
 	penalty uint32
@@ -452,38 +453,47 @@ type host struct {
 }
 
 type replica struct {
+	cluster *cluster
+
+	name string
+
 	hosts       []*host
 	nextHostIdx uint32
 }
 
 func newReplicas(replicasCfg []config.Replica, nodes []string, scheme string, c *cluster) ([]*replica, error) {
 	if len(nodes) > 0 {
-		// No replicas, just flat nodes. Create fake replica
-		// with all the nodes.
-		hosts, err := newNodes(nodes, scheme, c)
+		// No replicas, just flat nodes. Create default replica
+		// containing all the nodes.
+		r := &replica{
+			cluster: c,
+			name:    "default",
+		}
+		hosts, err := newNodes(nodes, scheme, r)
 		if err != nil {
 			return nil, err
 		}
-		r := &replica{
-			hosts: hosts,
-		}
+		r.hosts = hosts
 		return []*replica{r}, nil
 	}
 
 	replicas := make([]*replica, len(replicasCfg))
-	for i, r := range replicasCfg {
-		hosts, err := newNodes(r.Nodes, scheme, c)
+	for i, rCfg := range replicasCfg {
+		r := &replica{
+			cluster: c,
+			name:    rCfg.Name,
+		}
+		hosts, err := newNodes(rCfg.Nodes, scheme, r)
 		if err != nil {
-			return nil, fmt.Errorf("cannot initialize replica %q: %s", r.Name, err)
+			return nil, fmt.Errorf("cannot initialize replica %q: %s", rCfg.Name, err)
 		}
-		replicas[i] = &replica{
-			hosts: hosts,
-		}
+		r.hosts = hosts
+		replicas[i] = r
 	}
 	return replicas, nil
 }
 
-func newNodes(nodes []string, scheme string, c *cluster) ([]*host, error) {
+func newNodes(nodes []string, scheme string, r *replica) ([]*host, error) {
 	hosts := make([]*host, len(nodes))
 	for i, node := range nodes {
 		addr, err := url.Parse(fmt.Sprintf("%s://%s", scheme, node))
@@ -491,7 +501,7 @@ func newNodes(nodes []string, scheme string, c *cluster) ([]*host, error) {
 			return nil, fmt.Errorf("cannot parse `node` %q with `scheme` %q: %s", node, scheme, err)
 		}
 		hosts[i] = &host{
-			cluster: c,
+			replica: r,
 			addr:    addr,
 		}
 	}
@@ -500,7 +510,8 @@ func newNodes(nodes []string, scheme string, c *cluster) ([]*host, error) {
 
 func (h *host) runHeartbeat(done <-chan struct{}) {
 	label := prometheus.Labels{
-		"cluster":      h.cluster.name,
+		"cluster":      h.replica.cluster.name,
+		"replica":      h.replica.name,
 		"cluster_node": h.addr.Host,
 	}
 	heartbeat := func() {
@@ -514,7 +525,7 @@ func (h *host) runHeartbeat(done <-chan struct{}) {
 		}
 	}
 	heartbeat()
-	interval := h.cluster.heartBeatInterval
+	interval := h.replica.cluster.heartBeatInterval
 	for {
 		select {
 		case <-done:
@@ -553,7 +564,8 @@ func (h *host) penalize() {
 		return
 	}
 	hostPenalties.With(prometheus.Labels{
-		"cluster":      h.cluster.name,
+		"cluster":      h.replica.cluster.name,
+		"replica":      h.replica.name,
 		"cluster_node": h.addr.Host,
 	}).Inc()
 	atomic.AddUint32(&h.penalty, penaltySize)

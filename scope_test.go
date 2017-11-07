@@ -43,6 +43,7 @@ func TestRunningQueries(t *testing.T) {
 		"user":         "default",
 		"cluster":      "default",
 		"cluster_user": "default",
+		"replica":      "default",
 		"cluster_node": "default",
 	}
 
@@ -88,6 +89,7 @@ func TestRunningQueries(t *testing.T) {
 		"user":         "default",
 		"cluster":      "default",
 		"cluster_user": "default",
+		"replica":      "default",
 		"cluster_node": "default",
 	}
 	if err := s.inc(); err != nil {
@@ -109,21 +111,23 @@ func TestGetHost(t *testing.T) {
 		name:     "default",
 		replicas: []*replica{&replica{}},
 	}
-	c.replicas[0].hosts = []*host{
+	r := c.replicas[0]
+	r.cluster = c
+	r.hosts = []*host{
 		{
 			addr:    &url.URL{Host: "127.0.0.1"},
 			active:  1,
-			cluster: c,
+			replica: r,
 		},
 		{
 			addr:    &url.URL{Host: "127.0.0.2"},
 			active:  1,
-			cluster: c,
+			replica: r,
 		},
 		{
 			addr:    &url.URL{Host: "127.0.0.3"},
 			active:  1,
-			cluster: c,
+			replica: r,
 		},
 	}
 
@@ -168,8 +172,6 @@ func TestGetHost(t *testing.T) {
 	}
 	h.inc()
 
-	r := c.replicas[0]
-
 	// inc last host to get least-loaded 1st host
 	r.hosts[2].inc()
 
@@ -211,8 +213,13 @@ func TestGetHost(t *testing.T) {
 
 func TestPenalize(t *testing.T) {
 	c := &cluster{name: "default"}
+	c.replicas = []*replica{
+		{
+			cluster: c,
+		},
+	}
 	h := &host{
-		cluster: c,
+		replica: c.replicas[0],
 		addr:    &url.URL{Host: "127.0.0.1"},
 	}
 	exp := uint32(0)

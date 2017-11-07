@@ -63,7 +63,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	// WARNING: don't use s.labels before s.incQueued,
-	// since s.labels["cluster_node"] may change inside incQueued.
+	// since `replica` and `cluster_node` may change inside incQueued.
 	if err := s.incQueued(); err != nil {
 		limitExcess.With(s.labels).Inc()
 		q := getQuerySnippet(req)
@@ -125,6 +125,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			"user":         s.user.name,
 			"cluster":      s.cluster.name,
 			"cluster_user": s.clusterUser.name,
+			"replica":      s.host.replica.name,
 			"cluster_node": s.host.addr.Host,
 			"code":         strconv.Itoa(srw.statusCode),
 		},
@@ -232,8 +233,8 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		return
 	}
 
-	// Do not store `cluster_node` in lables, since it has no sense
-	// for cache metrics.
+	// Do not store `replica` and `cluster_node` in lables, since they have
+	// no sense for cache metrics.
 	labels := prometheus.Labels{
 		"cache":        s.user.cache.Name,
 		"user":         s.labels["user"],
@@ -461,6 +462,7 @@ func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 			"user":         u.name,
 			"cluster":      c.name,
 			"cluster_user": cu.name,
+			"replica":      h.replica.name,
 			"cluster_node": h.addr.Host,
 		},
 	}
