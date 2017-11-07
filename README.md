@@ -309,16 +309,17 @@ Requests to `chproxy` must be authorized with credentials from [user_config](htt
 Limits for `in-users` and `out-users` are independent.
 
 ### Clusters
-`Chproxy` can be configured with multiple `cluster`s. Each `cluster` must have a name and a list of nodes.
-Requests to each cluster are balanced using `round-robin` + `least-loaded` approach.
+`Chproxy` can be configured with multiple `cluster`s. Each `cluster` must have a name and either a list of nodes
+or a list of replicas with nodes. See [cluster-config](https://github.com/Vertamedia/chproxy/tree/master/config#cluster_config) for details.
+Requests to each cluster are balanced among replicas and nodes using `round-robin` + `least-loaded` approach.
 The node priority is automatically decreased for a short interval if recent requests to it were unsuccessful.
-This means that the `chproxy` will choose the next least loaded healthy node for every new request.
+This means that the `chproxy` will choose the next least loaded healthy node among least loaded replica
+for every new request.
 
 Additionally each node is periodically checked for availability. Unavailable nodes are automatically excluded from the cluster until they become available again. This allows performing node maintenance without removing unavailable nodes from the cluster config.
 
 `Chproxy` automatically kills queries exceeding `max_execution_time` limit. By default `chproxy` tries to kill such queries
 under `default` user. The user may be overriden with [kill_query_user](https://github.com/Vertamedia/chproxy/blob/master/config#kill_query_user_config).
-
 
 If `cluster`'s [users](https://github.com/Vertamedia/chproxy/blob/master/config#cluster_user_config) section isn't specified, then `default` user is used with no limits.
 
