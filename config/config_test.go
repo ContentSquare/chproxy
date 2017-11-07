@@ -74,7 +74,16 @@ func TestLoadConfig(t *testing.T) {
 					{
 						Name:   "second cluster",
 						Scheme: "https",
-						Nodes:  []string{"127.0.1.1:8443", "127.0.1.2:8443"},
+						Replicas: []Replica{
+							{
+								Name:  "replica1",
+								Nodes: []string{"127.0.1.1:8443", "127.0.1.2:8443"},
+							},
+							{
+								Name:  "replica2",
+								Nodes: []string{"127.0.2.1:8443", "127.0.2.2:8443"},
+							},
+						},
 						ClusterUsers: []ClusterUser{
 							{
 								Name:                 "default",
@@ -222,7 +231,17 @@ func TestBadConfig(t *testing.T) {
 		{
 			"empty nodes",
 			"testdata/bad.empty_nodes.yml",
-			"`cluster.nodes` must contain at least 1 address for \"second cluster\"",
+			"either `cluster.nodes` or `cluster.replicas` must be set for \"second cluster\"",
+		},
+		{
+			"empty replica nodes",
+			"testdata/bad.empty_replica_nodes.yml",
+			"`replica.nodes` cannot be empty for \"bar\"",
+		},
+		{
+			"nodes and replicas",
+			"testdata/bad.nodes_and_replicas.yml",
+			"`cluster.nodes` cannot be simultaneously set with `cluster.replicas` for \"second cluster\"",
 		},
 		{
 			"wrong scheme",

@@ -14,16 +14,19 @@ var (
 		maxConcurrentQueries: 2,
 	}
 	c = &cluster{
-		hosts: []*host{
+		replicas: []*replica{
 			{
-				addr:   &url.URL{Host: "127.0.0.1"},
-				active: 1,
+				hosts: []*host{
+					{
+						addr:   &url.URL{Host: "127.0.0.1"},
+						active: 1,
+					},
+				},
 			},
 		},
 		users: map[string]*clusterUser{
 			"cu": cu,
 		},
-		nextIdx: uint32(time.Now().UnixNano()),
 	}
 )
 
@@ -102,8 +105,11 @@ func TestRunningQueries(t *testing.T) {
 }
 
 func TestGetHost(t *testing.T) {
-	c := &cluster{name: "default"}
-	c.hosts = []*host{
+	c := &cluster{
+		name:     "default",
+		replicas: []*replica{&replica{}},
+	}
+	c.replicas[0].hosts = []*host{
 		{
 			addr:    &url.URL{Host: "127.0.0.1"},
 			active:  1,
@@ -162,8 +168,10 @@ func TestGetHost(t *testing.T) {
 	}
 	h.inc()
 
+	r := c.replicas[0]
+
 	// inc last host to get least-loaded 1st host
-	c.hosts[2].inc()
+	r.hosts[2].inc()
 
 	// step: 5
 	h = c.getHost()
@@ -174,7 +182,7 @@ func TestGetHost(t *testing.T) {
 	h.inc()
 
 	// penalize 2nd host
-	h = c.hosts[1]
+	h = r.hosts[1]
 	expRunningQueries := penaltySize + h.load()
 	h.penalize()
 	if h.load() != expRunningQueries {
@@ -252,18 +260,22 @@ func TestRunningQueriesConcurrent(t *testing.T) {
 
 func TestGetHostConcurrent(t *testing.T) {
 	c := &cluster{
-		hosts: []*host{
+		replicas: []*replica{
 			{
-				addr:   &url.URL{Host: "127.0.0.1"},
-				active: 1,
-			},
-			{
-				addr:   &url.URL{Host: "127.0.0.2"},
-				active: 1,
-			},
-			{
-				addr:   &url.URL{Host: "127.0.0.3"},
-				active: 1,
+				hosts: []*host{
+					{
+						addr:   &url.URL{Host: "127.0.0.1"},
+						active: 1,
+					},
+					{
+						addr:   &url.URL{Host: "127.0.0.2"},
+						active: 1,
+					},
+					{
+						addr:   &url.URL{Host: "127.0.0.3"},
+						active: 1,
+					},
+				},
 			},
 		},
 	}

@@ -84,7 +84,7 @@ https: <https_config> [optional]
 metrics: <metrics_config> [optional]
 ```
 
-#### <http_config>
+### <http_config>
 ```yml
 # TCP address to listen to for http
 listen_addr: <addr>
@@ -94,7 +94,7 @@ listen_addr: <addr>
 allowed_networks: <network_groups>, <networks> ... | optional
 ```
 
-#### <https_config>
+### <https_config>
 ```yml
 # TCP address to listen to for https
 listen_addr: <addr> | optional | default = `:443`
@@ -111,7 +111,7 @@ key_file: <string> | optional
 autocert: <autocert_config> | optional
 ```
 
-#### <autocert_config>
+### <autocert_config>
 ```yml
 # Path to the directory where autocert certs are cached
 cache_dir: <string>
@@ -121,7 +121,7 @@ cache_dir: <string>
 allowed_hosts: <host_name> ... | optional
 ```
 
-#### <metrics_config>
+### <metrics_config>
 ```yml
 # List of networks or network_groups access is allowed from
 # Each list item could be IP address or subnet mask
@@ -192,8 +192,18 @@ name: <string>
 # Scheme: `http` or `https`; would be applied to all nodes
 scheme: <scheme> | optional | default = "http"
 
-# List of nodes addresses. Requests would be balanced among them
+# Node addresses. Requests would be balanced among them.
+#
+# Either nodes or replicas may be configured, but not both.
 nodes: <addr> ...
+
+# The cluster may contain multiple replicas instead of flat nodes.
+#
+# Chproxy selects the least loaded node among the least loaded replicas.
+#
+# Either nodes or replicas may be configured, but not both.
+replicas:
+    - <replica_config>
 
 # List of ClickHouse cluster users
 users:
@@ -207,7 +217,16 @@ kill_query_user: <kill_query_user_config> | optional
 heartbeat_interval: <duration> | optional | default = 5s
 ```
 
-#### <cluster_user_config>
+### <replica_config>
+```yml
+# Replica name
+name: <string>
+
+# Node addresses in the replica. Requests are balanced among them.
+nodes: <addr> ...
+```
+
+### <cluster_user_config>
 ```yml
 # User name in ClickHouse `users.xml` config
 name: <string>

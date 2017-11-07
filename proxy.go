@@ -356,12 +356,14 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 
 	// Start service goroutines with new configs.
 	for _, c := range clusters {
-		for _, h := range c.hosts {
-			rp.reloadWG.Add(1)
-			go func(h *host) {
-				h.runHeartbeat(rp.reloadSignal)
-				rp.reloadWG.Done()
-			}(h)
+		for _, r := range c.replicas {
+			for _, h := range r.hosts {
+				rp.reloadWG.Add(1)
+				go func(h *host) {
+					h.runHeartbeat(rp.reloadSignal)
+					rp.reloadWG.Done()
+				}(h)
+			}
 		}
 		for _, cu := range c.users {
 			rp.reloadWG.Add(1)
@@ -442,9 +444,6 @@ func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 		return nil, http.StatusForbidden, fmt.Errorf("cluster user %q is not allowed to access", cu.name)
 	}
 	h := c.getHost()
-	if h == nil {
-		return nil, http.StatusInternalServerError, fmt.Errorf("cluster %q - no active hosts", u.toCluster)
-	}
 
 	var localAddr string
 	if addr, ok := req.Context().Value(http.LocalAddrContextKey).(net.Addr); ok {

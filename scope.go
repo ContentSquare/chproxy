@@ -139,10 +139,8 @@ func (s *scope) incQueued() error {
 		// Choose new host, since the previous one may become obsolete
 		// after sleeping.
 		h := s.cluster.getHost()
-		if h != nil {
-			s.host = h
-			s.labels["cluster_node"] = h.addr.Host
-		}
+		s.host = h
+		s.labels["cluster_node"] = h.addr.Host
 	}
 }
 
@@ -441,15 +439,63 @@ func newClusterUser(cu config.ClusterUser) *clusterUser {
 type host struct {
 	cluster *cluster
 
-	// counter of unsuccessful requests to decrease
-	// host priority
+	// Counter of unsuccessful requests to decrease host priority.
 	penalty uint32
-	// if equal to 0 then this obj wouldn't be returned from getHost()
+
+	// Either the current host is alive.
 	active uint32
-	// host address
+
+	// Host address.
 	addr *url.URL
 
 	counter
+}
+
+type replica struct {
+	hosts       []*host
+	nextHostIdx uint32
+}
+
+func newReplicas(replicasCfg []config.Replica, nodes []string, scheme string, c *cluster) ([]*replica, error) {
+	if len(nodes) > 0 {
+		// No replicas, just flat nodes. Create fake replica
+		// with all the nodes.
+		hosts, err := newNodes(nodes, scheme, c)
+		if err != nil {
+			return nil, err
+		}
+		r := &replica{
+			hosts: hosts,
+		}
+		return []*replica{r}, nil
+	}
+
+	replicas := make([]*replica, len(replicasCfg))
+	for i, r := range replicasCfg {
+		hosts, err := newNodes(r.Nodes, scheme, c)
+		if err != nil {
+			return nil, fmt.Errorf("cannot initialize replica %q: %s", r.Name, err)
+		}
+		replicas[i] = &replica{
+			hosts: hosts,
+		}
+	}
+	return replicas, nil
+}
+
+func newNodes(nodes []string, scheme string, c *cluster) ([]*host, error) {
+	hosts := make([]*host, len(nodes))
+	for i, node := range nodes {
+		addr, err := url.Parse(fmt.Sprintf("%s://%s", scheme, node))
+		if err != nil {
+			return nil, fmt.Errorf("cannot parse `node` %q with `scheme` %q: %s", node, scheme, err)
+		}
+		hosts[i] = &host{
+			cluster: c,
+			addr:    addr,
+		}
+	}
+	return hosts, nil
 }
 
 func (h *host) runHeartbeat(done <-chan struct{}) {
@@ -483,6 +529,16 @@ func (h *host) isActive() bool {
 	return atomic.LoadUint32(&h.active) == 1
 }
 
+func (r *replica) isActive() bool {
+	// The replica is active if at least a single host is active.
+	for _, h := range r.hosts {
+		if h.isActive() {
+			return true
+		}
+	}
+	return false
+}
+
 const (
 	// prevents excess goroutine creating while penalizing overloaded host
 	penaltySize     = 5
@@ -513,11 +569,19 @@ func (h *host) load() uint32 {
 	return c + p
 }
 
+func (r *replica) load() uint32 {
+	var reqs uint32
+	for _, h := range r.hosts {
+		reqs += h.load()
+	}
+	return reqs
+}
+
 type cluster struct {
 	name string
 
-	nextIdx uint32
-	hosts   []*host
+	replicas       []*replica
+	nextReplicaIdx uint32
 
 	users map[string]*clusterUser
 
@@ -544,18 +608,11 @@ func newCluster(c config.Cluster) (*cluster, error) {
 		heartBeatInterval:     c.HeartBeatInterval,
 	}
 
-	hosts := make([]*host, len(c.Nodes))
-	for i, node := range c.Nodes {
-		addr, err := url.Parse(fmt.Sprintf("%s://%s", c.Scheme, node))
-		if err != nil {
-			return nil, fmt.Errorf("cannot parse `node` %q with `scheme` %q: %s", node, c.Scheme, err)
-		}
-		hosts[i] = &host{
-			cluster: newC,
-			addr:    addr,
-		}
+	replicas, err := newReplicas(c.Replicas, c.Nodes, c.Scheme, newC)
+	if err != nil {
+		return nil, fmt.Errorf("cannot initialize replicas: %s", err)
 	}
-	newC.hosts = hosts
+	newC.replicas = replicas
 
 	return newC, nil
 }
@@ -575,42 +632,104 @@ func newClusters(cfg []config.Cluster) (map[string]*cluster, error) {
 	return clusters, nil
 }
 
-// get least loaded + round-robin host from cluster
-func (c *cluster) getHost() *host {
-	idx := atomic.AddUint32(&c.nextIdx, 1)
-	l := uint32(len(c.hosts))
-	idx = idx % l
-	idle := c.hosts[idx]
-	idleN := idle.load()
-
-	// set least priority to inactive host
-	if !idle.isActive() {
-		idleN = ^uint32(0)
+// getReplica returns least loaded + round-robin replica from the cluster.
+//
+// Always returns non-nil.
+func (c *cluster) getReplica() *replica {
+	idx := atomic.AddUint32(&c.nextReplicaIdx, 1)
+	n := uint32(len(c.replicas))
+	if n == 1 {
+		return c.replicas[0]
 	}
 
-	if idleN == 0 {
-		return idle
+	idx %= n
+	r := c.replicas[idx]
+	reqs := r.load()
+
+	// Set least priority to inactive replica.
+	if !r.isActive() {
+		reqs = ^uint32(0)
 	}
 
-	// round hosts checking
-	// until the least loaded is found
-	for i := (idx + 1) % l; i != idx; i = (i + 1) % l {
-		h := c.hosts[i]
-		if !h.isActive() {
+	if reqs == 0 {
+		return r
+	}
+
+	// Scan all the replicas for the least loaded replica.
+	for i := uint32(1); i < n; i++ {
+		tmpIdx := (idx + i) % n
+		tmpR := c.replicas[tmpIdx]
+		if !tmpR.isActive() {
 			continue
 		}
-		n := h.load()
-		if n == 0 {
-			return h
+		tmpReqs := tmpR.load()
+		if tmpReqs == 0 {
+			return tmpR
 		}
-		if n < idleN {
-			idle, idleN = h, n
+		if tmpReqs < reqs {
+			r = tmpR
+			reqs = tmpReqs
 		}
 	}
-	if !idle.isActive() {
-		return nil
+
+	// The returned replica may be inactive. This is OK,
+	// since this means all the replicas are inactive,
+	// so let's try proxying the request to any replica.
+	return r
+}
+
+// getHost returns least loaded + round-robin host from replica.
+//
+// Always returns non-nil.
+func (r *replica) getHost() *host {
+	idx := atomic.AddUint32(&r.nextHostIdx, 1)
+	n := uint32(len(r.hosts))
+	if n == 1 {
+		return r.hosts[0]
 	}
-	return idle
+
+	idx %= n
+	h := r.hosts[idx]
+	reqs := h.load()
+
+	// Set least priority to inactive host.
+	if !h.isActive() {
+		reqs = ^uint32(0)
+	}
+
+	if reqs == 0 {
+		return h
+	}
+
+	// Scan all the hosts for the least loaded host.
+	for i := uint32(1); i < n; i++ {
+		tmpIdx := (idx + i) % n
+		tmpH := r.hosts[tmpIdx]
+		if !tmpH.isActive() {
+			continue
+		}
+		tmpReqs := tmpH.load()
+		if tmpReqs == 0 {
+			return tmpH
+		}
+		if tmpReqs < reqs {
+			h = tmpH
+			reqs = tmpReqs
+		}
+	}
+
+	// The returned host may be inactive. This is OK,
+	// since this means all the hosts are inactive,
+	// so let's try proxying the request to any host.
+	return h
+}
+
+// getHost returns least loaded + round-robin host from cluster.
+//
+// Always returns non-nil.
+func (c *cluster) getHost() *host {
+	r := c.getReplica()
+	return r.getHost()
 }
 
 type rateLimiter struct {

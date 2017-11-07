@@ -15,7 +15,7 @@ Chproxy, is an http proxy for [ClickHouse](https://ClickHouse.yandex) database. 
 - May delay request execution until it fits per-user limits.
 - Per-user [response caching](#caching) may be configured.
 - Response caches have built-in protection against [thundering herd](https://en.wikipedia.org/wiki/Cache_stampede) aka `dogpile effect`.
-- Evenly spreads requests among cluster nodes using `least loaded` + `round robin` technique.
+- Evenly spreads requests among replicas and cluster nodes using `least loaded` + `round robin` technique.
 - Monitors node health and prevents from sending requests to unhealthy nodes.
 - Supports automatic HTTPS certificate issuing and renewal via [Let’s Encrypt](https://letsencrypt.org/).
 - May proxy requests to each configured cluster via either HTTP or [HTTPS](https://github.com/yandex/ClickHouse/blob/96d1ab89da451911eb54eccf1017eb5f94068a34/dbms/src/Server/config.xml#L15).
@@ -540,7 +540,16 @@ clusters:
 
   - name: "second cluster"
     scheme: "https"
-    nodes: ["127.0.1.1:8443", "127.0.1.2:8443"]
+
+    # The cluster may contain multiple replicas instead of flat nodes.
+    #
+    # Chproxy selects the least loaded node among the least loaded replicas.
+    replicas:
+      - name: "replica1"
+        nodes: ["127.0.1.1:8443", "127.0.1.2:8443"]
+      - name: "replica2"
+        nodes: ["127.0.2.1:8443", "127.0.2.2:8443"]
+
     users:
       - name: "default"
         max_concurrent_queries: 4

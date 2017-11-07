@@ -241,8 +241,15 @@ type Cluster struct {
 	// default value is `http`
 	Scheme string `yaml:"scheme,omitempty"`
 
-	// Nodes - list of nodes addresses
-	Nodes []string `yaml:"nodes"`
+	// Nodes contains cluster nodes.
+	//
+	// Either Nodes or Replicas must be set, but not both.
+	Nodes []string `yaml:"nodes,omitempty"`
+
+	// Replicas contains replicas.
+	//
+	// Either Replicas or Nodes must be set, but not both.
+	Replicas []Replica `yaml:"replicas,omitempty"`
 
 	// ClusterUsers - list of ClickHouse users
 	ClusterUsers []ClusterUser `yaml:"users"`
@@ -270,8 +277,11 @@ func (c *Cluster) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if len(c.Name) == 0 {
 		return fmt.Errorf("`cluster.name` cannot be empty")
 	}
-	if len(c.Nodes) == 0 {
-		return fmt.Errorf("`cluster.nodes` must contain at least 1 address for %q", c.Name)
+	if len(c.Nodes) == 0 && len(c.Replicas) == 0 {
+		return fmt.Errorf("either `cluster.nodes` or `cluster.replicas` must be set for %q", c.Name)
+	}
+	if len(c.Nodes) > 0 && len(c.Replicas) > 0 {
+		return fmt.Errorf("`cluster.nodes` cannot be simultaneously set with `cluster.replicas` for %q", c.Name)
 	}
 	if len(c.ClusterUsers) == 0 {
 		return fmt.Errorf("`cluster.users` must contain at least 1 user for %q", c.Name)
@@ -283,6 +293,33 @@ func (c *Cluster) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		c.HeartBeatInterval = time.Second * 5
 	}
 	return checkOverflow(c.XXX, fmt.Sprintf("cluster %q", c.Name))
+}
+
+// Replica contains ClickHouse replica configuration.
+type Replica struct {
+	// Name is replica name.
+	Name string `yaml:"name"`
+
+	// Nodes contains replica nodes.
+	Nodes []string `yaml:"nodes"`
+
+	// Catches all undefined fields
+	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (r *Replica) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain Replica
+	if err := unmarshal((*plain)(r)); err != nil {
+		return err
+	}
+	if len(r.Name) == 0 {
+		return fmt.Errorf("`replica.name` cannot be empty")
+	}
+	if len(r.Nodes) == 0 {
+		return fmt.Errorf("`replica.nodes` cannot be empty for %q", r.Name)
+	}
+	return checkOverflow(r.XXX, fmt.Sprintf("replica %q", r.Name))
 }
 
 // KillQueryUser - user configuration for killing timed out queries.

@@ -58,11 +58,12 @@ func TestNewReverseProxy(t *testing.T) {
 		t.Fatalf("got %d hosts; expected: %d", len(proxy.clusters), 1)
 	}
 	c := proxy.clusters["cluster"]
-	if len(c.hosts) != 1 {
-		t.Fatalf("got %d hosts; expected: %d", len(c.hosts), 1)
+	r := c.replicas[0]
+	if len(r.hosts) != 1 {
+		t.Fatalf("got %d hosts; expected: %d", len(r.hosts), 1)
 	}
-	if c.hosts[0].addr.Host != "localhost:8123" {
-		t.Fatalf("got %s host; expected: %s", c.hosts[0].addr.Host, "localhost:8123")
+	if r.hosts[0].addr.Host != "localhost:8123" {
+		t.Fatalf("got %s host; expected: %s", r.hosts[0].addr.Host, "localhost:8123")
 	}
 	if len(proxy.users) != 1 {
 		t.Fatalf("got %d users; expected: %d", len(proxy.users), 1)

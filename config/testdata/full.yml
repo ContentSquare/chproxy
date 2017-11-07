@@ -196,7 +196,16 @@ clusters:
 
   - name: "second cluster"
     scheme: "https"
-    nodes: ["127.0.1.1:8443", "127.0.1.2:8443"]
+
+    # The cluster may contain multiple replicas instead of flat nodes.
+    #
+    # Chproxy selects the least loaded node among the least loaded replicas.
+    replicas:
+      - name: "replica1"
+        nodes: ["127.0.1.1:8443", "127.0.1.2:8443"]
+      - name: "replica2"
+        nodes: ["127.0.2.1:8443", "127.0.2.2:8443"]
+
     users:
       - name: "default"
         max_concurrent_queries: 4
