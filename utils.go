@@ -16,7 +16,7 @@ import (
 func respondWith(rw http.ResponseWriter, err error, status int) {
 	log.ErrorWithCallDepth(err, 1)
 	rw.WriteHeader(status)
-	fmt.Fprintf(rw, "%s", err)
+	fmt.Fprintf(rw, "%s\n", err)
 }
 
 // getAuth retrieves auth credentials from request
