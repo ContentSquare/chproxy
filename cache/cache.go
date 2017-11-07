@@ -464,6 +464,8 @@ func (c *Cache) fileInfoPath(fi os.FileInfo) string {
 // NewResponseWriter wraps rw into cached response writer
 // that automatically caches the response under the given key.
 //
+// The rw must implement http.CloseNotifier.
+//
 // Commit or Rollback must be called on the returned response writer
 // after it is no longer needed.
 func (c *Cache) NewResponseWriter(rw http.ResponseWriter, key *Key) (*ResponseWriter, error) {
@@ -518,6 +520,12 @@ func (rw *ResponseWriter) captureHeaders() error {
 		return fmt.Errorf("cache %q: cannot write Content-Encoding to %q: %s", rw.c.Name, fn, err)
 	}
 	return nil
+}
+
+// CloseNotify implements http.CloseNotifier
+func (rw *ResponseWriter) CloseNotify() <-chan bool {
+	// The rw.ResponseWriter must implement http.CloseNotifier.
+	return rw.ResponseWriter.(http.CloseNotifier).CloseNotify()
 }
 
 // WriteHeader captures response status code.

@@ -105,25 +105,17 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	if s.user.cache == nil || noCache {
-		if !rp.proxyRequest(s, srw, req) {
-			// Request timeout.
-			srw.statusCode = http.StatusGatewayTimeout
-		}
+		rp.proxyRequest(s, srw, srw, req)
 	} else {
 		rp.serveFromCache(s, srw, req)
 	}
 
-	switch srw.statusCode {
-	case http.StatusOK:
+	q := getQuerySnippet(req)
+	if srw.statusCode == http.StatusOK {
 		requestSuccess.With(s.labels).Inc()
-		log.Debugf("%s: request success", s)
-	case http.StatusBadGateway:
-		s.host.penalize()
-		q := getQuerySnippet(req)
-		err := fmt.Errorf("%s: cannot reach %s; query: %q", s, s.host.addr.Host, q)
-		respondWith(srw, err, srw.statusCode)
-	default:
-		log.Debugf("%s: request failure: non-200 status code %d", s, srw.statusCode)
+		log.Debugf("%s: request success; query: %q", s, q)
+	} else {
+		log.Debugf("%s: request failure: non-200 status code %d; query: %q", s, srw.statusCode, q)
 	}
 
 	statusCodes.With(
@@ -139,7 +131,12 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	requestDuration.With(s.labels).Observe(since)
 }
 
-func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, req *http.Request) bool {
+// proxyRequest proxies the given request to clickhouse and sends response
+// to rw.
+//
+// srw is required only for setting non-200 status codes on timeouts
+// or on client connection closes.
+func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, srw *statResponseWriter, req *http.Request) {
 	// wrap body into cachedReadCloser, so we could obtain the original
 	// request on error.
 	if _, ok := req.Body.(*cachedReadCloser); !ok {
@@ -155,38 +152,70 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, req *http
 		ctx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()
 	}
+
+	// Cancel the ctx if client closes the remote connection,
+	// so the proxied query may be killed instantly.
+	ctx, ctxCancel := context.WithCancel(ctx)
+	defer ctxCancel()
+	// rw must implement http.CloseNotifier.
+	ch := rw.(http.CloseNotifier).CloseNotify()
+	go func() {
+		select {
+		case <-ch:
+			ctxCancel()
+		case <-ctx.Done():
+		}
+	}()
+
 	req = req.WithContext(ctx)
 
 	timeStart := time.Now()
 	rp.rp.ServeHTTP(rw, req)
 
-	if req.Context().Err() == nil {
+	err := ctx.Err()
+	switch err {
+	case nil:
 		// The request has been successfully proxied.
 		since := float64(time.Since(timeStart).Seconds())
 		proxiedResponseDuration.With(s.labels).Observe(since)
-		return true
+
+		// StatusBadGateway response is returned by http.ReverseProxy when
+		// it cannot establish connection to remote host.
+		if srw.statusCode == http.StatusBadGateway {
+			s.host.penalize()
+			q := getQuerySnippet(req)
+			err := fmt.Errorf("%s: cannot reach %s; query: %q", s, s.host.addr.Host, q)
+			respondWith(srw, err, srw.statusCode)
+		}
+
+	case context.Canceled:
+		canceledRequest.With(s.labels).Inc()
+
+		q := getQuerySnippet(req)
+		log.Debugf("%s: remote client closed the connection in %s; query: %q", s, time.Since(timeStart), q)
+		if err := s.killQuery(); err != nil {
+			log.Errorf("%s: cannot kill query: %s; query: %q", s, err, q)
+		}
+		srw.statusCode = 499 // See https://httpstatuses.com/499 .
+
+	case context.DeadlineExceeded:
+		timeoutRequest.With(s.labels).Inc()
+
+		// Penalize host with the timed out query, because it may be overloaded.
+		s.host.penalize()
+
+		q := getQuerySnippet(req)
+		log.Debugf("%s: query timeout in %s; query: %q", s, time.Since(timeStart), q)
+		if err := s.killQuery(); err != nil {
+			log.Errorf("%s: cannot kill query: %s; query: %q", s, err, q)
+		}
+		err = fmt.Errorf("%s: %s; query: %q", s, timeoutErrMsg, q)
+		respondWith(rw, err, http.StatusGatewayTimeout)
+		srw.statusCode = http.StatusGatewayTimeout
 	}
-
-	// The request has been timed out.
-
-	// Penalize host with the timed out query, because it may be overloaded.
-	s.host.penalize()
-	q := getQuerySnippet(req)
-
-	// Forcibly kill the timed out query.
-	if err := s.killQuery(); err != nil {
-		log.Errorf("%s: cannot kill query: %s; query: %q", s, err, q)
-		// Return is skipped intentionally, so the error below
-		// may be written to log.
-	}
-
-	err := fmt.Errorf("%s: %s; query %q", s, timeoutErrMsg, q)
-	respondWith(rw, err, http.StatusGatewayTimeout)
-	return false
 }
 
 func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *http.Request) {
-
 	q, err := getFullQuery(req)
 	if err != nil {
 		err = fmt.Errorf("%s: cannot read query: %s", s, err)
@@ -197,10 +226,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 
 	if !canCacheQuery(q) {
 		// The query cannot be cached, so just proxy it.
-		if !rp.proxyRequest(s, srw, req) {
-			// Request timeout.
-			srw.statusCode = http.StatusGatewayTimeout
-		}
+		rp.proxyRequest(s, srw, srw, req)
 		return
 	}
 
@@ -248,12 +274,12 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		respondWith(srw, err, http.StatusInternalServerError)
 		return
 	}
-	if !rp.proxyRequest(s, crw, req) {
-		// Request timeout.
-		srw.statusCode = http.StatusGatewayTimeout
-	}
+	rp.proxyRequest(s, crw, srw, req)
+
 	if crw.StatusCode() != http.StatusOK {
 		// Do not cache non-200 responses.
+		// Restore the original status code by proxyRequest.
+		crw.WriteHeader(srw.statusCode)
 		err = crw.Rollback()
 	} else {
 		err = crw.Commit()

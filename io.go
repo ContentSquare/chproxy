@@ -10,6 +10,8 @@ import (
 
 // statResponseWriter collects the amount of bytes written.
 //
+// The wrapped ResponseWriter must implement http.CloseNotifier.
+//
 // Additionally it caches response status code.
 type statResponseWriter struct {
 	http.ResponseWriter
@@ -30,6 +32,12 @@ func (rw *statResponseWriter) Write(b []byte) (int, error) {
 func (rw *statResponseWriter) WriteHeader(code int) {
 	rw.statusCode = code
 	rw.ResponseWriter.WriteHeader(code)
+}
+
+// CloseNotify implements http.CloseNotifier
+func (rw *statResponseWriter) CloseNotify() <-chan bool {
+	// The rw.ResponseWriter must implement http.CloseNotifier
+	return rw.ResponseWriter.(http.CloseNotifier).CloseNotify()
 }
 
 // statReadCloser collects the amount of bytes read.

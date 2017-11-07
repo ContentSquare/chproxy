@@ -205,7 +205,7 @@ func (s *scope) dec() {
 const killQueryTimeout = time.Second * 30
 
 func (s *scope) killQuery() error {
-	log.Debugf("killing timed out query with query_id=%s", s.id)
+	log.Debugf("killing the query with query_id=%s", s.id)
 
 	query := fmt.Sprintf("KILL QUERY WHERE query_id = '%s'", s.id)
 	r := strings.NewReader(query)
@@ -243,7 +243,7 @@ func (s *scope) killQuery() error {
 		return fmt.Errorf("cannot read response body for the query %q: %s", query, err)
 	}
 
-	log.Debugf("killed timed out query with query_id=%s; respBody: %q", s.id, respBody)
+	log.Debugf("killed the query with query_id=%s; respBody: %q", s.id, respBody)
 	return nil
 }
 

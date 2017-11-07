@@ -209,7 +209,8 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 					HandshakeComplete: true,
 				}
 				rw := httptest.NewRecorder()
-				p.ServeHTTP(rw, req)
+				cn := &testCloseNotifier{rw}
+				p.ServeHTTP(cn, req)
 				resp := rw.Result()
 				response, err := ioutil.ReadAll(resp.Body)
 				if err != nil {
@@ -442,7 +443,8 @@ func makeHeavyRequest(p *reverseProxy, duration time.Duration) string {
 	body := bytes.NewBufferString(duration.String())
 	req := httptest.NewRequest("POST", fakeServer.URL, body)
 	rw := httptest.NewRecorder()
-	p.ServeHTTP(rw, req)
+	cn := &testCloseNotifier{rw}
+	p.ServeHTTP(cn, req)
 	resp := rw.Result()
 	response, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
@@ -451,9 +453,18 @@ func makeHeavyRequest(p *reverseProxy, duration time.Duration) string {
 	return string(response)
 }
 
+type testCloseNotifier struct {
+	http.ResponseWriter
+}
+
+func (tcn *testCloseNotifier) CloseNotify() <-chan bool {
+	return make(chan bool)
+}
+
 func makeCustomRequest(p *reverseProxy, req *http.Request) string {
 	rw := httptest.NewRecorder()
-	p.ServeHTTP(rw, req)
+	cn := &testCloseNotifier{rw}
+	p.ServeHTTP(cn, req)
 	resp := rw.Result()
 	response, err := ioutil.ReadAll(resp.Body)
 	if err != nil {

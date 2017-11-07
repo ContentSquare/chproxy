@@ -143,6 +143,20 @@ var (
 		},
 		[]string{"cache", "user", "cluster", "cluster_user"},
 	)
+	canceledRequest = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "canceled_request_total",
+			Help: "The number of requests canceled by remote client",
+		},
+		[]string{"user", "cluster", "cluster_user", "cluster_node"},
+	)
+	timeoutRequest = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "timeout_request_total",
+			Help: "The number of timed out requests",
+		},
+		[]string{"user", "cluster", "cluster_user", "cluster_node"},
+	)
 )
 
 func init() {
@@ -151,5 +165,6 @@ func init() {
 		requestQueueSize, userQueueOverflow, clusterUserQueueOverflow,
 		requestBodyBytes, responseBodyBytes, badRequest,
 		cacheHit, cacheMiss, cacheSize, cacheItems,
-		requestDuration, proxiedResponseDuration, cachedResponseDuration)
+		requestDuration, proxiedResponseDuration, cachedResponseDuration,
+		canceledRequest, timeoutRequest)
 }

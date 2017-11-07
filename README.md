@@ -7,7 +7,8 @@ Chproxy, is an http proxy for [ClickHouse](https://ClickHouse.yandex) database. 
 - May accept incoming requests via HTTP and HTTPS.
 - May limit HTTP and HTTPS access by IP/IP-mask lists.
 - May limit per-user access by IP/IP-mask lists.
-- May limit per-user query duration. Timed out queries are forcibly killed via [KILL QUERY](http://clickhouse-docs.readthedocs.io/en/latest/query_language/queries.html#kill-query).
+- May limit per-user query duration. Timed out or canceled queries are forcibly killed
+  via [KILL QUERY](http://clickhouse-docs.readthedocs.io/en/latest/query_language/queries.html#kill-query).
 - May limit per-user requests rate.
 - May limit per-user number of concurrent requests.
 - All the limits may be independently set for each input user and for each per-cluster user.
@@ -581,6 +582,8 @@ Metrics are exposed in [prometheus text format](https://prometheus.io/docs/instr
 | proxied_response_duration_seconds | Summary | Duration for responses proxied from clickhouse | `user`, `cluster`, `cluster_user`, `cluster_node` |
 | cached_response_duration_seconds | Summary | Duration for cached responses | `cache`, `user`, `cluster`, `cluster_user` |
 | bad_requests_total | Counter | The number of unsupported requests | |
+| canceled_request_total | Counter | The number of requests canceled by remote client | `user`, `cluster`, `cluster_user`, `cluster_node` |
+| timeout_request_total | Counter | The number of timed out requests | `user`, `cluster`, `cluster_user`, `cluster_node` |
 
 An example of [Grafana's](https://grafana.com) dashboard for `chproxy` metrics is available [here](https://github.com/Vertamedia/chproxy/blob/master/chproxy_overview.json)
 
