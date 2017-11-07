@@ -148,9 +148,9 @@
             "alignAsTable": true,
             "avg": true,
             "current": false,
-            "max": false,
-            "min": false,
-            "rightSide": true,
+            "max": true,
+            "min": true,
+            "rightSide": false,
             "show": true,
             "sortDesc": true,
             "total": false,
@@ -159,7 +159,7 @@
           "lines": true,
           "linewidth": 1,
           "links": [],
-          "nullPointMode": "null",
+          "nullPointMode": "connected",
           "percentage": false,
           "pointradius": 5,
           "points": false,
@@ -171,7 +171,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "avg(request_duration_seconds{job=~\"$job-chproxy\",instance=~\"$instance\",user=~\"$user\",cluster_user=~\"$cluster_user\",cluster_node=~\"$cluster_node\"}) by (user, quantile)",
+              "expr": "max(request_duration_seconds{job=~\"$job-chproxy\",instance=~\"$instance\",user=~\"$user\",cluster_user=~\"$cluster_user\",cluster_node=~\"$cluster_node\"}) by (user, quantile)",
               "format": "time_series",
               "interval": "",
               "intervalFactor": 10,
@@ -228,9 +228,9 @@
             "alignAsTable": true,
             "avg": true,
             "current": false,
-            "max": false,
-            "min": false,
-            "rightSide": true,
+            "max": true,
+            "min": true,
+            "rightSide": false,
             "show": true,
             "total": false,
             "values": true
@@ -238,7 +238,7 @@
           "lines": true,
           "linewidth": 1,
           "links": [],
-          "nullPointMode": "null",
+          "nullPointMode": "null as zero",
           "percentage": false,
           "pointradius": 5,
           "points": false,
@@ -295,6 +295,265 @@
             },
             {
               "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            }
+          ]
+        },
+        {
+          "aliasColors": {
+            "0.99": "#E24D42"
+          },
+          "bars": false,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": "${DS_PROMETHEUS}",
+          "fill": 1,
+          "id": 51,
+          "legend": {
+            "alignAsTable": true,
+            "avg": true,
+            "current": false,
+            "max": true,
+            "min": true,
+            "rightSide": false,
+            "show": true,
+            "sortDesc": true,
+            "total": false,
+            "values": true
+          },
+          "lines": true,
+          "linewidth": 1,
+          "links": [],
+          "nullPointMode": "null",
+          "percentage": false,
+          "pointradius": 5,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [],
+          "spaceLength": 10,
+          "span": 6,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "expr": "60*sum(rate(request_duration_seconds_sum{job=~\"$job-chproxy\",instance=~\"$instance\",user=~\"$user\",cluster_user=~\"$cluster_user\",cluster_node=~\"$cluster_node\"}[$interval]) ) by (user)",
+              "format": "time_series",
+              "interval": "",
+              "intervalFactor": 10,
+              "legendFormat": "{{user}}",
+              "refId": "A",
+              "step": 300
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": null,
+          "timeShift": null,
+          "title": "Summary request duration",
+          "tooltip": {
+            "shared": true,
+            "sort": 2,
+            "value_type": "individual"
+          },
+          "type": "graph",
+          "xaxis": {
+            "buckets": null,
+            "mode": "time",
+            "name": null,
+            "show": true,
+            "values": []
+          },
+          "yaxes": [
+            {
+              "format": "s",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            },
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            }
+          ]
+        },
+        {
+          "aliasColors": {},
+          "bars": false,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": "${DS_PROMETHEUS}",
+          "fill": 1,
+          "id": 22,
+          "legend": {
+            "alignAsTable": true,
+            "avg": true,
+            "current": false,
+            "max": true,
+            "min": true,
+            "rightSide": false,
+            "show": true,
+            "total": false,
+            "values": true
+          },
+          "lines": true,
+          "linewidth": 1,
+          "links": [],
+          "nullPointMode": "null",
+          "percentage": false,
+          "pointradius": 5,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [],
+          "spaceLength": 10,
+          "span": 6,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "expr": "sum(\n  concurrent_queries{job=~\"$job-chproxy\",instance=~\"$instance\",user=~\"$user\",cluster_user=~\"$cluster_user\",cluster_node=~\"$cluster_node\"}) \nby (cluster_user)",
+              "format": "time_series",
+              "intervalFactor": 2,
+              "legendFormat": "cu-{{cluster_user}}",
+              "refId": "A",
+              "step": 60
+            },
+            {
+              "expr": "sum(\n  concurrent_queries{job=~\"$job-chproxy\",instance=~\"$instance\",user=~\"$user\",cluster_user=~\"$cluster_user\",cluster_node=~\"$cluster_node\"}) \nby (user)",
+              "format": "time_series",
+              "intervalFactor": 2,
+              "legendFormat": "u-{{user}}",
+              "refId": "B",
+              "step": 60
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": null,
+          "timeShift": null,
+          "title": "Concurrent queries by users",
+          "tooltip": {
+            "shared": true,
+            "sort": 0,
+            "value_type": "individual"
+          },
+          "type": "graph",
+          "xaxis": {
+            "buckets": null,
+            "mode": "time",
+            "name": null,
+            "show": true,
+            "values": []
+          },
+          "yaxes": [
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            },
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            }
+          ]
+        },
+        {
+          "aliasColors": {},
+          "bars": false,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": "${DS_PROMETHEUS}",
+          "fill": 1,
+          "id": 36,
+          "legend": {
+            "alignAsTable": true,
+            "avg": true,
+            "current": true,
+            "max": true,
+            "min": true,
+            "rightSide": false,
+            "show": true,
+            "total": false,
+            "values": true
+          },
+          "lines": true,
+          "linewidth": 1,
+          "links": [],
+          "nullPointMode": "null",
+          "percentage": false,
+          "pointradius": 5,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [
+            {
+              "alias": "response",
+              "yaxis": 2
+            }
+          ],
+          "spaceLength": 10,
+          "span": 6,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "expr": "sum(rate(request_body_bytes_total{job=~\"$job-chproxy\",instance=~\"$instance\",user=~\"$user\",cluster_user=~\"$cluster_user\",cluster_node=~\"$cluster_node\"}[$interval]))\n",
+              "format": "time_series",
+              "intervalFactor": 2,
+              "legendFormat": "request",
+              "refId": "A",
+              "step": 60
+            },
+            {
+              "expr": "sum(rate(response_body_bytes_total{job=~\"$job-chproxy\",instance=~\"$instance\",user=~\"$user\",cluster_user=~\"$cluster_user\",cluster_node=~\"$cluster_node\"}[$interval]))\n",
+              "format": "time_series",
+              "intervalFactor": 2,
+              "legendFormat": "response",
+              "refId": "B",
+              "step": 60
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": null,
+          "timeShift": null,
+          "title": "Body size rate",
+          "tooltip": {
+            "shared": true,
+            "sort": 0,
+            "value_type": "individual"
+          },
+          "type": "graph",
+          "xaxis": {
+            "buckets": null,
+            "mode": "time",
+            "name": null,
+            "show": true,
+            "values": []
+          },
+          "yaxes": [
+            {
+              "format": "bytes",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            },
+            {
+              "format": "bytes",
               "label": null,
               "logBase": 1,
               "max": null,
@@ -378,7 +637,19 @@
               "show": true
             }
           ]
-        },
+        }
+      ],
+      "repeat": null,
+      "repeatIteration": null,
+      "repeatRowId": null,
+      "showTitle": true,
+      "title": "Requests",
+      "titleSize": "h6"
+    },
+    {
+      "collapse": false,
+      "height": 250,
+      "panels": [
         {
           "aliasColors": {},
           "bars": false,
@@ -386,17 +657,15 @@
           "dashes": false,
           "datasource": "${DS_PROMETHEUS}",
           "fill": 1,
-          "id": 22,
+          "id": 66,
           "legend": {
-            "alignAsTable": true,
             "avg": false,
-            "current": true,
+            "current": false,
             "max": false,
             "min": false,
-            "rightSide": true,
             "show": true,
             "total": false,
-            "values": true
+            "values": false
           },
           "lines": true,
           "linewidth": 1,
@@ -408,31 +677,23 @@
           "renderer": "flot",
           "seriesOverrides": [],
           "spaceLength": 10,
-          "span": 12,
+          "span": 6,
           "stack": false,
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(\n  concurrent_queries{job=~\"$job-chproxy\",instance=~\"$instance\",user=~\"$user\",cluster_user=~\"$cluster_user\",cluster_node=~\"$cluster_node\"}) \nby (cluster_user)",
+              "expr": "sum(rate(cache_hits_total{user=~\"$user\",cluster=~\"$cluster\",cluster_user=~\"$cluster_user\",job=\"$job-chproxy\",instance=~\"$instance\"}[$interval])) by (cache) / (\n  sum(rate(cache_hits_total{user=~\"$user\",cluster=~\"$cluster\",cluster_user=~\"$cluster_user\",job=\"$job-chproxy\",instance=~\"$instance\"}[$interval])) by (cache) +\n  sum(rate(cache_miss_total{user=~\"$user\",cluster=~\"$cluster\",cluster_user=~\"$cluster_user\",job=\"$job-chproxy\",instance=~\"$instance\"}[$interval])) by (cache)\n)",
               "format": "time_series",
               "intervalFactor": 2,
-              "legendFormat": "cu-{{cluster_user}}",
+              "legendFormat": "{{cache}}",
               "refId": "A",
-              "step": 30
-            },
-            {
-              "expr": "sum(\n  concurrent_queries{job=~\"$job-chproxy\",instance=~\"$instance\",user=~\"$user\",cluster_user=~\"$cluster_user\",cluster_node=~\"$cluster_node\"}) \nby (user)",
-              "format": "time_series",
-              "intervalFactor": 2,
-              "legendFormat": "u-{{user}}",
-              "refId": "B",
-              "step": 30
+              "step": 60
             }
           ],
           "thresholds": [],
           "timeFrom": null,
           "timeShift": null,
-          "title": "Concurrent queries by users",
+          "title": "Cache hit rate",
           "tooltip": {
             "shared": true,
             "sort": 0,
@@ -448,7 +709,7 @@
           },
           "yaxes": [
             {
-              "format": "short",
+              "format": "percentunit",
               "label": null,
               "logBase": 1,
               "max": null,
@@ -472,14 +733,13 @@
           "dashes": false,
           "datasource": "${DS_PROMETHEUS}",
           "fill": 1,
-          "id": 36,
+          "id": 68,
           "legend": {
             "alignAsTable": true,
             "avg": true,
             "current": true,
             "max": true,
             "min": true,
-            "rightSide": false,
             "show": true,
             "total": false,
             "values": true
@@ -492,38 +752,102 @@
           "pointradius": 5,
           "points": false,
           "renderer": "flot",
-          "seriesOverrides": [
-            {
-              "alias": "response",
-              "yaxis": 2
-            }
-          ],
+          "seriesOverrides": [],
           "spaceLength": 10,
-          "span": 12,
+          "span": 6,
           "stack": false,
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(rate(request_body_bytes_total{job=~\"$job-chproxy\",instance=~\"$instance\",user=~\"$user\",cluster_user=~\"$cluster_user\",cluster_node=~\"$cluster_node\"}[$interval]))\n",
+              "expr": "max(cached_response_duration_seconds{user=~\"$user\",cluster=~\"$cluster\",cluster_user=~\"$cluster_user\",job=~\"$job-chproxy\", instance=~\"$instance\"}) by (cache, quantile)",
               "format": "time_series",
               "intervalFactor": 2,
-              "legendFormat": "request",
-              "refId": "A",
-              "step": 30
-            },
-            {
-              "expr": "sum(rate(response_body_bytes_total{job=~\"$job-chproxy\",instance=~\"$instance\",user=~\"$user\",cluster_user=~\"$cluster_user\",cluster_node=~\"$cluster_node\"}[$interval]))\n",
-              "format": "time_series",
-              "intervalFactor": 2,
-              "legendFormat": "response",
+              "legendFormat": "{{cache}} {{quantile}}",
               "refId": "B",
-              "step": 30
+              "step": 60
             }
           ],
           "thresholds": [],
           "timeFrom": null,
           "timeShift": null,
-          "title": "Body size rate",
+          "title": "Cached response duration",
+          "tooltip": {
+            "shared": true,
+            "sort": 0,
+            "value_type": "individual"
+          },
+          "type": "graph",
+          "xaxis": {
+            "buckets": null,
+            "mode": "time",
+            "name": null,
+            "show": true,
+            "values": []
+          },
+          "yaxes": [
+            {
+              "format": "s",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": true
+            },
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": false
+            }
+          ]
+        },
+        {
+          "aliasColors": {},
+          "bars": false,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": "${DS_PROMETHEUS}",
+          "fill": 1,
+          "id": 67,
+          "legend": {
+            "alignAsTable": true,
+            "avg": true,
+            "current": true,
+            "max": true,
+            "min": true,
+            "show": true,
+            "total": false,
+            "values": true
+          },
+          "lines": true,
+          "linewidth": 1,
+          "links": [],
+          "nullPointMode": "null",
+          "percentage": false,
+          "pointradius": 5,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [],
+          "spaceLength": 10,
+          "span": 6,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "expr": "sum(cache_size{job=~\"$job-chproxy\", instance=~\"$instance\"}) by (cache)",
+              "format": "time_series",
+              "intervalFactor": 2,
+              "legendFormat": "{{cache}} size",
+              "refId": "A",
+              "step": 60
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": null,
+          "timeShift": null,
+          "title": "Cache size",
           "tooltip": {
             "shared": true,
             "sort": 0,
@@ -552,7 +876,84 @@
               "logBase": 1,
               "max": null,
               "min": null,
+              "show": false
+            }
+          ]
+        },
+        {
+          "aliasColors": {},
+          "bars": false,
+          "dashLength": 10,
+          "dashes": false,
+          "datasource": "${DS_PROMETHEUS}",
+          "fill": 1,
+          "id": 69,
+          "legend": {
+            "alignAsTable": true,
+            "avg": true,
+            "current": true,
+            "max": true,
+            "min": true,
+            "show": true,
+            "total": false,
+            "values": true
+          },
+          "lines": true,
+          "linewidth": 1,
+          "links": [],
+          "nullPointMode": "null",
+          "percentage": false,
+          "pointradius": 5,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [],
+          "spaceLength": 10,
+          "span": 6,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "expr": "sum(cache_items{job=~\"$job-chproxy\", instance=~\"$instance\"}) by (cache)",
+              "format": "time_series",
+              "intervalFactor": 2,
+              "legendFormat": "{{cache}} items",
+              "refId": "B",
+              "step": 60
+            }
+          ],
+          "thresholds": [],
+          "timeFrom": null,
+          "timeShift": null,
+          "title": "Cache items",
+          "tooltip": {
+            "shared": true,
+            "sort": 0,
+            "value_type": "individual"
+          },
+          "type": "graph",
+          "xaxis": {
+            "buckets": null,
+            "mode": "time",
+            "name": null,
+            "show": true,
+            "values": []
+          },
+          "yaxes": [
+            {
+              "format": "none",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
               "show": true
+            },
+            {
+              "format": "short",
+              "label": null,
+              "logBase": 1,
+              "max": null,
+              "min": null,
+              "show": false
             }
           ]
         }
@@ -561,7 +962,7 @@
       "repeatIteration": null,
       "repeatRowId": null,
       "showTitle": true,
-      "title": "Requests",
+      "title": "Cache",
       "titleSize": "h6"
     },
     {
@@ -607,7 +1008,7 @@
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum by (cluster_node)  (request_sum_total{job=~\"$job-chproxy\",instance=~\"$instance\",user=~\"$user\",cluster_user=~\"$cluster_user\",cluster_node=~\"$cluster_node\"}) \n / \nscalar(sum(request_sum_total{job=~\"$job-chproxy\",instance=~\"$instance\",user=~\"$user\",cluster_user=~\"$cluster_user\",cluster_node=~\"$cluster_node\"}))",
+              "expr": "sum by (cluster_node)  (increase(request_sum_total{job=~\"$job-chproxy\",instance=~\"$instance\",user=~\"$user\",cluster_user=~\"$cluster_user\",cluster_node=~\"$cluster_node\"}[$interval]))",
               "format": "time_series",
               "interval": "",
               "intervalFactor": 1,
@@ -622,7 +1023,7 @@
           "title": "Cluster \"$cluster\" host distirbution",
           "tooltip": {
             "shared": false,
-            "sort": 0,
+            "sort": 2,
             "value_type": "individual"
           },
           "type": "graph",
@@ -637,11 +1038,11 @@
           },
           "yaxes": [
             {
-              "format": "percentunit",
+              "format": "none",
               "label": null,
               "logBase": 1,
               "max": null,
-              "min": null,
+              "min": "0",
               "show": true
             },
             {
@@ -869,7 +1270,7 @@
         "multi": false,
         "name": "instance",
         "options": [],
-        "query": "label_values(request_sum_total{job=~\"$job-chproxy\"},instance)",
+        "query": "label_values(up{job=~\"$job-chproxy\"},instance)",
         "refresh": 1,
         "regex": "",
         "sort": 1,
@@ -1049,5 +1450,5 @@
   },
   "timezone": "browser",
   "title": "ClickHouse Proxy overview",
-  "version": 51
+  "version": 68
 }
