@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"crypto/tls"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"github.com/Vertamedia/chproxy/cache"
+	"github.com/Vertamedia/chproxy/config"
 	"github.com/Vertamedia/chproxy/log"
 )
 
@@ -44,7 +46,6 @@ func startTLS() (net.Listener, chan struct{}) {
 		panic(fmt.Sprintf("error while applying config: %s", err))
 	}
 	done := make(chan struct{})
-
 	ln, err := net.Listen("tcp4", cfg.Server.HTTPS.ListenAddr)
 	if err != nil {
 		panic(fmt.Sprintf("cannot listen for %q: %s", cfg.Server.HTTPS.ListenAddr, err))
@@ -67,7 +68,6 @@ func startHTTP() (net.Listener, chan struct{}) {
 		panic(fmt.Sprintf("error while applying config: %s", err))
 	}
 	done := make(chan struct{})
-
 	ln, err := net.Listen("tcp4", cfg.Server.HTTP.ListenAddr)
 	if err != nil {
 		panic(fmt.Sprintf("cannot listen for %q: %s", cfg.Server.HTTP.ListenAddr, err))
@@ -160,14 +160,24 @@ func TestServe(t *testing.T) {
 				}
 
 				expected := "Ok.\n"
-				got, err := ioutil.ReadAll(rw.Body)
-				if err != nil {
-					t.Fatalf("unexpected error while reading body: %s", err)
-				}
-				if string(got) != expected {
+				got := bbToString(t, rw.Body)
+				if got != expected {
 					t.Fatalf("unexpected cache result: %q; expected: %q", string(got), expected)
 				}
 
+				// check refreshCacheMetrics()
+				req, err = http.NewRequest("GET", "https://127.0.0.1:8443/metrics", nil)
+				if err != nil {
+					t.Fatalf("unexpected erorr: %s", err)
+				}
+				resp, err = tlsClient.Do(req)
+				if err != nil {
+					t.Fatalf("unexpected error while doing request: %s", err)
+				}
+				if resp.StatusCode != http.StatusOK {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
+				}
+				resp.Body.Close()
 			},
 			startTLS,
 		},
@@ -187,14 +197,10 @@ func TestServe(t *testing.T) {
 				if resp.StatusCode != http.StatusForbidden {
 					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
 				}
-				response, err := ioutil.ReadAll(resp.Body)
-				if err != nil {
-					t.Fatalf("unexpected err while reading body: %s", err)
-				}
-				stringResponse := string(response)
+				got := bbToString(t, resp.Body)
 				expErr := "user \"default\" is not allowed to access via https"
-				if !strings.Contains(stringResponse, expErr) {
-					t.Fatalf("unexpected response: %q; expected: %q", response, expErr)
+				if !strings.Contains(got, expErr) {
+					t.Fatalf("unexpected response: %q; expected: %q", got, expErr)
 				}
 				resp.Body.Close()
 			},
@@ -216,14 +222,10 @@ func TestServe(t *testing.T) {
 				if resp.StatusCode != http.StatusForbidden {
 					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
 				}
-				response, err := ioutil.ReadAll(resp.Body)
-				if err != nil {
-					t.Fatalf("unexpected err while reading body: %s", err)
-				}
-				res := string(response)
+				got := bbToString(t, resp.Body)
 				expErr := "https connections are not allowed from 127.0.0.1"
-				if !strings.Contains(res, expErr) {
-					t.Fatalf("unexpected response: %q; expected: %q", res, expErr)
+				if !strings.Contains(got, expErr) {
+					t.Fatalf("unexpected response: %q; expected: %q", got, expErr)
 				}
 				resp.Body.Close()
 			},
@@ -245,14 +247,10 @@ func TestServe(t *testing.T) {
 				if resp.StatusCode != http.StatusForbidden {
 					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
 				}
-				response, err := ioutil.ReadAll(resp.Body)
-				if err != nil {
-					t.Fatalf("unexpected err while reading body: %s", err)
-				}
-				res := string(response)
+				got := bbToString(t, resp.Body)
 				expErr := "user \"default\" is not allowed to access"
-				if !strings.Contains(res, expErr) {
-					t.Fatalf("unexpected response: %q; expected: %q", res, expErr)
+				if !strings.Contains(got, expErr) {
+					t.Fatalf("unexpected response: %q; expected: %q", got, expErr)
 				}
 				resp.Body.Close()
 			},
@@ -274,18 +272,66 @@ func TestServe(t *testing.T) {
 				if resp.StatusCode != http.StatusForbidden {
 					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
 				}
-				response, err := ioutil.ReadAll(resp.Body)
-				if err != nil {
-					t.Fatalf("unexpected err while reading body: %s", err)
-				}
-				res := string(response)
+				got := bbToString(t, resp.Body)
 				expErr := "cluster user \"web\" is not allowed to access"
-				if !strings.Contains(res, expErr) {
-					t.Fatalf("unexpected response: %q; expected: %q", res, expErr)
+				if !strings.Contains(got, expErr) {
+					t.Fatalf("unexpected response: %q; expected: %q", got, expErr)
 				}
 				resp.Body.Close()
 			},
 			startTLS,
+		},
+		{
+			"routing",
+			"testdata/http.yml",
+			func(t *testing.T) {
+				req, err := http.NewRequest(http.MethodOptions, "http://127.0.0.1:9090?query=asd", nil)
+				if err != nil {
+					t.Fatalf("unexpected erorr: %s", err)
+				}
+				resp, err := http.DefaultClient.Do(req)
+				if err != nil {
+					t.Fatal(err)
+				}
+				expectedAllowHeader := "GET,POST"
+				if resp.Header.Get("Allow") != expectedAllowHeader {
+					t.Fatalf("header `Allow` got: %q; expected: %q", resp.Header.Get("Allow"), expectedAllowHeader)
+				}
+				resp.Body.Close()
+
+				req, err = http.NewRequest(http.MethodConnect, "http://127.0.0.1:9090?query=asd", nil)
+				if err != nil {
+					t.Fatalf("unexpected erorr: %s", err)
+				}
+				resp, err = http.DefaultClient.Do(req)
+				if err != nil {
+					t.Fatalf("unexpected erorr: %s", err)
+				}
+				got := bbToString(t, resp.Body)
+				expErr := fmt.Sprintf("unsupported method %q\n", http.MethodConnect)
+				if got != expErr {
+					t.Fatalf("unexpected response: %s; expected: %s", got, expErr)
+				}
+				if resp.StatusCode != http.StatusMethodNotAllowed {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusMethodNotAllowed)
+				}
+				resp.Body.Close()
+
+				resp, err = http.Get("http://127.0.0.1:9090/foobar")
+				if err != nil {
+					t.Fatalf("unexpected erorr: %s", err)
+				}
+				got = bbToString(t, resp.Body)
+				expErr = fmt.Sprintf("unsupported path: /foobar")
+				if got != expErr {
+					t.Fatalf("unexpected response: %s; expected: %s", got, expErr)
+				}
+				if resp.StatusCode != http.StatusBadRequest {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusBadRequest)
+				}
+				resp.Body.Close()
+			},
+			startHTTP,
 		},
 		{
 			"http request",
@@ -298,7 +344,6 @@ func TestServe(t *testing.T) {
 				if resp.StatusCode != http.StatusOK {
 					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
 				}
-
 				resp, err = http.Get("http://127.0.0.1:9090/metrics")
 				if err != nil {
 					t.Fatalf("unexpected error while doing request: %s", err)
@@ -395,14 +440,10 @@ func TestServe(t *testing.T) {
 				if resp.StatusCode != http.StatusForbidden {
 					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
 				}
-				response, err := ioutil.ReadAll(resp.Body)
-				if err != nil {
-					t.Fatalf("unexpected err while reading body: %s", err)
-				}
-				stringResponse := string(response)
+				got := bbToString(t, resp.Body)
 				expErr := "user \"default\" is not allowed to access via http"
-				if !strings.Contains(stringResponse, expErr) {
-					t.Fatalf("unexpected response: %q; expected: %q", response, expErr)
+				if !strings.Contains(got, expErr) {
+					t.Fatalf("unexpected response: %q; expected: %q", got, expErr)
 				}
 				resp.Body.Close()
 			},
@@ -419,14 +460,10 @@ func TestServe(t *testing.T) {
 				if resp.StatusCode != http.StatusForbidden {
 					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
 				}
-				response, err := ioutil.ReadAll(resp.Body)
-				if err != nil {
-					t.Fatalf("unexpected err while reading body: %s", err)
-				}
-				res := string(response)
+				got := bbToString(t, resp.Body)
 				expErr := "http connections are not allowed from 127.0.0.1"
-				if !strings.Contains(res, expErr) {
-					t.Fatalf("unexpected response: %q; expected: %q", res, expErr)
+				if !strings.Contains(got, expErr) {
+					t.Fatalf("unexpected response: %q; expected: %q", got, expErr)
 				}
 				resp.Body.Close()
 			},
@@ -443,14 +480,10 @@ func TestServe(t *testing.T) {
 				if resp.StatusCode != http.StatusForbidden {
 					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
 				}
-				response, err := ioutil.ReadAll(resp.Body)
-				if err != nil {
-					t.Fatalf("unexpected err while reading body: %s", err)
-				}
-				res := string(response)
+				got := bbToString(t, resp.Body)
 				expErr := "connections to /metrics are not allowed from 127.0.0.1"
-				if !strings.Contains(res, expErr) {
-					t.Fatalf("unexpected response: %q; expected: %q", res, expErr)
+				if !strings.Contains(got, expErr) {
+					t.Fatalf("unexpected response: %q; expected: %q", got, expErr)
 				}
 				resp.Body.Close()
 			},
@@ -467,14 +500,10 @@ func TestServe(t *testing.T) {
 				if resp.StatusCode != http.StatusForbidden {
 					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
 				}
-				response, err := ioutil.ReadAll(resp.Body)
-				if err != nil {
-					t.Fatalf("unexpected err while reading body: %s", err)
-				}
-				res := string(response)
+				got := bbToString(t, resp.Body)
 				expErr := "user \"default\" is not allowed to access"
-				if !strings.Contains(res, expErr) {
-					t.Fatalf("unexpected response: %q; expected: %q", res, expErr)
+				if !strings.Contains(got, expErr) {
+					t.Fatalf("unexpected response: %q; expected: %q", got, expErr)
 				}
 				resp.Body.Close()
 			},
@@ -491,14 +520,10 @@ func TestServe(t *testing.T) {
 				if resp.StatusCode != http.StatusForbidden {
 					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
 				}
-				response, err := ioutil.ReadAll(resp.Body)
-				if err != nil {
-					t.Fatalf("unexpected err while reading body: %s", err)
-				}
-				res := string(response)
+				got := bbToString(t, resp.Body)
 				expErr := "cluster user \"web\" is not allowed to access"
-				if !strings.Contains(res, expErr) {
-					t.Fatalf("unexpected response: %q; expected: %q", res, expErr)
+				if !strings.Contains(got, expErr) {
+					t.Fatalf("unexpected response: %q; expected: %q", got, expErr)
 				}
 				resp.Body.Close()
 			},
@@ -552,4 +577,95 @@ func TestServe(t *testing.T) {
 			tc.testFn(t)
 		})
 	}
+}
+
+func TestNewTLSConfig(t *testing.T) {
+	cfg := config.HTTPS{
+		KeyFile:  "testdata/example.com.key",
+		CertFile: "testdata/example.com.cert",
+	}
+
+	tlsCfg := newTLSConfig(cfg)
+	if len(tlsCfg.Certificates) < 1 {
+		t.Fatalf("expected tls certificate; got empty list")
+	}
+
+	certCachePath := fmt.Sprintf("%s/certs_dir", testDir)
+	cfg = config.HTTPS{
+		Autocert: config.Autocert{
+			CacheDir:     certCachePath,
+			AllowedHosts: []string{"example.com"},
+		},
+	}
+	tlsCfg = newTLSConfig(cfg)
+	if tlsCfg.GetCertificate == nil {
+		t.Fatalf("expected func GetCertificate be set; got nil")
+	}
+
+	if _, err := os.Stat(certCachePath); err != nil {
+		t.Fatalf("expected dir %s to be created", certCachePath)
+	}
+}
+
+func TestGetMaxResponseTime(t *testing.T) {
+	cfg := &config.Config{
+		Clusters: []config.Cluster{
+			{
+				ClusterUsers: []config.ClusterUser{
+					{
+						MaxExecutionTime: 20 * time.Second,
+					},
+				},
+			},
+			{
+				ClusterUsers: []config.ClusterUser{
+					{
+						MaxExecutionTime: 30 * time.Second,
+					},
+					{
+						MaxExecutionTime: 10 * time.Second,
+					},
+				},
+			},
+		},
+		Users: []config.User{
+			{
+				MaxExecutionTime: 10 * time.Second,
+			},
+			{
+				MaxExecutionTime: 15 * time.Second,
+			},
+		},
+	}
+
+	expected := 30 * time.Second
+	if maxTime := getMaxResponseTime(cfg); maxTime != expected {
+		t.Fatalf("got %v; expected %v", maxTime, expected)
+	}
+
+	expected = time.Minute
+	cfg.Users[0].MaxExecutionTime = expected
+	if maxTime := getMaxResponseTime(cfg); maxTime != expected {
+		t.Fatalf("got %v; expected %v", maxTime, expected)
+	}
+}
+
+func TestReloadConfig(t *testing.T) {
+	*configFile = "testdata/http.yml"
+	if err := reloadConfig(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	*configFile = "testdata/foobar.yml"
+	if err := reloadConfig(); err == nil {
+		t.Fatal("error expected; got nil")
+	}
+}
+
+func bbToString(t *testing.T, r io.Reader) string {
+	response, err := ioutil.ReadAll(r)
+	if err != nil {
+		t.Fatalf("unexpected err while reading: %s", err)
+	}
+	return string(response)
 }

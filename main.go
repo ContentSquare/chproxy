@@ -104,11 +104,16 @@ func getMaxResponseTime(cfg *config.Config) time.Duration {
 	return d
 }
 
-func serveTLS(cfg config.HTTPS, maxResponseTime time.Duration) {
-	ln, err := net.Listen("tcp4", cfg.ListenAddr)
+func newListener(listenAddr string) net.Listener {
+	ln, err := net.Listen("tcp4", listenAddr)
 	if err != nil {
-		log.Fatalf("cannot listen for %q: %s", cfg.ListenAddr, err)
+		log.Fatalf("cannot listen for %q: %s", listenAddr, err)
 	}
+	return ln
+}
+
+func serveTLS(cfg config.HTTPS, maxResponseTime time.Duration) {
+	ln := newListener(cfg.ListenAddr)
 	tlsCfg := newTLSConfig(cfg)
 	tln := tls.NewListener(ln, tlsCfg)
 	log.Infof("Serving https on %q", cfg.ListenAddr)
@@ -118,10 +123,7 @@ func serveTLS(cfg config.HTTPS, maxResponseTime time.Duration) {
 }
 
 func serve(cfg config.HTTP, maxResponseTime time.Duration) {
-	ln, err := net.Listen("tcp4", cfg.ListenAddr)
-	if err != nil {
-		log.Fatalf("cannot listen for %q: %s", cfg.ListenAddr, err)
-	}
+	ln := newListener(cfg.ListenAddr)
 	log.Infof("Serving http on %q", cfg.ListenAddr)
 	if err := listenAndServe(ln, maxResponseTime); err != nil {
 		log.Fatalf("HTTP server error on %q: %s", cfg.ListenAddr, err)
@@ -220,7 +222,6 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 			respondWith(rw, err, http.StatusForbidden)
 			return
 		}
-
 		proxy.refreshCacheMetrics()
 		promHandler.ServeHTTP(rw, r)
 	case "/":
@@ -238,11 +239,10 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 			respondWith(rw, err, http.StatusForbidden)
 			return
 		}
-
 		proxy.ServeHTTP(rw, r)
 	default:
 		badRequest.Inc()
-		err := fmt.Sprintf("Unsupported path: %s", r.URL.Path)
+		err := fmt.Sprintf("unsupported path: %s", r.URL.Path)
 		log.Debugf(err)
 		rw.WriteHeader(http.StatusBadRequest)
 		fmt.Fprint(rw, err)
@@ -281,6 +281,12 @@ func reloadConfig() error {
 	return applyConfig(cfg)
 }
 
+var (
+	buildTag      = "unknown"
+	buildRevision = "unknown"
+	buildTime     = "unknown"
+)
+
 func versionString() string {
 	ver := buildTag
 	if len(ver) == 0 {
@@ -288,9 +294,3 @@ func versionString() string {
 	}
 	return fmt.Sprintf("chproxy ver. %s, rev. %s, built at %s", ver, buildRevision, buildTime)
 }
-
-var (
-	buildTag      = "unknown"
-	buildRevision = "unknown"
-	buildTime     = "unknown"
-)
