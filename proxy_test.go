@@ -23,7 +23,11 @@ var goodCfg = &config.Config{
 		{
 			Name:   "cluster",
 			Scheme: "http",
-			Nodes:  []string{"localhost:8123"},
+			Replicas: []config.Replica{
+				{
+					Nodes: []string{"localhost:8123"},
+				},
+			},
 			ClusterUsers: []config.ClusterUser{
 				{
 					Name: "web",
@@ -196,6 +200,30 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 				go makeHeavyRequest(p, time.Millisecond*20)
 				time.Sleep(time.Millisecond * 10)
 				return makeRequest(p)
+			},
+		},
+		{
+			name:     "queuing queries for user",
+			expected: okResponse,
+			cfg:      goodCfg,
+			f: func(p *reverseProxy) string {
+				p.users["default"].maxConcurrentQueries = 1
+				p.users["default"].queueCh = make(chan struct{}, 2)
+				go makeHeavyRequest(p, time.Millisecond*20)
+				time.Sleep(time.Millisecond * 10)
+				return makeHeavyRequest(p, time.Millisecond*20)
+			},
+		},
+		{
+			name:     "queuing queries for cluster user",
+			expected: okResponse,
+			cfg:      goodCfg,
+			f: func(p *reverseProxy) string {
+				p.users["default"].maxConcurrentQueries = 1
+				p.clusters["cluster"].users["web"].queueCh = make(chan struct{}, 2)
+				go makeHeavyRequest(p, time.Millisecond*20)
+				time.Sleep(time.Millisecond * 10)
+				return makeHeavyRequest(p, time.Millisecond*20)
 			},
 		},
 		{
