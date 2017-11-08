@@ -52,7 +52,7 @@ func newReverseProxy() *reverseProxy {
 }
 
 func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	timeStart := time.Now()
+	startTime := time.Now()
 
 	s, status, err := rp.getScope(req)
 	if err != nil {
@@ -130,7 +130,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			"code":         strconv.Itoa(srw.statusCode),
 		},
 	).Inc()
-	since := float64(time.Since(timeStart).Seconds())
+	since := float64(time.Since(startTime).Seconds())
 	requestDuration.With(s.labels).Observe(since)
 }
 
@@ -172,14 +172,14 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, srw *stat
 
 	req = req.WithContext(ctx)
 
-	timeStart := time.Now()
+	startTime := time.Now()
 	rp.rp.ServeHTTP(rw, req)
 
 	err := ctx.Err()
 	switch err {
 	case nil:
 		// The request has been successfully proxied.
-		since := float64(time.Since(timeStart).Seconds())
+		since := float64(time.Since(startTime).Seconds())
 		proxiedResponseDuration.With(s.labels).Observe(since)
 
 		// StatusBadGateway response is returned by http.ReverseProxy when
@@ -195,7 +195,7 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, srw *stat
 		canceledRequest.With(s.labels).Inc()
 
 		q := getQuerySnippet(req)
-		log.Debugf("%s: remote client closed the connection in %s; query: %q", s, time.Since(timeStart), q)
+		log.Debugf("%s: remote client closed the connection in %s; query: %q", s, time.Since(startTime), q)
 		if err := s.killQuery(); err != nil {
 			log.Errorf("%s: cannot kill query: %s; query: %q", s, err, q)
 		}
@@ -208,7 +208,7 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, srw *stat
 		s.host.penalize()
 
 		q := getQuerySnippet(req)
-		log.Debugf("%s: query timeout in %s; query: %q", s, time.Since(timeStart), q)
+		log.Debugf("%s: query timeout in %s; query: %q", s, time.Since(startTime), q)
 		if err := s.killQuery(); err != nil {
 			log.Errorf("%s: cannot kill query: %s; query: %q", s, err, q)
 		}
@@ -250,12 +250,12 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		Database:       params.Get("database"),
 	}
 
-	timeStart := time.Now()
+	startTime := time.Now()
 	err = s.user.cache.WriteTo(srw, key)
 	if err == nil {
 		// The response has been successfully served from cache.
 		cacheHit.With(labels).Inc()
-		since := float64(time.Since(timeStart).Seconds())
+		since := float64(time.Since(startTime).Seconds())
 		cachedResponseDuration.With(labels).Observe(since)
 		log.Debugf("%s: cache hit", s)
 		return
