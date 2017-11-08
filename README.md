@@ -245,19 +245,9 @@ users:
     max_execution_time: 30s
     requests_per_minute: 10
     deny_http: true
-
-    # Allow `CORS` requests for `tabix`.
     allow_cors: true
-
-    # Enable requests queueing - `chproxy` will queue up to `max_queue_size`
-    # of incoming requests for up to `max_queue_time` until they stop exceeding
-    # the current limits.
-    # This allows gracefully handling request bursts when more than
-    # `max_concurrent_queries` concurrent requests arrive.
     max_queue_size: 40
     max_queue_time: 25s
-
-    # Enable response caching. See cache config below.
     cache: "shortterm"
 
 clusters:
@@ -287,8 +277,6 @@ caches:
   - name: "shortterm"
     dir: "/path/to/cache/dir"
     max_size: 150Mb
-
-    # Cached responses will expire in 130s.
     expire: 130s
 ```
 
