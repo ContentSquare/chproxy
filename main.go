@@ -205,7 +205,8 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 		rw.Header().Set("Allow", "GET,POST")
 		return
 	default:
-		err := fmt.Errorf("unsupported method %q", r.Method)
+		err := fmt.Errorf("%q: unsupported method %q", r.RemoteAddr, r.Method)
+		rw.Header().Set("Connection", "close")
 		respondWith(rw, err, http.StatusMethodNotAllowed)
 		return
 	}
@@ -242,10 +243,9 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 		proxy.ServeHTTP(rw, r)
 	default:
 		badRequest.Inc()
-		err := fmt.Sprintf("Unsupported path: %s", r.URL.Path)
-		log.Debugf(err)
-		rw.WriteHeader(http.StatusBadRequest)
-		fmt.Fprint(rw, err)
+		err := fmt.Errorf("%q: unsupported path: %q", r.RemoteAddr, r.URL.Path)
+		rw.Header().Set("Connection", "close")
+		respondWith(rw, err, http.StatusBadRequest)
 	}
 }
 
