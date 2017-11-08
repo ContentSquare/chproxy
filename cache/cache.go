@@ -395,15 +395,15 @@ again:
 // ErrMissing is returned when the entry isn't found in the cache.
 var ErrMissing = errors.New("missing cache entry")
 
-func (c *Cache) registerPendingEntry(filepath string) bool {
+func (c *Cache) registerPendingEntry(path string) bool {
 	if c.graceTime <= 0 {
 		return true
 	}
 
 	c.pendingEntriesLock.Lock()
-	_, exists := c.pendingEntries[filepath]
+	_, exists := c.pendingEntries[path]
 	if !exists {
-		c.pendingEntries[filepath] = pendingEntry{
+		c.pendingEntries[path] = pendingEntry{
 			deadline: time.Now().Add(c.graceTime),
 		}
 	}
@@ -411,13 +411,13 @@ func (c *Cache) registerPendingEntry(filepath string) bool {
 	return !exists
 }
 
-func (c *Cache) unregisterPendingEntry(filepath string) {
+func (c *Cache) unregisterPendingEntry(path string) {
 	if c.graceTime <= 0 {
 		return
 	}
 
 	c.pendingEntriesLock.Lock()
-	delete(c.pendingEntries, filepath)
+	delete(c.pendingEntries, path)
 	c.pendingEntriesLock.Unlock()
 }
 
@@ -440,9 +440,9 @@ func (c *Cache) pendingEntriesCleaner() {
 		// Clear outdated pending entries, since they may remain here
 		// forever if unregisterPendingEntry call is missing.
 		c.pendingEntriesLock.Lock()
-		for filepath, pe := range c.pendingEntries {
+		for path, pe := range c.pendingEntries {
 			if currentTime.After(pe.deadline) {
-				delete(c.pendingEntries, filepath)
+				delete(c.pendingEntries, path)
 			}
 		}
 		c.pendingEntriesLock.Unlock()
