@@ -31,6 +31,7 @@ func newScopeID() scopeID {
 var nextScopeID = uint64(time.Now().UnixNano())
 
 type scope struct {
+	startTime   time.Time
 	id          scopeID
 	host        *host
 	cluster     *cluster
@@ -51,6 +52,7 @@ func newScope(req *http.Request, u *user, c *cluster, cu *clusterUser) *scope {
 		localAddr = addr.String()
 	}
 	s := &scope{
+		startTime:   time.Now(),
 		id:          newScopeID(),
 		host:        h,
 		cluster:     c,
@@ -72,12 +74,12 @@ func newScope(req *http.Request, u *user, c *cluster, cu *clusterUser) *scope {
 }
 
 func (s *scope) String() string {
-	return fmt.Sprintf("[ Id: %s; User %q(%d) proxying as %q(%d) to %q(%d); RemoteAddr: %q; LocalAddr: %q ]",
+	return fmt.Sprintf("[ Id: %s; User %q(%d) proxying as %q(%d) to %q(%d); RemoteAddr: %q; LocalAddr: %q; Duration: %s ]",
 		s.id,
 		s.user.name, s.user.queryCounter.load(),
 		s.clusterUser.name, s.clusterUser.queryCounter.load(),
 		s.host.addr.Host, s.host.load(),
-		s.remoteAddr, s.localAddr)
+		s.remoteAddr, s.localAddr, time.Since(s.startTime))
 }
 
 func (s *scope) incQueued() error {
