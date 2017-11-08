@@ -615,7 +615,9 @@ func (rw *ResponseWriter) Rollback() error {
 	}
 
 	if _, err := rw.tmpFile.Seek(0, io.SeekStart); err != nil {
-		return fmt.Errorf("BUG: cache %q: cannot seek to the beginning of %q: %s", rw.c.Name, fn, err)
+		rw.tmpFile.Close()
+		os.Remove(fn)
+		return fmt.Errorf("cache %q: cannot seek to the beginning of %q: %s", rw.c.Name, fn, err)
 	}
 
 	if err := sendResponseFromFile(rw.ResponseWriter, rw.tmpFile, 0, rw.StatusCode()); err != nil {
