@@ -288,7 +288,7 @@ var allowedParams = []string{
 	"default_format",
 }
 
-func (s *scope) decorateRequest(req *http.Request) *http.Request {
+func (s *scope) decorateRequest(req *http.Request) (*http.Request, url.Values) {
 	// Make new params to purify URL.
 	params := make(url.Values)
 
@@ -296,9 +296,9 @@ func (s *scope) decorateRequest(req *http.Request) *http.Request {
 	params.Set("query_id", s.id.String())
 
 	// Keep allowed params.
-	q := req.URL.Query()
+	origParams := req.URL.Query()
 	for _, param := range allowedParams {
-		val := q.Get(param)
+		val := origParams.Get(param)
 		if len(val) > 0 {
 			params.Set(param, val)
 		}
@@ -320,7 +320,7 @@ func (s *scope) decorateRequest(req *http.Request) *http.Request {
 		s.remoteAddr, s.localAddr, s.user.name, s.clusterUser.name, req.UserAgent())
 	req.Header.Set("User-Agent", ua)
 
-	return req
+	return req, origParams
 }
 
 func (s *scope) getTimeoutWithErrMsg() (time.Duration, error) {

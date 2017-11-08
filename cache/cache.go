@@ -70,12 +70,15 @@ type Key struct {
 
 	// Database must contain `database` query arg.
 	Database string
+
+	// Namespace is an optional cache namespace.
+	Namespace string
 }
 
 // String returns string representation of the key.
 func (k *Key) String() string {
-	s := fmt.Sprintf("V%d; Query=%q; AcceptEncoding=%q; DefaultFormat=%q; Database=%q",
-		cacheVersion, k.Query, k.AcceptEncoding, k.DefaultFormat, k.Database)
+	s := fmt.Sprintf("V%d; Query=%q; AcceptEncoding=%q; DefaultFormat=%q; Database=%q; Namespace=%q",
+		cacheVersion, k.Query, k.AcceptEncoding, k.DefaultFormat, k.Database, k.Namespace)
 	h := sha256.Sum256([]byte(s))
 
 	// The first 16 bytes of the hash should be enough
