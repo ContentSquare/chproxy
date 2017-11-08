@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
-	"net"
 	"net/http"
 	"net/http/httputil"
 	"strconv"
@@ -414,23 +413,28 @@ func (rp *reverseProxy) refreshCacheMetrics() {
 func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 	name, password := getAuth(req)
 
-	rp.lock.RLock()
-	defer rp.lock.RUnlock()
+	var (
+		u  *user
+		c  *cluster
+		cu *clusterUser
+	)
 
-	u, ok := rp.users[name]
-	if !ok {
+	rp.lock.RLock()
+	u = rp.users[name]
+	if u != nil {
+		// c and cu for toCluster and toUser must exist if applyConfig
+		// is correct.
+		// Fix applyConfig if c or cu equal to nil.
+		c = rp.clusters[u.toCluster]
+		cu = c.users[u.toUser]
+	}
+	rp.lock.RUnlock()
+
+	if u == nil {
 		return nil, http.StatusUnauthorized, fmt.Errorf("invalid username or password for user %q", name)
 	}
 	if u.password != password {
 		return nil, http.StatusUnauthorized, fmt.Errorf("invalid username or password for user %q", name)
-	}
-	c, ok := rp.clusters[u.toCluster]
-	if !ok {
-		panic(fmt.Sprintf("BUG: user %q matches to unknown cluster %q", u.name, u.toCluster))
-	}
-	cu, ok := c.users[u.toUser]
-	if !ok {
-		panic(fmt.Sprintf("BUG: user %q matches to unknown user %q at cluster %q", u.name, u.toUser, u.toCluster))
 	}
 	if u.denyHTTP && req.TLS == nil {
 		return nil, http.StatusForbidden, fmt.Errorf("user %q is not allowed to access via http", u.name)
@@ -444,27 +448,7 @@ func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 	if !cu.allowedNetworks.Contains(req.RemoteAddr) {
 		return nil, http.StatusForbidden, fmt.Errorf("cluster user %q is not allowed to access", cu.name)
 	}
-	h := c.getHost()
 
-	var localAddr string
-	if addr, ok := req.Context().Value(http.LocalAddrContextKey).(net.Addr); ok {
-		localAddr = addr.String()
-	}
-	s := &scope{
-		id:          newScopeID(),
-		host:        h,
-		cluster:     c,
-		user:        u,
-		clusterUser: cu,
-		remoteAddr:  req.RemoteAddr,
-		localAddr:   localAddr,
-		labels: prometheus.Labels{
-			"user":         u.name,
-			"cluster":      c.name,
-			"cluster_user": cu.name,
-			"replica":      h.replica.name,
-			"cluster_node": h.addr.Host,
-		},
-	}
+	s := newScope(req, u, c, cu)
 	return s, 0, nil
 }

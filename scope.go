@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -40,6 +41,34 @@ type scope struct {
 	localAddr  string
 
 	labels prometheus.Labels
+}
+
+func newScope(req *http.Request, u *user, c *cluster, cu *clusterUser) *scope {
+	h := c.getHost()
+
+	var localAddr string
+	if addr, ok := req.Context().Value(http.LocalAddrContextKey).(net.Addr); ok {
+		localAddr = addr.String()
+	}
+	s := &scope{
+		id:          newScopeID(),
+		host:        h,
+		cluster:     c,
+		user:        u,
+		clusterUser: cu,
+
+		remoteAddr: req.RemoteAddr,
+		localAddr:  localAddr,
+
+		labels: prometheus.Labels{
+			"user":         u.name,
+			"cluster":      c.name,
+			"cluster_user": cu.name,
+			"replica":      h.replica.name,
+			"cluster_node": h.addr.Host,
+		},
+	}
+	return s
 }
 
 func (s *scope) String() string {
