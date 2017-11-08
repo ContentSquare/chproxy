@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -30,6 +31,7 @@ func newScopeID() scopeID {
 var nextScopeID = uint64(time.Now().UnixNano())
 
 type scope struct {
+	startTime   time.Time
 	id          scopeID
 	host        *host
 	cluster     *cluster
@@ -42,13 +44,42 @@ type scope struct {
 	labels prometheus.Labels
 }
 
+func newScope(req *http.Request, u *user, c *cluster, cu *clusterUser) *scope {
+	h := c.getHost()
+
+	var localAddr string
+	if addr, ok := req.Context().Value(http.LocalAddrContextKey).(net.Addr); ok {
+		localAddr = addr.String()
+	}
+	s := &scope{
+		startTime:   time.Now(),
+		id:          newScopeID(),
+		host:        h,
+		cluster:     c,
+		user:        u,
+		clusterUser: cu,
+
+		remoteAddr: req.RemoteAddr,
+		localAddr:  localAddr,
+
+		labels: prometheus.Labels{
+			"user":         u.name,
+			"cluster":      c.name,
+			"cluster_user": cu.name,
+			"replica":      h.replica.name,
+			"cluster_node": h.addr.Host,
+		},
+	}
+	return s
+}
+
 func (s *scope) String() string {
-	return fmt.Sprintf("[ Id: %s; User %q(%d) proxying as %q(%d) to %q(%d); RemoteAddr: %q; LocalAddr: %q ]",
+	return fmt.Sprintf("[ Id: %s; User %q(%d) proxying as %q(%d) to %q(%d); RemoteAddr: %q; LocalAddr: %q; Duration: %s ]",
 		s.id,
 		s.user.name, s.user.queryCounter.load(),
 		s.clusterUser.name, s.clusterUser.queryCounter.load(),
 		s.host.addr.Host, s.host.load(),
-		s.remoteAddr, s.localAddr)
+		s.remoteAddr, s.localAddr, time.Since(s.startTime))
 }
 
 func (s *scope) incQueued() error {

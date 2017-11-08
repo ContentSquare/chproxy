@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
-	"net"
 	"net/http"
 	"net/http/httputil"
 	"strconv"
@@ -52,7 +51,7 @@ func newReverseProxy() *reverseProxy {
 }
 
 func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	timeStart := time.Now()
+	startTime := time.Now()
 
 	s, status, err := rp.getScope(req)
 	if err != nil {
@@ -130,7 +129,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			"code":         strconv.Itoa(srw.statusCode),
 		},
 	).Inc()
-	since := float64(time.Since(timeStart).Seconds())
+	since := float64(time.Since(startTime).Seconds())
 	requestDuration.With(s.labels).Observe(since)
 }
 
@@ -172,14 +171,14 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, srw *stat
 
 	req = req.WithContext(ctx)
 
-	timeStart := time.Now()
+	startTime := time.Now()
 	rp.rp.ServeHTTP(rw, req)
 
 	err := ctx.Err()
 	switch err {
 	case nil:
 		// The request has been successfully proxied.
-		since := float64(time.Since(timeStart).Seconds())
+		since := float64(time.Since(startTime).Seconds())
 		proxiedResponseDuration.With(s.labels).Observe(since)
 
 		// StatusBadGateway response is returned by http.ReverseProxy when
@@ -195,7 +194,7 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, srw *stat
 		canceledRequest.With(s.labels).Inc()
 
 		q := getQuerySnippet(req)
-		log.Debugf("%s: remote client closed the connection in %s; query: %q", s, time.Since(timeStart), q)
+		log.Debugf("%s: remote client closed the connection in %s; query: %q", s, time.Since(startTime), q)
 		if err := s.killQuery(); err != nil {
 			log.Errorf("%s: cannot kill query: %s; query: %q", s, err, q)
 		}
@@ -208,7 +207,7 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, srw *stat
 		s.host.penalize()
 
 		q := getQuerySnippet(req)
-		log.Debugf("%s: query timeout in %s; query: %q", s, time.Since(timeStart), q)
+		log.Debugf("%s: query timeout in %s; query: %q", s, time.Since(startTime), q)
 		if err := s.killQuery(); err != nil {
 			log.Errorf("%s: cannot kill query: %s; query: %q", s, err, q)
 		}
@@ -250,12 +249,12 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		Database:       params.Get("database"),
 	}
 
-	timeStart := time.Now()
+	startTime := time.Now()
 	err = s.user.cache.WriteTo(srw, key)
 	if err == nil {
 		// The response has been successfully served from cache.
 		cacheHit.With(labels).Inc()
-		since := float64(time.Since(timeStart).Seconds())
+		since := float64(time.Since(startTime).Seconds())
 		cachedResponseDuration.With(labels).Observe(since)
 		log.Debugf("%s: cache hit", s)
 		return
@@ -414,23 +413,28 @@ func (rp *reverseProxy) refreshCacheMetrics() {
 func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 	name, password := getAuth(req)
 
-	rp.lock.RLock()
-	defer rp.lock.RUnlock()
+	var (
+		u  *user
+		c  *cluster
+		cu *clusterUser
+	)
 
-	u, ok := rp.users[name]
-	if !ok {
+	rp.lock.RLock()
+	u = rp.users[name]
+	if u != nil {
+		// c and cu for toCluster and toUser must exist if applyConfig
+		// is correct.
+		// Fix applyConfig if c or cu equal to nil.
+		c = rp.clusters[u.toCluster]
+		cu = c.users[u.toUser]
+	}
+	rp.lock.RUnlock()
+
+	if u == nil {
 		return nil, http.StatusUnauthorized, fmt.Errorf("invalid username or password for user %q", name)
 	}
 	if u.password != password {
 		return nil, http.StatusUnauthorized, fmt.Errorf("invalid username or password for user %q", name)
-	}
-	c, ok := rp.clusters[u.toCluster]
-	if !ok {
-		panic(fmt.Sprintf("BUG: user %q matches to unknown cluster %q", u.name, u.toCluster))
-	}
-	cu, ok := c.users[u.toUser]
-	if !ok {
-		panic(fmt.Sprintf("BUG: user %q matches to unknown user %q at cluster %q", u.name, u.toUser, u.toCluster))
 	}
 	if u.denyHTTP && req.TLS == nil {
 		return nil, http.StatusForbidden, fmt.Errorf("user %q is not allowed to access via http", u.name)
@@ -444,27 +448,7 @@ func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 	if !cu.allowedNetworks.Contains(req.RemoteAddr) {
 		return nil, http.StatusForbidden, fmt.Errorf("cluster user %q is not allowed to access", cu.name)
 	}
-	h := c.getHost()
 
-	var localAddr string
-	if addr, ok := req.Context().Value(http.LocalAddrContextKey).(net.Addr); ok {
-		localAddr = addr.String()
-	}
-	s := &scope{
-		id:          newScopeID(),
-		host:        h,
-		cluster:     c,
-		user:        u,
-		clusterUser: cu,
-		remoteAddr:  req.RemoteAddr,
-		localAddr:   localAddr,
-		labels: prometheus.Labels{
-			"user":         u.name,
-			"cluster":      c.name,
-			"cluster_user": cu.name,
-			"replica":      h.replica.name,
-			"cluster_node": h.addr.Host,
-		},
-	}
+	s := newScope(req, u, c, cu)
 	return s, 0, nil
 }
