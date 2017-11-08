@@ -597,7 +597,7 @@ Metrics are exposed in [prometheus text format](https://prometheus.io/docs/instr
 | cache_items | Gauge | The number of items in each cache | `cache` |
 | request_duration_seconds | Summary | Request duration. Includes possible queue wait time | `user`, `cluster`, `cluster_user`, `replica`, `cluster_node` |
 | proxied_response_duration_seconds | Summary | Duration for responses proxied from clickhouse | `user`, `cluster`, `cluster_user`, `replica`, `cluster_node` |
-| cached_response_duration_seconds | Summary | Duration for cached responses | `cache`, `user`, `cluster`, `cluster_user` |
+| cached_response_duration_seconds | Summary | Duration for cached responses. Includes the duration for sending response to client | `cache`, `user`, `cluster`, `cluster_user` |
 | bad_requests_total | Counter | The number of unsupported requests | |
 | canceled_request_total | Counter | The number of requests canceled by remote client | `user`, `cluster`, `cluster_user`, `replica`, `cluster_node` |
 | timeout_request_total | Counter | The number of timed out requests | `user`, `cluster`, `cluster_user`, `replica`, `cluster_node` |
