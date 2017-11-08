@@ -308,8 +308,8 @@ func TestServe(t *testing.T) {
 					t.Fatalf("unexpected erorr: %s", err)
 				}
 				got := bbToString(t, resp.Body)
-				expErr := fmt.Sprintf("unsupported method %q\n", http.MethodConnect)
-				if got != expErr {
+				expErr := fmt.Sprintf("unsupported method %q", http.MethodConnect)
+				if !strings.Contains(got, expErr) {
 					t.Fatalf("unexpected response: %s; expected: %s", got, expErr)
 				}
 				if resp.StatusCode != http.StatusMethodNotAllowed {
@@ -322,8 +322,8 @@ func TestServe(t *testing.T) {
 					t.Fatalf("unexpected erorr: %s", err)
 				}
 				got = bbToString(t, resp.Body)
-				expErr = fmt.Sprintf("unsupported path: /foobar")
-				if got != expErr {
+				expErr = fmt.Sprintf("unsupported path: \"/foobar\"")
+				if !strings.Contains(got, expErr) {
 					t.Fatalf("unexpected response: %s; expected: %s", got, expErr)
 				}
 				if resp.StatusCode != http.StatusBadRequest {
