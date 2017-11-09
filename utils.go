@@ -138,11 +138,55 @@ func getFullQuery(req *http.Request) ([]byte, error) {
 
 // canCacheQuery returns true if q can be cached.
 func canCacheQuery(q []byte) bool {
+	q = skipLeadingComments(q)
+
 	// Currently only SELECT queries may be cached.
-	q = bytes.TrimSpace(q)
 	if len(q) < len("SELECT") {
 		return false
 	}
 	q = bytes.ToUpper(q[:len("SELECT")])
 	return bytes.HasPrefix(q, []byte("SELECT"))
+}
+
+func skipLeadingComments(q []byte) []byte {
+	for len(q) > 0 {
+		switch q[0] {
+		case '\t', '\n', '\v', '\f', '\r', ' ':
+			q = q[1:]
+		case '-':
+			if len(q) < 2 || q[1] != '-' {
+				return q
+			}
+
+			// skip `-- comment`
+			n := bytes.IndexByte(q, '\n')
+			if n < 0 {
+				return nil
+			}
+			q = q[n+1:]
+		case '/':
+			if len(q) < 2 || q[1] != '*' {
+				return q
+			}
+
+			// skip `/* comment */`
+			for {
+				n := bytes.IndexByte(q, '*')
+				if n < 0 {
+					return nil
+				}
+				q = q[n+1:]
+				if len(q) == 0 {
+					return nil
+				}
+				if q[0] == '/' {
+					q = q[1:]
+					break
+				}
+			}
+		default:
+			return q
+		}
+	}
+	return nil
 }

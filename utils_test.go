@@ -9,6 +9,28 @@ import (
 	"testing"
 )
 
+func TestSkipLeadingComments(t *testing.T) {
+	testSkipLeadingComments(t, "", "")
+	testSkipLeadingComments(t, "a", "a")
+	testSkipLeadingComments(t, "SELECT 1", "SELECT 1")
+	testSkipLeadingComments(t, "\t\n\v\f\r aaa  ", "aaa  ")
+	testSkipLeadingComments(t, "\t  /** foo /* */ bar ", "bar ")
+	testSkipLeadingComments(t, "/* foo *//* bar */\t\t/* baz */aaa", "aaa")
+	testSkipLeadingComments(t, "   /*  sdfsd * dfds / sdf", "")
+	testSkipLeadingComments(t, "  -- sdsfd - -- -", "")
+	testSkipLeadingComments(t, "\t - sss", "- sss")
+	testSkipLeadingComments(t, " -- ss\n xdf", "xdf")
+	testSkipLeadingComments(t, " --\n /**/-- /* ssd \n/* xdfd */   qqw ", "qqw ")
+}
+
+func testSkipLeadingComments(t *testing.T, q, expectedQ string) {
+	t.Helper()
+	s := skipLeadingComments([]byte(q))
+	if string(s) != expectedQ {
+		t.Fatalf("unexpected result %q; expecting %q", s, expectedQ)
+	}
+}
+
 func TestCanCacheQuery(t *testing.T) {
 	testCanCacheQuery(t, "", false)
 	testCanCacheQuery(t, "   ", false)
@@ -17,6 +39,8 @@ func TestCanCacheQuery(t *testing.T) {
 	testCanCacheQuery(t, "select", true)
 	testCanCacheQuery(t, "\t\t   SELECT 123   ", true)
 	testCanCacheQuery(t, "\t\t   sElECt 123   ", true)
+	testCanCacheQuery(t, "   --- sd s\n /* dfsf */\n seleCT ", true)
+	testCanCacheQuery(t, "   --- sd s\n /* dfsf */\n insert ", false)
 }
 
 func testCanCacheQuery(t *testing.T, q string, expected bool) {

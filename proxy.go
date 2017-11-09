@@ -247,7 +247,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	}
 
 	key := &cache.Key{
-		Query:          q,
+		Query:          skipLeadingComments(q),
 		AcceptEncoding: req.Header.Get("Accept-Encoding"),
 		DefaultFormat:  origParams.Get("default_format"),
 		Database:       origParams.Get("database"),
