@@ -285,8 +285,12 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 
 	if crw.StatusCode() != http.StatusOK {
 		// Do not cache non-200 responses.
-		// Restore the original status code by proxyRequest.
-		crw.WriteHeader(srw.statusCode)
+		// Restore the original status code by proxyRequest if it was set.
+		if srw.statusCode != 0 {
+			crw.WriteHeader(srw.statusCode)
+		} else {
+			srw.WriteHeader(crw.StatusCode())
+		}
 		err = crw.Rollback()
 	} else {
 		err = crw.Commit()
