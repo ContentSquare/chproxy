@@ -171,8 +171,9 @@ func init() {
 	prometheus.MustRegister(statusCodes, requestSum, requestSuccess,
 		limitExcess, hostPenalties, hostHealth, concurrentQueries,
 		requestQueueSize, userQueueOverflow, clusterUserQueueOverflow,
-		requestBodyBytes, responseBodyBytes, badRequest,
+		requestBodyBytes, responseBodyBytes,
 		cacheHit, cacheMiss, cacheSize, cacheItems,
 		requestDuration, proxiedResponseDuration, cachedResponseDuration,
-		canceledRequest, timeoutRequest, configSuccess, configSuccessTime)
+		canceledRequest, timeoutRequest,
+		configSuccess, configSuccessTime, badRequest)
 }
