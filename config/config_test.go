@@ -294,9 +294,14 @@ func TestBadConfig(t *testing.T) {
 				"Otherwise, certificates will be impossible to generate",
 		},
 		{
-			"network groups",
+			"incorrect network group name",
 			"testdata/bad.network_groups.yml",
 			"wrong network group name or address \"office\": invalid CIDR address: office/32",
+		},
+		{
+			"double network group",
+			"testdata/bad.double_network_groups.yml",
+			"duplicate `network_groups.name` \"office\"",
 		},
 		{
 			"max queue size and time on user",

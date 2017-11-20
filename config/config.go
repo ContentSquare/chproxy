@@ -577,6 +577,9 @@ func LoadFile(filename string) (*Config, error) {
 	}
 	cfg.networkReg = make(map[string]Networks, len(cfg.NetworkGroups))
 	for _, ng := range cfg.NetworkGroups {
+		if _, ok := cfg.networkReg[ng.Name]; ok {
+			return nil, fmt.Errorf("duplicate `network_groups.name` %q", ng.Name)
+		}
 		cfg.networkReg[ng.Name] = ng.Networks
 	}
 	if cfg.Server.HTTP.AllowedNetworks, err = cfg.groupToNetwork(cfg.Server.HTTP.NetworksOrGroups); err != nil {
