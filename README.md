@@ -586,9 +586,12 @@ Metrics are exposed in [prometheus text format](https://prometheus.io/docs/instr
 | request_duration_seconds | Summary | Request duration. Includes possible queue wait time | `user`, `cluster`, `cluster_user`, `replica`, `cluster_node` |
 | proxied_response_duration_seconds | Summary | Duration for responses proxied from clickhouse | `user`, `cluster`, `cluster_user`, `replica`, `cluster_node` |
 | cached_response_duration_seconds | Summary | Duration for cached responses. Includes the duration for sending response to client | `cache`, `user`, `cluster`, `cluster_user` |
-| bad_requests_total | Counter | The number of unsupported requests | |
 | canceled_request_total | Counter | The number of requests canceled by remote client | `user`, `cluster`, `cluster_user`, `replica`, `cluster_node` |
 | timeout_request_total | Counter | The number of timed out requests | `user`, `cluster`, `cluster_user`, `replica`, `cluster_node` |
+| config_last_reload_successful | Gauge | Whether the last configuration reload attempt was successful | |
+| config_last_reload_success_timestamp_seconds | Gauge | Timestamp of the last successful configuration reload | |
+| bad_requests_total | Counter | The number of unsupported requests | |
+
 
 An example of [Grafana's](https://grafana.com) dashboard for `chproxy` metrics is available [here](https://github.com/Vertamedia/chproxy/blob/master/chproxy_overview.json)
 

@@ -255,8 +255,11 @@ func loadConfig() (*config.Config, error) {
 	}
 	cfg, err := config.LoadFile(*configFile)
 	if err != nil {
+		configSuccess.Set(0)
 		return nil, fmt.Errorf("can't load config %q: %s", *configFile, err)
 	}
+	configSuccess.Set(1)
+	configSuccessTime.Set(float64(time.Now().Unix()))
 	return cfg, nil
 }
 
