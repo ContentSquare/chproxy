@@ -87,10 +87,6 @@ var (
 		},
 		[]string{"user", "cluster", "cluster_user", "replica", "cluster_node"},
 	)
-	badRequest = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "bad_requests_total",
-		Help: "Total number of unsupported requests",
-	})
 	cacheHit = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "cache_hits_total",
@@ -157,6 +153,18 @@ var (
 		},
 		[]string{"user", "cluster", "cluster_user", "replica", "cluster_node"},
 	)
+	configSuccess = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "config_last_reload_successful",
+		Help: "Whether the last configuration reload attempt was successful.",
+	})
+	configSuccessTime = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "config_last_reload_success_timestamp_seconds",
+		Help: "Timestamp of the last successful configuration reload.",
+	})
+	badRequest = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "bad_requests_total",
+		Help: "Total number of unsupported requests",
+	})
 )
 
 func init() {
@@ -166,5 +174,5 @@ func init() {
 		requestBodyBytes, responseBodyBytes, badRequest,
 		cacheHit, cacheMiss, cacheSize, cacheItems,
 		requestDuration, proxiedResponseDuration, cachedResponseDuration,
-		canceledRequest, timeoutRequest)
+		canceledRequest, timeoutRequest, configSuccess, configSuccessTime)
 }
