@@ -83,8 +83,17 @@ func startCHServer() {
 	http.ListenAndServe(":8124", http.HandlerFunc(fakeHandler))
 }
 
-func fakeHandler(w http.ResponseWriter, _ *http.Request) {
-	fmt.Fprint(w, "Ok.\n")
+func fakeHandler(w http.ResponseWriter, r *http.Request) {
+	params := r.URL.Query()
+	query := params.Get("query")
+	switch query {
+	case "SELECT ERROR":
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprint(w, "DB::Exception\n")
+	default:
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, "Ok.\n")
+	}
 }
 
 func TestServe(t *testing.T) {
@@ -131,6 +140,7 @@ func TestServe(t *testing.T) {
 			"https cache",
 			"testdata/https.cache.yml",
 			func(t *testing.T) {
+				// do request which response must be cached
 				q := "SELECT 123"
 				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query="+url.QueryEscape(q), nil)
 				if err != nil {
@@ -145,6 +155,8 @@ func TestServe(t *testing.T) {
 					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
 				}
 				resp.Body.Close()
+
+				// check cached response
 				key := &cache.Key{
 					Query:          []byte(q),
 					AcceptEncoding: "gzip",
@@ -158,11 +170,42 @@ func TestServe(t *testing.T) {
 				if err := cc.WriteTo(rw, key); err != nil {
 					t.Fatalf("unexpected error while writing reposnse from cache: %s", err)
 				}
-
 				expected := "Ok.\n"
 				got := bbToString(t, rw.Body)
 				if got != expected {
 					t.Fatalf("unexpected cache result: %q; expected: %q", string(got), expected)
+				}
+			},
+			startTLS,
+		},
+		{
+			"bad https cache",
+			"testdata/https.cache.yml",
+			func(t *testing.T) {
+				// do request which cause an error
+				q := "SELECT ERROR"
+				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query="+url.QueryEscape(q), nil)
+				if err != nil {
+					t.Fatalf("unexpected erorr: %s", err)
+				}
+				req.SetBasicAuth("default", "qwerty")
+				resp, err := tlsClient.Do(req)
+				if err != nil {
+					t.Fatalf("unexpected error: %s", err)
+				}
+				if resp.StatusCode != http.StatusInternalServerError {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusInternalServerError)
+				}
+				resp.Body.Close()
+
+				// check cached response
+				key := &cache.Key{
+					Query:          []byte(q),
+					AcceptEncoding: "gzip",
+				}
+				path := fmt.Sprintf("%s/cache/%s", testDir, key.String())
+				if _, err := os.Stat(path); !os.IsNotExist(err) {
+					t.Fatalf("err while getting file %q info: %s", path, err)
 				}
 
 				// check refreshCacheMetrics()
