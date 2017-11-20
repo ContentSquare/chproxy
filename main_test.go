@@ -88,7 +88,7 @@ func fakeHandler(w http.ResponseWriter, r *http.Request) {
 	query := params.Get("query")
 	switch query {
 	case "SELECT ERROR":
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(http.StatusTeapot)
 		fmt.Fprint(w, "DB::Exception\n")
 	default:
 		w.WriteHeader(http.StatusOK)
@@ -193,8 +193,8 @@ func TestServe(t *testing.T) {
 				if err != nil {
 					t.Fatalf("unexpected error: %s", err)
 				}
-				if resp.StatusCode != http.StatusInternalServerError {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusInternalServerError)
+				if resp.StatusCode != http.StatusTeapot {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusTeapot)
 				}
 				resp.Body.Close()
 
