@@ -277,7 +277,7 @@ func (s *scope) killQuery() error {
 	return nil
 }
 
-// allowedParams contains query args allowed to be proxed.
+// allowedParams contains query args allowed to be proxied.
 // See http://clickhouse-docs.readthedocs.io/en/latest/settings/
 //
 // All the other params passed via query args are stripped before
