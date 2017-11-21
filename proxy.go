@@ -135,7 +135,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 // to rw.
 //
 // srw is required only for setting non-200 status codes on timeouts
-// or on client connection closes.
+// or on client connection disconnects.
 func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, srw *statResponseWriter, req *http.Request) {
 	// wrap body into cachedReadCloser, so we could obtain the original
 	// request on error.
@@ -237,7 +237,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		return
 	}
 
-	// Do not store `replica` and `cluster_node` in lables, since they have
+	// Do not store `replica` and `cluster_node` in labels, since they have
 	// no sense for cache metrics.
 	labels := prometheus.Labels{
 		"cache":        s.user.cache.Name,
