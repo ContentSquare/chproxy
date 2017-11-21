@@ -15,6 +15,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+
 	"github.com/Vertamedia/chproxy/cache"
 	"github.com/Vertamedia/chproxy/config"
 	"github.com/Vertamedia/chproxy/log"
@@ -26,9 +27,9 @@ func TestMain(m *testing.M) {
 	log.SuppressOutput(true)
 	retCode := m.Run()
 	log.SuppressOutput(false)
-	//if err := os.RemoveAll(testDir); err != nil {
-	//	log.Fatalf("cannot remove %q: %s", testDir, err)
-	//}
+	if err := os.RemoveAll(testDir); err != nil {
+		log.Fatalf("cannot remove %q: %s", testDir, err)
+	}
 	os.Exit(retCode)
 }
 
