@@ -33,6 +33,422 @@ func TestMain(m *testing.M) {
 	os.Exit(retCode)
 }
 
+func TestServe(t *testing.T) {
+	var testCases = []struct {
+		name     string
+		file     string
+		testFn   func(t *testing.T)
+		listenFn func() (net.Listener, chan struct{})
+	}{
+		{
+			"https request",
+			"testdata/https.yml",
+			func(t *testing.T) {
+				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query=asd", nil)
+				checkErr(t, err)
+				resp, err := tlsClient.Do(req)
+				checkErr(t, err)
+				if resp.StatusCode != http.StatusUnauthorized {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusUnauthorized)
+				}
+				resp.Body.Close()
+
+				req, err = http.NewRequest("GET", "https://127.0.0.1:8443?query=asd", nil)
+				checkErr(t, err)
+				req.SetBasicAuth("default", "qwerty")
+				resp, err = tlsClient.Do(req)
+				checkErr(t, err)
+				if resp.StatusCode != http.StatusOK {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
+				}
+				resp.Body.Close()
+			},
+			startTLS,
+		},
+		{
+			"https cache",
+			"testdata/https.cache.yml",
+			func(t *testing.T) {
+				// do request which response must be cached
+				q := "SELECT 123"
+				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query="+url.QueryEscape(q), nil)
+				checkErr(t, err)
+				req.SetBasicAuth("default", "qwerty")
+				resp, err := tlsClient.Do(req)
+				checkErr(t, err)
+				if resp.StatusCode != http.StatusOK {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
+				}
+				resp.Body.Close()
+
+				// check cached response
+				key := &cache.Key{
+					Query:          []byte(q),
+					AcceptEncoding: "gzip",
+				}
+				path := fmt.Sprintf("%s/cache/%s", testDir, key.String())
+				if _, err := os.Stat(path); err != nil {
+					t.Fatalf("err while getting file %q info: %s", path, err)
+				}
+				rw := httptest.NewRecorder()
+				cc := proxy.caches["https_cache"]
+				if err := cc.WriteTo(rw, key); err != nil {
+					t.Fatalf("unexpected error while writing reposnse from cache: %s", err)
+				}
+				expected := "Ok.\n"
+				checkResponse(t, rw.Body, expected)
+			},
+			startTLS,
+		},
+		{
+			"bad https cache",
+			"testdata/https.cache.yml",
+			func(t *testing.T) {
+				// do request which cause an error
+				q := "SELECT ERROR"
+				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query="+url.QueryEscape(q), nil)
+				checkErr(t, err)
+				req.SetBasicAuth("default", "qwerty")
+				resp, err := tlsClient.Do(req)
+				checkErr(t, err)
+				if resp.StatusCode != http.StatusTeapot {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusTeapot)
+				}
+				resp.Body.Close()
+
+				// check cached response
+				key := &cache.Key{
+					Query:          []byte(q),
+					AcceptEncoding: "gzip",
+				}
+				path := fmt.Sprintf("%s/cache/%s", testDir, key.String())
+				if _, err := os.Stat(path); !os.IsNotExist(err) {
+					t.Fatalf("err while getting file %q info: %s", path, err)
+				}
+
+				// check refreshCacheMetrics()
+				req, err = http.NewRequest("GET", "https://127.0.0.1:8443/metrics", nil)
+				checkErr(t, err)
+				resp, err = tlsClient.Do(req)
+				if err != nil {
+					t.Fatalf("unexpected error while doing request: %s", err)
+				}
+				if resp.StatusCode != http.StatusOK {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
+				}
+				resp.Body.Close()
+			},
+			startTLS,
+		},
+		{
+			"deny https",
+			"testdata/https.deny.https.yml",
+			func(t *testing.T) {
+				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query=asd", nil)
+				checkErr(t, err)
+				req.SetBasicAuth("default", "qwerty")
+				resp, err := tlsClient.Do(req)
+				checkErr(t, err)
+				if resp.StatusCode != http.StatusForbidden {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
+				}
+				expected := "user \"default\" is not allowed to access via https"
+				checkResponse(t, resp.Body, expected)
+				resp.Body.Close()
+			},
+			startTLS,
+		},
+		{
+			"https networks",
+			"testdata/https.networks.yml",
+			func(t *testing.T) {
+				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query=asd", nil)
+				checkErr(t, err)
+				req.SetBasicAuth("default", "qwerty")
+				resp, err := tlsClient.Do(req)
+				checkErr(t, err)
+				if resp.StatusCode != http.StatusForbidden {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
+				}
+				expected := "https connections are not allowed from 127.0.0.1"
+				checkResponse(t, resp.Body, expected)
+				resp.Body.Close()
+			},
+			startTLS,
+		},
+		{
+			"https user networks",
+			"testdata/https.user.networks.yml",
+			func(t *testing.T) {
+				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query=asd", nil)
+				checkErr(t, err)
+				req.SetBasicAuth("default", "qwerty")
+				resp, err := tlsClient.Do(req)
+				checkErr(t, err)
+				if resp.StatusCode != http.StatusForbidden {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
+				}
+				expected := "user \"default\" is not allowed to access"
+				checkResponse(t, resp.Body, expected)
+				resp.Body.Close()
+			},
+			startTLS,
+		},
+		{
+			"https cluster user networks",
+			"testdata/https.cluster.user.networks.yml",
+			func(t *testing.T) {
+				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query=asd", nil)
+				checkErr(t, err)
+				req.SetBasicAuth("default", "qwerty")
+				resp, err := tlsClient.Do(req)
+				checkErr(t, err)
+				if resp.StatusCode != http.StatusForbidden {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
+				}
+				expected := "cluster user \"web\" is not allowed to access"
+				checkResponse(t, resp.Body, expected)
+				resp.Body.Close()
+			},
+			startTLS,
+		},
+		{
+			"routing",
+			"testdata/http.yml",
+			func(t *testing.T) {
+				req, err := http.NewRequest(http.MethodOptions, "http://127.0.0.1:9090?query=asd", nil)
+				checkErr(t, err)
+				resp, err := http.DefaultClient.Do(req)
+				checkErr(t, err)
+				expectedAllowHeader := "GET,POST"
+				if resp.Header.Get("Allow") != expectedAllowHeader {
+					t.Fatalf("header `Allow` got: %q; expected: %q", resp.Header.Get("Allow"), expectedAllowHeader)
+				}
+				resp.Body.Close()
+
+				req, err = http.NewRequest(http.MethodConnect, "http://127.0.0.1:9090?query=asd", nil)
+				checkErr(t, err)
+				resp, err = http.DefaultClient.Do(req)
+				checkErr(t, err)
+				expected := fmt.Sprintf("unsupported method %q", http.MethodConnect)
+				checkResponse(t, resp.Body, expected)
+				if resp.StatusCode != http.StatusMethodNotAllowed {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusMethodNotAllowed)
+				}
+				resp.Body.Close()
+
+				resp, err = http.Get("http://127.0.0.1:9090/foobar")
+				checkErr(t, err)
+				expected = fmt.Sprintf("unsupported path: \"/foobar\"")
+				checkResponse(t, resp.Body, expected)
+				resp.Body.Close()
+				if resp.StatusCode != http.StatusBadRequest {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusBadRequest)
+				}
+			},
+			startHTTP,
+		},
+		{
+			"http request",
+			"testdata/http.yml",
+			func(t *testing.T) {
+				resp, err := http.Get("http://127.0.0.1:9090?query=asd")
+				checkErr(t, err)
+				if resp.StatusCode != http.StatusOK {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
+				}
+				resp, err = http.Get("http://127.0.0.1:9090/metrics")
+				checkErr(t, err)
+				if resp.StatusCode != http.StatusOK {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
+				}
+				resp.Body.Close()
+			},
+			startHTTP,
+		},
+		{
+			"http gzipped POST request",
+			"testdata/http.yml",
+			func(t *testing.T) {
+				var buf bytes.Buffer
+				zw := gzip.NewWriter(&buf)
+				_, err := zw.Write([]byte("SELECT * FROM system.numbers LIMIT 10"))
+				checkErr(t, err)
+				zw.Close()
+				req, err := http.NewRequest("POST", "http://127.0.0.1:9090", &buf)
+				req.Header.Set("Content-Encoding", "gzip")
+				checkErr(t, err)
+				resp, err := http.DefaultClient.Do(req)
+				checkErr(t, err)
+				if resp.StatusCode != http.StatusOK {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
+				}
+				resp.Body.Close()
+			},
+			startHTTP,
+		},
+		{
+			"http POST request",
+			"testdata/http.yml",
+			func(t *testing.T) {
+				buf := bytes.NewBufferString("SELECT * FROM system.numbers LIMIT 10")
+				req, err := http.NewRequest("POST", "http://127.0.0.1:9090", buf)
+				checkErr(t, err)
+				resp, err := http.DefaultClient.Do(req)
+				checkErr(t, err)
+				if resp.StatusCode != http.StatusOK {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
+				}
+				resp.Body.Close()
+			},
+			startHTTP,
+		},
+		{
+			"http gzipped POST execution time",
+			"testdata/http.execution.time.yml",
+			func(t *testing.T) {
+				var buf bytes.Buffer
+				zw := gzip.NewWriter(&buf)
+				_, err := zw.Write([]byte("SELECT * FROM system.numbers LIMIT 1000"))
+				checkErr(t, err)
+				zw.Close()
+				req, err := http.NewRequest("POST", "http://127.0.0.1:9090", &buf)
+				req.Header.Set("Content-Encoding", "gzip")
+				checkErr(t, err)
+				resp, err := http.DefaultClient.Do(req)
+				checkErr(t, err)
+				if resp.StatusCode != http.StatusBadGateway {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusBadGateway)
+				}
+				resp.Body.Close()
+			},
+			startHTTP,
+		},
+		{
+			"deny http",
+			"testdata/http.deny.http.yml",
+			func(t *testing.T) {
+				resp, err := http.Get("http://127.0.0.1:9090?query=asd")
+				checkErr(t, err)
+				if resp.StatusCode != http.StatusForbidden {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
+				}
+				expected := "user \"default\" is not allowed to access via http"
+				checkResponse(t, resp.Body, expected)
+				resp.Body.Close()
+			},
+			startHTTP,
+		},
+		{
+			"http networks",
+			"testdata/http.networks.yml",
+			func(t *testing.T) {
+				resp, err := http.Get("http://127.0.0.1:9090?query=asd")
+				checkErr(t, err)
+				if resp.StatusCode != http.StatusForbidden {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
+				}
+				expected := "http connections are not allowed from 127.0.0.1"
+				checkResponse(t, resp.Body, expected)
+				resp.Body.Close()
+			},
+			startHTTP,
+		},
+		{
+			"http metrics networks",
+			"testdata/http.metrics.networks.yml",
+			func(t *testing.T) {
+				resp, err := http.Get("http://127.0.0.1:9090/metrics")
+				checkErr(t, err)
+				if resp.StatusCode != http.StatusForbidden {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
+				}
+				expected := "connections to /metrics are not allowed from 127.0.0.1"
+				checkResponse(t, resp.Body, expected)
+				resp.Body.Close()
+			},
+			startHTTP,
+		},
+		{
+			"http user networks",
+			"testdata/http.user.networks.yml",
+			func(t *testing.T) {
+				resp, err := http.Get("http://127.0.0.1:9090?query=asd")
+				checkErr(t, err)
+				if resp.StatusCode != http.StatusForbidden {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
+				}
+				expected := "user \"default\" is not allowed to access"
+				checkResponse(t, resp.Body, expected)
+				resp.Body.Close()
+			},
+			startHTTP,
+		},
+		{
+			"http cluster user networks",
+			"testdata/http.cluster.user.networks.yml",
+			func(t *testing.T) {
+				resp, err := http.Get("http://127.0.0.1:9090?query=asd")
+				checkErr(t, err)
+				if resp.StatusCode != http.StatusForbidden {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
+				}
+				expected := "cluster user \"web\" is not allowed to access"
+				checkResponse(t, resp.Body, expected)
+				resp.Body.Close()
+			},
+			startHTTP,
+		},
+	}
+
+	// Wait until CHServer starts.
+	go startCHServer()
+	startTime := time.Now()
+	i := 0
+	for i < 10 {
+		if _, err := http.Get("http://127.0.0.1:8124/"); err == nil {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+		i++
+	}
+	if i >= 10 {
+		t.Fatalf("CHServer didn't start in %s", time.Since(startTime))
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			*configFile = tc.file
+			ln, done := tc.listenFn()
+			defer func() {
+				if err := ln.Close(); err != nil {
+					t.Fatalf("unexpected error while closing listener: %s", err)
+				}
+				<-done
+			}()
+
+			var c *cluster
+			for _, cluster := range proxy.clusters {
+				c = cluster
+				break
+			}
+			var i int
+			for {
+				if i > 3 {
+					t.Fatal("unable to find active hosts")
+				}
+				if h := c.getHost(); h != nil {
+					break
+				}
+				i++
+				time.Sleep(time.Millisecond * 10)
+			}
+
+			tc.testFn(t)
+		})
+	}
+}
+
 var tlsClient = &http.Client{Transport: &http.Transport{
 	TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 }}
@@ -93,532 +509,6 @@ func fakeHandler(w http.ResponseWriter, r *http.Request) {
 	default:
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprint(w, "Ok.\n")
-	}
-}
-
-func TestServe(t *testing.T) {
-	var testCases = []struct {
-		name     string
-		file     string
-		testFn   func(t *testing.T)
-		listenFn func() (net.Listener, chan struct{})
-	}{
-		{
-			"https request",
-			"testdata/https.yml",
-			func(t *testing.T) {
-				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query=asd", nil)
-				if err != nil {
-					t.Fatalf("unexpected erorr: %s", err)
-				}
-				resp, err := tlsClient.Do(req)
-				if err != nil {
-					t.Fatalf("unexpected error: %s", err)
-				}
-				if resp.StatusCode != http.StatusUnauthorized {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusUnauthorized)
-				}
-				resp.Body.Close()
-
-				req, err = http.NewRequest("GET", "https://127.0.0.1:8443?query=asd", nil)
-				if err != nil {
-					t.Fatalf("unexpected erorr: %s", err)
-				}
-				req.SetBasicAuth("default", "qwerty")
-				resp, err = tlsClient.Do(req)
-				if err != nil {
-					t.Fatalf("unexpected error: %s", err)
-				}
-				if resp.StatusCode != http.StatusOK {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
-				}
-				resp.Body.Close()
-			},
-			startTLS,
-		},
-		{
-			"https cache",
-			"testdata/https.cache.yml",
-			func(t *testing.T) {
-				// do request which response must be cached
-				q := "SELECT 123"
-				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query="+url.QueryEscape(q), nil)
-				if err != nil {
-					t.Fatalf("unexpected erorr: %s", err)
-				}
-				req.SetBasicAuth("default", "qwerty")
-				resp, err := tlsClient.Do(req)
-				if err != nil {
-					t.Fatalf("unexpected error: %s", err)
-				}
-				if resp.StatusCode != http.StatusOK {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
-				}
-				resp.Body.Close()
-
-				// check cached response
-				key := &cache.Key{
-					Query:          []byte(q),
-					AcceptEncoding: "gzip",
-				}
-				path := fmt.Sprintf("%s/cache/%s", testDir, key.String())
-				if _, err := os.Stat(path); err != nil {
-					t.Fatalf("err while getting file %q info: %s", path, err)
-				}
-				rw := httptest.NewRecorder()
-				cc := proxy.caches["https_cache"]
-				if err := cc.WriteTo(rw, key); err != nil {
-					t.Fatalf("unexpected error while writing reposnse from cache: %s", err)
-				}
-				expected := "Ok.\n"
-				got := bbToString(t, rw.Body)
-				if got != expected {
-					t.Fatalf("unexpected cache result: %q; expected: %q", string(got), expected)
-				}
-			},
-			startTLS,
-		},
-		{
-			"bad https cache",
-			"testdata/https.cache.yml",
-			func(t *testing.T) {
-				// do request which cause an error
-				q := "SELECT ERROR"
-				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query="+url.QueryEscape(q), nil)
-				if err != nil {
-					t.Fatalf("unexpected erorr: %s", err)
-				}
-				req.SetBasicAuth("default", "qwerty")
-				resp, err := tlsClient.Do(req)
-				if err != nil {
-					t.Fatalf("unexpected error: %s", err)
-				}
-				if resp.StatusCode != http.StatusTeapot {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusTeapot)
-				}
-				resp.Body.Close()
-
-				// check cached response
-				key := &cache.Key{
-					Query:          []byte(q),
-					AcceptEncoding: "gzip",
-				}
-				path := fmt.Sprintf("%s/cache/%s", testDir, key.String())
-				if _, err := os.Stat(path); !os.IsNotExist(err) {
-					t.Fatalf("err while getting file %q info: %s", path, err)
-				}
-
-				// check refreshCacheMetrics()
-				req, err = http.NewRequest("GET", "https://127.0.0.1:8443/metrics", nil)
-				if err != nil {
-					t.Fatalf("unexpected erorr: %s", err)
-				}
-				resp, err = tlsClient.Do(req)
-				if err != nil {
-					t.Fatalf("unexpected error while doing request: %s", err)
-				}
-				if resp.StatusCode != http.StatusOK {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
-				}
-				resp.Body.Close()
-			},
-			startTLS,
-		},
-		{
-			"deny https",
-			"testdata/https.deny.https.yml",
-			func(t *testing.T) {
-				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query=asd", nil)
-				if err != nil {
-					t.Fatalf("unexpected erorr: %s", err)
-				}
-				req.SetBasicAuth("default", "qwerty")
-				resp, err := tlsClient.Do(req)
-				if err != nil {
-					t.Fatalf("unexpected error: %s", err)
-				}
-				if resp.StatusCode != http.StatusForbidden {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
-				}
-				got := bbToString(t, resp.Body)
-				expErr := "user \"default\" is not allowed to access via https"
-				if !strings.Contains(got, expErr) {
-					t.Fatalf("unexpected response: %q; expected: %q", got, expErr)
-				}
-				resp.Body.Close()
-			},
-			startTLS,
-		},
-		{
-			"https networks",
-			"testdata/https.networks.yml",
-			func(t *testing.T) {
-				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query=asd", nil)
-				if err != nil {
-					t.Fatalf("unexpected erorr: %s", err)
-				}
-				req.SetBasicAuth("default", "qwerty")
-				resp, err := tlsClient.Do(req)
-				if err != nil {
-					t.Fatalf("unexpected error: %s", err)
-				}
-				if resp.StatusCode != http.StatusForbidden {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
-				}
-				got := bbToString(t, resp.Body)
-				expErr := "https connections are not allowed from 127.0.0.1"
-				if !strings.Contains(got, expErr) {
-					t.Fatalf("unexpected response: %q; expected: %q", got, expErr)
-				}
-				resp.Body.Close()
-			},
-			startTLS,
-		},
-		{
-			"https user networks",
-			"testdata/https.user.networks.yml",
-			func(t *testing.T) {
-				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query=asd", nil)
-				if err != nil {
-					t.Fatalf("unexpected erorr: %s", err)
-				}
-				req.SetBasicAuth("default", "qwerty")
-				resp, err := tlsClient.Do(req)
-				if err != nil {
-					t.Fatalf("unexpected erorr: %s", err)
-				}
-				if resp.StatusCode != http.StatusForbidden {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
-				}
-				got := bbToString(t, resp.Body)
-				expErr := "user \"default\" is not allowed to access"
-				if !strings.Contains(got, expErr) {
-					t.Fatalf("unexpected response: %q; expected: %q", got, expErr)
-				}
-				resp.Body.Close()
-			},
-			startTLS,
-		},
-		{
-			"https cluster user networks",
-			"testdata/https.cluster.user.networks.yml",
-			func(t *testing.T) {
-				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query=asd", nil)
-				if err != nil {
-					t.Fatalf("unexpected erorr: %s", err)
-				}
-				req.SetBasicAuth("default", "qwerty")
-				resp, err := tlsClient.Do(req)
-				if err != nil {
-					t.Fatalf("unexpected erorr: %s", err)
-				}
-				if resp.StatusCode != http.StatusForbidden {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
-				}
-				got := bbToString(t, resp.Body)
-				expErr := "cluster user \"web\" is not allowed to access"
-				if !strings.Contains(got, expErr) {
-					t.Fatalf("unexpected response: %q; expected: %q", got, expErr)
-				}
-				resp.Body.Close()
-			},
-			startTLS,
-		},
-		{
-			"routing",
-			"testdata/http.yml",
-			func(t *testing.T) {
-				req, err := http.NewRequest(http.MethodOptions, "http://127.0.0.1:9090?query=asd", nil)
-				if err != nil {
-					t.Fatalf("unexpected erorr: %s", err)
-				}
-				resp, err := http.DefaultClient.Do(req)
-				if err != nil {
-					t.Fatal(err)
-				}
-				expectedAllowHeader := "GET,POST"
-				if resp.Header.Get("Allow") != expectedAllowHeader {
-					t.Fatalf("header `Allow` got: %q; expected: %q", resp.Header.Get("Allow"), expectedAllowHeader)
-				}
-				resp.Body.Close()
-
-				req, err = http.NewRequest(http.MethodConnect, "http://127.0.0.1:9090?query=asd", nil)
-				if err != nil {
-					t.Fatalf("unexpected erorr: %s", err)
-				}
-				resp, err = http.DefaultClient.Do(req)
-				if err != nil {
-					t.Fatalf("unexpected erorr: %s", err)
-				}
-				got := bbToString(t, resp.Body)
-				expErr := fmt.Sprintf("unsupported method %q", http.MethodConnect)
-				if !strings.Contains(got, expErr) {
-					t.Fatalf("unexpected response: %s; expected: %s", got, expErr)
-				}
-				if resp.StatusCode != http.StatusMethodNotAllowed {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusMethodNotAllowed)
-				}
-				resp.Body.Close()
-
-				resp, err = http.Get("http://127.0.0.1:9090/foobar")
-				if err != nil {
-					t.Fatalf("unexpected erorr: %s", err)
-				}
-				got = bbToString(t, resp.Body)
-				expErr = fmt.Sprintf("unsupported path: \"/foobar\"")
-				if !strings.Contains(got, expErr) {
-					t.Fatalf("unexpected response: %s; expected: %s", got, expErr)
-				}
-				if resp.StatusCode != http.StatusBadRequest {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusBadRequest)
-				}
-				resp.Body.Close()
-			},
-			startHTTP,
-		},
-		{
-			"http request",
-			"testdata/http.yml",
-			func(t *testing.T) {
-				resp, err := http.Get("http://127.0.0.1:9090?query=asd")
-				if err != nil {
-					t.Fatalf("unexpected erorr: %s", err)
-				}
-				if resp.StatusCode != http.StatusOK {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
-				}
-				resp, err = http.Get("http://127.0.0.1:9090/metrics")
-				if err != nil {
-					t.Fatalf("unexpected error while doing request: %s", err)
-				}
-				if resp.StatusCode != http.StatusOK {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
-				}
-				resp.Body.Close()
-			},
-			startHTTP,
-		},
-		{
-			"http gzipped POST request",
-			"testdata/http.yml",
-			func(t *testing.T) {
-				var buf bytes.Buffer
-				zw := gzip.NewWriter(&buf)
-				_, err := zw.Write([]byte("SELECT * FROM system.numbers LIMIT 10"))
-				if err != nil {
-					t.Fatal(err)
-				}
-				zw.Close()
-				req, err := http.NewRequest("POST", "http://127.0.0.1:9090", &buf)
-				req.Header.Set("Content-Encoding", "gzip")
-				if err != nil {
-					t.Fatal(err)
-				}
-				resp, err := http.DefaultClient.Do(req)
-				if err != nil {
-					t.Fatal(err)
-				}
-				if resp.StatusCode != http.StatusOK {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
-				}
-				resp.Body.Close()
-			},
-			startHTTP,
-		},
-		{
-			"http POST request",
-			"testdata/http.yml",
-			func(t *testing.T) {
-				buf := bytes.NewBufferString("SELECT * FROM system.numbers LIMIT 10")
-				req, err := http.NewRequest("POST", "http://127.0.0.1:9090", buf)
-				if err != nil {
-					t.Fatal(err)
-				}
-				resp, err := http.DefaultClient.Do(req)
-				if err != nil {
-					t.Fatal(err)
-				}
-				if resp.StatusCode != http.StatusOK {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
-				}
-				resp.Body.Close()
-			},
-			startHTTP,
-		},
-		{
-			"http gzipped POST execution time",
-			"testdata/http.execution.time.yml",
-			func(t *testing.T) {
-				var buf bytes.Buffer
-				zw := gzip.NewWriter(&buf)
-				_, err := zw.Write([]byte("SELECT * FROM system.numbers LIMIT 1000"))
-				if err != nil {
-					t.Fatal(err)
-				}
-				zw.Close()
-				req, err := http.NewRequest("POST", "http://127.0.0.1:9090", &buf)
-				req.Header.Set("Content-Encoding", "gzip")
-				if err != nil {
-					t.Fatal(err)
-				}
-				resp, err := http.DefaultClient.Do(req)
-				if err != nil {
-					t.Fatal(err)
-				}
-				if resp.StatusCode != http.StatusBadGateway {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusBadGateway)
-				}
-				resp.Body.Close()
-			},
-			startHTTP,
-		},
-		{
-			"deny http",
-			"testdata/http.deny.http.yml",
-			func(t *testing.T) {
-				resp, err := http.Get("http://127.0.0.1:9090?query=asd")
-				if err != nil {
-					t.Fatalf("unexpected erorr: %s", err)
-				}
-				if resp.StatusCode != http.StatusForbidden {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
-				}
-				got := bbToString(t, resp.Body)
-				expErr := "user \"default\" is not allowed to access via http"
-				if !strings.Contains(got, expErr) {
-					t.Fatalf("unexpected response: %q; expected: %q", got, expErr)
-				}
-				resp.Body.Close()
-			},
-			startHTTP,
-		},
-		{
-			"http networks",
-			"testdata/http.networks.yml",
-			func(t *testing.T) {
-				resp, err := http.Get("http://127.0.0.1:9090?query=asd")
-				if err != nil {
-					t.Fatalf("unexpected erorr: %s", err)
-				}
-				if resp.StatusCode != http.StatusForbidden {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
-				}
-				got := bbToString(t, resp.Body)
-				expErr := "http connections are not allowed from 127.0.0.1"
-				if !strings.Contains(got, expErr) {
-					t.Fatalf("unexpected response: %q; expected: %q", got, expErr)
-				}
-				resp.Body.Close()
-			},
-			startHTTP,
-		},
-		{
-			"http metrics networks",
-			"testdata/http.metrics.networks.yml",
-			func(t *testing.T) {
-				resp, err := http.Get("http://127.0.0.1:9090/metrics")
-				if err != nil {
-					t.Fatalf("unexpected erorr: %s", err)
-				}
-				if resp.StatusCode != http.StatusForbidden {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
-				}
-				got := bbToString(t, resp.Body)
-				expErr := "connections to /metrics are not allowed from 127.0.0.1"
-				if !strings.Contains(got, expErr) {
-					t.Fatalf("unexpected response: %q; expected: %q", got, expErr)
-				}
-				resp.Body.Close()
-			},
-			startHTTP,
-		},
-		{
-			"http user networks",
-			"testdata/http.user.networks.yml",
-			func(t *testing.T) {
-				resp, err := http.Get("http://127.0.0.1:9090?query=asd")
-				if err != nil {
-					t.Fatalf("unexpected erorr: %s", err)
-				}
-				if resp.StatusCode != http.StatusForbidden {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
-				}
-				got := bbToString(t, resp.Body)
-				expErr := "user \"default\" is not allowed to access"
-				if !strings.Contains(got, expErr) {
-					t.Fatalf("unexpected response: %q; expected: %q", got, expErr)
-				}
-				resp.Body.Close()
-			},
-			startHTTP,
-		},
-		{
-			"http cluster user networks",
-			"testdata/http.cluster.user.networks.yml",
-			func(t *testing.T) {
-				resp, err := http.Get("http://127.0.0.1:9090?query=asd")
-				if err != nil {
-					t.Fatalf("unexpected erorr: %s", err)
-				}
-				if resp.StatusCode != http.StatusForbidden {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
-				}
-				got := bbToString(t, resp.Body)
-				expErr := "cluster user \"web\" is not allowed to access"
-				if !strings.Contains(got, expErr) {
-					t.Fatalf("unexpected response: %q; expected: %q", got, expErr)
-				}
-				resp.Body.Close()
-			},
-			startHTTP,
-		},
-	}
-
-	// Wait until CHServer starts.
-	go startCHServer()
-	startTime := time.Now()
-	i := 0
-	for i < 10 {
-		if _, err := http.Get("http://127.0.0.1:8124/"); err == nil {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-		i++
-	}
-	if i >= 10 {
-		t.Fatalf("CHServer didn't start in %s", time.Since(startTime))
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			*configFile = tc.file
-			ln, done := tc.listenFn()
-			defer func() {
-				if err := ln.Close(); err != nil {
-					t.Fatalf("unexpected error while closing listener: %s", err)
-				}
-				<-done
-			}()
-
-			var c *cluster
-			for _, cluster := range proxy.clusters {
-				c = cluster
-				break
-			}
-			var i int
-			for {
-				if i > 3 {
-					t.Fatal("unable to find active hosts")
-				}
-				if h := c.getHost(); h != nil {
-					break
-				}
-				i++
-				time.Sleep(time.Millisecond * 10)
-			}
-
-			tc.testFn(t)
-		})
 	}
 }
 
@@ -705,10 +595,19 @@ func TestReloadConfig(t *testing.T) {
 	}
 }
 
-func bbToString(t *testing.T, r io.Reader) string {
+func checkErr(t *testing.T, err error) {
+	if err != nil {
+		t.Fatalf("unexpected erorr: %s", err)
+	}
+}
+
+func checkResponse(t *testing.T, r io.Reader, expected string) {
 	response, err := ioutil.ReadAll(r)
 	if err != nil {
 		t.Fatalf("unexpected err while reading: %s", err)
 	}
-	return string(response)
+	got := string(response)
+	if !strings.Contains(got, expected) {
+		t.Fatalf("got: %q; expected: %q", got, expected)
+	}
 }
