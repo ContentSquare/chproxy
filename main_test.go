@@ -15,7 +15,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
 	"github.com/Vertamedia/chproxy/cache"
 	"github.com/Vertamedia/chproxy/config"
 	"github.com/Vertamedia/chproxy/log"
@@ -27,9 +26,9 @@ func TestMain(m *testing.M) {
 	log.SuppressOutput(true)
 	retCode := m.Run()
 	log.SuppressOutput(false)
-	if err := os.RemoveAll(testDir); err != nil {
-		log.Fatalf("cannot remove %q: %s", testDir, err)
-	}
+	//if err := os.RemoveAll(testDir); err != nil {
+	//	log.Fatalf("cannot remove %q: %s", testDir, err)
+	//}
 	os.Exit(retCode)
 }
 
@@ -237,14 +236,10 @@ func TestServe(t *testing.T) {
 				}
 				resp.Body.Close()
 
-				resp, err = http.Get("http://127.0.0.1:9090/foobar")
-				checkErr(t, err)
+				resp = httpGet(t, "http://127.0.0.1:9090/foobar", http.StatusBadRequest)
 				expected = fmt.Sprintf("unsupported path: \"/foobar\"")
 				checkResponse(t, resp.Body, expected)
 				resp.Body.Close()
-				if resp.StatusCode != http.StatusBadRequest {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusBadRequest)
-				}
 			},
 			startHTTP,
 		},
@@ -252,17 +247,8 @@ func TestServe(t *testing.T) {
 			"http request",
 			"testdata/http.yml",
 			func(t *testing.T) {
-				resp, err := http.Get("http://127.0.0.1:9090?query=asd")
-				checkErr(t, err)
-				if resp.StatusCode != http.StatusOK {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
-				}
-				resp, err = http.Get("http://127.0.0.1:9090/metrics")
-				checkErr(t, err)
-				if resp.StatusCode != http.StatusOK {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
-				}
-				resp.Body.Close()
+				httpGet(t, "http://127.0.0.1:9090?query=asd", http.StatusOK)
+				httpGet(t, "http://127.0.0.1:9090/metrics", http.StatusOK)
 			},
 			startHTTP,
 		},
@@ -328,11 +314,7 @@ func TestServe(t *testing.T) {
 			"deny http",
 			"testdata/http.deny.http.yml",
 			func(t *testing.T) {
-				resp, err := http.Get("http://127.0.0.1:9090?query=asd")
-				checkErr(t, err)
-				if resp.StatusCode != http.StatusForbidden {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
-				}
+				resp := httpGet(t, "http://127.0.0.1:9090?query=asd", http.StatusForbidden)
 				expected := "user \"default\" is not allowed to access via http"
 				checkResponse(t, resp.Body, expected)
 				resp.Body.Close()
@@ -343,11 +325,7 @@ func TestServe(t *testing.T) {
 			"http networks",
 			"testdata/http.networks.yml",
 			func(t *testing.T) {
-				resp, err := http.Get("http://127.0.0.1:9090?query=asd")
-				checkErr(t, err)
-				if resp.StatusCode != http.StatusForbidden {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
-				}
+				resp := httpGet(t, "http://127.0.0.1:9090?query=asd", http.StatusForbidden)
 				expected := "http connections are not allowed from 127.0.0.1"
 				checkResponse(t, resp.Body, expected)
 				resp.Body.Close()
@@ -358,11 +336,7 @@ func TestServe(t *testing.T) {
 			"http metrics networks",
 			"testdata/http.metrics.networks.yml",
 			func(t *testing.T) {
-				resp, err := http.Get("http://127.0.0.1:9090/metrics")
-				checkErr(t, err)
-				if resp.StatusCode != http.StatusForbidden {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
-				}
+				resp := httpGet(t, "http://127.0.0.1:9090/metrics", http.StatusForbidden)
 				expected := "connections to /metrics are not allowed from 127.0.0.1"
 				checkResponse(t, resp.Body, expected)
 				resp.Body.Close()
@@ -373,11 +347,7 @@ func TestServe(t *testing.T) {
 			"http user networks",
 			"testdata/http.user.networks.yml",
 			func(t *testing.T) {
-				resp, err := http.Get("http://127.0.0.1:9090?query=asd")
-				checkErr(t, err)
-				if resp.StatusCode != http.StatusForbidden {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
-				}
+				resp := httpGet(t, "http://127.0.0.1:9090?query=asd", http.StatusForbidden)
 				expected := "user \"default\" is not allowed to access"
 				checkResponse(t, resp.Body, expected)
 				resp.Body.Close()
@@ -388,14 +358,37 @@ func TestServe(t *testing.T) {
 			"http cluster user networks",
 			"testdata/http.cluster.user.networks.yml",
 			func(t *testing.T) {
-				resp, err := http.Get("http://127.0.0.1:9090?query=asd")
-				checkErr(t, err)
-				if resp.StatusCode != http.StatusForbidden {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusForbidden)
-				}
+				resp := httpGet(t, "http://127.0.0.1:9090?query=asd", http.StatusForbidden)
 				expected := "cluster user \"web\" is not allowed to access"
 				checkResponse(t, resp.Body, expected)
 				resp.Body.Close()
+			},
+			startHTTP,
+		},
+		{
+			"http shared cache",
+			"testdata/http.shared.cache.yml",
+			func(t *testing.T) {
+				// actually we can check that cache-file is shared via metrics
+				// but it needs additional library for doing this
+				cacheDir := "temp-test-data/shared_cache"
+				checkFilesCount := func(expectedLen int) {
+					files, err := ioutil.ReadDir(cacheDir)
+					if err != nil {
+						t.Fatalf("error while reading dir %q: %s", cacheDir, err)
+					}
+					if expectedLen != len(files) {
+						t.Fatalf("expected %d files in cache dir; got: %d", expectedLen, len(files))
+					}
+				}
+
+				checkFilesCount(0)
+				httpGet(t, "http://127.0.0.1:9090?query=SELECT&user=user1", http.StatusOK)
+				checkFilesCount(1)
+				httpGet(t, "http://127.0.0.1:9090?query=SELECT&user=user2", http.StatusOK)
+				// request from different user expected to be served with already cached,
+				// so count of files should be the same
+				checkFilesCount(1)
 			},
 			startHTTP,
 		},
@@ -610,4 +603,15 @@ func checkResponse(t *testing.T, r io.Reader, expected string) {
 	if !strings.Contains(got, expected) {
 		t.Fatalf("got: %q; expected: %q", got, expected)
 	}
+}
+
+func httpGet(t *testing.T, url string, statusCode int) *http.Response {
+	resp, err := http.Get(url)
+	if err != nil {
+		t.Fatalf("unexpected erorr while doing GET request: %s", err)
+	}
+	if resp.StatusCode != statusCode {
+		t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, statusCode)
+	}
+	return resp
 }
