@@ -245,6 +245,7 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 				p.users["default"].maxConcurrentQueries = 1
 				p.users["default"].queueCh = make(chan struct{}, 1)
 				go makeHeavyRequest(p, time.Millisecond*20)
+				time.Sleep(time.Millisecond * 5)
 				go makeHeavyRequest(p, time.Millisecond*20)
 				time.Sleep(time.Millisecond * 5)
 				return makeHeavyRequest(p, time.Millisecond*20)
