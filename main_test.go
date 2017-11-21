@@ -304,8 +304,8 @@ func TestServe(t *testing.T) {
 				checkErr(t, err)
 				resp, err := http.DefaultClient.Do(req)
 				checkErr(t, err)
-				if resp.StatusCode != http.StatusBadGateway {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusBadGateway)
+				if resp.StatusCode != http.StatusGatewayTimeout {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusGatewayTimeout)
 				}
 				resp.Body.Close()
 			},

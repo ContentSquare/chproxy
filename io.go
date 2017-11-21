@@ -30,8 +30,10 @@ func (rw *statResponseWriter) Write(b []byte) (int, error) {
 }
 
 func (rw *statResponseWriter) WriteHeader(statusCode int) {
+	if rw.statusCode != 0 {
+		rw.ResponseWriter.WriteHeader(statusCode)
+	}
 	rw.statusCode = statusCode
-	rw.ResponseWriter.WriteHeader(statusCode)
 }
 
 // CloseNotify implements http.CloseNotifier
