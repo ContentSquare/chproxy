@@ -88,7 +88,7 @@ func (s *scope) incQueued() error {
 		return s.inc()
 	}
 
-	// Do not store `replica` and `cluster_node` in lables, since they have
+	// Do not store `replica` and `cluster_node` in labels, since they have
 	// no sense for queue metrics.
 	labels := prometheus.Labels{
 		"user":         s.labels["user"],
