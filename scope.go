@@ -285,6 +285,8 @@ func (s *scope) killQuery() error {
 var allowedParams = []string{
 	"query",
 	"database",
+	"compress",
+	"decompress",
 	"default_format",
 }
 
