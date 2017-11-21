@@ -1,6 +1,9 @@
-# chproxy [![Go Report Card](https://goreportcard.com/badge/github.com/Vertamedia/chproxy)](https://goreportcard.com/report/github.com/Vertamedia/chproxy) [![Build Status](https://travis-ci.org/Vertamedia/chproxy.svg?branch=master)](https://travis-ci.org/Vertamedia/chproxy.svg?branch=master)
+[![Go Report Card](https://goreportcard.com/badge/github.com/Vertamedia/chproxy)](https://goreportcard.com/report/github.com/Vertamedia/chproxy) 
+[![Build Status](https://travis-ci.org/Vertamedia/chproxy.svg?branch=master)](https://travis-ci.org/Vertamedia/chproxy?branch=master)
+[![Coverage](https://img.shields.io/badge/gocover.io-75.7%25-green.svg)](http://gocover.io/github.com/Vertamedia/chproxy?version=1.9)
 
-Chproxy, is an http proxy for [ClickHouse](https://ClickHouse.yandex) database. It provides the following features:
+# chproxy
+Chproxy, is an http proxy and load balancer for [ClickHouse](https://ClickHouse.yandex) database. It provides the following features:
 
 - May proxy requests to multiple distinct `ClickHouse` clusters depending on the input user. For instance, requests from `appserver` user may go to `stats-raw` cluster, while requests from `reportserver` user may go to `stats-aggregate` cluster.
 - May map input users to per-cluster users. This prevents from exposing real usernames and passwords used in `ClickHouse` clusters. Additionally this allows mapping multiple distinct input users to a single `ClickHouse` user.
@@ -14,8 +17,8 @@ Chproxy, is an http proxy for [ClickHouse](https://ClickHouse.yandex) database. 
 - All the limits may be independently set for each input user and for each per-cluster user.
 - May delay request execution until it fits per-user limits.
 - Per-user [response caching](#caching) may be configured.
-- Response caches have built-in protection against [thundering herd](https://en.wikipedia.org/wiki/Cache_stampede) aka `dogpile effect`.
-- Evenly spreads requests among replicas and cluster nodes using `least loaded` + `round robin` technique.
+- Response caches have built-in protection against [thundering herd](https://en.wikipedia.org/wiki/Cache_stampede) problem aka `dogpile effect`.
+- Evenly spreads requests among replicas and nodes using `least loaded` + `round robin` technique.
 - Monitors node health and prevents from sending requests to unhealthy nodes.
 - Supports automatic HTTPS certificate issuing and renewal via [Let’s Encrypt](https://letsencrypt.org/).
 - May proxy requests to each configured cluster via either HTTP or [HTTPS](https://github.com/yandex/ClickHouse/blob/96d1ab89da451911eb54eccf1017eb5f94068a34/dbms/src/Server/config.xml#L15).
@@ -242,19 +245,9 @@ users:
     max_execution_time: 30s
     requests_per_minute: 10
     deny_http: true
-
-    # Allow `CORS` requests for `tabix`.
     allow_cors: true
-
-    # Enable requests queueing - `chproxy` will queue up to `max_queue_size`
-    # of incoming requests for up to `max_queue_time` until they stop exceeding
-    # the current limits.
-    # This allows gracefully handling request bursts when more than
-    # `max_concurrent_queries` concurrent requests arrive.
     max_queue_size: 40
     max_queue_time: 25s
-
-    # Enable response caching. See cache config below.
     cache: "shortterm"
 
 clusters:
@@ -284,8 +277,6 @@ caches:
   - name: "shortterm"
     dir: "/path/to/cache/dir"
     max_size: 150Mb
-
-    # Cached responses will expire in 130s.
     expire: 130s
 ```
 
@@ -330,6 +321,10 @@ If `cluster`'s [users](https://github.com/Vertamedia/chproxy/blob/master/config#
 Response caching is enabled by assigning cache name to user. Multiple users may share the same cache.
 Currently only `SELECT` responses are cached.
 Caching is disabled for request with `no_cache=1` in query string.
+Optional cache namespace may be passed in query string as `cache_namespace=aaaa`. This allows caching
+distinct responses for the identical query under distinct cache namespaces. Additionally,
+an instant cache flush may be built on top of cache namespaces - just switch to new namespace in order
+to flush the cache.
 
 ### Security
 `Chproxy` removes all the query params from input requests (except the `query`, `database`, `default_format`)
@@ -590,10 +585,13 @@ Metrics are exposed in [prometheus text format](https://prometheus.io/docs/instr
 | cache_items | Gauge | The number of items in each cache | `cache` |
 | request_duration_seconds | Summary | Request duration. Includes possible queue wait time | `user`, `cluster`, `cluster_user`, `replica`, `cluster_node` |
 | proxied_response_duration_seconds | Summary | Duration for responses proxied from clickhouse | `user`, `cluster`, `cluster_user`, `replica`, `cluster_node` |
-| cached_response_duration_seconds | Summary | Duration for cached responses | `cache`, `user`, `cluster`, `cluster_user` |
-| bad_requests_total | Counter | The number of unsupported requests | |
+| cached_response_duration_seconds | Summary | Duration for cached responses. Includes the duration for sending response to client | `cache`, `user`, `cluster`, `cluster_user` |
 | canceled_request_total | Counter | The number of requests canceled by remote client | `user`, `cluster`, `cluster_user`, `replica`, `cluster_node` |
 | timeout_request_total | Counter | The number of timed out requests | `user`, `cluster`, `cluster_user`, `replica`, `cluster_node` |
+| config_last_reload_successful | Gauge | Whether the last configuration reload attempt was successful | |
+| config_last_reload_success_timestamp_seconds | Gauge | Timestamp of the last successful configuration reload | |
+| bad_requests_total | Counter | The number of unsupported requests | |
+
 
 An example of [Grafana's](https://grafana.com) dashboard for `chproxy` metrics is available [here](https://github.com/Vertamedia/chproxy/blob/master/chproxy_overview.json)
 

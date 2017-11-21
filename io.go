@@ -29,9 +29,9 @@ func (rw *statResponseWriter) Write(b []byte) (int, error) {
 	return n, err
 }
 
-func (rw *statResponseWriter) WriteHeader(code int) {
-	rw.statusCode = code
-	rw.ResponseWriter.WriteHeader(code)
+func (rw *statResponseWriter) WriteHeader(statusCode int) {
+	rw.statusCode = statusCode
+	rw.ResponseWriter.WriteHeader(statusCode)
 }
 
 // CloseNotify implements http.CloseNotifier

@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
+	"net/url"
 	"strconv"
 	"sync"
 	"time"
@@ -92,10 +93,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		bytesWritten:   responseBodyBytes.With(s.labels),
 	}
 
-	nc := req.URL.Query().Get("no_cache")
-	noCache := (nc == "1" || nc == "true")
-
-	req = s.decorateRequest(req)
+	req, origParams := s.decorateRequest(req)
 
 	// wrap body into cachedReadCloser, so we could obtain the original
 	// request on error.
@@ -103,10 +101,10 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		ReadCloser: req.Body,
 	}
 
-	if s.user.cache == nil || noCache {
+	if s.user.cache == nil {
 		rp.proxyRequest(s, srw, srw, req)
 	} else {
-		rp.serveFromCache(s, srw, req)
+		rp.serveFromCache(s, srw, req, origParams)
 	}
 
 	// It is safe calling getQuerySnippet here, since the request
@@ -217,7 +215,14 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, srw *stat
 	}
 }
 
-func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *http.Request) {
+func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *http.Request, origParams url.Values) {
+	noCache := origParams.Get("no_cache")
+	if noCache == "1" || noCache == "true" {
+		// The response caching is disabled.
+		rp.proxyRequest(s, srw, srw, req)
+		return
+	}
+
 	q, err := getFullQuery(req)
 	if err != nil {
 		err = fmt.Errorf("%s: cannot read query: %s", s, err)
@@ -241,12 +246,12 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		"cluster_user": s.labels["cluster_user"],
 	}
 
-	params := req.URL.Query()
 	key := &cache.Key{
-		Query:          q,
+		Query:          skipLeadingComments(q),
 		AcceptEncoding: req.Header.Get("Accept-Encoding"),
-		DefaultFormat:  params.Get("default_format"),
-		Database:       params.Get("database"),
+		DefaultFormat:  origParams.Get("default_format"),
+		Database:       origParams.Get("database"),
+		Namespace:      origParams.Get("cache_namespace"),
 	}
 
 	startTime := time.Now()
@@ -280,8 +285,12 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 
 	if crw.StatusCode() != http.StatusOK {
 		// Do not cache non-200 responses.
-		// Restore the original status code by proxyRequest.
-		crw.WriteHeader(srw.statusCode)
+		// Restore the original status code by proxyRequest if it was set.
+		if srw.statusCode != 0 {
+			crw.WriteHeader(srw.statusCode)
+		} else {
+			srw.WriteHeader(crw.StatusCode())
+		}
 		err = crw.Rollback()
 	} else {
 		err = crw.Commit()
