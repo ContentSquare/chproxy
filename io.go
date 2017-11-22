@@ -24,15 +24,14 @@ func (rw *statResponseWriter) Write(b []byte) (int, error) {
 	if rw.statusCode == 0 {
 		rw.statusCode = http.StatusOK
 	}
+	rw.ResponseWriter.WriteHeader(rw.statusCode)
 	n, err := rw.ResponseWriter.Write(b)
 	rw.bytesWritten.Add(float64(n))
 	return n, err
 }
 
 func (rw *statResponseWriter) WriteHeader(statusCode int) {
-	if rw.statusCode != 0 {
-		rw.ResponseWriter.WriteHeader(statusCode)
-	}
+	// cache statusCode to keep the opportunity to change it in further
 	rw.statusCode = statusCode
 }
 
