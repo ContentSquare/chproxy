@@ -288,8 +288,6 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		// Restore the original status code by proxyRequest if it was set.
 		if srw.statusCode != 0 {
 			crw.WriteHeader(srw.statusCode)
-		} else {
-			srw.WriteHeader(crw.StatusCode())
 		}
 		err = crw.Rollback()
 	} else {
