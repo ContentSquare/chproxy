@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math/rand"
 	"net"
@@ -59,18 +60,18 @@ func TestNewReverseProxy(t *testing.T) {
 		t.Fatalf("error while loading config: %s", err)
 	}
 	if len(proxy.clusters) != 1 {
-		t.Fatalf("got %d hosts; expected: %d", len(proxy.clusters), 1)
+		t.Fatalf("got %d hosts; expResponse: %d", len(proxy.clusters), 1)
 	}
 	c := proxy.clusters["cluster"]
 	r := c.replicas[0]
 	if len(r.hosts) != 1 {
-		t.Fatalf("got %d hosts; expected: %d", len(r.hosts), 1)
+		t.Fatalf("got %d hosts; expResponse: %d", len(r.hosts), 1)
 	}
 	if r.hosts[0].addr.Host != "localhost:8123" {
-		t.Fatalf("got %s host; expected: %s", r.hosts[0].addr.Host, "localhost:8123")
+		t.Fatalf("got %s host; expResponse: %s", r.hosts[0].addr.Host, "localhost:8123")
 	}
 	if len(proxy.users) != 1 {
-		t.Fatalf("got %d users; expected: %d", len(proxy.users), 1)
+		t.Fatalf("got %d users; expResponse: %d", len(proxy.users), 1)
 	}
 	if _, ok := proxy.users["default"]; !ok {
 		t.Fatalf("expected user %q to be present in users", "default")
@@ -140,22 +141,25 @@ var authCfg = &config.Config{
 
 func TestReverseProxy_ServeHTTP(t *testing.T) {
 	testCases := []struct {
-		name     string
-		expected string
-		cfg      *config.Config
-		f        func(p *reverseProxy) string
+		cfg           *config.Config
+		name          string
+		expResponse   string
+		expStatusCode int
+		f             func(p *reverseProxy) *http.Response
 	}{
 		{
-			name:     "Ok response",
-			expected: okResponse,
-			cfg:      goodCfg,
-			f:        func(p *reverseProxy) string { return makeRequest(p) },
+			cfg:           goodCfg,
+			name:          "Ok response",
+			expResponse:   okResponse,
+			expStatusCode: http.StatusOK,
+			f:             func(p *reverseProxy) *http.Response { return makeRequest(p) },
 		},
 		{
-			name:     "max concurrent queries for cluster user",
-			expected: "limits for cluster user \"web\" are exceeded: max_concurrent_queries limit: 1;",
-			cfg:      goodCfg,
-			f: func(p *reverseProxy) string {
+			cfg:           goodCfg,
+			name:          "max concurrent queries for cluster user",
+			expResponse:   "limits for cluster user \"web\" are exceeded: max_concurrent_queries limit: 1;",
+			expStatusCode: http.StatusTooManyRequests,
+			f: func(p *reverseProxy) *http.Response {
 				p.clusters["cluster"].users["web"].maxConcurrentQueries = 1
 				go makeHeavyRequest(p, time.Millisecond*20)
 				time.Sleep(time.Millisecond * 10)
@@ -163,39 +167,43 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 			},
 		},
 		{
-			name:     "max time for cluster user",
-			expected: "timeout for cluster user \"web\" exceeded: 10ms",
-			cfg:      goodCfg,
-			f: func(p *reverseProxy) string {
+			cfg:           goodCfg,
+			name:          "max time for cluster user",
+			expResponse:   "timeout for cluster user \"web\" exceeded: 10ms",
+			expStatusCode: http.StatusGatewayTimeout,
+			f: func(p *reverseProxy) *http.Response {
 				p.clusters["cluster"].users["web"].maxExecutionTime = time.Millisecond * 10
 				return makeHeavyRequest(p, time.Millisecond*20)
 			},
 		},
 		{
-			name:     "choose max time between users",
-			expected: "timeout for user \"default\" exceeded: 10ms",
-			cfg:      goodCfg,
-			f: func(p *reverseProxy) string {
+			cfg:           goodCfg,
+			name:          "choose max time between users",
+			expResponse:   "timeout for user \"default\" exceeded: 10ms",
+			expStatusCode: http.StatusGatewayTimeout,
+			f: func(p *reverseProxy) *http.Response {
 				p.users["default"].maxExecutionTime = time.Millisecond * 10
 				p.clusters["cluster"].users["web"].maxExecutionTime = time.Millisecond * 15
 				return makeHeavyRequest(p, time.Millisecond*20)
 			},
 		},
 		{
-			name:     "choose max time between users2",
-			expected: "timeout for cluster user \"web\" exceeded: 10ms",
-			cfg:      goodCfg,
-			f: func(p *reverseProxy) string {
+			cfg:           goodCfg,
+			name:          "choose max time between users2",
+			expResponse:   "timeout for cluster user \"web\" exceeded: 10ms",
+			expStatusCode: http.StatusGatewayTimeout,
+			f: func(p *reverseProxy) *http.Response {
 				p.users["default"].maxExecutionTime = time.Millisecond * 15
 				p.clusters["cluster"].users["web"].maxExecutionTime = time.Millisecond * 10
 				return makeHeavyRequest(p, time.Millisecond*20)
 			},
 		},
 		{
-			name:     "max concurrent queries for user",
-			expected: "limits for user \"default\" are exceeded: max_concurrent_queries limit: 1;",
-			cfg:      goodCfg,
-			f: func(p *reverseProxy) string {
+			cfg:           goodCfg,
+			name:          "max concurrent queries for user",
+			expResponse:   "limits for user \"default\" are exceeded: max_concurrent_queries limit: 1;",
+			expStatusCode: http.StatusTooManyRequests,
+			f: func(p *reverseProxy) *http.Response {
 				p.users["default"].maxConcurrentQueries = 1
 				go makeHeavyRequest(p, time.Millisecond*20)
 				time.Sleep(time.Millisecond * 10)
@@ -203,10 +211,11 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 			},
 		},
 		{
-			name:     "queuing queries for user",
-			expected: okResponse,
-			cfg:      goodCfg,
-			f: func(p *reverseProxy) string {
+			cfg:           goodCfg,
+			name:          "queuing queries for user",
+			expResponse:   okResponse,
+			expStatusCode: http.StatusOK,
+			f: func(p *reverseProxy) *http.Response {
 				p.users["default"].maxConcurrentQueries = 1
 				p.users["default"].queueCh = make(chan struct{}, 2)
 				go makeHeavyRequest(p, time.Millisecond*20)
@@ -215,10 +224,11 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 			},
 		},
 		{
-			name:     "queuing queries for cluster user",
-			expected: okResponse,
-			cfg:      goodCfg,
-			f: func(p *reverseProxy) string {
+			cfg:           goodCfg,
+			name:          "queuing queries for cluster user",
+			expResponse:   okResponse,
+			expStatusCode: http.StatusOK,
+			f: func(p *reverseProxy) *http.Response {
 				p.users["default"].maxConcurrentQueries = 1
 				p.clusters["cluster"].users["web"].queueCh = make(chan struct{}, 2)
 				go makeHeavyRequest(p, time.Millisecond*20)
@@ -227,74 +237,84 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 			},
 		},
 		{
-			name:     "disallow https",
-			expected: "user \"default\" is not allowed to access via https",
-			cfg:      authCfg,
-			f: func(p *reverseProxy) string {
+			cfg:           goodCfg,
+			name:          "queue overflow for user",
+			expResponse:   "limits for user \"default\" are exceeded: max_concurrent_queries limit: 1",
+			expStatusCode: http.StatusTooManyRequests,
+			f: func(p *reverseProxy) *http.Response {
+				p.users["default"].maxConcurrentQueries = 1
+				p.users["default"].queueCh = make(chan struct{}, 1)
+				go makeHeavyRequest(p, time.Millisecond*20)
+				time.Sleep(time.Millisecond * 5)
+				go makeHeavyRequest(p, time.Millisecond*20)
+				time.Sleep(time.Millisecond * 5)
+				return makeHeavyRequest(p, time.Millisecond*20)
+			},
+		},
+		{
+			cfg:           authCfg,
+			name:          "disallow https",
+			expResponse:   "user \"default\" is not allowed to access via https",
+			expStatusCode: http.StatusForbidden,
+			f: func(p *reverseProxy) *http.Response {
 				p.users["default"].denyHTTPS = true
 				req := httptest.NewRequest("POST", fakeServer.URL, nil)
 				req.TLS = &tls.ConnectionState{
 					Version:           tls.VersionTLS12,
 					HandshakeComplete: true,
 				}
-				rw := httptest.NewRecorder()
-				cn := &testCloseNotifier{rw}
-				p.ServeHTTP(cn, req)
-				resp := rw.Result()
-				response, err := ioutil.ReadAll(resp.Body)
-				if err != nil {
-					panic(err)
-				}
-				p.users["default"].denyHTTPS = false
-				return string(response)
+				return makeCustomRequest(p, req)
 			},
 		},
 		{
-			name:     "disallow http",
-			expected: "user \"default\" is not allowed to access via http",
-			cfg:      authCfg,
-			f: func(p *reverseProxy) string {
+			cfg:           authCfg,
+			name:          "disallow http",
+			expResponse:   "user \"default\" is not allowed to access via http",
+			expStatusCode: http.StatusForbidden,
+			f: func(p *reverseProxy) *http.Response {
 				p.users["default"].denyHTTP = true
-				resp := makeRequest(p)
-				p.users["default"].denyHTTP = false
-				return resp
+				return makeRequest(p)
 			},
 		},
 		{
-			name:     "basicauth wrong name",
-			expected: "invalid username or password for user \"fooo\"",
-			cfg:      authCfg,
-			f: func(p *reverseProxy) string {
+			cfg:           authCfg,
+			name:          "basic auth wrong name",
+			expResponse:   "invalid username or password for user \"fooo\"",
+			expStatusCode: http.StatusUnauthorized,
+			f: func(p *reverseProxy) *http.Response {
 				req := httptest.NewRequest("POST", fakeServer.URL, nil)
 				req.SetBasicAuth("fooo", "bar")
 				return makeCustomRequest(p, req)
 			},
 		},
 		{
-			name:     "basicauth wrong pass",
-			expected: "invalid username or password for user \"foo\"",
-			cfg:      authCfg,
-			f: func(p *reverseProxy) string {
+			cfg:           authCfg,
+			name:          "basic auth wrong pass",
+			expResponse:   "invalid username or password for user \"foo\"",
+			expStatusCode: http.StatusUnauthorized,
+			f: func(p *reverseProxy) *http.Response {
 				req := httptest.NewRequest("POST", fakeServer.URL, nil)
 				req.SetBasicAuth("foo", "baar")
 				return makeCustomRequest(p, req)
 			},
 		},
 		{
-			name:     "auth wrong name",
-			expected: "invalid username or password for user \"fooo\"",
-			cfg:      authCfg,
-			f: func(p *reverseProxy) string {
+			cfg:           authCfg,
+			name:          "auth wrong name",
+			expResponse:   "invalid username or password for user \"fooo\"",
+			expStatusCode: http.StatusUnauthorized,
+			f: func(p *reverseProxy) *http.Response {
 				uri := fmt.Sprintf("%s?user=fooo&password=bar", fakeServer.URL)
 				req := httptest.NewRequest("POST", uri, nil)
 				return makeCustomRequest(p, req)
 			},
 		},
 		{
-			name:     "auth wrong name",
-			expected: "invalid username or password for user \"foo\"",
-			cfg:      authCfg,
-			f: func(p *reverseProxy) string {
+			cfg:           authCfg,
+			name:          "auth wrong name",
+			expResponse:   "invalid username or password for user \"foo\"",
+			expStatusCode: http.StatusUnauthorized,
+			f: func(p *reverseProxy) *http.Response {
 				uri := fmt.Sprintf("%s?user=foo&password=baar", fakeServer.URL)
 				req := httptest.NewRequest("POST", uri, nil)
 				return makeCustomRequest(p, req)
@@ -308,9 +328,14 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %s", err)
 			}
-			res := tc.f(proxy)
-			if !strings.Contains(res, tc.expected) {
-				t.Fatalf("expected response: %q; got: %q", tc.expected, res)
+			resp := tc.f(proxy)
+			b := bbToString(t, resp.Body)
+			resp.Body.Close()
+			if !strings.Contains(b, tc.expResponse) {
+				t.Fatalf("expected response: %q; got: %q", tc.expResponse, b)
+			}
+			if tc.expStatusCode != resp.StatusCode {
+				t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, tc.expStatusCode)
 			}
 		})
 	}
@@ -326,9 +351,12 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 		resp := makeCustomRequest(proxy, req)
 
 		expected := okResponse
-		if resp != expected {
-			t.Fatalf("expected response: %q; got: %q", expected, resp)
+		b := bbToString(t, resp.Body)
+		if b != expected {
+			t.Fatalf("expected response: %q; got: %q", expected, b)
 		}
+		resp.Body.Close()
+
 		user, pass := getAuth(req)
 		if user != authCfg.Clusters[0].ClusterUsers[0].Name {
 			t.Fatalf("user name expected to be %q; got %q", authCfg.Clusters[0].ClusterUsers[0].Name, user)
@@ -348,9 +376,12 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 		resp := makeCustomRequest(proxy, req)
 
 		expected := okResponse
-		if resp != expected {
-			t.Fatalf("expected response: %q; got: %q", expected, resp)
+		b := bbToString(t, resp.Body)
+		if b != expected {
+			t.Fatalf("expected response: %q; got: %q", expected, b)
 		}
+		resp.Body.Close()
+
 		user, pass := getAuth(req)
 		if user != authCfg.Clusters[0].ClusterUsers[0].Name {
 			t.Fatalf("user name expected to be %q; got %q", authCfg.Clusters[0].ClusterUsers[0].Name, user)
@@ -361,26 +392,23 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 	})
 }
 
-func TestReverseProxy_ServeHTTP2(t *testing.T) {
+func TestRedverseProxy_ServeHTTP2(t *testing.T) {
 	testCases := []struct {
 		name            string
 		allowedNetworks config.Networks
-		expected        string
+		expResponse     string
 	}{
 		{
 			name:            "empty allowed networks",
 			allowedNetworks: config.Networks{},
-			expected:        okResponse,
 		},
 		{
 			name:            "allow addr",
 			allowedNetworks: config.Networks{getNetwork("192.0.2.1")},
-			expected:        okResponse,
 		},
 		{
 			name:            "allow addr by mask",
 			allowedNetworks: config.Networks{getNetwork("192.0.2.1/32")},
-			expected:        okResponse,
 		},
 	}
 
@@ -392,8 +420,10 @@ func TestReverseProxy_ServeHTTP2(t *testing.T) {
 				t.Fatalf("unexpected error: %s", err)
 			}
 			resp := makeRequest(proxy)
-			if resp != tc.expected {
-				t.Fatalf("expected response: %q; got: %q", tc.expected, resp)
+			b := bbToString(t, resp.Body)
+			resp.Body.Close()
+			if b != okResponse {
+				t.Fatalf("expected response: %q; got: %q", okResponse, b)
 			}
 		})
 		t.Run("cluster user "+tc.name, func(t *testing.T) {
@@ -403,8 +433,10 @@ func TestReverseProxy_ServeHTTP2(t *testing.T) {
 				t.Fatalf("unexpected error: %s", err)
 			}
 			resp := makeRequest(proxy)
-			if resp != tc.expected {
-				t.Fatalf("expected response: %q; got: %q", tc.expected, resp)
+			b := bbToString(t, resp.Body)
+			resp.Body.Close()
+			if b != okResponse {
+				t.Fatalf("expected response: %q; got: %q", okResponse, b)
 			}
 		})
 	}
@@ -417,8 +449,10 @@ func TestReverseProxy_ServeHTTP2(t *testing.T) {
 		}
 		resp := makeRequest(proxy)
 		expected := "cluster user \"web\" is not allowed to access"
-		if !strings.Contains(resp, expected) {
-			t.Fatalf("expected response: %q; got: %q", expected, resp)
+		b := bbToString(t, resp.Body)
+		resp.Body.Close()
+		if !strings.Contains(b, expected) {
+			t.Fatalf("expected response: %q; got: %q", expected, b)
 		}
 	})
 
@@ -430,8 +464,10 @@ func TestReverseProxy_ServeHTTP2(t *testing.T) {
 		}
 		resp := makeRequest(proxy)
 		expected := "user \"default\" is not allowed to access"
-		if !strings.Contains(resp, expected) {
-			t.Fatalf("expected response: %q; got: %q", expected, resp)
+		b := bbToString(t, resp.Body)
+		resp.Body.Close()
+		if !strings.Contains(b, expected) {
+			t.Fatalf("expected response: %q; got: %q", expected, b)
 		}
 	})
 }
@@ -466,20 +502,12 @@ var (
 	fakeServer = httptest.NewServer(handler)
 )
 
-func makeRequest(p *reverseProxy) string { return makeHeavyRequest(p, time.Duration(0)) }
+func makeRequest(p *reverseProxy) *http.Response { return makeHeavyRequest(p, time.Duration(0)) }
 
-func makeHeavyRequest(p *reverseProxy, duration time.Duration) string {
+func makeHeavyRequest(p *reverseProxy, duration time.Duration) *http.Response {
 	body := bytes.NewBufferString(duration.String())
 	req := httptest.NewRequest("POST", fakeServer.URL, body)
-	rw := httptest.NewRecorder()
-	cn := &testCloseNotifier{rw}
-	p.ServeHTTP(cn, req)
-	resp := rw.Result()
-	response, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		panic(err)
-	}
-	return string(response)
+	return makeCustomRequest(p, req)
 }
 
 type testCloseNotifier struct {
@@ -490,16 +518,11 @@ func (tcn *testCloseNotifier) CloseNotify() <-chan bool {
 	return make(chan bool)
 }
 
-func makeCustomRequest(p *reverseProxy, req *http.Request) string {
+func makeCustomRequest(p *reverseProxy, req *http.Request) *http.Response {
 	rw := httptest.NewRecorder()
 	cn := &testCloseNotifier{rw}
 	p.ServeHTTP(cn, req)
-	resp := rw.Result()
-	response, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		panic(err)
-	}
-	return string(response)
+	return rw.Result()
 }
 
 func getProxy(cfg *config.Config) (*reverseProxy, error) {
@@ -556,4 +579,12 @@ func newConfig() *config.Config {
 		},
 	}
 	return &newCfg
+}
+
+func bbToString(t *testing.T, r io.Reader) string {
+	response, err := ioutil.ReadAll(r)
+	if err != nil {
+		t.Fatalf("unexpected err while reading: %s", err)
+	}
+	return string(response)
 }
