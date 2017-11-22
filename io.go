@@ -16,7 +16,11 @@ import (
 type statResponseWriter struct {
 	http.ResponseWriter
 
-	statusCode   int
+	statusCode int
+	// wroteHeader tells whether the header's been written to
+	// the original ResponseWriter
+	wroteHeader bool
+
 	bytesWritten prometheus.Counter
 }
 
@@ -24,7 +28,10 @@ func (rw *statResponseWriter) Write(b []byte) (int, error) {
 	if rw.statusCode == 0 {
 		rw.statusCode = http.StatusOK
 	}
-	rw.ResponseWriter.WriteHeader(rw.statusCode)
+	if !rw.wroteHeader {
+		rw.ResponseWriter.WriteHeader(rw.statusCode)
+		rw.wroteHeader = true
+	}
 	n, err := rw.ResponseWriter.Write(b)
 	rw.bytesWritten.Add(float64(n))
 	return n, err
