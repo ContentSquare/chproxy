@@ -14,7 +14,7 @@
       "type": "grafana",
       "id": "grafana",
       "name": "Grafana",
-      "version": "4.4.1"
+      "version": "4.6.1"
     },
     {
       "type": "panel",
@@ -36,7 +36,33 @@
     }
   ],
   "annotations": {
-    "list": []
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      },
+      {
+        "datasource": "${DS_PROMETHEUS}",
+        "enable": true,
+        "expr": "sum(changes(config_last_reload_success_timestamp_seconds[10m])) by (instance)",
+        "hide": false,
+        "iconColor": "#f4d598",
+        "limit": 100,
+        "name": "reconfig",
+        "showIn": 0,
+        "step": "5m",
+        "tagKeys": "instance",
+        "tags": [],
+        "textFormat": "",
+        "titleFormat": "Reconfigured",
+        "type": "tags"
+      }
+    ]
   },
   "editable": true,
   "gnetId": null,
@@ -670,7 +696,7 @@
           "lines": true,
           "linewidth": 1,
           "links": [],
-          "nullPointMode": "null",
+          "nullPointMode": "null as zero",
           "percentage": false,
           "pointradius": 5,
           "points": false,
@@ -1420,7 +1446,7 @@
     ]
   },
   "time": {
-    "from": "now-6h",
+    "from": "now-24h",
     "to": "now"
   },
   "timepicker": {
@@ -1450,5 +1476,5 @@
   },
   "timezone": "browser",
   "title": "ClickHouse Proxy overview",
-  "version": 68
+  "version": 70
 }
