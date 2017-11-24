@@ -8,7 +8,9 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"net"
+	"regexp"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -139,7 +141,7 @@ var authCfg = &config.Config{
 	},
 }
 
-func TestReverseProxy_ServeHTTP(t *testing.T) {
+func TestReverseProxy_ServeHTTP1(t *testing.T) {
 	testCases := []struct {
 		cfg           *config.Config
 		name          string
@@ -254,11 +256,12 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 		{
 			cfg:           authCfg,
 			name:          "disallow https",
-			expResponse:   "user \"default\" is not allowed to access via https",
+			expResponse:   "user \"foo\" is not allowed to access via https",
 			expStatusCode: http.StatusForbidden,
 			f: func(p *reverseProxy) *http.Response {
-				p.users["default"].denyHTTPS = true
+				p.users["foo"].denyHTTPS = true
 				req := httptest.NewRequest("POST", fakeServer.URL, nil)
+				req.SetBasicAuth("foo", "bar")
 				req.TLS = &tls.ConnectionState{
 					Version:           tls.VersionTLS12,
 					HandshakeComplete: true,
@@ -268,6 +271,17 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 		},
 		{
 			cfg:           authCfg,
+			name:          "basic auth ok",
+			expResponse:   okResponse,
+			expStatusCode: http.StatusOK,
+			f: func(p *reverseProxy) *http.Response {
+				req := httptest.NewRequest("POST", fakeServer.URL, nil)
+				req.SetBasicAuth("foo", "bar")
+				return makeCustomRequest(p, req)
+			},
+		},
+		{
+			cfg:           goodCfg,
 			name:          "disallow http",
 			expResponse:   "user \"default\" is not allowed to access via http",
 			expStatusCode: http.StatusForbidden,
@@ -300,6 +314,17 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 		},
 		{
 			cfg:           authCfg,
+			name:          "auth ok",
+			expResponse:   okResponse,
+			expStatusCode: http.StatusOK,
+			f: func(p *reverseProxy) *http.Response {
+				uri := fmt.Sprintf("%s?user=foo&password=bar", fakeServer.URL)
+				req := httptest.NewRequest("POST", uri, nil)
+				return makeCustomRequest(p, req)
+			},
+		},
+		{
+			cfg:           authCfg,
 			name:          "auth wrong name",
 			expResponse:   "invalid username or password for user \"fooo\"",
 			expStatusCode: http.StatusUnauthorized,
@@ -324,7 +349,7 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			proxy, err := getProxy(goodCfg)
+			proxy, err := getProxy(tc.cfg)
 			if err != nil {
 				t.Fatalf("unexpected error: %s", err)
 			}
@@ -352,7 +377,7 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 
 		expected := okResponse
 		b := bbToString(t, resp.Body)
-		if b != expected {
+		if !strings.Contains(b, expected) {
 			t.Fatalf("expected response: %q; got: %q", expected, b)
 		}
 		resp.Body.Close()
@@ -377,7 +402,7 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 
 		expected := okResponse
 		b := bbToString(t, resp.Body)
-		if b != expected {
+		if !strings.Contains(b, expected) {
 			t.Fatalf("expected response: %q; got: %q", expected, b)
 		}
 		resp.Body.Close()
@@ -392,7 +417,84 @@ func TestReverseProxy_ServeHTTP(t *testing.T) {
 	})
 }
 
-func TestRedverseProxy_ServeHTTP2(t *testing.T) {
+func TestKillQuery(t *testing.T) {
+	testCases := []struct {
+		name string
+		f    func(p *reverseProxy) *http.Response
+	}{
+		{
+			name: "timeout user",
+			f: func(p *reverseProxy) *http.Response {
+				p.users["default"].maxExecutionTime = time.Millisecond * 10
+				return makeHeavyRequest(p, time.Millisecond*20)
+			},
+		},
+		{
+			name: "timeout cluster user",
+			f: func(p *reverseProxy) *http.Response {
+				p.clusters["cluster"].users["web"].maxExecutionTime = time.Millisecond * 10
+				return makeHeavyRequest(p, time.Millisecond*20)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			fmt.Println(goodCfg)
+			proxy, err := getProxy(goodCfg)
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+			resp := tc.f(proxy)
+			b := bbToString(t, resp.Body)
+			id := extractId(scopeIdRe, b)
+			if len(id) == 0 {
+				t.Fatalf("expected Id to be extracted from %q", b)
+			}
+
+			time.Sleep(time.Millisecond * 30)
+			state, err := registry.get(id)
+			if err != nil {
+				t.Fatalf("unexpected requestRegistry err for key %q: %s", id, err)
+			}
+			if !state {
+				fmt.Println("Key", id, state, registry.r)
+				t.Fatalf("query expected to be killed; response: %s", b)
+			}
+		})
+	}
+}
+
+func TestReverseProxy_ServeHTTPConcurrent(t *testing.T) {
+	addr, err := url.Parse(fakeServer.URL)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	goodCfg.Clusters[0].Nodes = []string{addr.Host}
+	proxy, err := newConfiguredProxy(goodCfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	t.Run("parallel requests", func(t *testing.T) {
+		f := func() {
+			makeRequest(proxy)
+		}
+		if err := testConcurrent(f, 1000); err != nil {
+			t.Fatalf("concurrent test err: %s", err)
+		}
+	})
+	t.Run("parallel requests with config reloading", func(t *testing.T) {
+		f := func() {
+			go proxy.applyConfig(newConfig())
+			makeRequest(proxy)
+		}
+		if err := testConcurrent(f, 100); err != nil {
+			t.Fatalf("concurrent test err: %s", err)
+		}
+	})
+}
+
+func TestReverseProxy_ServeHTTP2(t *testing.T) {
 	testCases := []struct {
 		name            string
 		allowedNetworks config.Networks
@@ -422,7 +524,7 @@ func TestRedverseProxy_ServeHTTP2(t *testing.T) {
 			resp := makeRequest(proxy)
 			b := bbToString(t, resp.Body)
 			resp.Body.Close()
-			if b != okResponse {
+			if !strings.Contains(b, okResponse) {
 				t.Fatalf("expected response: %q; got: %q", okResponse, b)
 			}
 		})
@@ -435,7 +537,7 @@ func TestRedverseProxy_ServeHTTP2(t *testing.T) {
 			resp := makeRequest(proxy)
 			b := bbToString(t, resp.Body)
 			resp.Body.Close()
-			if b != okResponse {
+			if !strings.Contains(b, okResponse) {
 				t.Fatalf("expected response: %q; got: %q", okResponse, b)
 			}
 		})
@@ -480,23 +582,40 @@ func getNetwork(s string) *net.IPNet {
 	return ipnet
 }
 
+const killQueryPattern = "KILL QUERY WHERE query_id"
+
 var (
-	handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	registry = newRequestRegistry()
+	handler  = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			panic(err)
 		}
+		b := string(body)
 		r.Body.Close()
 
-		if len(body) > 0 {
-			d, err := time.ParseDuration(string(body))
-			if err != nil {
-				fmt.Fprintln(w, "Err delay:", err)
-				return
-			}
-			time.Sleep(d)
+		qid := r.URL.Query().Get("query_id")
+		if len(qid) == 0 && len(b) == 0 {
+			// it's could be a health-check
+			fmt.Fprintln(w, okResponse)
+			return
 		}
-		fmt.Fprintln(w, "Ok.")
+
+		registry.set(qid, false)
+		if len(b) != 0 {
+			if strings.Contains(b, killQueryPattern) {
+				qid = extractId(queryIdRe, b)
+				registry.set(qid, true)
+			} else {
+				d, err := time.ParseDuration(b)
+				if err != nil {
+					panic(fmt.Sprintf("error while imitating delay at fakeServer handler: %s", err))
+				}
+				time.Sleep(d)
+			}
+		}
+
+		fmt.Fprintln(w, okResponse)
 	})
 
 	fakeServer = httptest.NewServer(handler)
@@ -541,35 +660,6 @@ func getProxy(cfg *config.Config) (*reverseProxy, error) {
 	return proxy, nil
 }
 
-func TestReverseProxy_ServeHTTPConcurrent(t *testing.T) {
-	addr, err := url.Parse(fakeServer.URL)
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
-	goodCfg.Clusters[0].Nodes = []string{addr.Host}
-	proxy, err := newConfiguredProxy(goodCfg)
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
-	t.Run("parallel requests", func(t *testing.T) {
-		f := func() {
-			makeRequest(proxy)
-		}
-		if err := testConcurrent(f, 1000); err != nil {
-			t.Fatalf("concurrent test err: %s", err)
-		}
-	})
-	t.Run("parallel requests with config reloading", func(t *testing.T) {
-		f := func() {
-			go proxy.applyConfig(newConfig())
-			makeRequest(proxy)
-		}
-		if err := testConcurrent(f, 100); err != nil {
-			t.Fatalf("concurrent test err: %s", err)
-		}
-	})
-}
-
 func newConfig() *config.Config {
 	newCfg := *goodCfg
 	newCfg.Users = []config.User{
@@ -587,4 +677,45 @@ func bbToString(t *testing.T, r io.Reader) string {
 		t.Fatalf("unexpected err while reading: %s", err)
 	}
 	return string(response)
+}
+
+var (
+	scopeIdRe = regexp.MustCompile("Id: (.*?);")
+	queryIdRe = regexp.MustCompile("'(.*?)'")
+)
+
+func extractId(re *regexp.Regexp, s string) string {
+	subm := re.FindStringSubmatch(s)
+	if len(subm) < 2 {
+		return ""
+	}
+	return subm[1]
+}
+
+type requestRegistry struct {
+	sync.Mutex
+	// r is a registry of requests, where key is a query_id
+	// and value is a state - was query killed(true) or not(false)
+	r map[string]bool
+}
+
+func newRequestRegistry() *requestRegistry {
+	return &requestRegistry{
+		r: make(map[string]bool),
+	}
+}
+func (r *requestRegistry) set(key string, v bool) {
+	r.Lock()
+	defer r.Unlock()
+	r.r[key] = v
+}
+
+func (r *requestRegistry) get(key string) (bool, error) {
+	r.Lock()
+	defer r.Unlock()
+	v, ok := r.r[key]
+	if !ok {
+		return false, fmt.Errorf("no such key")
+	}
+	return v, nil
 }
