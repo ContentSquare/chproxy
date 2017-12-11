@@ -612,7 +612,7 @@ func httpGet(t *testing.T, url string, statusCode int) *http.Response {
 		t.Fatalf("unexpected erorr while doing GET request: %s", err)
 	}
 	if resp.StatusCode != statusCode {
-		t.Fatalf("unexpected status code: %d; expected: %d; body: %s", resp.StatusCode, statusCode)
+		t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, statusCode)
 	}
 	return resp
 }

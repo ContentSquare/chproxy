@@ -446,7 +446,7 @@ func TestKillQuery(t *testing.T) {
 			}
 			resp := tc.f(proxy)
 			b := bbToString(t, resp.Body)
-			id := extractId(scopeIdRe, b)
+			id := extractID(scopeIDRe, b)
 			if len(id) == 0 {
 				t.Fatalf("expected Id to be extracted from %q", b)
 			}
@@ -608,7 +608,7 @@ var (
 		registry.set(qid, false)
 		if len(b) != 0 {
 			if strings.Contains(b, killQueryPattern) {
-				qid = extractId(queryIdRe, b)
+				qid = extractID(queryIDRe, b)
 				registry.set(qid, true)
 			} else {
 				d, err := time.ParseDuration(b)
@@ -685,11 +685,11 @@ func bbToString(t *testing.T, r io.Reader) string {
 }
 
 var (
-	scopeIdRe = regexp.MustCompile("Id: (.*?);")
-	queryIdRe = regexp.MustCompile("'(.*?)'")
+	scopeIDRe = regexp.MustCompile("Id: (.*?);")
+	queryIDRe = regexp.MustCompile("'(.*?)'")
 )
 
-func extractId(re *regexp.Regexp, s string) string {
+func extractID(re *regexp.Regexp, s string) string {
 	subm := re.FindStringSubmatch(s)
 	if len(subm) < 2 {
 		return ""
