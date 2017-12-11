@@ -475,7 +475,8 @@ func TestReverseProxy_ServeHTTPConcurrent(t *testing.T) {
 	}
 	t.Run("parallel requests", func(t *testing.T) {
 		f := func() {
-			makeRequest(proxy)
+			req := httptest.NewRequest("GET", fmt.Sprintf("%s/fast", fakeServer.URL), nil)
+			makeCustomRequest(proxy, req)
 		}
 		if err := testConcurrent(f, 1000); err != nil {
 			t.Fatalf("concurrent test err: %s", err)
@@ -484,7 +485,8 @@ func TestReverseProxy_ServeHTTPConcurrent(t *testing.T) {
 	t.Run("parallel requests with config reloading", func(t *testing.T) {
 		f := func() {
 			go proxy.applyConfig(newConfig())
-			makeRequest(proxy)
+			req := httptest.NewRequest("GET", fmt.Sprintf("%s/fast", fakeServer.URL), nil)
+			makeCustomRequest(proxy, req)
 		}
 		if err := testConcurrent(f, 100); err != nil {
 			t.Fatalf("concurrent test err: %s", err)
@@ -585,6 +587,11 @@ const killQueryPattern = "KILL QUERY WHERE query_id"
 var (
 	registry = newRequestRegistry()
 	handler  = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/fast" {
+			fmt.Fprintln(w, okResponse)
+			return
+		}
+
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			panic(err)
@@ -598,7 +605,6 @@ var (
 			fmt.Fprintln(w, okResponse)
 			return
 		}
-
 		registry.set(qid, false)
 		if len(b) != 0 {
 			if strings.Contains(b, killQueryPattern) {
@@ -642,13 +648,14 @@ func makeCustomRequest(p *reverseProxy, req *http.Request) *http.Response {
 	return rw.Result()
 }
 
-func getProxy(cfg *config.Config) (*reverseProxy, error) {
+func getProxy(c *config.Config) (*reverseProxy, error) {
 	addr, err := url.Parse(fakeServer.URL)
 	if err != nil {
 		return nil, err
 	}
+	cfg := *c
 	cfg.Clusters[0].Nodes = []string{addr.Host}
-	proxy, err := newConfiguredProxy(cfg)
+	proxy, err := newConfiguredProxy(&cfg)
 	if err != nil {
 		return nil, err
 	}
