@@ -88,14 +88,14 @@ func main() {
 func getMaxResponseTime(cfg *config.Config) time.Duration {
 	var d time.Duration
 	for _, u := range cfg.Users {
-		ud := u.MaxExecutionTime + u.MaxQueueTime
+		ud := time.Duration(u.MaxExecutionTime + u.MaxQueueTime)
 		if ud > d {
 			d = ud
 		}
 	}
 	for _, c := range cfg.Clusters {
 		for _, cu := range c.ClusterUsers {
-			cud := cu.MaxExecutionTime + cu.MaxQueueTime
+			cud := time.Duration(cu.MaxExecutionTime + cu.MaxQueueTime)
 			if cud > d {
 				d = cud
 			}

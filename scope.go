@@ -406,10 +406,10 @@ func newUser(u config.User, clusters map[string]*cluster, caches map[string]*cac
 		toCluster:            u.ToCluster,
 		toUser:               u.ToUser,
 		maxConcurrentQueries: u.MaxConcurrentQueries,
-		maxExecutionTime:     u.MaxExecutionTime,
+		maxExecutionTime:     time.Duration(u.MaxExecutionTime),
 		reqPerMin:            u.ReqPerMin,
 		queueCh:              queueCh,
-		maxQueueTime:         u.MaxQueueTime,
+		maxQueueTime:         time.Duration(u.MaxQueueTime),
 		allowedNetworks:      u.AllowedNetworks,
 		denyHTTP:             u.DenyHTTP,
 		denyHTTPS:            u.DenyHTTPS,
@@ -460,10 +460,10 @@ func newClusterUser(cu config.ClusterUser) *clusterUser {
 		name:                 cu.Name,
 		password:             cu.Password,
 		maxConcurrentQueries: cu.MaxConcurrentQueries,
-		maxExecutionTime:     cu.MaxExecutionTime,
+		maxExecutionTime:     time.Duration(cu.MaxExecutionTime),
 		reqPerMin:            cu.ReqPerMin,
 		queueCh:              queueCh,
-		maxQueueTime:         cu.MaxQueueTime,
+		maxQueueTime:         time.Duration(cu.MaxQueueTime),
 		allowedNetworks:      cu.AllowedNetworks,
 	}
 }
@@ -648,7 +648,7 @@ func newCluster(c config.Cluster) (*cluster, error) {
 		users:                 clusterUsers,
 		killQueryUserName:     c.KillQueryUser.Name,
 		killQueryUserPassword: c.KillQueryUser.Password,
-		heartBeatInterval:     c.HeartBeatInterval,
+		heartBeatInterval:     time.Duration(c.HeartBeatInterval),
 	}
 
 	replicas, err := newReplicas(c.Replicas, c.Nodes, c.Scheme, newC)

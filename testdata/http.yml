@@ -1,3 +1,4 @@
+log_debug: true
 server:
   http:
       listen_addr: ":9090"
@@ -7,7 +8,6 @@ users:
   - name: "default"
     to_cluster: "default"
     to_user: "default"
-
 
 clusters:
   - name: "default"

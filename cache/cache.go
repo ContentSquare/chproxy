@@ -111,7 +111,7 @@ func New(cfg config.Cache) (*Cache, error) {
 		return nil, fmt.Errorf("`expire` must be positive")
 	}
 
-	graceTime := cfg.GraceTime
+	graceTime := time.Duration(cfg.GraceTime)
 	if graceTime == 0 {
 		// Default grace time.
 		graceTime = 5 * time.Second
@@ -126,7 +126,7 @@ func New(cfg config.Cache) (*Cache, error) {
 
 		dir:       cfg.Dir,
 		maxSize:   uint64(cfg.MaxSize),
-		expire:    cfg.Expire,
+		expire:    time.Duration(cfg.Expire),
 		graceTime: graceTime,
 
 		pendingEntries: make(map[string]pendingEntry),

@@ -245,8 +245,8 @@ func TestPendingEntries(t *testing.T) {
 		Name:      "foobar",
 		Dir:       testDir,
 		MaxSize:   1e6,
-		Expire:    time.Minute,
-		GraceTime: 30 * time.Second,
+		Expire:    config.Duration(time.Minute),
+		GraceTime: config.Duration(30 * time.Second),
 	}
 	c, err := New(cfg)
 	if err != nil {
@@ -366,7 +366,7 @@ func TestCacheClean(t *testing.T) {
 		Name:    "foobar",
 		Dir:     testDir,
 		MaxSize: 8192,
-		Expire:  time.Minute,
+		Expire:  config.Duration(time.Minute),
 	}
 	c, err := New(cfg)
 	if err != nil {
@@ -441,7 +441,7 @@ func newTestCache(t *testing.T) *Cache {
 		Name:    "foobar",
 		Dir:     testDir,
 		MaxSize: 1e6,
-		Expire:  time.Minute,
+		Expire:  config.Duration(time.Minute),
 	}
 	c, err := New(cfg)
 	if err != nil {

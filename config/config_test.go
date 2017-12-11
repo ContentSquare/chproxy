@@ -23,14 +23,14 @@ func TestLoadConfig(t *testing.T) {
 						Name:      "longterm",
 						Dir:       "/path/to/longterm/cachedir",
 						MaxSize:   ByteSize(100 << 30),
-						Expire:    time.Hour,
-						GraceTime: 20 * time.Second,
+						Expire:    Duration(time.Hour),
+						GraceTime: Duration(20 * time.Second),
 					},
 					{
 						Name:    "shortterm",
 						Dir:     "/path/to/shortterm/cachedir",
 						MaxSize: ByteSize(100 << 20),
-						Expire:  10 * time.Second,
+						Expire:  Duration(10 * time.Second),
 					},
 				},
 				HackMePlease: true,
@@ -66,10 +66,10 @@ func TestLoadConfig(t *testing.T) {
 								Name:                 "web",
 								Password:             "password",
 								MaxConcurrentQueries: 4,
-								MaxExecutionTime:     time.Minute,
+								MaxExecutionTime:     Duration(time.Minute),
 							},
 						},
-						HeartBeatInterval: time.Minute,
+						HeartBeatInterval: Duration(time.Minute),
 					},
 					{
 						Name:   "second cluster",
@@ -88,19 +88,19 @@ func TestLoadConfig(t *testing.T) {
 							{
 								Name:                 "default",
 								MaxConcurrentQueries: 4,
-								MaxExecutionTime:     time.Minute,
+								MaxExecutionTime:     Duration(time.Minute),
 							},
 							{
 								Name:                 "web",
 								ReqPerMin:            10,
 								MaxConcurrentQueries: 4,
-								MaxExecutionTime:     10 * time.Second,
+								MaxExecutionTime:     Duration(10 * time.Second),
 								NetworksOrGroups:     []string{"office"},
 								MaxQueueSize:         50,
-								MaxQueueTime:         70 * time.Second,
+								MaxQueueTime:         Duration(70 * time.Second),
 							},
 						},
-						HeartBeatInterval: 5 * time.Second,
+						HeartBeatInterval: Duration(5 * time.Second),
 					},
 				},
 				Users: []User{
@@ -113,7 +113,7 @@ func TestLoadConfig(t *testing.T) {
 						AllowCORS:    true,
 						ReqPerMin:    4,
 						MaxQueueSize: 100,
-						MaxQueueTime: 35 * time.Second,
+						MaxQueueTime: Duration(35 * time.Second),
 						Cache:        "longterm",
 					},
 					{
@@ -121,7 +121,7 @@ func TestLoadConfig(t *testing.T) {
 						ToCluster:            "second cluster",
 						ToUser:               "default",
 						MaxConcurrentQueries: 4,
-						MaxExecutionTime:     time.Minute,
+						MaxExecutionTime:     Duration(time.Minute),
 						DenyHTTPS:            true,
 						NetworksOrGroups:     []string{"office", "1.2.3.0/24"},
 					},
@@ -172,7 +172,7 @@ func TestLoadConfig(t *testing.T) {
 								Name: "default",
 							},
 						},
-						HeartBeatInterval: 5 * time.Second,
+						HeartBeatInterval: Duration(5 * time.Second),
 					},
 				},
 				Users: []User{
@@ -367,5 +367,59 @@ func TestExamples(t *testing.T) {
 				t.Fatalf("unexpected error: %s", err)
 			}
 		})
+	}
+}
+
+func TestParseDuration(t *testing.T) {
+	var testCases = []struct {
+		value    string
+		expected time.Duration
+	}{
+		{
+			"10ns",
+			time.Duration(10),
+		},
+		{
+			"20µs",
+			20 * time.Microsecond,
+		},
+		{
+			"30ms",
+			30 * time.Millisecond,
+		},
+		{
+			"40s",
+			40 * time.Second,
+		},
+		{
+			"50m",
+			50 * time.Minute,
+		},
+		{
+			"60h",
+			60 * time.Hour,
+		},
+		{
+			"70d",
+			70 * 24 * time.Hour,
+		},
+		{
+			"80w",
+			80 * 7 * 24 * time.Hour,
+		},
+		{
+			"90y",
+			90 * 365 * 24 * time.Hour,
+		},
+	}
+	for _, tc := range testCases {
+		v, err := parseDuration(tc.value)
+		if err != nil {
+			t.Fatalf("unexpected duration conversion error: %s", err)
+		}
+		got := time.Duration(v)
+		if got != tc.expected {
+			t.Fatalf("got: %v; expected: %v", got, tc.expected)
+		}
 	}
 }
