@@ -139,6 +139,7 @@ func (d *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
+// String implements the Stringer interface.
 func (d Duration) String() string {
 	factors := map[string]time.Duration{
 		"w":  time.Hour * 24 * 7,
@@ -180,8 +181,8 @@ func (d Duration) MarshalYAML() (interface{}, error) {
 // borrowed from github.com/prometheus/prometheus
 var durationRE = regexp.MustCompile("^([0-9]+)(w|d|h|m|s|ms|µs|ns)$")
 
-// StringToDuration parses a string into a time.Duration, assuming that a year
-// always has 365d, a week always has 7d, and a day always has 24h.
+// StringToDuration parses a string into a time.Duration,
+// assuming that a week always has 7d, and a day always has 24h.
 func parseDuration(durationStr string) (Duration, error) {
 	matches := durationRE.FindStringSubmatch(durationStr)
 	if len(matches) != 3 {
