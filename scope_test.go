@@ -307,8 +307,8 @@ func testConcurrent(f func(), concurrency int) error {
 	for i := 0; i < concurrency; i++ {
 		select {
 		case <-ch:
-		case <-time.After(time.Second):
-			return fmt.Errorf("timeout")
+		case <-time.After(2 * time.Second):
+			return fmt.Errorf("timeout on %d iteration", i)
 		}
 	}
 	return nil
