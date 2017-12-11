@@ -704,8 +704,8 @@ func newRequestRegistry() *requestRegistry {
 }
 func (r *requestRegistry) set(key string, v bool) {
 	r.Lock()
-	defer r.Unlock()
 	r.r[key] = v
+	r.Unlock()
 }
 
 func (r *requestRegistry) get(key string) (bool, error) {

@@ -141,7 +141,6 @@ func (d *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 func (d Duration) String() string {
 	factors := map[string]time.Duration{
-		"y":  time.Hour * 24 * 365,
 		"w":  time.Hour * 24 * 7,
 		"d":  time.Hour * 24,
 		"h":  time.Hour,
@@ -155,8 +154,6 @@ func (d Duration) String() string {
 	var t = time.Duration(d)
 	unit := "ns"
 	switch time.Duration(0) {
-	case t % factors["y"]:
-		unit = "y"
 	case t % factors["w"]:
 		unit = "w"
 	case t % factors["d"]:
@@ -181,7 +178,7 @@ func (d Duration) MarshalYAML() (interface{}, error) {
 }
 
 // borrowed from github.com/prometheus/prometheus
-var durationRE = regexp.MustCompile("^([0-9]+)(y|w|d|h|m|s|ms|µs|ns)$")
+var durationRE = regexp.MustCompile("^([0-9]+)(w|d|h|m|s|ms|µs|ns)$")
 
 // StringToDuration parses a string into a time.Duration, assuming that a year
 // always has 365d, a week always has 7d, and a day always has 24h.
@@ -193,8 +190,6 @@ func parseDuration(durationStr string) (Duration, error) {
 	var n, _ = strconv.Atoi(matches[1])
 	var dur = time.Duration(n)
 	switch unit := matches[2]; unit {
-	case "y":
-		dur *= time.Hour * 24 * 365
 	case "w":
 		dur *= time.Hour * 24 * 7
 	case "d":
