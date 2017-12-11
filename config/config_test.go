@@ -400,16 +400,12 @@ func TestParseDuration(t *testing.T) {
 			60 * time.Hour,
 		},
 		{
-			"70d",
-			70 * 24 * time.Hour,
+			"75d",
+			75 * 24 * time.Hour,
 		},
 		{
 			"80w",
 			80 * 7 * 24 * time.Hour,
-		},
-		{
-			"90y",
-			90 * 365 * 24 * time.Hour,
 		},
 	}
 	for _, tc := range testCases {
@@ -419,7 +415,50 @@ func TestParseDuration(t *testing.T) {
 		}
 		got := time.Duration(v)
 		if got != tc.expected {
-			t.Fatalf("got: %v; expected: %v", got, tc.expected)
+			t.Fatalf("unexpected value - got: %v; expected: %v", got, tc.expected)
+		}
+		if v.String() != tc.value {
+			t.Fatalf("unexpected toString conversion - got: %q; expected: %q", v, tc.value)
+		}
+	}
+}
+
+func TestParseDurationNegative(t *testing.T) {
+	var testCases = []struct {
+		value, error string
+	}{
+		{
+			"10",
+			"not a valid duration string: \"10\"",
+		},
+		{
+			"20ks",
+			"not a valid duration string: \"20ks\"",
+		},
+		{
+			"30Ms",
+			"not a valid duration string: \"30Ms\"",
+		},
+		{
+			"40 ms",
+			"not a valid duration string: \"40 ms\"",
+		},
+		{
+			"50y",
+			"not a valid duration string: \"50y\"",
+		},
+		{
+			"1.5h",
+			"not a valid duration string: \"1.5h\"",
+		},
+	}
+	for _, tc := range testCases {
+		_, err := parseDuration(tc.value)
+		if err == nil {
+			t.Fatalf("expected to get parse error; got: nil")
+		}
+		if err.Error() != tc.error {
+			t.Fatalf("unexpected error - got: %q; expected: %q", err, tc.error)
 		}
 	}
 }

@@ -3,7 +3,7 @@
  - `<bool>`: a boolean value `true` or `false`
  - `<addr>`: string value consisting of a hostname or IP followed by an optional port number
  - `<scheme>`: a string that can take the values `http` or `https`
- - `<duration>`: a duration matching the regular expression `^([0-9]+)(y|w|d|h|m|s|ms|µs|ns)`
+ - `<duration>`: a duration matching the regular expression `^([0-9]+)(w|d|h|m|s|ms|µs|ns)`
  - `<networks>`: string value consisting of IP, IP mask or named group, for example `"127.0.0.1"` or `"127.0.0.1/24"`. 
  - `<host_name>`: string value consisting of host name, for example `"example.com"`
  - `<byte_size>`: string value matching the regular expression `/^\d+(\.\d+)?[KMGTP]?B?$/i`, for example `"100MB"`
