@@ -36,7 +36,7 @@ var goodCfg = &config.Config{
 					Name: "web",
 				},
 			},
-			HeartBeatInterval: time.Second * 5,
+			HeartBeatInterval: config.Duration(time.Second * 5),
 		},
 	},
 	Users: []config.User{
@@ -91,7 +91,7 @@ var badCfg = &config.Config{
 					Name: "default",
 				},
 			},
-			HeartBeatInterval: time.Second * 5,
+			HeartBeatInterval: config.Duration(time.Second * 5),
 		},
 	},
 	Users: []config.User{
@@ -128,7 +128,7 @@ var authCfg = &config.Config{
 					Password: "webpass",
 				},
 			},
-			HeartBeatInterval: time.Second * 5,
+			HeartBeatInterval: config.Duration(time.Second * 5),
 		},
 	},
 	Users: []config.User{
@@ -440,7 +440,6 @@ func TestKillQuery(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			fmt.Println(goodCfg)
 			proxy, err := getProxy(goodCfg)
 			if err != nil {
 				t.Fatalf("unexpected error: %s", err)
@@ -458,7 +457,6 @@ func TestKillQuery(t *testing.T) {
 				t.Fatalf("unexpected requestRegistry err for key %q: %s", id, err)
 			}
 			if !state {
-				fmt.Println("Key", id, state, registry.r)
 				t.Fatalf("query expected to be killed; response: %s", b)
 			}
 		})

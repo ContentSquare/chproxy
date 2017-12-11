@@ -261,7 +261,7 @@ type Cluster struct {
 	// HeartBeatInterval is an interval of checking
 	// all cluster nodes for availability
 	// if omitted or zero - interval will be set to 5s
-	HeartBeatInterval time.Duration `yaml:"heartbeat_interval,omitempty"`
+	HeartBeatInterval Duration `yaml:"heartbeat_interval,omitempty"`
 
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
@@ -290,7 +290,7 @@ func (c *Cluster) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("`cluster.scheme` must be `http` or `https`, got %q instead for %q", c.Scheme, c.Name)
 	}
 	if c.HeartBeatInterval == 0 {
-		c.HeartBeatInterval = time.Second * 5
+		c.HeartBeatInterval = Duration(time.Second * 5)
 	}
 	return checkOverflow(c.XXX, fmt.Sprintf("cluster %q", c.Name))
 }
@@ -369,7 +369,7 @@ type User struct {
 
 	// Maximum duration of query execution for user
 	// if omitted or zero - no limits would be applied
-	MaxExecutionTime time.Duration `yaml:"max_execution_time,omitempty"`
+	MaxExecutionTime Duration `yaml:"max_execution_time,omitempty"`
 
 	// Maximum number of requests per minute for user
 	// if omitted or zero - no limits would be applied
@@ -382,7 +382,7 @@ type User struct {
 
 	// Maximum duration the query may wait in the queue
 	// if omitted or zero - 10s duration is used
-	MaxQueueTime time.Duration `yaml:"max_queue_time,omitempty"`
+	MaxQueueTime Duration `yaml:"max_queue_time,omitempty"`
 
 	NetworksOrGroups NetworksOrGroups `yaml:"allowed_networks,omitempty"`
 
@@ -480,10 +480,10 @@ type Cache struct {
 	// Expiration period for cached response
 	// Files which are older than expiration period will be deleted
 	// on new request and re-cached
-	Expire time.Duration `yaml:"expire,omitempty"`
+	Expire Duration `yaml:"expire,omitempty"`
 
 	// Grace duration before the expired entry is deleted from the cache.
-	GraceTime time.Duration `yaml:"grace_time,omitempty"`
+	GraceTime Duration `yaml:"grace_time,omitempty"`
 
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
@@ -521,7 +521,7 @@ type ClusterUser struct {
 
 	// Maximum duration of query execution for user
 	// if omitted or zero - no limits would be applied
-	MaxExecutionTime time.Duration `yaml:"max_execution_time,omitempty"`
+	MaxExecutionTime Duration `yaml:"max_execution_time,omitempty"`
 
 	// Maximum number of requests per minute for user
 	// if omitted or zero - no limits would be applied
@@ -534,7 +534,7 @@ type ClusterUser struct {
 
 	// Maximum duration the query may wait in the queue
 	// if omitted or zero - 10s duration is used
-	MaxQueueTime time.Duration `yaml:"max_queue_time,omitempty"`
+	MaxQueueTime Duration `yaml:"max_queue_time,omitempty"`
 
 	NetworksOrGroups NetworksOrGroups `yaml:"allowed_networks,omitempty"`
 

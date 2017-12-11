@@ -540,27 +540,27 @@ func TestGetMaxResponseTime(t *testing.T) {
 			{
 				ClusterUsers: []config.ClusterUser{
 					{
-						MaxExecutionTime: 20 * time.Second,
+						MaxExecutionTime: config.Duration(20 * time.Second),
 					},
 				},
 			},
 			{
 				ClusterUsers: []config.ClusterUser{
 					{
-						MaxExecutionTime: 30 * time.Second,
+						MaxExecutionTime: config.Duration(30 * time.Second),
 					},
 					{
-						MaxExecutionTime: 10 * time.Second,
+						MaxExecutionTime: config.Duration(10 * time.Second),
 					},
 				},
 			},
 		},
 		Users: []config.User{
 			{
-				MaxExecutionTime: 10 * time.Second,
+				MaxExecutionTime: config.Duration(10 * time.Second),
 			},
 			{
-				MaxExecutionTime: 15 * time.Second,
+				MaxExecutionTime: config.Duration(15 * time.Second),
 			},
 		},
 	}
@@ -571,7 +571,7 @@ func TestGetMaxResponseTime(t *testing.T) {
 	}
 
 	expected = time.Minute
-	cfg.Users[0].MaxExecutionTime = expected
+	cfg.Users[0].MaxExecutionTime = config.Duration(expected)
 	if maxTime := getMaxResponseTime(cfg); maxTime != expected {
 		t.Fatalf("got %v; expected %v", maxTime, expected)
 	}
@@ -612,7 +612,7 @@ func httpGet(t *testing.T, url string, statusCode int) *http.Response {
 		t.Fatalf("unexpected erorr while doing GET request: %s", err)
 	}
 	if resp.StatusCode != statusCode {
-		t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, statusCode)
+		t.Fatalf("unexpected status code: %d; expected: %d; body: %s", resp.StatusCode, statusCode)
 	}
 	return resp
 }
