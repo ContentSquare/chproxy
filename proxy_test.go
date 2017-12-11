@@ -478,7 +478,7 @@ func TestReverseProxy_ServeHTTPConcurrent(t *testing.T) {
 			req := httptest.NewRequest("GET", fmt.Sprintf("%s/fast", fakeServer.URL), nil)
 			makeCustomRequest(proxy, req)
 		}
-		if err := testConcurrent(f, 1000); err != nil {
+		if err := testConcurrent(f, 500); err != nil {
 			t.Fatalf("concurrent test err: %s", err)
 		}
 	})
