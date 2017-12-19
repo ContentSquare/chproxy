@@ -286,6 +286,10 @@ var allowedParams = []string{
 	"query",
 	"database",
 	"default_format",
+	// if `compress=1`, CH will compress the data it sends you
+	"compress",
+	// if `decompress=1` , CH will decompress the same data that you pass in the POST method
+	"decompress",
 }
 
 func (s *scope) decorateRequest(req *http.Request) (*http.Request, url.Values) {

@@ -251,6 +251,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		AcceptEncoding: req.Header.Get("Accept-Encoding"),
 		DefaultFormat:  origParams.Get("default_format"),
 		Database:       origParams.Get("database"),
+		Compress:       origParams.Get("compress"),
 		Namespace:      origParams.Get("cache_namespace"),
 	}
 
