@@ -48,14 +48,14 @@ func TestKeyString(t *testing.T) {
 			key: &Key{
 				Query: []byte("SELECT 1 FROM system.numbers LIMIT 10"),
 			},
-			expected: "79c75209c704202852c06199dea5b221",
+			expected: "973507f73eb5662679a62926a38a8b7d",
 		},
 		{
 			key: &Key{
 				Query:          []byte("SELECT 1 FROM system.numbers LIMIT 10"),
 				AcceptEncoding: "gzip",
 			},
-			expected: "ec4146491a9e019c0f1068a16f648669",
+			expected: "e48ef09b985141e189ee0a0ba8b94cfb",
 		},
 		{
 			key: &Key{
@@ -63,7 +63,7 @@ func TestKeyString(t *testing.T) {
 				AcceptEncoding: "gzip",
 				DefaultFormat:  "JSON",
 			},
-			expected: "f2be6b985b3804bf427b1389a002e775",
+			expected: "282962400943b25a255e2dbb65d79e87",
 		},
 		{
 			key: &Key{
@@ -72,7 +72,7 @@ func TestKeyString(t *testing.T) {
 				DefaultFormat:  "JSON",
 				Database:       "foobar",
 			},
-			expected: "229ce2662feb4643d6204bf56918b2a6",
+			expected: "04bafec4d4202e8ba286d510cf3e5827",
 		},
 		{
 			key: &Key{
@@ -82,7 +82,18 @@ func TestKeyString(t *testing.T) {
 				Database:       "foobar",
 				Namespace:      "ns123",
 			},
-			expected: "359d7b4558ac3fade07f9b2c31585dbc",
+			expected: "0b3e365eeaeedb0a217ff89c989b79d6",
+		},
+		{
+			key: &Key{
+				Query:          []byte("SELECT 1 FROM system.numbers LIMIT 10"),
+				AcceptEncoding: "gzip",
+				DefaultFormat:  "JSON",
+				Database:       "foobar",
+				Compress:       "1",
+				Namespace:      "ns123",
+			},
+			expected: "fab445ab05b208016ac07679b4224351",
 		},
 	}
 
