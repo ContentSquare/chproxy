@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"testing"
+	"github.com/pierrec/lz4"
 )
 
 func TestSkipLeadingComments(t *testing.T) {
@@ -106,6 +107,28 @@ func TestGetFullQueryGzipped(t *testing.T) {
 	zw.Close()
 	req, err := http.NewRequest("POST", "http://127.0.0.1:9090", &buf)
 	req.Header.Set("Content-Encoding", "gzip")
+	if err != nil {
+		t.Fatal(err)
+	}
+	query, err := getFullQuery(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(query) != string(q) {
+		t.Fatalf("got: %q; expected %q", query, q)
+	}
+}
+
+func TestGetFullQueryLZ4(t *testing.T) {
+	var buf bytes.Buffer
+	zw := lz4.NewWriter(&buf)
+	q := makeQuery(1000)
+	_, err := zw.Write([]byte(q))
+	if err != nil {
+		t.Fatal(err)
+	}
+	zw.Close()
+	req, err := http.NewRequest("POST", "http://127.0.0.1:9090?decompress=1", &buf)
 	if err != nil {
 		t.Fatal(err)
 	}
