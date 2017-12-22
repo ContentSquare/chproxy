@@ -3,9 +3,6 @@ language: go
 go:
   - 1.9.x
 
-install:
-  - make install
-
 script:
   # build test for supported platforms
   - GOOS=linux go build

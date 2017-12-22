@@ -9,13 +9,11 @@ BUILD_CONSTS = \
 
 BUILD_OPTS = -ldflags="$(BUILD_CONSTS)" -gcflags="-trimpath=$(GOPATH)/src"
 
-install:
-	go get golang.org/x/crypto/acme/autocert
-	go get github.com/prometheus/client_golang/prometheus
-	go get gopkg.in/yaml.v2
-	go get github.com/pierrec/lz4
+update:
+	dep ensure -update
 
 format:
+	dep ensure
 	go fmt $(pkgs)
 	gofmt -w -s .
 
