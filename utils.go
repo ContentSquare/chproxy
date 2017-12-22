@@ -92,25 +92,19 @@ func getQuerySnippet(req *http.Request) string {
 	io.Copy(ioutil.Discard, crc)
 	data := crc.String()
 
-	ctype := getCompressType(req)
-	if len(ctype) == 0 || ctype == "lz4" {
+	u := getUncompressor(req)
+	if u == nil {
 		return data
 	}
 	bs := bytes.NewBufferString(data)
-	// It is better to return compressed data instead
-	// of an empty string if the data cannot be uncompressed.
-	b, _ := uncompress(bs, ctype)
-	return string(b)
-}
-
-func getCompressType(req *http.Request) string {
-	if req.Header.Get("Content-Encoding") == "gzip" {
-		return "gzip"
+	b, _ := u.uncompress(bs)
+	if len(b) > 0 {
+		// It is better to return partially decompressed data instead of an empty string.
+		return string(b)
 	}
-	if req.URL.Query().Get("decompress") == "1" {
-		return "lz4"
-	}
-	return ""
+	// The data failed to be decompressed. Return compressed data
+	// instead of an empty string.
+	return data
 }
 
 // getFullQuery returns full query from req.
@@ -122,31 +116,26 @@ func getFullQuery(req *http.Request) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	ctype := getCompressType(req)
-	if len(ctype) == 0 {
+	u := getUncompressor(req)
+	if u == nil {
 		return data, nil
 	}
 	br := bytes.NewReader(data)
-	b, err := uncompress(br, ctype)
+	b, err := u.uncompress(br)
 	if err != nil {
 		return nil, fmt.Errorf("cannot uncompress query: %s", err)
 	}
 	return b, nil
 }
 
-func uncompress(r io.Reader, ctype string) ([]byte, error) {
-	var cr io.Reader
-	switch ctype {
-	case "gzip":
-		var err error
-		cr, err = gzip.NewReader(r)
-		if err != nil {
-			return ioutil.ReadAll(r)
-		}
-	case "lz4":
-		cr = lz4.NewReader(r)
+func getUncompressor(req *http.Request) uncompressor {
+	if req.Header.Get("Content-Encoding") == "gzip" {
+		return unGzip{}
 	}
-	return ioutil.ReadAll(cr)
+	if req.URL.Query().Get("decompress") == "1" {
+		return unLZ4{}
+	}
+	return nil
 }
 
 // canCacheQuery returns true if q can be cached.
@@ -202,4 +191,25 @@ func skipLeadingComments(q []byte) []byte {
 		}
 	}
 	return nil
+}
+
+type uncompressor interface {
+	uncompress(r io.Reader) ([]byte, error)
+}
+
+type unGzip struct{}
+
+func (u unGzip) uncompress(r io.Reader) ([]byte, error) {
+	gr, err := gzip.NewReader(r)
+	if err != nil {
+		return nil, fmt.Errorf("cannot ungzip query: %s", err)
+	}
+	return ioutil.ReadAll(gr)
+}
+
+type unLZ4 struct{}
+
+func (u unLZ4) uncompress(r io.Reader) ([]byte, error) {
+	lr := lz4.NewReader(r)
+	return ioutil.ReadAll(lr)
 }

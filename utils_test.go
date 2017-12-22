@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"compress/gzip"
 	"fmt"
+	"github.com/pierrec/lz4"
+	"io"
 	"net/http"
 	"net/url"
 	"testing"
-	"github.com/pierrec/lz4"
 )
 
 func TestSkipLeadingComments(t *testing.T) {
@@ -120,15 +121,12 @@ func TestGetFullQueryGzipped(t *testing.T) {
 }
 
 func TestGetFullQueryLZ4(t *testing.T) {
-	var buf bytes.Buffer
-	zw := lz4.NewWriter(&buf)
 	q := makeQuery(1000)
-	_, err := zw.Write([]byte(q))
+	r, err := compressToLZ4(q, 100)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("unexpected compress err: %s", err)
 	}
-	zw.Close()
-	req, err := http.NewRequest("POST", "http://127.0.0.1:9090?decompress=1", &buf)
+	req, err := http.NewRequest("POST", "http://127.0.0.1:9090?decompress=1", r)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,6 +137,82 @@ func TestGetFullQueryLZ4(t *testing.T) {
 	if string(query) != string(q) {
 		t.Fatalf("got: %q; expected %q", query, q)
 	}
+}
+
+func TestGetQuerySnippetLZ4(t *testing.T) {
+	q := makeQuery(1000)
+	r, err := compressToLZ4(q, 100)
+	if err != nil {
+		t.Fatalf("unexpected compress err: %s", err)
+	}
+	req, err := http.NewRequest("POST", "http://127.0.0.1:9090?decompress=1", r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	query := getQuerySnippet(req)
+	if query[:100] != string(q[:100]) {
+		t.Fatalf("got: %q; expected: %q", query[:100], q[:100])
+	}
+}
+
+func TestGetQuerySnippetLZ4Partial(t *testing.T) {
+	var buf bytes.Buffer
+	zw := lz4.NewWriter(&buf)
+	q := makeQuery(100)
+	if _, err := zw.Write(q[:50]); err != nil {
+		t.Fatal(err)
+	}
+	zw.Close()
+	// write whatever to buf to make the data partially invalid
+	buf.WriteString("foobar")
+
+	req, err := http.NewRequest("POST", "http://127.0.0.1:9090?decompress=1", &buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	query := getQuerySnippet(req)
+	fmt.Println(query)
+	if query[:50] != string(q[:50]) {
+		t.Fatalf("got: %q; expected: %q", query[:50], q[:50])
+	}
+}
+
+func TestGetQuerySnippetLZ4Invalid(t *testing.T) {
+	str := "foobar"
+	var buf bytes.Buffer
+	// write whatever to buf to make the data partially invalid
+	buf.WriteString(str)
+
+	req, err := http.NewRequest("POST", "http://127.0.0.1:9090?decompress=1", &buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	query := getQuerySnippet(req)
+	if query != str {
+		t.Fatalf("got: %q; expected: %q", query, str)
+	}
+}
+
+func compressToLZ4(v []byte, bucketSize int) (io.Reader, error) {
+	var buf bytes.Buffer
+	zw := lz4.NewWriter(&buf)
+	for {
+		if len(v) < bucketSize {
+			if _, err := zw.Write(v); err != nil {
+				return nil, err
+			}
+			break
+		}
+		if _, err := zw.Write(v[:bucketSize]); err != nil {
+			return nil, err
+		}
+		if err := zw.Flush(); err != nil {
+			return nil, err
+		}
+		v = v[bucketSize:]
+	}
+	zw.Close()
+	return &buf, nil
 }
 
 func makeQuery(n int) []byte {
