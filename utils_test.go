@@ -165,7 +165,6 @@ func TestGetQuerySnippetLZ4Partial(t *testing.T) {
 	zw.Close()
 	// write whatever to buf to make the data partially invalid
 	buf.WriteString("foobar")
-
 	req, err := http.NewRequest("POST", "http://127.0.0.1:9090?decompress=1", &buf)
 	if err != nil {
 		t.Fatal(err)
@@ -180,9 +179,8 @@ func TestGetQuerySnippetLZ4Partial(t *testing.T) {
 func TestGetQuerySnippetLZ4Invalid(t *testing.T) {
 	str := "foobar"
 	var buf bytes.Buffer
-	// write whatever to buf to make the data partially invalid
+	// write totally invalid data treat it as lz4 compressed
 	buf.WriteString(str)
-
 	req, err := http.NewRequest("POST", "http://127.0.0.1:9090?decompress=1", &buf)
 	if err != nil {
 		t.Fatal(err)
