@@ -170,7 +170,6 @@ func TestGetQuerySnippetLZ4Partial(t *testing.T) {
 		t.Fatal(err)
 	}
 	query := getQuerySnippet(req)
-	fmt.Println(query)
 	if query[:50] != string(q[:50]) {
 		t.Fatalf("got: %q; expected: %q", query[:50], q[:50])
 	}
