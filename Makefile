@@ -28,7 +28,7 @@ run: build
 
 lint:
 	go vet $(pkgs)
-	golint ./...
+	go list ./... | grep -v /vendor/ | xargs -L1 golint
 
 reconfigure:
 	kill -HUP `pidof chproxy`
