@@ -327,7 +327,7 @@ an instant cache flush may be built on top of cache namespaces - just switch to 
 to flush the cache.
 
 ### Security
-`Chproxy` removes all the query params from input requests (except the `query`, `database`, `default_format`)
+`Chproxy` removes all the query params from input requests (except the `query`, `database`, `default_format`, `compress`, `decompress`)
 before proxying them to `ClickHouse` nodes. This prevents from unsafe overriding
 of various `ClickHouse` [settings](http://clickhouse-docs.readthedocs.io/en/latest/interfaces/http_interface.html).
 
