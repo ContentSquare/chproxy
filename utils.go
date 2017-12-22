@@ -92,14 +92,17 @@ func getQuerySnippet(req *http.Request) string {
 	io.Copy(ioutil.Discard, crc)
 	data := crc.String()
 
-	u := getUncompressor(req)
+	u := getDecompressor(req)
 	if u == nil {
 		return data
 	}
 	bs := bytes.NewBufferString(data)
-	b, _ := u.uncompress(bs)
+	b, err := u.decompress(bs)
+	if err == nil {
+		return string(b)
+	}
+	// It is better to return partially decompressed data instead of an empty string.
 	if len(b) > 0 {
-		// It is better to return partially decompressed data instead of an empty string.
 		return string(b)
 	}
 	// The data failed to be decompressed. Return compressed data
@@ -116,24 +119,24 @@ func getFullQuery(req *http.Request) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	u := getUncompressor(req)
+	u := getDecompressor(req)
 	if u == nil {
 		return data, nil
 	}
 	br := bytes.NewReader(data)
-	b, err := u.uncompress(br)
+	b, err := u.decompress(br)
 	if err != nil {
 		return nil, fmt.Errorf("cannot uncompress query: %s", err)
 	}
 	return b, nil
 }
 
-func getUncompressor(req *http.Request) uncompressor {
+func getDecompressor(req *http.Request) decompressor {
 	if req.Header.Get("Content-Encoding") == "gzip" {
-		return unGzip{}
+		return deGzip{}
 	}
 	if req.URL.Query().Get("decompress") == "1" {
-		return unLZ4{}
+		return deLZ4{}
 	}
 	return nil
 }
@@ -193,13 +196,13 @@ func skipLeadingComments(q []byte) []byte {
 	return nil
 }
 
-type uncompressor interface {
-	uncompress(r io.Reader) ([]byte, error)
+type decompressor interface {
+	decompress(r io.Reader) ([]byte, error)
 }
 
-type unGzip struct{}
+type deGzip struct{}
 
-func (u unGzip) uncompress(r io.Reader) ([]byte, error) {
+func (u deGzip) decompress(r io.Reader) ([]byte, error) {
 	gr, err := gzip.NewReader(r)
 	if err != nil {
 		return nil, fmt.Errorf("cannot ungzip query: %s", err)
@@ -207,9 +210,9 @@ func (u unGzip) uncompress(r io.Reader) ([]byte, error) {
 	return ioutil.ReadAll(gr)
 }
 
-type unLZ4 struct{}
+type deLZ4 struct{}
 
-func (u unLZ4) uncompress(r io.Reader) ([]byte, error) {
+func (u deLZ4) decompress(r io.Reader) ([]byte, error) {
 	lr := lz4.NewReader(r)
 	return ioutil.ReadAll(lr)
 }
