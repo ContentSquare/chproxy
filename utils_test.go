@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"compress/gzip"
 	"fmt"
-	"github.com/pierrec/lz4"
-	"io"
 	"net/http"
 	"net/url"
 	"testing"
@@ -120,12 +118,13 @@ func TestGetFullQueryGzipped(t *testing.T) {
 	}
 }
 
+var (
+	testQuery    = "SELECT column col0, col1, col2, col3, col4, col5, col6, col7, col8, col9, col10, col11, col12, col13, col14, col15, col16, col17, col18, col19, col20, col21, col22, col23, col24, col25, col26, col27, col28, col29, col30, col31, col32, col33, col34, col35, col36, col37, col38, col39, col40, col41, col42, col43, col44, col45, col46, col47, col48, col49, col50, col51, col52, col53, col54, col55, col56, col57, col58, col59, col60, col61, col62, col63, col64, col65, col66, col67, col68, col69, col70, col71, col72, col73, col74, col75, col76, col77, col78, col79, col80, col81, col82, col83, col84, col85, col86, col87, col88, col89, col90, col91, col92, col93, col94, col95, col96, col97, col98, col99, col100, col101, col102, col103, col104, col105, col106, col107, col108, col109, col110, col111, col112, col113, col114, col115, col116, col117, col118, col119, col120, col121, col122, col123, col124, col125, col126, col127, col128, col129, col130, col131, col132, col133, col134, col135, col136, col137, col138, col139, col140, col141, col142, col143, col144, col145, col146, col147, col148, col149, col150, col151, col152, col153, col154, col155, col156, col157, col158, col159, col160, col161, col162, col163, col164, col165, col166, col167, col168, col169, col170, col171, col172, col173, col174, col175, col176, col177, col178, col179, col180, col181, col182, col183, col184, col185, col186, col187, col188, col189, col190, col191, col192, col193, col194, col195, col196, col197, col198, col199, WHERE Date=today()\n"
+	lz4TestQuery = "\xfb\xd7NϹ\xec\xf2\x81Hp`\xe3'A(>\x82N\x03\x00\x00\xf3\x05\x00\x00\xd0SELECT column\a\x00 0,\x06\x00\x111\x06\x00\x112\x06\x00\x113\x06\x00\x114\x06\x00\x115\x06\x00\x116\x06\x00\x117\x06\x00\x118\x06\x00\x119\x06\x00\x131=\x00\x02>\x00\x121?\x00\x121@\x00\x121A\x00\x121B\x00\x121C\x00\x121D\x00\x121E\x00\x121F\x00\x122F\x00\x122F\x00\x122F\x00\x122F\x00\x122F\x00\x122F\x00\x122F\x00\x122F\x00\x122F\x00\x122F\x00\x123F\x00\x123F\x00\x123F\x00\x123F\x00\x123F\x00\x123F\x00\x123F\x00\x123F\x00\x123F\x00\x123F\x00\x124F\x00\x124F\x00\x124F\x00\x124F\x00\x124F\x00\x124F\x00\x124F\x00\x124F\x00\x124F\x00\x124F\x00\x125F\x00\x125F\x00\x125F\x00\x125F\x00\x125F\x00\x125F\x00\x125F\x00\x125F\x00\x125F\x00\x125F\x00\x126F\x00\x126F\x00\x126F\x00\x126F\x00\x126F\x00\x126F\x00\x126F\x00\x126F\x00\x126F\x00\x126F\x00\x127F\x00\x127F\x00\x127F\x00\x127F\x00\x127F\x00\x127F\x00\x127F\x00\x127F\x00\x127F\x00\x127F\x00\x128F\x00\x128F\x00\x128F\x00\x128F\x00\x128F\x00\x128F\x00\x128F\x00\x128F\x00\x128F\x00\x128F\x00\x129F\x00\x129F\x00\x129F\x00\x129F\x00\x129F\x00\x129F\x00\x129F\x00\x129F\x00\x129F\x00\x129F\x00\"10G\x00\"10H\x00\"10I\x00\"10J\x00\"10K\x00\"10L\x00\"10M\x00\"10N\x00\"10O\x00#10P\x00\x05\xc7\x02\x03P\x00\x04\xc9\x02\x04\xca\x02\x04\xcb\x02\x04\xcc\x02\x04\xcd\x02\x04\xce\x02\x04\xcf\x02\x03\xd0\x02\x131\xd1\x02\x131\xd2\x02\x131\xd3\x02\x131\xd4\x02\x131\xd5\x02\x131\xd6\x02\x131\xd7\x02\x131\xd8\x02\x131\xd9\x02#12\xa0\x00\x03\xdb\x02\x131\xdc\x02\x131\xdd\x02\x131\xde\x02\x131\xdf\x02\x131\xe0\x02\x131\xe1\x02\x131\xe2\x02\x131\xe3\x02\x131\xe4\x02\x131\xe5\x02\x131\xe6\x02\x131\xe7\x02\x131\xe8\x02\x131\xe9\x02\x131\xea\x02\x131\xeb\x02\x131\xec\x02\x131\xed\x02\x131\xee\x02\x131\xef\x02\x131\xf0\x02\x131\xf1\x02\x131\xf2\x02\x131\xf3\x02\x131\xf4\x02\x131\xf5\x02\x131\xf6\x02\x131\xf7\x02\x131\xf8\x02\x131\xf9\x02\x131\xfa\x02\x131\xfb\x02\x131\xfc\x02\x131\xfd\x02\x131\xfe\x02\x131\xff\x02\x131\x00\x03\x131\x01\x03\x131\x02\x03\x131\x03\x03\x131\x04\x03\x131\x05\x03\x131\x06\x03\x131\a\x03\x131\b\x03#170\x02\x03\n\x03\x131\v\x03\x131\f\x03\x131\r\x03\x131\x0e\x03\x131\x0f\x03\x131\x10\x03\x131\x11\x03\x131\x12\x03\x131\x13\x03\x131\x14\x03\x131\x15\x03\x131\x16\x03\x131\x17\x03\x131\x18\x03\x131\x19\x03\x131\x1a\x03\x131\x1b\x03\x131\x1c\x03\x131\x1d\x03\x131\x1e\x03\x131\x1f\x03\x101 \x03\xf0\x04WHERE Date=today()\n"
+)
+
 func TestGetFullQueryLZ4(t *testing.T) {
-	q := makeQuery(1000)
-	r, err := compressToLZ4(q, 100)
-	if err != nil {
-		t.Fatalf("unexpected compress err: %s", err)
-	}
+	r := bytes.NewBufferString(lz4TestQuery)
 	req, err := http.NewRequest("POST", "http://127.0.0.1:9090?decompress=1", r)
 	if err != nil {
 		t.Fatal(err)
@@ -134,35 +133,26 @@ func TestGetFullQueryLZ4(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(query) != string(q) {
-		t.Fatalf("got: %q; expected %q", query, q)
+	if string(query) != testQuery {
+		t.Fatalf("got: %q; expected %q", query, testQuery)
 	}
 }
 
 func TestGetQuerySnippetLZ4(t *testing.T) {
-	q := makeQuery(1000)
-	r, err := compressToLZ4(q, 100)
-	if err != nil {
-		t.Fatalf("unexpected compress err: %s", err)
-	}
+	r := bytes.NewBufferString(lz4TestQuery)
 	req, err := http.NewRequest("POST", "http://127.0.0.1:9090?decompress=1", r)
 	if err != nil {
 		t.Fatal(err)
 	}
 	query := getQuerySnippet(req)
-	if query[:100] != string(q[:100]) {
-		t.Fatalf("got: %q; expected: %q", query[:100], q[:100])
+	if query[:100] != string(testQuery[:100]) {
+		t.Fatalf("got: %q; expected: %q", query[:100], testQuery[:100])
 	}
 }
 
 func TestGetQuerySnippetLZ4Partial(t *testing.T) {
 	var buf bytes.Buffer
-	zw := lz4.NewWriter(&buf)
-	q := makeQuery(100)
-	if _, err := zw.Write(q[:50]); err != nil {
-		t.Fatal(err)
-	}
-	zw.Close()
+	buf.WriteString(lz4TestQuery)
 	// write whatever to buf to make the data partially invalid
 	buf.WriteString("foobar")
 	req, err := http.NewRequest("POST", "http://127.0.0.1:9090?decompress=1", &buf)
@@ -170,8 +160,8 @@ func TestGetQuerySnippetLZ4Partial(t *testing.T) {
 		t.Fatal(err)
 	}
 	query := getQuerySnippet(req)
-	if query[:50] != string(q[:50]) {
-		t.Fatalf("got: %q; expected: %q", query[:50], q[:50])
+	if query[:50] != testQuery[:50] {
+		t.Fatalf("got: %q; expected: %q", query[:50], testQuery[:50])
 	}
 }
 
@@ -188,28 +178,6 @@ func TestGetQuerySnippetLZ4Invalid(t *testing.T) {
 	if query != str {
 		t.Fatalf("got: %q; expected: %q", query, str)
 	}
-}
-
-func compressToLZ4(v []byte, bucketSize int) (io.Reader, error) {
-	var buf bytes.Buffer
-	zw := lz4.NewWriter(&buf)
-	for {
-		if len(v) < bucketSize {
-			if _, err := zw.Write(v); err != nil {
-				return nil, err
-			}
-			break
-		}
-		if _, err := zw.Write(v[:bucketSize]); err != nil {
-			return nil, err
-		}
-		if err := zw.Flush(); err != nil {
-			return nil, err
-		}
-		v = v[bucketSize:]
-	}
-	zw.Close()
-	return &buf, nil
 }
 
 func makeQuery(n int) []byte {
