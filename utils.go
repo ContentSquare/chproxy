@@ -10,8 +10,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Vertamedia/chproxy/decompressor/lz4"
 	"github.com/Vertamedia/chproxy/log"
-	"github.com/pierrec/lz4"
 )
 
 func respondWith(rw http.ResponseWriter, err error, status int) {
