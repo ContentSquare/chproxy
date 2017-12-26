@@ -1,9 +1,6 @@
-// @see https://github.com/yandex/ClickHouse/blob/ae8783aee3ef982b6eb7e1721dac4cb3ce73f0fe/dbms/src/IO/CompressedStream.h
-
 package chdecompressor
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 
@@ -11,104 +8,102 @@ import (
 	"github.com/pierrec/lz4"
 )
 
+// Reader reads clickhouse compressed stream.
+// See https://github.com/yandex/ClickHouse/blob/ae8783aee3ef982b6eb7e1721dac4cb3ce73f0fe/dbms/src/IO/CompressedStream.h
 type Reader struct {
-	src             io.Reader
-	data            []byte
-	compressionType string
+	src     io.Reader
+	data    []byte
+	scratch []byte
 }
 
+// NewReader returns new clickhouse compressed stream reader reading from src.
 func NewReader(src io.Reader) *Reader {
-	return &Reader{src: src}
+	return &Reader{
+		src:     src,
+		scratch: make([]byte, 16),
+	}
 }
 
-func (r *Reader) Read(buf []byte) (n int, err error) {
+// Read reads up to len(buf) bytes from clickhouse compressed stream.
+func (r *Reader) Read(buf []byte) (int, error) {
 	// exhaust remaining data from previous Read()
-	if len(r.data) > 0 {
-		n = copy(buf, r.data)
-		r.data = r.data[n:]
-		return
+	if len(r.data) == 0 {
+		if err := r.readNextBlock(); err != nil {
+			return 0, err
+		}
 	}
 
-	// checksum
-	b := make([]byte, 16)
-	_, err = io.ReadFull(r.src, b)
-	if err != nil {
-		return 0, err
+	n := copy(buf, r.data)
+	r.data = r.data[n:]
+	return n, nil
+}
+
+func (r *Reader) readNextBlock() error {
+	// Skip checksum
+	if _, err := io.ReadFull(r.src, r.scratch[:16]); err != nil {
+		if err == io.EOF {
+			return io.EOF
+		}
+		return fmt.Errorf("cannot read checksum: %s", err)
 	}
 
-	if err := r.detectCompressionType(); err != nil {
-		return 0, err
+	// Read compression type
+	if _, err := io.ReadFull(r.src, r.scratch[:1]); err != nil {
+		return fmt.Errorf("cannot read compression type: %s", err)
 	}
+	compressionType := r.scratch[0]
 
-	// 4 bytes, including 9 bytes of header length
+	// Read compressed size
 	compressedSize, err := r.readUint32()
 	if err != nil {
-		return 0, fmt.Errorf("unable to read compressed size: %s", err)
+		return fmt.Errorf("cannot read compressed size: %s", err)
 	}
-	compressedSize -= 9
+	compressedSize -= 9 // minus header length
 
-	// 4 bytes of decompressed size
+	// Read decompressed size
 	decompressedSize, err := r.readUint32()
 	if err != nil {
-		return 0, fmt.Errorf("unable to read decompressed size: %s", err)
+		return fmt.Errorf("cannot read decompressed size: %s", err)
 	}
 
+	// Read compressed block
 	block := make([]byte, compressedSize)
-	_, err = io.ReadFull(r.src, block)
-	if err != nil {
-		return 0, err
+	if _, err = io.ReadFull(r.src, block); err != nil {
+		return fmt.Errorf("cannot read compressed block: %s", err)
 	}
 
+	// Decompress block
 	r.data = make([]byte, decompressedSize)
-	_, err = r.decompress(block, r.data)
-	if err != nil {
-		return 0, err
+	switch compressionType {
+	case noneType:
+		r.data = block
+	case lz4Type:
+		if _, err := lz4.UncompressBlock(block, r.data, 0); err != nil {
+			return fmt.Errorf("cannot decompress lz4 block: %s", err)
+		}
+	case zstdType:
+		r.data, err = zstd.Decompress(r.data, block)
+		if err != nil {
+			return fmt.Errorf("cannot decompress zstd block: %s", err)
+		}
+	default:
+		return fmt.Errorf("unknown compressionType: %X", compressionType)
 	}
-	n = copy(buf, r.data)
-	r.data = r.data[n:]
-	return
+	return nil
 }
 
-var (
-	lz4Type  = []byte{0x82}
-	zstdType = []byte{0x90}
+const (
+	noneType = 0x02
+	lz4Type  = 0x82
+	zstdType = 0x90
 )
 
-func (r *Reader) detectCompressionType() error {
-	b := make([]byte, 1)
-	_, err := io.ReadFull(r.src, b)
-	if err != nil {
-		return err
-	}
-	if bytes.Equal(b, lz4Type) {
-		r.compressionType = "lz4"
-		return nil
-	}
-	if bytes.Equal(b, zstdType) {
-		r.compressionType = "zstd"
-		return nil
-	}
-	return fmt.Errorf("unsupported compression type: %v", b)
-}
-
-func (r *Reader) decompress(src, buf []byte) (int, error) {
-	switch r.compressionType {
-	case "lz4":
-		return lz4.UncompressBlock(src, buf, 0)
-	case "zstd":
-		buf, err := zstd.Decompress(buf, src)
-		return len(buf), err
-	default:
-		return 0, fmt.Errorf("BUG: unkown compression type %q", r.compressionType)
-	}
-}
-
 func (r *Reader) readUint32() (uint32, error) {
-	b := make([]byte, 4)
+	b := r.scratch[:4]
 	_, err := io.ReadFull(r.src, b)
 	if err != nil {
 		return 0, err
 	}
-	_ = b[3]
-	return uint32(b[0]) | (uint32(b[1]) << 8) | (uint32(b[2]) << 16) | (uint32(b[3]) << 24), nil
+	n := uint32(b[0]) | (uint32(b[1]) << 8) | (uint32(b[2]) << 16) | (uint32(b[3]) << 24)
+	return n, nil
 }

@@ -45,7 +45,7 @@ func testDecompress(t *testing.T, str, expected string) {
 	r := NewReader(bb)
 	b, err := ioutil.ReadAll(r)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("cannot decompress %q: %s", expected, err)
 	}
 	if string(b) != expected {
 		t.Fatalf("got %q; expected: %q", string(b), expected)
