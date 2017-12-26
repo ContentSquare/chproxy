@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Vertamedia/chproxy/decompressor/lz4"
+	"github.com/Vertamedia/chproxy/chdecompressor"
 	"github.com/Vertamedia/chproxy/log"
 )
 
@@ -131,16 +131,6 @@ func getFullQuery(req *http.Request) ([]byte, error) {
 	return b, nil
 }
 
-func getDecompressor(req *http.Request) decompressor {
-	if req.Header.Get("Content-Encoding") == "gzip" {
-		return deGzip{}
-	}
-	if req.URL.Query().Get("decompress") == "1" {
-		return deLZ4{}
-	}
-	return nil
-}
-
 // canCacheQuery returns true if q can be cached.
 func canCacheQuery(q []byte) bool {
 	q = skipLeadingComments(q)
@@ -196,13 +186,23 @@ func skipLeadingComments(q []byte) []byte {
 	return nil
 }
 
+func getDecompressor(req *http.Request) decompressor {
+	if req.Header.Get("Content-Encoding") == "gzip" {
+		return gzipDecompressor{}
+	}
+	if req.URL.Query().Get("decompress") == "1" {
+		return chDecompressor{}
+	}
+	return nil
+}
+
 type decompressor interface {
 	decompress(r io.Reader) ([]byte, error)
 }
 
-type deGzip struct{}
+type gzipDecompressor struct{}
 
-func (u deGzip) decompress(r io.Reader) ([]byte, error) {
+func (dc gzipDecompressor) decompress(r io.Reader) ([]byte, error) {
 	gr, err := gzip.NewReader(r)
 	if err != nil {
 		return nil, fmt.Errorf("cannot ungzip query: %s", err)
@@ -210,9 +210,9 @@ func (u deGzip) decompress(r io.Reader) ([]byte, error) {
 	return ioutil.ReadAll(gr)
 }
 
-type deLZ4 struct{}
+type chDecompressor struct{}
 
-func (u deLZ4) decompress(r io.Reader) ([]byte, error) {
-	lr := lz4.NewReader(r)
+func (dc chDecompressor) decompress(r io.Reader) ([]byte, error) {
+	lr := chdecompressor.NewReader(r)
 	return ioutil.ReadAll(lr)
 }

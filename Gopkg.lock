@@ -2,6 +2,12 @@
 
 
 [[projects]]
+  name = "github.com/DataDog/zstd"
+  packages = ["."]
+  revision = "0727e1752ea5db67e0ede4e0fb7168ddc6ead61b"
+  version = "v1.3.0"
+
+[[projects]]
   branch = "master"
   name = "github.com/beorn7/perks"
   packages = ["quantile"]
@@ -83,6 +89,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "7fe181515607f6be6ee39ea05ef568a7e5f63dcaf57740c6c68eed72159d5602"
+  inputs-digest = "9bc7ebcef62912805effe1c9d26b6b90c24efc79839d2c40181a6ec092d0f316"
   solver-name = "gps-cdcl"
   solver-version = 1
