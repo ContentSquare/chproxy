@@ -119,6 +119,8 @@ func getFullQuery(req *http.Request) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	// restore body for further reading
+	req.Body = ioutil.NopCloser(bytes.NewBuffer(data))
 	u := getDecompressor(req)
 	if u == nil {
 		return data, nil

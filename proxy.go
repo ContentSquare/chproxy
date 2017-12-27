@@ -1,10 +1,8 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -223,14 +221,13 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		return
 	}
 
+	// TODO: add tes case to verify that body remains unchanged
 	q, err := getFullQuery(req)
 	if err != nil {
 		err = fmt.Errorf("%s: cannot read query: %s", s, err)
 		respondWith(srw, err, http.StatusBadRequest)
 		return
 	}
-	req.Body = ioutil.NopCloser(bytes.NewBuffer(q))
-
 	if !canCacheQuery(q) {
 		// The query cannot be cached, so just proxy it.
 		rp.proxyRequest(s, srw, srw, req)
