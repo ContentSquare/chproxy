@@ -1,0 +1,23 @@
+# cache configuration
+caches:
+  - name: "cache"
+    dir: "temp-test-data/cache_deadline"
+    max_size: "10M"
+    expire: "1m"
+
+server:
+  http:
+      listen_addr: ":9090"
+      allowed_networks: ["127.0.0.1/24"]
+
+
+users:
+  - name: "default"
+    to_cluster: "default"
+    to_user: "default"
+    cache: "cache"
+    max_execution_time: 100ms
+
+clusters:
+  - name: "default"
+    nodes: ["127.0.0.1:8124"]

@@ -146,6 +146,13 @@ var (
 		},
 		[]string{"user", "cluster", "cluster_user", "replica", "cluster_node"},
 	)
+	killedRequests = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "killed_request_total",
+			Help: "The number of requests killed by proxy",
+		},
+		[]string{"user", "cluster", "cluster_user", "replica", "cluster_node"},
+	)
 	timeoutRequest = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "timeout_request_total",

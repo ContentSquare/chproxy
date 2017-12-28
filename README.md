@@ -587,6 +587,7 @@ Metrics are exposed in [prometheus text format](https://prometheus.io/docs/instr
 | proxied_response_duration_seconds | Summary | Duration for responses proxied from clickhouse | `user`, `cluster`, `cluster_user`, `replica`, `cluster_node` |
 | cached_response_duration_seconds | Summary | Duration for cached responses. Includes the duration for sending response to client | `cache`, `user`, `cluster`, `cluster_user` |
 | canceled_request_total | Counter | The number of requests canceled by remote client | `user`, `cluster`, `cluster_user`, `replica`, `cluster_node` |
+| killed_request_total | Counter | The number of requests killed by proxy | `user`, `cluster`, `cluster_user`, `replica`, `cluster_node` |
 | timeout_request_total | Counter | The number of timed out requests | `user`, `cluster`, `cluster_user`, `replica`, `cluster_node` |
 | config_last_reload_successful | Gauge | Whether the last configuration reload attempt was successful | |
 | config_last_reload_success_timestamp_seconds | Gauge | Timestamp of the last successful configuration reload | |
