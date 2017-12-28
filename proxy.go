@@ -201,8 +201,8 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, srw *stat
 			log.Errorf("%s: cannot kill query: %s; query: %q", s, err, q)
 		}
 		srw.statusCode = 499 // See https://httpstatuses.com/499 .
-		//err = fmt.Errorf("client closed connection for query: %q", q)
-		//respondWith(rw, err, srw.statusCode)
+		err = fmt.Errorf("client closed connection for query: %q", q)
+		respondWith(rw, err, srw.statusCode)
 
 	case context.DeadlineExceeded:
 		timeoutRequest.With(s.labels).Inc()
