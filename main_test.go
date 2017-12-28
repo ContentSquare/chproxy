@@ -255,7 +255,7 @@ func TestServe(t *testing.T) {
 		},
 		{
 			"http gzipped POST request",
-			"testdata/http.yml",
+			"testdata/http.cache.yml",
 			func(t *testing.T) {
 				var buf bytes.Buffer
 				zw := gzip.NewWriter(&buf)
@@ -267,8 +267,9 @@ func TestServe(t *testing.T) {
 				checkErr(t, err)
 				resp, err := http.DefaultClient.Do(req)
 				checkErr(t, err)
+				body, _ := ioutil.ReadAll(resp.Body)
 				if resp.StatusCode != http.StatusOK {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
+					t.Fatalf("unexpected status code: %d; expected: %d; body: ", resp.StatusCode, http.StatusOK, string(body))
 				}
 				resp.Body.Close()
 			},
@@ -372,6 +373,7 @@ func TestServe(t *testing.T) {
 			func(t *testing.T) {
 				// actually we can check that cache-file is shared via metrics
 				// but it needs additional library for doing this
+				// so it would be just files amount check
 				cacheDir := "temp-test-data/shared_cache"
 				checkFilesCount := func(expectedLen int) {
 					files, err := ioutil.ReadDir(cacheDir)
@@ -382,7 +384,6 @@ func TestServe(t *testing.T) {
 						t.Fatalf("expected %d files in cache dir; got: %d", expectedLen, len(files))
 					}
 				}
-
 				checkFilesCount(0)
 				httpGet(t, "http://127.0.0.1:9090?query=SELECT&user=user1", http.StatusOK)
 				checkFilesCount(1)
@@ -490,13 +491,22 @@ func startHTTP() (net.Listener, chan struct{}) {
 }
 
 func startCHServer() {
-	http.ListenAndServe(":8124", http.HandlerFunc(fakeHandler))
+	http.ListenAndServe(":8124", http.HandlerFunc(fakeCHHandler))
 }
 
-func fakeHandler(w http.ResponseWriter, r *http.Request) {
-	params := r.URL.Query()
-	query := params.Get("query")
-	switch query {
+func fakeCHHandler(w http.ResponseWriter, r *http.Request) {
+	query, err := getFullQuery(r)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, "error while reading query: %s", err)
+		return
+	}
+	if len(query) == 0 && r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprint(w, "got empty query for non-GET request")
+		return
+	}
+	switch string(query) {
 	case "SELECT ERROR":
 		w.WriteHeader(http.StatusTeapot)
 		fmt.Fprint(w, "DB::Exception\n")
@@ -596,6 +606,9 @@ func checkErr(t *testing.T, err error) {
 }
 
 func checkResponse(t *testing.T, r io.Reader, expected string) {
+	if r == nil {
+		t.Fatal("unexpected nil reader")
+	}
 	response, err := ioutil.ReadAll(r)
 	if err != nil {
 		t.Fatalf("unexpected err while reading: %s", err)

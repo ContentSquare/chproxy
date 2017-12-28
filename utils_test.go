@@ -113,6 +113,7 @@ func TestGetFullQueryGzipped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	checkResponse(t, req.Body, buf.String())
 	if string(query) != string(q) {
 		t.Fatalf("got: %q; expected %q", query, q)
 	}
@@ -138,6 +139,7 @@ func TestDecompression(t *testing.T) {
 				if err != nil {
 					return err
 				}
+				checkResponse(t, req.Body, lz4TestQuery)
 				if string(q) != testQuery {
 					return fmt.Errorf("got: %q; expected %q", string(q), testQuery)
 				}
@@ -185,6 +187,7 @@ func TestDecompression(t *testing.T) {
 				if err != nil {
 					return err
 				}
+				checkResponse(t, req.Body, zstdTestQuery)
 				if string(q) != testQuery {
 					return fmt.Errorf("got: %q; expected %q", string(q), testQuery)
 				}
