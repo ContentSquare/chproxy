@@ -403,11 +403,17 @@ func TestServe(t *testing.T) {
 				cacheDir := "temp-test-data/cache_deadline"
 				checkFilesCount(t, cacheDir, 0)
 
-				ctx, _ := context.WithDeadline(context.Background(), time.Now().Add(100*time.Millisecond))
+				ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(100*time.Millisecond))
+				defer cancel()
 				req = req.WithContext(ctx)
-				http.DefaultClient.Do(req)
+				_, err = http.DefaultClient.Do(req)
+				expErr := "context deadline exceeded"
+				if !strings.Contains(err.Error(), "context deadline exceeded") {
+					t.Fatalf("unexpected error: %s; expected: %s", err, expErr)
+				}
 				select {
 				case <-fakeCHState.syncCH:
+					// wait while chproxy will detect that request was canceled and will drop temp file
 					time.Sleep(time.Millisecond * 200)
 					checkFilesCount(t, cacheDir, 0)
 				case <-time.After(time.Second*5):
