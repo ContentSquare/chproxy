@@ -68,9 +68,9 @@ func TestServe(t *testing.T) {
 			startTLS,
 		},
 		{
-			name: "https cache",
-			file: "testdata/https.cache.yml",
-			testFn: func(t *testing.T) {
+			"https cache",
+			"testdata/https.cache.yml",
+			func(t *testing.T) {
 				// do request which response must be cached
 				q := "SELECT 123"
 				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query="+url.QueryEscape(q), nil)
@@ -100,7 +100,7 @@ func TestServe(t *testing.T) {
 				expected := "Ok.\n"
 				checkResponse(t, rw.Body, expected)
 			},
-			listenFn: startTLS,
+			startTLS,
 		},
 		{
 			"bad https cache",
