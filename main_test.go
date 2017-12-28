@@ -269,7 +269,7 @@ func TestServe(t *testing.T) {
 				checkErr(t, err)
 				body, _ := ioutil.ReadAll(resp.Body)
 				if resp.StatusCode != http.StatusOK {
-					t.Fatalf("unexpected status code: %d; expected: %d; body: ", resp.StatusCode, http.StatusOK, string(body))
+					t.Fatalf("unexpected status code: %d; expected: %d; body: %s", resp.StatusCode, http.StatusOK, string(body))
 				}
 				resp.Body.Close()
 			},
