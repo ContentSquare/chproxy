@@ -177,6 +177,12 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, srw *stat
 		since := float64(time.Since(startTime).Seconds())
 		proxiedResponseDuration.With(s.labels).Observe(since)
 
+		// cache.ResponseWriter writes header only on Commit/Rollback actions
+		// but they didn't happen yet
+		if crw, ok := rw.(*cache.ResponseWriter); ok {
+			srw.statusCode = crw.StatusCode()
+		}
+
 		// StatusBadGateway response is returned by http.ReverseProxy when
 		// it cannot establish connection to remote host.
 		if srw.statusCode == http.StatusBadGateway {
@@ -221,7 +227,6 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		return
 	}
 
-	// TODO: add tes case to verify that body remains unchanged
 	q, err := getFullQuery(req)
 	if err != nil {
 		err = fmt.Errorf("%s: cannot read query: %s", s, err)
