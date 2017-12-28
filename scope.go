@@ -42,7 +42,7 @@ type scope struct {
 	localAddr  string
 
 	// is true when KillQuery has been called
-	cancelled bool
+	canceled bool
 
 	labels prometheus.Labels
 }
@@ -240,7 +240,7 @@ const killQueryTimeout = time.Second * 30
 func (s *scope) killQuery() error {
 	log.Debugf("killing the query with query_id=%s", s.id)
 	killedRequests.With(s.labels).Inc()
-	s.cancelled = true
+	s.canceled = true
 
 	query := fmt.Sprintf("KILL QUERY WHERE query_id = '%s'", s.id)
 	r := strings.NewReader(query)

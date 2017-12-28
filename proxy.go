@@ -201,8 +201,6 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, srw *stat
 			log.Errorf("%s: cannot kill query: %s; query: %q", s, err, q)
 		}
 		srw.statusCode = 499 // See https://httpstatuses.com/499 .
-		err = fmt.Errorf("client closed connection for query: %q", q)
-		respondWith(rw, err, srw.statusCode)
 
 	case context.DeadlineExceeded:
 		timeoutRequest.With(s.labels).Inc()
@@ -288,7 +286,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	}
 	rp.proxyRequest(s, crw, srw, req)
 
-	if crw.StatusCode() != http.StatusOK || s.cancelled {
+	if crw.StatusCode() != http.StatusOK || s.canceled {
 		// Do not cache non-200 or cancelled responses.
 		// Restore the original status code by proxyRequest if it was set.
 		if srw.statusCode != 0 {

@@ -265,8 +265,8 @@ func TestServe(t *testing.T) {
 				checkErr(t, err)
 				zw.Close()
 				req, err := http.NewRequest("POST", "http://127.0.0.1:9090", &buf)
-				req.Header.Set("Content-Encoding", "gzip")
 				checkErr(t, err)
+				req.Header.Set("Content-Encoding", "gzip")
 				resp, err := http.DefaultClient.Do(req)
 				checkErr(t, err)
 				body, _ := ioutil.ReadAll(resp.Body)
@@ -303,8 +303,8 @@ func TestServe(t *testing.T) {
 				checkErr(t, err)
 				zw.Close()
 				req, err := http.NewRequest("POST", "http://127.0.0.1:9090", &buf)
-				req.Header.Set("Content-Encoding", "gzip")
 				checkErr(t, err)
+				req.Header.Set("Content-Encoding", "gzip")
 				resp, err := http.DefaultClient.Do(req)
 				checkErr(t, err)
 				if resp.StatusCode != http.StatusGatewayTimeout {
@@ -397,23 +397,22 @@ func TestServe(t *testing.T) {
 				checkErr(t, err)
 				zw.Close()
 				req, err := http.NewRequest("POST", "http://127.0.0.1:9090", &buf)
-				req.Header.Set("Content-Encoding", "gzip")
 				checkErr(t, err)
+				req.Header.Set("Content-Encoding", "gzip")
 
 				cacheDir := "temp-test-data/cache_deadline"
 				checkFilesCount(t, cacheDir, 0)
 
-				ctx, cancel := context.WithCancel(context.Background())
+				ctx, _ := context.WithDeadline(context.Background(), time.Now().Add(100*time.Millisecond))
 				req = req.WithContext(ctx)
-				go http.DefaultClient.Do(req)
-				time.Sleep(time.Millisecond * 100)
-				cancel()
-				time.Sleep(time.Millisecond * 100)
 				http.DefaultClient.Do(req)
-				if !fakeCHState.isKilled() {
-					t.Fatal("expected deadline query to be killed")
+				select {
+				case <-fakeCHState.syncCH:
+					time.Sleep(time.Millisecond * 200)
+					checkFilesCount(t, cacheDir, 0)
+				case <-time.After(time.Second):
+					t.Fatalf("expected deadline query to be killed")
 				}
-				checkFilesCount(t, cacheDir, 0)
 			},
 			startHTTP,
 		},
@@ -544,7 +543,6 @@ func fakeCHHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusTeapot)
 		fmt.Fprint(w, "DB::Exception\n")
 	case "SELECT SLEEP":
-		fakeCHState.reset()
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprint(w, "foo")
 		if f, ok := w.(http.Flusher); ok {
@@ -563,38 +561,35 @@ func fakeCHHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-var fakeCHState = &stateCH{}
+var fakeCHState = &stateCH{
+	syncCH: make(chan struct{}),
+}
 
 type stateCH struct {
-	syncCH chan struct{}
 	sync.Mutex
-	killed bool
+	inited bool
+	syncCH chan struct{}
 }
 
-func (s *stateCH) reset() {
-	if s.syncCH != nil {
-		close(s.syncCH)
-	}
-	s.syncCH = make(chan struct{})
-}
-
-func (s *stateCH) isKilled() bool {
+func (s *stateCH) isInited() bool {
 	s.Lock()
 	defer s.Unlock()
-	return s.killed
+	return s.inited
 }
 
 func (s *stateCH) kill() {
-	if s.syncCH == nil {
+	s.Lock()
+	defer s.Unlock()
+	if !s.inited {
 		return
 	}
-	s.Lock()
-	s.killed = true
-	s.Unlock()
-	s.syncCH <- struct{}{}
+	close(s.syncCH)
 }
 
 func (s *stateCH) sleep() {
+	s.Lock()
+	s.inited = true
+	s.Unlock()
 	<-s.syncCH
 }
 
