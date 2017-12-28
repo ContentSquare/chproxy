@@ -410,7 +410,7 @@ func TestServe(t *testing.T) {
 				case <-fakeCHState.syncCH:
 					time.Sleep(time.Millisecond * 200)
 					checkFilesCount(t, cacheDir, 0)
-				case <-time.After(time.Second):
+				case <-time.After(time.Second*5):
 					t.Fatalf("expected deadline query to be killed")
 				}
 			},
