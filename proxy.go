@@ -177,8 +177,8 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, srw *stat
 		since := float64(time.Since(startTime).Seconds())
 		proxiedResponseDuration.With(s.labels).Observe(since)
 
-		// cache.ResponseWriter writes header only on Commit/Rollback actions
-		// but they didn't happen yet
+		// cache.ResponseWriter pushes status code to srw on Commit/Rollback actions
+		// but they didn't happen yet, so manually propagate the status code from crw to srw.
 		if crw, ok := rw.(*cache.ResponseWriter); ok {
 			srw.statusCode = crw.StatusCode()
 		}
