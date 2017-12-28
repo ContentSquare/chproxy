@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -13,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -66,9 +68,9 @@ func TestServe(t *testing.T) {
 			startTLS,
 		},
 		{
-			"https cache",
-			"testdata/https.cache.yml",
-			func(t *testing.T) {
+			name: "https cache",
+			file: "testdata/https.cache.yml",
+			testFn: func(t *testing.T) {
 				// do request which response must be cached
 				q := "SELECT 123"
 				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query="+url.QueryEscape(q), nil)
@@ -98,7 +100,7 @@ func TestServe(t *testing.T) {
 				expected := "Ok.\n"
 				checkResponse(t, rw.Body, expected)
 			},
-			startTLS,
+			listenFn: startTLS,
 		},
 		{
 			"bad https cache",
@@ -375,22 +377,43 @@ func TestServe(t *testing.T) {
 				// but it needs additional library for doing this
 				// so it would be just files amount check
 				cacheDir := "temp-test-data/shared_cache"
-				checkFilesCount := func(expectedLen int) {
-					files, err := ioutil.ReadDir(cacheDir)
-					if err != nil {
-						t.Fatalf("error while reading dir %q: %s", cacheDir, err)
-					}
-					if expectedLen != len(files) {
-						t.Fatalf("expected %d files in cache dir; got: %d", expectedLen, len(files))
-					}
-				}
-				checkFilesCount(0)
+				checkFilesCount(t, cacheDir, 0)
 				httpGet(t, "http://127.0.0.1:9090?query=SELECT&user=user1", http.StatusOK)
-				checkFilesCount(1)
+				checkFilesCount(t, cacheDir, 1)
 				httpGet(t, "http://127.0.0.1:9090?query=SELECT&user=user2", http.StatusOK)
 				// request from different user expected to be served with already cached,
 				// so count of files should be the same
-				checkFilesCount(1)
+				checkFilesCount(t, cacheDir, 1)
+			},
+			startHTTP,
+		},
+		{
+			"http cached gzipped deadline",
+			"testdata/http.cache.deadline.yml",
+			func(t *testing.T) {
+				var buf bytes.Buffer
+				zw := gzip.NewWriter(&buf)
+				_, err := zw.Write([]byte("SELECT SLEEP"))
+				checkErr(t, err)
+				zw.Close()
+				req, err := http.NewRequest("POST", "http://127.0.0.1:9090", &buf)
+				req.Header.Set("Content-Encoding", "gzip")
+				checkErr(t, err)
+
+				cacheDir := "temp-test-data/cache_deadline"
+				checkFilesCount(t, cacheDir, 0)
+
+				ctx, cancel := context.WithCancel(context.Background())
+				req = req.WithContext(ctx)
+				go http.DefaultClient.Do(req)
+				time.Sleep(time.Millisecond * 100)
+				cancel()
+				time.Sleep(time.Millisecond * 100)
+				http.DefaultClient.Do(req)
+				if !fakeCHState.isKilled() {
+					t.Fatal("expected deadline query to be killed")
+				}
+				checkFilesCount(t, cacheDir, 0)
 			},
 			startHTTP,
 		},
@@ -441,6 +464,16 @@ func TestServe(t *testing.T) {
 
 			tc.testFn(t)
 		})
+	}
+}
+
+func checkFilesCount(t *testing.T, dir string, expectedLen int) {
+	files, err := ioutil.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("error while reading dir %q: %s", dir, err)
+	}
+	if expectedLen != len(files) {
+		t.Fatalf("expected %d files in cache dir; got: %d", expectedLen, len(files))
 	}
 }
 
@@ -510,10 +543,59 @@ func fakeCHHandler(w http.ResponseWriter, r *http.Request) {
 	case "SELECT ERROR":
 		w.WriteHeader(http.StatusTeapot)
 		fmt.Fprint(w, "DB::Exception\n")
+	case "SELECT SLEEP":
+		fakeCHState.reset()
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, "foo")
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+
+		fakeCHState.sleep()
+
+		fmt.Fprint(w, "bar")
 	default:
+		if strings.Contains(string(query), killQueryPattern) {
+			fakeCHState.kill()
+		}
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprint(w, "Ok.\n")
 	}
+}
+
+var fakeCHState = &stateCH{}
+
+type stateCH struct {
+	syncCH chan struct{}
+	sync.Mutex
+	killed bool
+}
+
+func (s *stateCH) reset() {
+	if s.syncCH != nil {
+		close(s.syncCH)
+	}
+	s.syncCH = make(chan struct{})
+}
+
+func (s *stateCH) isKilled() bool {
+	s.Lock()
+	defer s.Unlock()
+	return s.killed
+}
+
+func (s *stateCH) kill() {
+	if s.syncCH == nil {
+		return
+	}
+	s.Lock()
+	s.killed = true
+	s.Unlock()
+	s.syncCH <- struct{}{}
+}
+
+func (s *stateCH) sleep() {
+	<-s.syncCH
 }
 
 func TestNewTLSConfig(t *testing.T) {
