@@ -36,8 +36,9 @@ func TestLoadConfig(t *testing.T) {
 				HackMePlease: true,
 				Server: Server{
 					HTTP: HTTP{
-						ListenAddr:       ":9090",
-						NetworksOrGroups: []string{"office", "reporting-apps", "1.2.3.4"},
+						ListenAddr:           ":9090",
+						NetworksOrGroups:     []string{"office", "reporting-apps", "1.2.3.4"},
+						ForceAutocertHandler: true,
 					},
 					HTTPS: HTTPS{
 						ListenAddr: ":443",

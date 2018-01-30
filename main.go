@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -72,6 +73,9 @@ func main() {
 		panic("BUG: broken config validation - `listen_addr` is not configured")
 	}
 
+	if server.HTTP.ForceAutocertHandler {
+		autocertManager = newAutocertManager(server.HTTPS.Autocert)
+	}
 	maxResponseTime := getMaxResponseTime(cfg)
 	if len(server.HTTPS.ListenAddr) != 0 {
 		go serveTLS(server.HTTPS, maxResponseTime)
@@ -81,6 +85,34 @@ func main() {
 	}
 
 	select {}
+}
+
+var autocertManager *autocert.Manager
+
+func newAutocertManager(cfg config.Autocert) *autocert.Manager {
+	if len(cfg.CacheDir) > 0 {
+		if err := os.MkdirAll(cfg.CacheDir, 0700); err != nil {
+			log.Fatalf("error while creating folder %q: %s", cfg.CacheDir, err)
+		}
+	}
+	var hp autocert.HostPolicy
+	if len(cfg.AllowedHosts) != 0 {
+		allowedHosts := make(map[string]struct{}, len(cfg.AllowedHosts))
+		for _, v := range cfg.AllowedHosts {
+			allowedHosts[v] = struct{}{}
+		}
+		hp = func(_ context.Context, host string) error {
+			if _, ok := allowedHosts[host]; ok {
+				return nil
+			}
+			return fmt.Errorf("host %q doesn't match `host_policy` configuration", host)
+		}
+	}
+	return &autocert.Manager{
+		Prompt:     autocert.AcceptTOS,
+		Cache:      autocert.DirCache(cfg.CacheDir),
+		HostPolicy: hp,
+	}
 }
 
 // getMaxResponseTime returns the maximum possible response time
@@ -114,18 +146,33 @@ func newListener(listenAddr string) net.Listener {
 
 func serveTLS(cfg config.HTTPS, maxResponseTime time.Duration) {
 	ln := newListener(cfg.ListenAddr)
+	h := http.HandlerFunc(serveHTTP)
 	tlsCfg := newTLSConfig(cfg)
 	tln := tls.NewListener(ln, tlsCfg)
 	log.Infof("Serving https on %q", cfg.ListenAddr)
-	if err := listenAndServe(tln, maxResponseTime); err != nil {
+	if err := listenAndServe(tln, h, maxResponseTime); err != nil {
 		log.Fatalf("TLS server error on %q: %s", cfg.ListenAddr, err)
 	}
 }
 
 func serve(cfg config.HTTP, maxResponseTime time.Duration) {
+	var h http.Handler
 	ln := newListener(cfg.ListenAddr)
+	h = http.HandlerFunc(serveHTTP)
+	if cfg.ForceAutocertHandler {
+		if autocertManager == nil {
+			log.Fatalf("BUG: autocertManager is not inited")
+		}
+		addr := ln.Addr().String()
+		parts := strings.Split(addr, ":")
+		if parts[len(parts)-1] != "80" {
+			log.Fatalf("`letsencrypt` specification requires http server to listen on :80 port to satisfy http-01 challenge. " +
+				"Otherwise, certificates will be impossible to generate")
+		}
+		h = autocertManager.HTTPHandler(h)
+	}
 	log.Infof("Serving http on %q", cfg.ListenAddr)
-	if err := listenAndServe(ln, maxResponseTime); err != nil {
+	if err := listenAndServe(ln, h, maxResponseTime); err != nil {
 		log.Fatalf("HTTP server error on %q: %s", cfg.ListenAddr, err)
 	}
 }
@@ -146,35 +193,15 @@ func newTLSConfig(cfg config.HTTPS) *tls.Config {
 		}
 		tlsCfg.Certificates = []tls.Certificate{cert}
 	} else {
-		if len(cfg.Autocert.CacheDir) > 0 {
-			if err := os.MkdirAll(cfg.Autocert.CacheDir, 0700); err != nil {
-				log.Fatalf("error while creating folder %q: %s", cfg.Autocert.CacheDir, err)
-			}
+		if autocertManager == nil {
+			log.Fatalf("BUG: autocertManager is not inited")
 		}
-		var hp autocert.HostPolicy
-		if len(cfg.Autocert.AllowedHosts) != 0 {
-			allowedHosts := make(map[string]struct{}, len(cfg.Autocert.AllowedHosts))
-			for _, v := range cfg.Autocert.AllowedHosts {
-				allowedHosts[v] = struct{}{}
-			}
-			hp = func(_ context.Context, host string) error {
-				if _, ok := allowedHosts[host]; ok {
-					return nil
-				}
-				return fmt.Errorf("host %q doesn't match `host_policy` configuration", host)
-			}
-		}
-		m := autocert.Manager{
-			Prompt:     autocert.AcceptTOS,
-			Cache:      autocert.DirCache(cfg.Autocert.CacheDir),
-			HostPolicy: hp,
-		}
-		tlsCfg.GetCertificate = m.GetCertificate
+		tlsCfg.GetCertificate = autocertManager.GetCertificate
 	}
 	return &tlsCfg
 }
 
-func listenAndServe(ln net.Listener, maxResponseTime time.Duration) error {
+func listenAndServe(ln net.Listener, h http.Handler, maxResponseTime time.Duration) error {
 	if maxResponseTime < 0 {
 		maxResponseTime = 0
 	}
@@ -184,7 +211,7 @@ func listenAndServe(ln net.Listener, maxResponseTime time.Duration) error {
 
 	s := &http.Server{
 		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
-		Handler:      http.HandlerFunc(serveHTTP),
+		Handler:      h,
 		ReadTimeout:  time.Minute,
 		WriteTimeout: maxResponseTime,
 		IdleTimeout:  time.Minute * 10,

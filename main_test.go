@@ -416,7 +416,7 @@ func TestServe(t *testing.T) {
 					// wait while chproxy will detect that request was canceled and will drop temp file
 					time.Sleep(time.Millisecond * 200)
 					checkFilesCount(t, cacheDir, 0)
-				case <-time.After(time.Second*5):
+				case <-time.After(time.Second * 5):
 					t.Fatalf("expected deadline query to be killed")
 				}
 			},
@@ -501,8 +501,9 @@ func startTLS() (net.Listener, chan struct{}) {
 	}
 	tlsCfg := newTLSConfig(cfg.Server.HTTPS)
 	tln := tls.NewListener(ln, tlsCfg)
+	h := http.HandlerFunc(serveHTTP)
 	go func() {
-		listenAndServe(tln, time.Minute)
+		listenAndServe(tln, h, time.Minute)
 		close(done)
 	}()
 	return tln, done
@@ -521,8 +522,9 @@ func startHTTP() (net.Listener, chan struct{}) {
 	if err != nil {
 		panic(fmt.Sprintf("cannot listen for %q: %s", cfg.Server.HTTP.ListenAddr, err))
 	}
+	h := http.HandlerFunc(serveHTTP)
 	go func() {
-		listenAndServe(ln, time.Minute)
+		listenAndServe(ln, h, time.Minute)
 		close(done)
 	}()
 	return ln, done
@@ -617,6 +619,7 @@ func TestNewTLSConfig(t *testing.T) {
 			AllowedHosts: []string{"example.com"},
 		},
 	}
+	autocertManager = newAutocertManager(cfg.Autocert)
 	tlsCfg = newTLSConfig(cfg)
 	if tlsCfg.GetCertificate == nil {
 		t.Fatalf("expected func GetCertificate be set; got nil")
