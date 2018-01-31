@@ -420,6 +420,7 @@ server:
     # Certificates are automatically issued and renewed if this section
     # is present.
     # There is no need in cert_file and key_file if this section is present.
+    # Autocert requires application to listen on :80 port for certificate generation
     autocert:
       # Path to the directory where autocert certs are cached.
       cache_dir: "certs_dir"

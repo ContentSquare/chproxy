@@ -79,6 +79,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				"Must be specified `https.cache_dir` for autocert " +
 				"OR `https.key_file` and `https.cert_file` for already existing certs")
 		}
+		if len(c.Server.HTTPS.Autocert.CacheDir) > 0 {
+			c.Server.HTTP.ForceAutocertHandler = true
+		}
 	}
 	return checkOverflow(c.XXX, "config")
 }
@@ -119,6 +122,9 @@ type HTTP struct {
 	// Each list item could be IP address or subnet mask
 	// if omitted or zero - no limits would be applied
 	AllowedNetworks Networks `yaml:"-"`
+
+	// Whether to support Autocert handler for http-01 challenge
+	ForceAutocertHandler bool
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
@@ -171,8 +177,8 @@ func (c *HTTPS) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		if len(c.CertFile) > 0 || len(c.KeyFile) > 0 {
 			return fmt.Errorf("it is forbidden to specify certificate and `https.autocert` at the same time. Choose one way")
 		}
-		if len(c.NetworksOrGroups) > 0 || c.ListenAddr != ":443" {
-			return fmt.Errorf("`letsencrypt` specification requires https server to listen on :443 port and be without `allowed_networks` limits. " +
+		if len(c.NetworksOrGroups) > 0 {
+			return fmt.Errorf("`letsencrypt` specification requires https server to be without `allowed_networks` limits. " +
 				"Otherwise, certificates will be impossible to generate")
 		}
 	}
@@ -186,6 +192,8 @@ func (c *HTTPS) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 // Autocert configuration via letsencrypt
+// It requires port :80 to be open
+// see https://community.letsencrypt.org/t/2018-01-11-update-regarding-acme-tls-sni-and-shared-hosting-infrastructure/50188
 type Autocert struct {
 	// Path to the directory where autocert certs are cached
 	CacheDir string `yaml:"cache_dir,omitempty"`
