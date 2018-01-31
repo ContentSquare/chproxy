@@ -291,7 +291,7 @@ func TestBadConfig(t *testing.T) {
 		{
 			"autocert allowed networks",
 			"testdata/bad.autocert_an.yml",
-			"`letsencrypt` specification requires https server to listen on :443 port and be without `allowed_networks` limits. " +
+			"`letsencrypt` specification requires https server to be without `allowed_networks` limits. " +
 				"Otherwise, certificates will be impossible to generate",
 		},
 		{

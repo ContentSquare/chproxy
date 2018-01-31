@@ -161,7 +161,7 @@ func serve(cfg config.HTTP, maxResponseTime time.Duration) {
 	h = http.HandlerFunc(serveHTTP)
 	if cfg.ForceAutocertHandler {
 		if autocertManager == nil {
-			log.Fatalf("BUG: autocertManager is not inited")
+			panic("BUG: autocertManager is not inited")
 		}
 		addr := ln.Addr().String()
 		parts := strings.Split(addr, ":")
@@ -194,7 +194,7 @@ func newTLSConfig(cfg config.HTTPS) *tls.Config {
 		tlsCfg.Certificates = []tls.Certificate{cert}
 	} else {
 		if autocertManager == nil {
-			log.Fatalf("BUG: autocertManager is not inited")
+			panic("BUG: autocertManager is not inited")
 		}
 		tlsCfg.GetCertificate = autocertManager.GetCertificate
 	}

@@ -177,8 +177,8 @@ func (c *HTTPS) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		if len(c.CertFile) > 0 || len(c.KeyFile) > 0 {
 			return fmt.Errorf("it is forbidden to specify certificate and `https.autocert` at the same time. Choose one way")
 		}
-		if len(c.NetworksOrGroups) > 0 || c.ListenAddr != ":443" {
-			return fmt.Errorf("`letsencrypt` specification requires https server to listen on :443 port and be without `allowed_networks` limits. " +
+		if len(c.NetworksOrGroups) > 0 {
+			return fmt.Errorf("`letsencrypt` specification requires https server to be without `allowed_networks` limits. " +
 				"Otherwise, certificates will be impossible to generate")
 		}
 	}
@@ -192,7 +192,8 @@ func (c *HTTPS) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 // Autocert configuration via letsencrypt
-// Autocert requires port :80 to be open - https://community.letsencrypt.org/t/2018-01-11-update-regarding-acme-tls-sni-and-shared-hosting-infrastructure/50188
+// It requires port :80 to be open
+// see https://community.letsencrypt.org/t/2018-01-11-update-regarding-acme-tls-sni-and-shared-hosting-infrastructure/50188
 type Autocert struct {
 	// Path to the directory where autocert certs are cached
 	CacheDir string `yaml:"cache_dir,omitempty"`
