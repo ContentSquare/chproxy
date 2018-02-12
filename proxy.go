@@ -7,6 +7,8 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strconv"
+	"strings"
+	"sort"
 	"sync"
 	"time"
 
@@ -47,6 +49,23 @@ func newReverseProxy() *reverseProxy {
 		reloadSignal: make(chan struct{}),
 		reloadWG:     sync.WaitGroup{},
 	}
+}
+
+// splits a comma "," or command and space ", " separated string,
+// sorts the items, and then concatenates them back together again
+func sortHeader(header string) string {
+
+	headerArray := strings.Split(header, ",")
+	sort.Strings(headerArray)
+
+	var trimmed []string
+
+	for _, field := range headerArray {
+		trimmed = append(trimmed, strings.TrimSpace(field))
+	}
+
+	return strings.Join(trimmed, ",")
+
 }
 
 func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -252,7 +271,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 
 	key := &cache.Key{
 		Query:          skipLeadingComments(q),
-		AcceptEncoding: req.Header.Get("Accept-Encoding"),
+		AcceptEncoding: sortHeader(req.Header.Get("Accept-Encoding")),
 		DefaultFormat:  origParams.Get("default_format"),
 		Database:       origParams.Get("database"),
 		Compress:       origParams.Get("compress"),
