@@ -31,6 +31,22 @@ func testSkipLeadingComments(t *testing.T, q, expectedQ string) {
 	}
 }
 
+func TestSortHeaders(t *testing.T) {
+	testSortHeaders(t, "br, gzip, deflate", "br,deflate,gzip")
+	testSortHeaders(t, "br,     gzip, deflate", "br,deflate,gzip")
+	testSortHeaders(t, "gzip,br,deflate", "br,deflate,gzip")
+	testSortHeaders(t, "gzip", "gzip")
+	testSortHeaders(t, "deflate, gzip, br", "br,deflate,gzip")
+}
+
+func testSortHeaders(t *testing.T, h, expectedH string) {
+	t.Helper()
+	s := sortHeader(h)
+	if s != expectedH {
+		t.Fatalf("unexpected result %q; expecting %q", s, expectedH)
+	}
+}
+
 func TestCanCacheQuery(t *testing.T) {
 	testCanCacheQuery(t, "", false)
 	testCanCacheQuery(t, "   ", false)
