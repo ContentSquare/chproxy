@@ -8,6 +8,8 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/Vertamedia/chproxy/chdecompressor"
@@ -186,6 +188,16 @@ func skipLeadingComments(q []byte) []byte {
 		}
 	}
 	return nil
+}
+
+// splits header string in sorted slice
+func sortHeader(header string) string {
+	h := strings.Split(header, ",")
+	for i, v := range h {
+		h[i] = strings.TrimSpace(v)
+	}
+	sort.Strings(h)
+	return strings.Join(h, ",")
 }
 
 func getDecompressor(req *http.Request) decompressor {
