@@ -295,6 +295,8 @@ var allowedParams = []string{
 	"compress",
 	// if `decompress=1` , CH will decompress the same data that you pass in the POST method
 	"decompress",
+	// compress the result if the client over HTTP said that it understands data compressed by gzip or deflate.
+	"enable_http_compression",
 }
 
 func (s *scope) decorateRequest(req *http.Request) (*http.Request, url.Values) {

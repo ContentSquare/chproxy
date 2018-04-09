@@ -253,11 +253,12 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	key := &cache.Key{
 		Query: skipLeadingComments(q),
 		// sort `Accept-Encoding` header to get the same combination for different browsers
-		AcceptEncoding: sortHeader(req.Header.Get("Accept-Encoding")),
-		DefaultFormat:  origParams.Get("default_format"),
-		Database:       origParams.Get("database"),
-		Compress:       origParams.Get("compress"),
-		Namespace:      origParams.Get("cache_namespace"),
+		AcceptEncoding:        sortHeader(req.Header.Get("Accept-Encoding")),
+		DefaultFormat:         origParams.Get("default_format"),
+		Database:              origParams.Get("database"),
+		Compress:              origParams.Get("compress"),
+		EnableHTTPCompression: origParams.Get("enable_http_compression"),
+		Namespace:             origParams.Get("cache_namespace"),
 	}
 
 	startTime := time.Now()
