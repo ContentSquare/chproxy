@@ -302,7 +302,7 @@ var allowedParams = []string{
 
 // This regexp must match params needed to describe a way to use external data
 // @see https://clickhouse.yandex/docs/en/table_engines/external_data/
-var externalDataParams = regexp.MustCompile(`(_types|_structure|_format)(\b)`)
+var externalDataParams = regexp.MustCompile(`(_types|_structure|_format)$`)
 
 func (s *scope) decorateRequest(req *http.Request) (*http.Request, url.Values) {
 	// Make new params to purify URL.
