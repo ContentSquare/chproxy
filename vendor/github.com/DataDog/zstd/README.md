@@ -2,8 +2,8 @@
 
 [C Zstd Homepage](https://github.com/Cyan4973/zstd)
 
-The current headers and C files are from *v1.3.0* (Commit
-[fe007ba](https://github.com/facebook/zstd/releases/tag/v1.3.0)).
+The current headers and C files are from *v1.3.4* (Commit
+[2555975](https://github.com/facebook/zstd/releases/tag/v1.3.4)).
 
 ## Usage
 
@@ -75,6 +75,13 @@ The author of Zstd also wrote lz4. Zstd is intended to occupy a speed/ratio
 level similar to what zlib currently provides.  In our tests, the can always
 be made to be better than zlib by chosing an appropriate level while still
 keeping compression and decompression time faster than zlib.
+
+You can run the benchmarks against your own payloads by using the Go benchmarks tool.
+Just export your payload filepath as the `PAYLOAD` environment variable and run the benchmarks:
+
+```go
+go test -bench .
+```
 
 Compression of a 7Mb pdf zstd (this wrapper) vs [czlib](https://github.com/DataDog/czlib):
 ```

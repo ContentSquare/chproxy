@@ -1,10 +1,11 @@
-/**
+/*
  * Copyright (c) 2016-present, Yann Collet, Facebook, Inc.
  * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under both the BSD-style license (found in the
+ * LICENSE file in the root directory of this source tree) and the GPLv2 (found
+ * in the COPYING file in the root directory of this source tree).
+ * You may select, at your option, one of the above-listed licenses.
  */
 
 #ifndef ZSTD_LEGACY_H
@@ -123,6 +124,7 @@ MEM_STATIC size_t ZSTD_decompressLegacy(
                const void* dict,size_t dictSize)
 {
     U32 const version = ZSTD_isLegacy(src, compressedSize);
+    (void)dst; (void)dstCapacity; (void)dict; (void)dictSize;  /* unused when ZSTD_LEGACY_SUPPORT >= 8 */
     switch(version)
     {
 #if (ZSTD_LEGACY_SUPPORT <= 1)
@@ -223,6 +225,7 @@ MEM_STATIC size_t ZSTD_freeLegacyStreamContext(void* legacyContext, U32 version)
         case 1 :
         case 2 :
         case 3 :
+            (void)legacyContext;
             return ERROR(version_unsupported);
 #if (ZSTD_LEGACY_SUPPORT <= 4)
         case 4 : return ZBUFFv04_freeDCtx((ZBUFFv04_DCtx*)legacyContext);
@@ -243,6 +246,7 @@ MEM_STATIC size_t ZSTD_freeLegacyStreamContext(void* legacyContext, U32 version)
 MEM_STATIC size_t ZSTD_initLegacyStream(void** legacyContext, U32 prevVersion, U32 newVersion,
                                         const void* dict, size_t dictSize)
 {
+    DEBUGLOG(5, "ZSTD_initLegacyStream for v0.%u", newVersion);
     if (prevVersion != newVersion) ZSTD_freeLegacyStreamContext(*legacyContext, prevVersion);
     switch(newVersion)
     {
@@ -250,6 +254,7 @@ MEM_STATIC size_t ZSTD_initLegacyStream(void** legacyContext, U32 prevVersion, U
         case 1 :
         case 2 :
         case 3 :
+            (void)dict; (void)dictSize;
             return 0;
 #if (ZSTD_LEGACY_SUPPORT <= 4)
         case 4 :
@@ -300,12 +305,14 @@ MEM_STATIC size_t ZSTD_initLegacyStream(void** legacyContext, U32 prevVersion, U
 MEM_STATIC size_t ZSTD_decompressLegacyStream(void* legacyContext, U32 version,
                                               ZSTD_outBuffer* output, ZSTD_inBuffer* input)
 {
+    DEBUGLOG(5, "ZSTD_decompressLegacyStream for v0.%u", version);
     switch(version)
     {
         default :
         case 1 :
         case 2 :
         case 3 :
+            (void)legacyContext; (void)output; (void)input;
             return ERROR(version_unsupported);
 #if (ZSTD_LEGACY_SUPPORT <= 4)
         case 4 :

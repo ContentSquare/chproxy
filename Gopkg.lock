@@ -4,8 +4,8 @@
 [[projects]]
   name = "github.com/DataDog/zstd"
   packages = ["."]
-  revision = "0727e1752ea5db67e0ede4e0fb7168ddc6ead61b"
-  version = "v1.3.0"
+  revision = "aebefd9fcb99f22cd691ef778a12ed68f0e6a1ab"
+  version = "v1.3.4"
 
 [[projects]]
   branch = "master"

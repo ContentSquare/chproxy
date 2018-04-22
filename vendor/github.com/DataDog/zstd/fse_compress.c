@@ -33,40 +33,22 @@
 ****************************************************************** */
 
 /* **************************************************************
-*  Compiler specifics
-****************************************************************/
-#ifdef _MSC_VER    /* Visual Studio */
-#  define FORCE_INLINE static __forceinline
-#  include <intrin.h>                    /* For Visual 2005 */
-#  pragma warning(disable : 4127)        /* disable: C4127: conditional expression is constant */
-#  pragma warning(disable : 4214)        /* disable: C4214: non-int bitfields */
-#else
-#  if defined (__cplusplus) || defined (__STDC_VERSION__) && __STDC_VERSION__ >= 199901L   /* C99 */
-#    ifdef __GNUC__
-#      define FORCE_INLINE static inline __attribute__((always_inline))
-#    else
-#      define FORCE_INLINE static inline
-#    endif
-#  else
-#    define FORCE_INLINE static
-#  endif /* __STDC_VERSION__ */
-#endif
-
-
-/* **************************************************************
 *  Includes
 ****************************************************************/
 #include <stdlib.h>     /* malloc, free, qsort */
 #include <string.h>     /* memcpy, memset */
 #include <stdio.h>      /* printf (debug) */
 #include "bitstream.h"
+#include "compiler.h"
 #define FSE_STATIC_LINKING_ONLY
 #include "fse.h"
+#include "error_private.h"
 
 
 /* **************************************************************
 *  Error Management
 ****************************************************************/
+#define FSE_isError ERR_isError
 #define FSE_STATIC_ASSERT(c) { enum { FSE_static_assert = 1/(int)(!!(c)) }; }   /* use only *after* variable declarations */
 
 
@@ -266,7 +248,7 @@ static size_t FSE_writeNCount_generic (void* header, size_t headerBufferSize,
             bitCount  -= (count<max);
             previous0  = (count==1);
             if (remaining<1) return ERROR(GENERIC);
-            while (remaining<threshold) nbBits--, threshold>>=1;
+            while (remaining<threshold) { nbBits--; threshold>>=1; }
         }
         if (bitCount>16) {
             if ((!writeIsSafe) && (out > oend - 2)) return ERROR(dstSize_tooSmall);   /* Buffer overflow */
@@ -310,7 +292,7 @@ size_t FSE_writeNCount (void* buffer, size_t bufferSize, const short* normalized
     It doesn't use any additional memory.
     But this function is unsafe : it doesn't check that all values within `src` can fit into `count`.
     For this reason, prefer using a table `count` with 256 elements.
-    @return : count of most numerous element
+    @return : count of most numerous element.
 */
 size_t FSE_count_simple(unsigned* count, unsigned* maxSymbolValuePtr,
                         const void* src, size_t srcSize)
@@ -323,7 +305,10 @@ size_t FSE_count_simple(unsigned* count, unsigned* maxSymbolValuePtr,
     memset(count, 0, (maxSymbolValue+1)*sizeof(*count));
     if (srcSize==0) { *maxSymbolValuePtr = 0; return 0; }
 
-    while (ip<end) count[*ip++]++;
+    while (ip<end) {
+        assert(*ip <= maxSymbolValue);
+        count[*ip++]++;
+    }
 
     while (!count[maxSymbolValue]) maxSymbolValue--;
     *maxSymbolValuePtr = maxSymbolValue;
@@ -336,7 +321,8 @@ size_t FSE_count_simple(unsigned* count, unsigned* maxSymbolValuePtr,
 
 /* FSE_count_parallel_wksp() :
  * Same as FSE_count_parallel(), but using an externally provided scratch buffer.
- * `workSpace` size must be a minimum of `1024 * sizeof(unsigned)`` */
+ * `workSpace` size must be a minimum of `1024 * sizeof(unsigned)`.
+ * @return : largest histogram frequency, or an error code (notably when histogram would be larger than *maxSymbolValuePtr). */
 static size_t FSE_count_parallel_wksp(
                                 unsigned* count, unsigned* maxSymbolValuePtr,
                                 const void* source, size_t sourceSize,
@@ -351,7 +337,7 @@ static size_t FSE_count_parallel_wksp(
     U32* const Counting3 = Counting2 + 256;
     U32* const Counting4 = Counting3 + 256;
 
-    memset(Counting1, 0, 4*256*sizeof(unsigned));
+    memset(workSpace, 0, 4*256*sizeof(unsigned));
 
     /* safety checks */
     if (!sourceSize) {
@@ -397,7 +383,9 @@ static size_t FSE_count_parallel_wksp(
             if (Counting1[s]) return ERROR(maxSymbolValue_tooSmall);
     }   }
 
-    {   U32 s; for (s=0; s<=maxSymbolValue; s++) {
+    {   U32 s;
+        if (maxSymbolValue > 255) maxSymbolValue = 255;
+        for (s=0; s<=maxSymbolValue; s++) {
             count[s] = Counting1[s] + Counting2[s] + Counting3[s] + Counting4[s];
             if (count[s] > max) max = count[s];
     }   }
@@ -411,9 +399,11 @@ static size_t FSE_count_parallel_wksp(
  * Same as FSE_countFast(), but using an externally provided scratch buffer.
  * `workSpace` size must be table of >= `1024` unsigned */
 size_t FSE_countFast_wksp(unsigned* count, unsigned* maxSymbolValuePtr,
-                     const void* source, size_t sourceSize, unsigned* workSpace)
+                          const void* source, size_t sourceSize,
+                          unsigned* workSpace)
 {
-    if (sourceSize < 1500) return FSE_count_simple(count, maxSymbolValuePtr, source, sourceSize);
+    if (sourceSize < 1500) /* heuristic threshold */
+        return FSE_count_simple(count, maxSymbolValuePtr, source, sourceSize);
     return FSE_count_parallel_wksp(count, maxSymbolValuePtr, source, sourceSize, 0, workSpace);
 }
 
@@ -479,6 +469,7 @@ static unsigned FSE_minTableLog(size_t srcSize, unsigned maxSymbolValue)
     U32 minBitsSrc = BIT_highbit32((U32)(srcSize - 1)) + 1;
     U32 minBitsSymbols = BIT_highbit32(maxSymbolValue) + 2;
     U32 minBits = minBitsSrc < minBitsSymbols ? minBitsSrc : minBitsSymbols;
+    assert(srcSize > 1); /* Not supported, RLE should be used instead */
     return minBits;
 }
 
@@ -487,6 +478,7 @@ unsigned FSE_optimalTableLog_internal(unsigned maxTableLog, size_t srcSize, unsi
     U32 maxBitsSrc = BIT_highbit32((U32)(srcSize - 1)) - minus;
     U32 tableLog = maxTableLog;
     U32 minBits = FSE_minTableLog(srcSize, maxSymbolValue);
+    assert(srcSize > 1); /* Not supported, RLE should be used instead */
     if (tableLog==0) tableLog = FSE_DEFAULT_TABLELOG;
     if (maxBitsSrc < tableLog) tableLog = maxBitsSrc;   /* Accuracy can be reduced */
     if (minBits > tableLog) tableLog = minBits;   /* Need a minimum to safely represent all symbol values */
@@ -556,7 +548,7 @@ static size_t FSE_normalizeM2(short* norm, U32 tableLog, const unsigned* count, 
            find max, then give all remaining points to max */
         U32 maxV = 0, maxC = 0;
         for (s=0; s<=maxSymbolValue; s++)
-            if (count[s] > maxC) maxV=s, maxC=count[s];
+            if (count[s] > maxC) { maxV=s; maxC=count[s]; }
         norm[maxV] += (short)ToDistribute;
         return 0;
     }
@@ -564,7 +556,7 @@ static size_t FSE_normalizeM2(short* norm, U32 tableLog, const unsigned* count, 
     if (total == 0) {
         /* all of the symbols were low enough for the lowOne or lowThreshold */
         for (s=0; ToDistribute > 0; s = (s+1)%(maxSymbolValue+1))
-            if (norm[s] > 0) ToDistribute--, norm[s]++;
+            if (norm[s] > 0) { ToDistribute--; norm[s]++; }
         return 0;
     }
 
@@ -598,7 +590,7 @@ size_t FSE_normalizeCount (short* normalizedCounter, unsigned tableLog,
     if (tableLog > FSE_MAX_TABLELOG) return ERROR(tableLog_tooLarge);   /* Unsupported size */
     if (tableLog < FSE_minTableLog(total, maxSymbolValue)) return ERROR(GENERIC);   /* Too small tableLog, compression potentially impossible */
 
-    {   U32 const rtbTable[] = {     0, 473195, 504333, 520860, 550000, 700000, 750000, 830000 };
+    {   static U32 const rtbTable[] = {     0, 473195, 504333, 520860, 550000, 700000, 750000, 830000 };
         U64 const scale = 62 - tableLog;
         U64 const step = ((U64)1<<62) / total;   /* <== here, one division ! */
         U64 const vStep = 1ULL<<(scale-20);
@@ -620,7 +612,7 @@ size_t FSE_normalizeCount (short* normalizedCounter, unsigned tableLog,
                     U64 restToBeat = vStep * rtbTable[proba];
                     proba += (count[s]*step) - ((U64)proba<<scale) > restToBeat;
                 }
-                if (proba > largestP) largestP=proba, largest=s;
+                if (proba > largestP) { largestP=proba; largest=s; }
                 normalizedCounter[s] = proba;
                 stillToDistribute -= proba;
         }   }
@@ -781,7 +773,7 @@ size_t FSE_compress_usingCTable (void* dst, size_t dstSize,
 
 size_t FSE_compressBound(size_t size) { return FSE_COMPRESSBOUND(size); }
 
-#define CHECK_V_F(e, f) size_t const e = f; if (ERR_isError(e)) return f
+#define CHECK_V_F(e, f) size_t const e = f; if (ERR_isError(e)) return e
 #define CHECK_F(f)   { CHECK_V_F(_var_err__, f); }
 
 /* FSE_compress_wksp() :

@@ -31,12 +31,13 @@
    You can contact the author at :
    - Source repository : https://github.com/Cyan4973/FiniteStateEntropy
 ****************************************************************** */
-#ifndef FSE_H
-#define FSE_H
 
 #if defined (__cplusplus)
 extern "C" {
 #endif
+
+#ifndef FSE_H
+#define FSE_H
 
 
 /*-*****************************************
@@ -183,7 +184,7 @@ FSE_PUBLIC_API size_t FSE_writeNCount (void* buffer, size_t bufferSize, const sh
 /*! Constructor and Destructor of FSE_CTable.
     Note that FSE_CTable size depends on 'tableLog' and 'maxSymbolValue' */
 typedef unsigned FSE_CTable;   /* don't allocate that. It's only meant to be more restrictive than void* */
-FSE_PUBLIC_API FSE_CTable* FSE_createCTable (unsigned tableLog, unsigned maxSymbolValue);
+FSE_PUBLIC_API FSE_CTable* FSE_createCTable (unsigned maxSymbolValue, unsigned tableLog);
 FSE_PUBLIC_API void        FSE_freeCTable (FSE_CTable* ct);
 
 /*! FSE_buildCTable():
@@ -297,8 +298,10 @@ FSE_decompress_usingDTable() result will tell how many bytes were regenerated (<
 If there is an error, the function will return an error code, which can be tested using FSE_isError(). (ex: dst buffer too small)
 */
 
+#endif  /* FSE_H */
 
-#ifdef FSE_STATIC_LINKING_ONLY
+#if defined(FSE_STATIC_LINKING_ONLY) && !defined(FSE_H_FSE_STATIC_LINKING_ONLY)
+#define FSE_H_FSE_STATIC_LINKING_ONLY
 
 /* *** Dependency *** */
 #include "bitstream.h"
@@ -342,7 +345,7 @@ size_t FSE_countFast(unsigned* count, unsigned* maxSymbolValuePtr, const void* s
  */
 size_t FSE_countFast_wksp(unsigned* count, unsigned* maxSymbolValuePtr, const void* src, size_t srcSize, unsigned* workSpace);
 
-/*! FSE_count_simple
+/*! FSE_count_simple() :
  * Same as FSE_countFast(), but does not use any additional memory (not even on stack).
  * This function is unsafe, and will segfault if any value within `src` is `> *maxSymbolValuePtr` (presuming it's also the size of `count`).
 */
@@ -381,6 +384,11 @@ size_t FSE_buildDTable_rle (FSE_DTable* dt, unsigned char symbolValue);
 size_t FSE_decompress_wksp(void* dst, size_t dstCapacity, const void* cSrc, size_t cSrcSize, FSE_DTable* workSpace, unsigned maxLog);
 /**< same as FSE_decompress(), using an externally allocated `workSpace` produced with `FSE_DTABLE_SIZE_U32(maxLog)` */
 
+typedef enum {
+   FSE_repeat_none,  /**< Cannot use the previous table */
+   FSE_repeat_check, /**< Can use the previous table but it must be checked */
+   FSE_repeat_valid  /**< Can use the previous table and it is asumed to be valid */
+ } FSE_repeat;
 
 /* *****************************************
 *  FSE symbol compression API
@@ -694,5 +702,3 @@ MEM_STATIC unsigned FSE_endOfDState(const FSE_DState_t* DStatePtr)
 #if defined (__cplusplus)
 }
 #endif
-
-#endif  /* FSE_H */

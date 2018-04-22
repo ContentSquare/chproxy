@@ -113,7 +113,7 @@ func ExampleCounter() {
 	pushComplete := make(chan struct{})
 	// TODO: Start a goroutine that performs repository pushes and reports
 	// each completion via the channel.
-	for range pushComplete {
+	for _ = range pushComplete {
 		pushCounter.Inc()
 	}
 	// Output:
@@ -169,8 +169,8 @@ func ExampleInstrumentHandler() {
 
 func ExampleLabelPairSorter() {
 	labelPairs := []*dto.LabelPair{
-		{Name: proto.String("status"), Value: proto.String("404")},
-		{Name: proto.String("method"), Value: proto.String("get")},
+		&dto.LabelPair{Name: proto.String("status"), Value: proto.String("404")},
+		&dto.LabelPair{Name: proto.String("method"), Value: proto.String("get")},
 	}
 
 	sort.Sort(prometheus.LabelPairSorter(labelPairs))
