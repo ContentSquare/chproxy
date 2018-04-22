@@ -514,32 +514,27 @@ func TestReverseProxy_ServeHTTP2(t *testing.T) {
 		},
 	}
 
+	f := func(cfg *config.Config) {
+		proxy, err := getProxy(cfg)
+		if err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
+		resp := makeRequest(proxy)
+		b := bbToString(t, resp.Body)
+		resp.Body.Close()
+		if !strings.Contains(b, okResponse) {
+			t.Fatalf("expected response: %q; got: %q", okResponse, b)
+		}
+	}
+
 	for _, tc := range testCases {
 		t.Run("user "+tc.name, func(t *testing.T) {
 			goodCfg.Users[0].AllowedNetworks = tc.allowedNetworks
-			proxy, err := getProxy(goodCfg)
-			if err != nil {
-				t.Fatalf("unexpected error: %s", err)
-			}
-			resp := makeRequest(proxy)
-			b := bbToString(t, resp.Body)
-			resp.Body.Close()
-			if !strings.Contains(b, okResponse) {
-				t.Fatalf("expected response: %q; got: %q", okResponse, b)
-			}
+			f(goodCfg)
 		})
 		t.Run("cluster user "+tc.name, func(t *testing.T) {
 			goodCfg.Clusters[0].ClusterUsers[0].AllowedNetworks = tc.allowedNetworks
-			proxy, err := getProxy(goodCfg)
-			if err != nil {
-				t.Fatalf("unexpected error: %s", err)
-			}
-			resp := makeRequest(proxy)
-			b := bbToString(t, resp.Body)
-			resp.Body.Close()
-			if !strings.Contains(b, okResponse) {
-				t.Fatalf("expected response: %q; got: %q", okResponse, b)
-			}
+			f(goodCfg)
 		})
 	}
 
@@ -654,6 +649,8 @@ func getProxy(c *config.Config) (*reverseProxy, error) {
 		return nil, err
 	}
 	cfg := *c
+	cfg.Clusters = make([]config.Cluster, len(c.Clusters))
+	copy(cfg.Clusters, c.Clusters)
 	cfg.Clusters[0].Nodes = []string{addr.Host}
 	proxy, err := newConfiguredProxy(&cfg)
 	if err != nil {
