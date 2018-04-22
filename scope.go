@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -299,6 +300,10 @@ var allowedParams = []string{
 	"enable_http_compression",
 }
 
+// This regexp must match params needed to describe a way to use external data
+// @see https://clickhouse.yandex/docs/en/table_engines/external_data/
+var externalDataParams = regexp.MustCompile(`(_types|_structure|_format)(\b)`)
+
 func (s *scope) decorateRequest(req *http.Request) (*http.Request, url.Values) {
 	// Make new params to purify URL.
 	params := make(url.Values)
@@ -312,6 +317,21 @@ func (s *scope) decorateRequest(req *http.Request) (*http.Request, url.Values) {
 		val := origParams.Get(param)
 		if len(val) > 0 {
 			params.Set(param, val)
+		}
+	}
+
+	// Keep external_data params
+	if req.Method == "POST" {
+		ct := req.Header.Get("Content-Type")
+		if strings.Contains(ct, "multipart/form-data") {
+			for key := range origParams {
+				if externalDataParams.MatchString(key) {
+					params.Set(key, origParams.Get(key))
+				}
+			}
+
+			// disable cache for external_data queries
+			params.Set("no_cache", "1")
 		}
 	}
 
