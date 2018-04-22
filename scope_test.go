@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"net/url"
+	"sort"
 	"testing"
 	"time"
 
@@ -312,4 +314,80 @@ func testConcurrent(f func(), concurrency int) error {
 		}
 	}
 	return nil
+}
+
+func TestDecorateRequest(t *testing.T) {
+	testCases := []struct {
+		request        string
+		contentType    string
+		method         string
+		expectedParams []string
+	}{
+		{
+			"http://127.0.0.1?user=default&password=default&query=SELECT&max_result_bytes=4000000&buffer_size=3000000&wait_end_of_query=1",
+			"text/plain",
+			"GET",
+			[]string{"query_id", "query"},
+		},
+		{
+			"http://127.0.0.1?user=default&password=default&query=SELECT&database=default&wait_end_of_query=1",
+			"text/plain",
+			"GET",
+			[]string{"query_id", "query", "database"},
+		},
+		{
+			"http://127.0.0.1?user=default&password=default&query=SELECT&testdata_structure=id+UInt32&testdata_format=TSV",
+			"application/x-www-form-urlencoded",
+			"POST",
+			[]string{"query_id", "query"},
+		},
+		{
+			"http://127.0.0.1?user=default&password=default&query=SELECT&testdata_structure=id+UInt32&testdata_format=TSV",
+			"multipart/form-data",
+			"PUT",
+			[]string{"query_id", "query"},
+		},
+		{
+			"http://127.0.0.1?user=default&password=default&query=SELECT&testdata_structure=id+UInt32&testdata_format=TSV",
+			"multipart/form-data; boundary=foobar",
+			"POST",
+			[]string{"query_id", "testdata_structure", "testdata_format", "query", "no_cache"},
+		},
+	}
+
+	for _, tc := range testCases {
+		req, err := http.NewRequest(tc.method, tc.request, nil)
+		if err != nil {
+			t.Fatalf("unexpected error while creating request: %s", err)
+		}
+		req.Header.Set("Content-Type", tc.contentType)
+		s := &scope{
+			id:          newScopeID(),
+			clusterUser: &clusterUser{},
+			user:        &user{},
+			host: &host{
+				addr: &url.URL{Host: "127.0.0.1"},
+			},
+		}
+		req, _ = s.decorateRequest(req)
+		values := req.URL.Query()
+		params := make([]string, len(values))
+		var i int
+		for key := range values {
+			params[i] = key
+			i++
+		}
+
+		if len(tc.expectedParams) != len(params) {
+			t.Fatalf("unexpected params len")
+		}
+
+		sort.Strings(params)
+		sort.Strings(tc.expectedParams)
+		for i := range tc.expectedParams {
+			if tc.expectedParams[i] != params[i] {
+				t.Fatalf("expected params: %#v; got instead: %#v", tc.expectedParams, params)
+			}
+		}
+	}
 }
