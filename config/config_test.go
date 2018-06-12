@@ -160,7 +160,6 @@ func TestLoadConfig(t *testing.T) {
 						MaxExecutionTime:     Duration(time.Minute),
 						DenyHTTPS:            true,
 						NetworksOrGroups:     []string{"office", "1.2.3.0/24"},
-						Params:               "cron-job",
 					},
 				},
 				NetworkGroups: []NetworkGroups{

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Vertamedia/chproxy/config"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -344,8 +345,11 @@ func TestDecorateRequest(t *testing.T) {
 			"POST",
 			&paramsRegistry{
 				key: uint32(1),
-				r: map[string]string{
-					"max_threads": "1",
+				params: []config.Param{
+					{
+						Key:   "max_threads",
+						Value: "1",
+					},
 				},
 			},
 			[]string{"query_id", "query", "max_threads"},
@@ -356,8 +360,11 @@ func TestDecorateRequest(t *testing.T) {
 			"PUT",
 			&paramsRegistry{
 				key: uint32(1),
-				r: map[string]string{
-					"query": "1",
+				params: []config.Param{
+					{
+						Key:   "query",
+						Value: "1",
+					},
 				},
 			},
 			[]string{"query_id", "query"},
@@ -368,9 +375,15 @@ func TestDecorateRequest(t *testing.T) {
 			"POST",
 			&paramsRegistry{
 				key: uint32(1),
-				r: map[string]string{
-					"max_threads":          "1",
-					"background_pool_size": "10",
+				params: []config.Param{
+					{
+						Key:   "max_threads",
+						Value: "1",
+					},
+					{
+						Key:   "background_pool_size",
+						Value: "10",
+					},
 				},
 			},
 			[]string{"query_id", "query", "no_cache", "max_threads", "background_pool_size"},
