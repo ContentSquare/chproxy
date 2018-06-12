@@ -16,6 +16,7 @@ import (
 	"github.com/Vertamedia/chproxy/config"
 	"github.com/Vertamedia/chproxy/log"
 	"github.com/prometheus/client_golang/prometheus"
+	"hash/fnv"
 )
 
 type scopeID uint64
@@ -308,8 +309,10 @@ func (s *scope) decorateRequest(req *http.Request) (*http.Request, url.Values) {
 	// Make new params to purify URL.
 	params := make(url.Values)
 
-	// Set query_id as scope_id to have possibility to kill query if needed.
-	params.Set("query_id", s.id.String())
+	// Set user params
+	for param, val := range s.user.params.r {
+		params.Set(param, val)
+	}
 
 	// Keep allowed params.
 	origParams := req.URL.Query()
@@ -332,8 +335,12 @@ func (s *scope) decorateRequest(req *http.Request) (*http.Request, url.Values) {
 
 			// disable cache for external_data queries
 			params.Set("no_cache", "1")
+			log.Debugf("external data params detected - cache will be disabled")
 		}
 	}
+
+	// Set query_id as scope_id to have possibility to kill query if needed.
+	params.Set("query_id", s.id.String())
 
 	req.URL.RawQuery = params.Encode()
 
@@ -382,6 +389,30 @@ func (s *scope) maxQueueTime() time.Duration {
 	return d
 }
 
+type paramsRegistry struct {
+	// key is a hashed concatenation of the params list
+	key uint32
+
+	r map[string]string
+}
+
+func newParamsRegistry(params []config.Param) (*paramsRegistry, error) {
+	if len(params) == 0 {
+		return nil, fmt.Errorf("params can't be empty")
+	}
+	pr := &paramsRegistry{
+		r: make(map[string]string, len(params)),
+	}
+	h := fnv.New32a()
+	for _, p := range params {
+		pr.r[p.Key] = p.Value
+		str := fmt.Sprintf("%s=%s&", p.Key, p.Value)
+		h.Write([]byte(str))
+	}
+	pr.key = h.Sum32()
+	return pr, nil
+}
+
 type user struct {
 	name     string
 	password string
@@ -406,11 +437,34 @@ type user struct {
 	denyHTTPS bool
 	allowCORS bool
 
-	cache *cache.Cache
+	cache  *cache.Cache
+	params *paramsRegistry
 }
 
-func newUser(u config.User, clusters map[string]*cluster, caches map[string]*cache.Cache) (*user, error) {
-	c, ok := clusters[u.ToCluster]
+type usersProfile struct {
+	cfg      []config.User
+	clusters map[string]*cluster
+	caches   map[string]*cache.Cache
+	params   map[string]*paramsRegistry
+}
+
+func (up usersProfile) newUsers() (map[string]*user, error) {
+	users := make(map[string]*user, len(up.cfg))
+	for _, u := range up.cfg {
+		if _, ok := users[u.Name]; ok {
+			return nil, fmt.Errorf("duplicate config for user %q", u.Name)
+		}
+		tmpU, err := up.newUser(u)
+		if err != nil {
+			return nil, fmt.Errorf("cannot initialize user %q: %s", u.Name, err)
+		}
+		users[u.Name] = tmpU
+	}
+	return users, nil
+}
+
+func (up usersProfile) newUser(u config.User) (*user, error) {
+	c, ok := up.clusters[u.ToCluster]
 	if !ok {
 		return nil, fmt.Errorf("unknown `to_cluster` %q", u.ToCluster)
 	}
@@ -425,9 +479,17 @@ func newUser(u config.User, clusters map[string]*cluster, caches map[string]*cac
 
 	var cc *cache.Cache
 	if len(u.Cache) > 0 {
-		cc = caches[u.Cache]
+		cc = up.caches[u.Cache]
 		if cc == nil {
 			return nil, fmt.Errorf("unknown `cache` %q", u.Cache)
+		}
+	}
+
+	var params *paramsRegistry
+	if len(u.Params) > 0 {
+		params = up.params[u.Params]
+		if params == nil {
+			return nil, fmt.Errorf("unknown `groupParam` %q", u.Params)
 		}
 	}
 
@@ -446,22 +508,8 @@ func newUser(u config.User, clusters map[string]*cluster, caches map[string]*cac
 		denyHTTPS:            u.DenyHTTPS,
 		allowCORS:            u.AllowCORS,
 		cache:                cc,
+		params:               params,
 	}, nil
-}
-
-func newUsers(cfg []config.User, clusters map[string]*cluster, caches map[string]*cache.Cache) (map[string]*user, error) {
-	users := make(map[string]*user, len(cfg))
-	for _, u := range cfg {
-		if _, ok := users[u.Name]; ok {
-			return nil, fmt.Errorf("duplicate config for user %q", u.Name)
-		}
-		tmpU, err := newUser(u, clusters, caches)
-		if err != nil {
-			return nil, fmt.Errorf("cannot initialize user %q: %s", u.Name, err)
-		}
-		users[u.Name] = tmpU
-	}
-	return users, nil
 }
 
 type clusterUser struct {
@@ -598,9 +646,7 @@ func (h *host) runHeartbeat(done <-chan struct{}) {
 	}
 }
 
-func (h *host) isActive() bool {
-	return atomic.LoadUint32(&h.active) == 1
-}
+func (h *host) isActive() bool { return atomic.LoadUint32(&h.active) == 1 }
 
 func (r *replica) isActive() bool {
 	// The replica is active if at least a single host is active.

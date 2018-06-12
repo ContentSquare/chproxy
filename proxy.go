@@ -250,6 +250,10 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		"cluster_user": s.labels["cluster_user"],
 	}
 
+	var paramsHash uint32
+	if s.user.params != nil {
+		paramsHash = s.user.params.key
+	}
 	key := &cache.Key{
 		Query: skipLeadingComments(q),
 		// sort `Accept-Encoding` header to get the same combination for different browsers
@@ -259,6 +263,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		Compress:              origParams.Get("compress"),
 		EnableHTTPCompression: origParams.Get("enable_http_compression"),
 		Namespace:             origParams.Get("cache_namespace"),
+		UserParamsHash:        paramsHash,
 	}
 
 	startTime := time.Now()
@@ -346,7 +351,25 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 		caches[cc.Name] = tmpCache
 	}
 
-	users, err := newUsers(cfg.Users, clusters, caches)
+	params := make(map[string]*paramsRegistry, len(cfg.ParamGroups))
+	for _, p := range cfg.ParamGroups {
+		if _, ok := params[p.Name]; ok {
+			return fmt.Errorf("duplicate config for ParamGroups %q", p.Name)
+		}
+		params[p.Name], err = newParamsRegistry(p.Params)
+		if err != nil {
+			return fmt.Errorf("cannot initialize params %q: %s", p.Name, err)
+		}
+	}
+
+	profile := &usersProfile{
+		cfg:      cfg.Users,
+		clusters: clusters,
+		caches:   caches,
+		params:   params,
+	}
+
+	users, err := profile.newUsers()
 	if err != nil {
 		return err
 	}

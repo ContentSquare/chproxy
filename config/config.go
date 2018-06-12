@@ -41,6 +41,8 @@ type Config struct {
 
 	Caches []Cache `yaml:"caches,omitempty"`
 
+	ParamGroups []ParamGroup `yaml:"param_groups,omitempty"`
+
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
 
@@ -411,6 +413,9 @@ type User struct {
 	// Name of Cache configuration to use for responses of this user
 	Cache string `yaml:"cache,omitempty"`
 
+	// Name of ParamGroup to use
+	Params string `yaml:"params,omitempty"`
+
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
 }
@@ -464,7 +469,13 @@ func (ng *NetworkGroups) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	if err := unmarshal((*plain)(ng)); err != nil {
 		return err
 	}
-	return checkOverflow(ng.XXX, "network_groups")
+	if len(ng.Name) == 0 {
+		return fmt.Errorf("`network_group.name` must be specified")
+	}
+	if len(ng.Networks) == 0 {
+		return fmt.Errorf("`network_group.networks` must contain at least one network")
+	}
+	return checkOverflow(ng.XXX, fmt.Sprintf("network_group %q", ng.Name))
 }
 
 // NetworksOrGroups is a list of strings with names of NetworkGroups
@@ -513,6 +524,42 @@ func (c *Cache) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("`cache.max_size` must be specified for %q", c.Name)
 	}
 	return checkOverflow(c.XXX, fmt.Sprintf("cache %q", c.Name))
+}
+
+// ParamGroup describes named group of GET params
+// for sending with each query
+type ParamGroup struct {
+	// Name of configuration for further assign
+	Name string `yaml:"name"`
+
+	// Params contains a list of GET params
+	Params []Param `yaml:"params"`
+
+	// Catches all undefined fields
+	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (pg *ParamGroup) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain ParamGroup
+	if err := unmarshal((*plain)(pg)); err != nil {
+		return err
+	}
+	if len(pg.Name) == 0 {
+		return fmt.Errorf("`param_group.name` must be specified")
+	}
+	if len(pg.Params) == 0 {
+		return fmt.Errorf("`param_group.params` must contain at least one param")
+	}
+	return checkOverflow(pg.XXX, fmt.Sprintf("param_group %q", pg.Name))
+}
+
+// Params describes URL param value
+type Param struct {
+	// Key is a name of params
+	Key string `yaml:"key"`
+	// Value is a value of param
+	Value string `yaml:"value"`
 }
 
 // ClusterUser describes simplest <users> configuration
