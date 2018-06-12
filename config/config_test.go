@@ -104,6 +104,40 @@ func TestLoadConfig(t *testing.T) {
 						HeartBeatInterval: Duration(5 * time.Second),
 					},
 				},
+
+				ParamGroups: []ParamGroup{
+					{
+						Name: "cron-job",
+						Params: []Param{
+							{
+								Key:   "max_memory_usage",
+								Value: "40000000000",
+							},
+							{
+								Key:   "max_bytes_before_external_group_by",
+								Value: "20000000000",
+							},
+						},
+					},
+					{
+						Name: "web",
+						Params: []Param{
+							{
+								Key:   "max_memory_usage",
+								Value: "5000000000",
+							},
+							{
+								Key:   "max_columns_to_read",
+								Value: "30",
+							},
+							{
+								Key:   "max_execution_time",
+								Value: "30",
+							},
+						},
+					},
+				},
+
 				Users: []User{
 					{
 						Name:         "web",
@@ -116,6 +150,7 @@ func TestLoadConfig(t *testing.T) {
 						MaxQueueSize: 100,
 						MaxQueueTime: Duration(35 * time.Second),
 						Cache:        "longterm",
+						Params:       "web",
 					},
 					{
 						Name:                 "default",
@@ -125,6 +160,7 @@ func TestLoadConfig(t *testing.T) {
 						MaxExecutionTime:     Duration(time.Minute),
 						DenyHTTPS:            true,
 						NetworksOrGroups:     []string{"office", "1.2.3.0/24"},
+						Params:               "cron-job",
 					},
 				},
 				NetworkGroups: []NetworkGroups{
