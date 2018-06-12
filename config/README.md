@@ -197,7 +197,8 @@ allowed_networks: <network_groups>, <networks> ... | optional
 # By default responses aren't cached.
 cache: <string> | optional
 
-# Optional ParamGroup name from <param_groups_config>
+# Optional group of params name to send to ClickHouse with each proxied request from <param_groups_config>
+# By default no additional params are sent to ClickHouse.
 params: <string> | optional
 ```
 
