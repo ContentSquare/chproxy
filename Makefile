@@ -1,4 +1,6 @@
 pkgs = $(shell go list ./...)
+gofiles := $(shell find . -name "*.go" -type f -not -path "./vendor/*")
+
 
 BUILD_TAG = $(shell git tag --points-at HEAD)
 
@@ -13,9 +15,8 @@ update:
 	dep ensure -update
 
 format:
-	dep ensure
 	go fmt $(pkgs)
-	gofmt -w -s .
+	gofmt -w -s $(gofiles)
 
 build:
 	go build
