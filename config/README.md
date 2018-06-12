@@ -78,7 +78,7 @@ grace_time: <duration>
 
 ### <param_groups_config>
 ```yml
-# Group name, which may be passed into `param_groups` option on the `user` level.
+# Group name, which may be passed into `params` option on the `user` level.
 - name: <string>
 # List of key-value params to send
 params:
