@@ -391,7 +391,8 @@ network_groups:
   - name: "reporting-apps"
     networks: ["10.10.10.0/24"]
 
-# Optional list of GET params to send with each request
+# Optional lists of query params to send with each proxied request to ClickHouse.
+# These lists may be used for overriding ClickHouse settings on a per-user basis.
 param_groups:
     # Group name, which may be passed into `params` option on the `user` level.
   - name: "cron-job"
@@ -443,6 +444,7 @@ server:
     # Certificates are automatically issued and renewed if this section
     # is present.
     # There is no need in cert_file and key_file if this section is present.
+    # Autocert requires application to listen on :80 port for certificate generation
     autocert:
       # Path to the directory where autocert certs are cached.
       cache_dir: "certs_dir"
@@ -489,9 +491,10 @@ users:
     # By default responses aren't cached.
     cache: "longterm"
 
-    # ParamGroup name to use
+    # An optional group of params to send to ClickHouse with each proxied request.
+    # These params may be set in param_groups block.
     #
-    # By default no additional params are used
+    # By default no additional params are sent to ClickHouse.
     params: "web"
 
     # The maximum number of requests that may wait for their chance

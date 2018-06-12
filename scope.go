@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"hash/fnv"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -16,7 +17,6 @@ import (
 	"github.com/Vertamedia/chproxy/config"
 	"github.com/Vertamedia/chproxy/log"
 	"github.com/prometheus/client_golang/prometheus"
-	"hash/fnv"
 )
 
 type scopeID uint64
@@ -311,8 +311,8 @@ func (s *scope) decorateRequest(req *http.Request) (*http.Request, url.Values) {
 
 	// Set user params
 	if s.user.params != nil {
-		for param, val := range s.user.params.r {
-			params.Set(param, val)
+		for _, param := range s.user.params.params {
+			params.Set(param.Key, param.Value)
 		}
 	}
 
@@ -395,24 +395,22 @@ type paramsRegistry struct {
 	// key is a hashed concatenation of the params list
 	key uint32
 
-	r map[string]string
+	params []config.Param
 }
 
 func newParamsRegistry(params []config.Param) (*paramsRegistry, error) {
 	if len(params) == 0 {
 		return nil, fmt.Errorf("params can't be empty")
 	}
-	pr := &paramsRegistry{
-		r: make(map[string]string, len(params)),
-	}
 	h := fnv.New32a()
 	for _, p := range params {
-		pr.r[p.Key] = p.Value
 		str := fmt.Sprintf("%s=%s&", p.Key, p.Value)
 		h.Write([]byte(str))
 	}
-	pr.key = h.Sum32()
-	return pr, nil
+	return &paramsRegistry{
+		key:    h.Sum32(),
+		params: params,
+	}, nil
 }
 
 type user struct {
