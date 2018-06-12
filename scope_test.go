@@ -321,42 +321,65 @@ func TestDecorateRequest(t *testing.T) {
 		request        string
 		contentType    string
 		method         string
+		userParams     *paramsRegistry
 		expectedParams []string
 	}{
 		{
 			"http://127.0.0.1?user=default&password=default&query=SELECT&max_result_bytes=4000000&buffer_size=3000000&wait_end_of_query=1",
 			"text/plain",
 			"GET",
+			nil,
 			[]string{"query_id", "query"},
 		},
 		{
 			"http://127.0.0.1?user=default&password=default&query=SELECT&database=default&wait_end_of_query=1",
 			"text/plain",
 			"GET",
+			nil,
 			[]string{"query_id", "query", "database"},
 		},
 		{
 			"http://127.0.0.1?user=default&password=default&query=SELECT&testdata_structure=id+UInt32&testdata_format=TSV",
 			"application/x-www-form-urlencoded",
 			"POST",
-			[]string{"query_id", "query"},
+			&paramsRegistry{
+				key: uint32(1),
+				r: map[string]string{
+					"max_threads": "1",
+				},
+			},
+			[]string{"query_id", "query", "max_threads"},
 		},
 		{
 			"http://127.0.0.1?user=default&password=default&query=SELECT&testdata_structure=id+UInt32&testdata_format=TSV",
 			"multipart/form-data",
 			"PUT",
+			&paramsRegistry{
+				key: uint32(1),
+				r: map[string]string{
+					"query": "1",
+				},
+			},
 			[]string{"query_id", "query"},
 		},
 		{
 			"http://127.0.0.1?user=default&password=default&query=SELECT&testdata_type_buzz=1&testdata_structure_foo=id+UInt32&testdata_format-bar=TSV",
 			"multipart/form-data; boundary=foobar",
 			"POST",
-			[]string{"query_id", "query", "no_cache"},
+			&paramsRegistry{
+				key: uint32(1),
+				r: map[string]string{
+					"max_threads":          "1",
+					"background_pool_size": "10",
+				},
+			},
+			[]string{"query_id", "query", "no_cache", "max_threads", "background_pool_size"},
 		},
 		{
 			"http://127.0.0.1?user=default&password=default&query=SELECT&testdata_structure=id+UInt32&testdata_format=TSV",
 			"multipart/form-data; boundary=foobar",
 			"POST",
+			nil,
 			[]string{"query_id", "testdata_structure", "testdata_format", "query", "no_cache"},
 		},
 	}
@@ -370,7 +393,9 @@ func TestDecorateRequest(t *testing.T) {
 		s := &scope{
 			id:          newScopeID(),
 			clusterUser: &clusterUser{},
-			user:        &user{},
+			user: &user{
+				params: tc.userParams,
+			},
 			host: &host{
 				addr: &url.URL{Host: "127.0.0.1"},
 			},
