@@ -216,6 +216,7 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, srw *stat
 		err = fmt.Errorf("%s: %s; query: %q", s, timeoutErrMsg, q)
 		respondWith(rw, err, http.StatusGatewayTimeout)
 		srw.statusCode = http.StatusGatewayTimeout
+
 	default:
 		panic(fmt.Sprintf("BUG: context.Context.Err() returned unexpected error: %s", err))
 	}
@@ -368,7 +369,6 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 		caches:   caches,
 		params:   params,
 	}
-
 	users, err := profile.newUsers()
 	if err != nil {
 		return err

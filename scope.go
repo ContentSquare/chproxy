@@ -310,8 +310,10 @@ func (s *scope) decorateRequest(req *http.Request) (*http.Request, url.Values) {
 	params := make(url.Values)
 
 	// Set user params
-	for param, val := range s.user.params.r {
-		params.Set(param, val)
+	if s.user.params != nil {
+		for param, val := range s.user.params.r {
+			params.Set(param, val)
+		}
 	}
 
 	// Keep allowed params.
@@ -489,7 +491,7 @@ func (up usersProfile) newUser(u config.User) (*user, error) {
 	if len(u.Params) > 0 {
 		params = up.params[u.Params]
 		if params == nil {
-			return nil, fmt.Errorf("unknown `groupParam` %q", u.Params)
+			return nil, fmt.Errorf("unknown `params` %q", u.Params)
 		}
 	}
 
