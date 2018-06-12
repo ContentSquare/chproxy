@@ -20,6 +20,10 @@ hack_me_please <bool> | default = false [optional]
 caches:
   - <cache_config> ...
 
+# Named list of parameters to apply to each query
+param_groups:
+  - <param_groups_config> ...
+
 # Named network lists
 network_groups: <network_groups_config> ... [optional]
 
@@ -70,6 +74,16 @@ expire: <duration>
 # By default `grace_time` is 5s. Negative value disables the protection
 # from `thundering herd` problem.
 grace_time: <duration>
+```
+
+### <param_groups_config>
+```yml
+# Group name, which may be passed into `param_groups` option on the `user` level.
+- name: <string>
+# List of key-value params to send
+params:
+  - key: <string>
+    value: <string>
 ```
 
 ### <server_config>
@@ -179,9 +193,12 @@ allow_cors: <bool> | optional | default = false
 # Each list item could be IP address or subnet mask
 allowed_networks: <network_groups>, <networks> ... | optional
 
-# Optioanl reponse cache name from <cache_config>
+# Optional response cache name from <cache_config>
 # By default responses aren't cached.
 cache: <string> | optional
+
+# Optional ParamGroup name from <param_groups_config>
+params: <string> | optional
 ```
 
 ### <cluster_config>

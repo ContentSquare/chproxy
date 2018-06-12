@@ -327,7 +327,7 @@ an instant cache flush may be built on top of cache namespaces - just switch to 
 to flush the cache.
 
 ### Security
-`Chproxy` removes all the query params from input requests (except the `query`, `database`, `default_format`, `compress`, `decompress`, `enable_http_compression`)
+`Chproxy` removes all the query params from input requests (except the user's [params](https://github.com/Vertamedia/chproxy/blob/master/config#param_groups_config) and the `query`, `database`, `default_format`, `compress`, `decompress`, `enable_http_compression`)
 before proxying them to `ClickHouse` nodes. This prevents from unsafe overriding
 of various `ClickHouse` [settings](http://clickhouse-docs.readthedocs.io/en/latest/interfaces/http_interface.html).
 
@@ -391,6 +391,29 @@ network_groups:
   - name: "reporting-apps"
     networks: ["10.10.10.0/24"]
 
+# Optional list of GET params to send with each request
+param_groups:
+    # Group name, which may be passed into `param_groups` option on the `user` level.
+  - name: "cron-job"
+    # List of key-value params to send
+    params:
+      - key: "max_memory_usage"
+        value: "40000000000"
+
+      - key: "max_bytes_before_external_group_by"
+        value: "20000000000"
+
+  - name: "web"
+    params:
+      - key: "max_memory_usage"
+        value: "5000000000"
+
+      - key: "max_columns_to_read"
+        value: "30"
+
+      - key: "max_execution_time"
+        value: "30"
+
 # Settings for `chproxy` input interfaces.
 server:
   # Configs for input http interface.
@@ -420,7 +443,6 @@ server:
     # Certificates are automatically issued and renewed if this section
     # is present.
     # There is no need in cert_file and key_file if this section is present.
-    # Autocert requires application to listen on :80 port for certificate generation
     autocert:
       # Path to the directory where autocert certs are cached.
       cache_dir: "certs_dir"
@@ -467,6 +489,11 @@ users:
     # By default responses aren't cached.
     cache: "longterm"
 
+    # ParamGroup name to use
+    #
+    # By default no additional params are used
+    params: "web"
+
     # The maximum number of requests that may wait for their chance
     # to be executed because they cannot run now due to the current limits.
     #
@@ -487,6 +514,8 @@ users:
     to_cluster: "second cluster"
     to_user: "default"
     allowed_networks: ["office", "1.2.3.0/24"]
+
+    params: "cron-job"
 
     # The maximum number of concurrently running queries for the user.
     #
