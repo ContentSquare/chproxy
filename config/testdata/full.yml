@@ -53,7 +53,7 @@ network_groups:
 
 # Optional list of GET params to send with each request
 param_groups:
-    # Group name, which may be passed into `param_groups` option on the `user` level.
+    # Group name, which may be passed into `params` option on the `user` level.
   - name: "cron-job"
     # List of key-value params to send
     params:
