@@ -110,9 +110,9 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	q := getQuerySnippet(req)
 	if srw.statusCode == http.StatusOK {
 		requestSuccess.With(s.labels).Inc()
-		log.Debugf("%s: request success; query: %q", s, q)
+		log.Debugf("%s: request success; query: %q; URL: %q", s, q, req.URL.String())
 	} else {
-		log.Debugf("%s: request failure: non-200 status code %d; query: %q", s, srw.statusCode, q)
+		log.Debugf("%s: request failure: non-200 status code %d; query: %q; URL: %q", s, srw.statusCode, q, req.URL.String())
 	}
 
 	statusCodes.With(
