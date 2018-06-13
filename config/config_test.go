@@ -335,6 +335,16 @@ func TestBadConfig(t *testing.T) {
 			"wrong network group name or address \"office\": invalid CIDR address: office/32",
 		},
 		{
+			"empty network group name",
+			"testdata/bad.network_groups.name.yml",
+			"`network_group.name` must be specified",
+		},
+		{
+			"empty network group networks",
+			"testdata/bad.network_groups.networks.yml",
+			"`network_group.networks` must contain at least one network",
+		},
+		{
 			"double network group",
 			"testdata/bad.double_network_groups.yml",
 			"duplicate `network_groups.name` \"office\"",

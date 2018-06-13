@@ -469,7 +469,13 @@ func (ng *NetworkGroups) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	if err := unmarshal((*plain)(ng)); err != nil {
 		return err
 	}
-	return checkOverflow(ng.XXX, "network_groups")
+	if len(ng.Name) == 0 {
+		return fmt.Errorf("`network_group.name` must be specified")
+	}
+	if len(ng.Networks) == 0 {
+		return fmt.Errorf("`network_group.networks` must contain at least one network")
+	}
+	return checkOverflow(ng.XXX, fmt.Sprintf("network_group %q", ng.Name))
 }
 
 // NetworksOrGroups is a list of strings with names of NetworkGroups
