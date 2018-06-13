@@ -554,7 +554,7 @@ func (pg *ParamGroup) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return checkOverflow(pg.XXX, fmt.Sprintf("param_group %q", pg.Name))
 }
 
-// Params describes URL param value
+// Param describes URL param value
 type Param struct {
 	// Key is a name of params
 	Key string `yaml:"key"`
