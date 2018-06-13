@@ -518,8 +518,6 @@ users:
     to_user: "default"
     allowed_networks: ["office", "1.2.3.0/24"]
 
-    params: "cron-job"
-
     # The maximum number of concurrently running queries for the user.
     #
     # By default there is no limit on the number of concurrently
