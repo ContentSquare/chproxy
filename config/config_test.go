@@ -364,6 +364,16 @@ func TestBadConfig(t *testing.T) {
 			"testdata/bad.cache_max_size.yml",
 			"cannot parse byte size \"-10B\": it must be positive float followed by optional units. For example, 1.5Gb, 3T",
 		},
+		{
+			"empty param group name",
+			"testdata/bad.param_groups.name.yml",
+			"`param_group.name` must be specified",
+		},
+		{
+			"empty param group params",
+			"testdata/bad.param_groups.params.yml",
+			"`param_group.params` must contain at least one param",
+		},
 	}
 
 	for _, tc := range testCases {
