@@ -113,6 +113,22 @@ func (s *Server) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return checkOverflow(s.XXX, "server")
 }
 
+// TimeoutCfg contains configurable http.Server timeouts
+type TimeoutCfg struct {
+	// ReadTimeout is the maximum duration for reading the entire
+	// request, including the body.
+	// Default value is 1m
+	ReadTimeout Duration `yaml:"read_timeout,omitempty"`
+
+	// WriteTimeout is the maximum duration before timing out writes of the response.
+	// Default is largest MaxExecutionTime + MaxQueueTime value from Users or Clusters
+	WriteTimeout Duration `yaml:"write_timeout,omitempty"`
+
+	// IdleTimeout is the maximum amount of time to wait for the next request.
+	// Default is 10m
+	IdleTimeout Duration `yaml:"idle_timeout,omitempty"`
+}
+
 // HTTP describes configuration for server to listen HTTP connections
 type HTTP struct {
 	// TCP address to listen to for http
@@ -128,6 +144,8 @@ type HTTP struct {
 	// Whether to support Autocert handler for http-01 challenge
 	ForceAutocertHandler bool
 
+	TimeoutCfg `yaml:",inline"`
+
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
 }
@@ -137,6 +155,12 @@ func (c *HTTP) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	type plain HTTP
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
+	}
+	if c.ReadTimeout == 0 {
+		c.ReadTimeout = Duration(time.Minute)
+	}
+	if c.IdleTimeout == 0 {
+		c.IdleTimeout = Duration(time.Minute * 10)
 	}
 	return checkOverflow(c.XXX, "http")
 }
@@ -162,6 +186,8 @@ type HTTPS struct {
 	// if omitted or zero - no limits would be applied
 	AllowedNetworks Networks `yaml:"-"`
 
+	TimeoutCfg `yaml:",inline"`
+
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
 }
@@ -171,6 +197,12 @@ func (c *HTTPS) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	type plain HTTPS
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
+	}
+	if c.ReadTimeout == 0 {
+		c.ReadTimeout = Duration(time.Minute)
+	}
+	if c.IdleTimeout == 0 {
+		c.IdleTimeout = Duration(time.Minute * 10)
 	}
 	if len(c.ListenAddr) == 0 {
 		c.ListenAddr = ":443"
@@ -646,10 +678,15 @@ func LoadFile(filename string) (*Config, error) {
 	if cfg.Server.Metrics.AllowedNetworks, err = cfg.groupToNetwork(cfg.Server.Metrics.NetworksOrGroups); err != nil {
 		return nil, err
 	}
+	var maxResponseTime time.Duration
 	for i := range cfg.Clusters {
 		c := &cfg.Clusters[i]
 		for j := range c.ClusterUsers {
 			u := &c.ClusterUsers[j]
+			cud := time.Duration(u.MaxExecutionTime + u.MaxQueueTime)
+			if cud > maxResponseTime {
+				maxResponseTime = cud
+			}
 			if u.AllowedNetworks, err = cfg.groupToNetwork(u.NetworksOrGroups); err != nil {
 				return nil, err
 			}
@@ -657,14 +694,54 @@ func LoadFile(filename string) (*Config, error) {
 	}
 	for i := range cfg.Users {
 		u := &cfg.Users[i]
+		ud := time.Duration(u.MaxExecutionTime + u.MaxQueueTime)
+		if ud > maxResponseTime {
+			maxResponseTime = ud
+		}
 		if u.AllowedNetworks, err = cfg.groupToNetwork(u.NetworksOrGroups); err != nil {
 			return nil, err
 		}
 	}
+
+	if maxResponseTime < 0 {
+		maxResponseTime = 0
+	}
+	// Give an additional minute for the maximum response time,
+	// so the response body may be sent to the requester.
+	maxResponseTime += time.Minute
+	if len(cfg.Server.HTTP.ListenAddr) > 0 && cfg.Server.HTTP.WriteTimeout == 0 {
+		cfg.Server.HTTP.WriteTimeout = Duration(maxResponseTime)
+	}
+
+	if len(cfg.Server.HTTPS.ListenAddr) > 0 && cfg.Server.HTTPS.WriteTimeout == 0 {
+		cfg.Server.HTTPS.WriteTimeout = Duration(maxResponseTime)
+	}
+
 	if err := cfg.checkVulnerabilities(); err != nil {
 		return nil, fmt.Errorf("security breach: %s\nSet option `hack_me_please=true` to disable security errors", err)
 	}
 	return cfg, nil
+}
+
+// getMaxResponseTime returns the maximum possible response time
+// for the given cfg.
+func (c Config) getMaxResponseTime() time.Duration {
+	var d time.Duration
+	for _, u := range c.Users {
+		ud := time.Duration(u.MaxExecutionTime + u.MaxQueueTime)
+		if ud > d {
+			d = ud
+		}
+	}
+	for _, cl := range c.Clusters {
+		for _, cu := range cl.ClusterUsers {
+			cud := time.Duration(cu.MaxExecutionTime + cu.MaxQueueTime)
+			if cud > d {
+				d = cud
+			}
+		}
+	}
+	return d
 }
 
 func (c Config) groupToNetwork(src NetworksOrGroups) (Networks, error) {

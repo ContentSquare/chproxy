@@ -106,6 +106,17 @@ listen_addr: <addr>
 # List of networks or network_groups access is allowed from
 # Each list item could be IP address or subnet mask
 allowed_networks: <network_groups>, <networks> ... | optional
+
+# ReadTimeout is the maximum duration for reading the entire
+# request, including the body.
+read_timeout: <duration> | optional | default = 1m
+
+# WriteTimeout is the maximum duration before timing out writes of the response.
+# Default is largest MaxExecutionTime + MaxQueueTime value from Users or Clusters
+write_timeout: <duration> | optional
+
+// IdleTimeout is the maximum amount of time to wait for the next request.
+idle_timeout: <duration> | optional | default = 10m
 ```
 
 ### <https_config>
@@ -116,6 +127,17 @@ listen_addr: <addr> | optional | default = `:443`
 # List of networks or network_groups access is allowed from
 # Each list item could be IP address or subnet mask
 allowed_networks: <network_groups>, <networks> ... | optional
+
+# ReadTimeout is the maximum duration for reading the entire
+# request, including the body.
+read_timeout: <duration> | optional | default = 1m
+
+# WriteTimeout is the maximum duration before timing out writes of the response.
+# Default is largest MaxExecutionTime + MaxQueueTime value from Users or Clusters
+write_timeout: <duration> | optional
+
+// IdleTimeout is the maximum amount of time to wait for the next request.
+idle_timeout: <duration> | optional | default = 10m
 
 # Certificate and key files for client cert authentication to the server
 cert_file: <string> | optional

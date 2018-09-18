@@ -39,12 +39,22 @@ func TestLoadConfig(t *testing.T) {
 						ListenAddr:           ":9090",
 						NetworksOrGroups:     []string{"office", "reporting-apps", "1.2.3.4"},
 						ForceAutocertHandler: true,
+						TimeoutCfg: TimeoutCfg{
+							ReadTimeout:  Duration(5 * time.Minute),
+							WriteTimeout: Duration(10 * time.Minute),
+							IdleTimeout:  Duration(20 * time.Minute),
+						},
 					},
 					HTTPS: HTTPS{
 						ListenAddr: ":443",
 						Autocert: Autocert{
 							CacheDir:     "certs_dir",
 							AllowedHosts: []string{"example.com"},
+						},
+						TimeoutCfg: TimeoutCfg{
+							ReadTimeout:  Duration(time.Minute),
+							WriteTimeout: Duration(140 * time.Second),
+							IdleTimeout:  Duration(10 * time.Minute),
 						},
 					},
 					Metrics: Metrics{
@@ -196,6 +206,11 @@ func TestLoadConfig(t *testing.T) {
 					HTTP: HTTP{
 						ListenAddr:       ":8080",
 						NetworksOrGroups: []string{"127.0.0.1"},
+						TimeoutCfg: TimeoutCfg{
+							ReadTimeout:  Duration(time.Minute),
+							WriteTimeout: Duration(time.Minute),
+							IdleTimeout:  Duration(10 * time.Minute),
+						},
 					},
 				},
 				Clusters: []Cluster{
