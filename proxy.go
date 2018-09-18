@@ -264,6 +264,9 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		Compress:              origParams.Get("compress"),
 		EnableHTTPCompression: origParams.Get("enable_http_compression"),
 		Namespace:             origParams.Get("cache_namespace"),
+		Extremes:              origParams.Get("extremes"),
+		MaxResultRows:         origParams.Get("max_result_rows"),
+		ResultOverflowMode:    origParams.Get("result_overflow_mode"),
 		UserParamsHash:        paramsHash,
 	}
 

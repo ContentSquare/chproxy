@@ -299,6 +299,12 @@ var allowedParams = []string{
 	"decompress",
 	// compress the result if the client over HTTP said that it understands data compressed by gzip or deflate.
 	"enable_http_compression",
+	// limit on the number of rows in the result
+	"max_result_rows",
+	// whether to count extreme values
+	"extremes",
+	// what to do if the volume of the result exceeds one of the limits
+	"result_overflow_mode",
 }
 
 // This regexp must match params needed to describe a way to use external data
