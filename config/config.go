@@ -723,27 +723,6 @@ func LoadFile(filename string) (*Config, error) {
 	return cfg, nil
 }
 
-// getMaxResponseTime returns the maximum possible response time
-// for the given cfg.
-func (c Config) getMaxResponseTime() time.Duration {
-	var d time.Duration
-	for _, u := range c.Users {
-		ud := time.Duration(u.MaxExecutionTime + u.MaxQueueTime)
-		if ud > d {
-			d = ud
-		}
-	}
-	for _, cl := range c.Clusters {
-		for _, cu := range cl.ClusterUsers {
-			cud := time.Duration(cu.MaxExecutionTime + cu.MaxQueueTime)
-			if cud > d {
-				d = cud
-			}
-		}
-	}
-	return d
-}
-
 func (c Config) groupToNetwork(src NetworksOrGroups) (Networks, error) {
 	if len(src) == 0 {
 		return nil, nil
