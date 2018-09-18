@@ -103,7 +103,7 @@ func TestKeyString(t *testing.T) {
 			t.Fatalf("invalid key string format: %q", s)
 		}
 		if s != tc.expected {
-			t.Errorf("unexpected key string: %q; expecting: %q", s, tc.expected)
+			t.Fatalf("unexpected key string: %q; expecting: %q", s, tc.expected)
 		}
 	}
 }
