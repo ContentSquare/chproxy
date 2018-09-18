@@ -80,14 +80,24 @@ type Key struct {
 	// Namespace is an optional cache namespace.
 	Namespace string
 
+	// MaxResultRows must contain `max_result_rows` query arg
+	MaxResultRows string
+
+	// Extremes must contain `extremes` query arg
+	Extremes string
+
+	// ResultOverflowMode must contain `result_overflow_mode` query arg
+	ResultOverflowMode string
+
 	// UserParamsHash must contain hashed value of users params
 	UserParamsHash uint32
 }
 
 // String returns string representation of the key.
 func (k *Key) String() string {
-	s := fmt.Sprintf("V%d; Query=%q; AcceptEncoding=%q; DefaultFormat=%q; Database=%q; Compress=%q; EnableHTTPCompression=%q; Namespace=%q; UserParams=%d",
-		cacheVersion, k.Query, k.AcceptEncoding, k.DefaultFormat, k.Database, k.Compress, k.EnableHTTPCompression, k.Namespace, k.UserParamsHash)
+	s := fmt.Sprintf("V%d; Query=%q; AcceptEncoding=%q; DefaultFormat=%q; Database=%q; Compress=%q; EnableHTTPCompression=%q; Namespace=%q; MaxResultRows=%q; Extremes=%q; ResultOverflowMode=%q; UserParams=%d",
+		cacheVersion, k.Query, k.AcceptEncoding, k.DefaultFormat, k.Database, k.Compress, k.EnableHTTPCompression, k.Namespace,
+		k.MaxResultRows, k.Extremes, k.ResultOverflowMode, k.UserParamsHash)
 	h := sha256.Sum256([]byte(s))
 
 	// The first 16 bytes of the hash should be enough

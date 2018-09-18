@@ -48,14 +48,14 @@ func TestKeyString(t *testing.T) {
 			key: &Key{
 				Query: []byte("SELECT 1 FROM system.numbers LIMIT 10"),
 			},
-			expected: "b84443ea3b7651f8eed84ad70cc17d55",
+			expected: "bebe3382e36ffdeea479b45d827b208a",
 		},
 		{
 			key: &Key{
 				Query:          []byte("SELECT 1 FROM system.numbers LIMIT 10"),
 				AcceptEncoding: "gzip",
 			},
-			expected: "baece3cc15d1aa1516e2729409ece703",
+			expected: "498c1af30fb94280fd7c7225c0c8fb39",
 		},
 		{
 			key: &Key{
@@ -63,7 +63,7 @@ func TestKeyString(t *testing.T) {
 				AcceptEncoding: "gzip",
 				DefaultFormat:  "JSON",
 			},
-			expected: "c238bde938f93419e93b5b7b0341f1ef",
+			expected: "720292aa0647cc5e53e0b6e6033eef34",
 		},
 		{
 			key: &Key{
@@ -72,7 +72,7 @@ func TestKeyString(t *testing.T) {
 				DefaultFormat:  "JSON",
 				Database:       "foobar",
 			},
-			expected: "e55de3951f08688a34e589caaeed437f",
+			expected: "5c6a70736d71e570faca739c4557780c",
 		},
 		{
 			key: &Key{
@@ -82,7 +82,7 @@ func TestKeyString(t *testing.T) {
 				Database:       "foobar",
 				Namespace:      "ns123",
 			},
-			expected: "a8676b65119982a1fa135005e0583a07",
+			expected: "08b4baf6825e53bbd18136a88abda4f8",
 		},
 		{
 			key: &Key{
@@ -93,7 +93,7 @@ func TestKeyString(t *testing.T) {
 				Compress:       "1",
 				Namespace:      "ns123",
 			},
-			expected: "9a2ad211524d5c8983d43784fd59677d",
+			expected: "0e043f23ccd1b9039b33623b3b7c114a",
 		},
 	}
 
@@ -103,7 +103,7 @@ func TestKeyString(t *testing.T) {
 			t.Fatalf("invalid key string format: %q", s)
 		}
 		if s != tc.expected {
-			t.Fatalf("unexpected key string: %q; expecting: %q", s, tc.expected)
+			t.Errorf("unexpected key string: %q; expecting: %q", s, tc.expected)
 		}
 	}
 }
