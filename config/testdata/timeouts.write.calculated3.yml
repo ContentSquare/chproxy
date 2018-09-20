@@ -1,0 +1,23 @@
+hack_me_please: true
+server:
+  http:
+    listen_addr: ":8080"
+
+users:
+- name: "default"
+  to_cluster: "cluster"
+  to_user: "default"
+  max_execution_time: 5m
+- name: "default2"
+  to_cluster: "cluster"
+  to_user: "default"
+  max_execution_time: 20m
+
+clusters:
+- name: "cluster"
+  nodes: ["127.0.0.1:8123"]
+  users:
+  - name: "web"
+    max_execution_time: 10m
+  - name: "web2"
+    max_execution_time: 50m

@@ -533,3 +533,79 @@ func TestParseDurationNegative(t *testing.T) {
 		}
 	}
 }
+
+func TestConfigTimeouts(t *testing.T) {
+	var testCases = []struct {
+		name        string
+		file        string
+		expectedCfg TimeoutCfg
+	}{
+		{
+			"default",
+			"testdata/default_values.yml",
+			TimeoutCfg{
+				ReadTimeout:  Duration(time.Minute),
+				WriteTimeout: Duration(time.Minute),
+				IdleTimeout:  Duration(10 * time.Minute),
+			},
+		},
+		{
+			"defined",
+			"testdata/timeouts.defined.yml",
+			TimeoutCfg{
+				ReadTimeout:  Duration(time.Minute),
+				WriteTimeout: Duration(time.Hour),
+				IdleTimeout:  Duration(24 * time.Hour),
+			},
+		},
+		{
+			"calculated write 1",
+			"testdata/timeouts.write.calculated.yml",
+			TimeoutCfg{
+				ReadTimeout: Duration(time.Minute),
+				// 10 + 1 minute
+				WriteTimeout: Duration(11 * 60 * time.Second),
+				IdleTimeout:  Duration(10 * time.Minute),
+			},
+		},
+		{
+			"calculated write 2",
+			"testdata/timeouts.write.calculated2.yml",
+			TimeoutCfg{
+				ReadTimeout: Duration(time.Minute),
+				// 20 + 1 minute
+				WriteTimeout: Duration(21 * 60 * time.Second),
+				IdleTimeout:  Duration(10 * time.Minute),
+			},
+		},
+		{
+			"calculated write 3",
+			"testdata/timeouts.write.calculated3.yml",
+			TimeoutCfg{
+				ReadTimeout: Duration(time.Minute),
+				// 50 + 1 minute
+				WriteTimeout: Duration(51 * 60 * time.Second),
+				IdleTimeout:  Duration(10 * time.Minute),
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg, err := LoadFile(tc.file)
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+			got := cfg.Server.HTTP.TimeoutCfg
+			if got.ReadTimeout != tc.expectedCfg.ReadTimeout {
+				t.Fatalf("got ReadTimeout %v; expected to have: %v", got.ReadTimeout, tc.expectedCfg.ReadTimeout)
+			}
+			if got.WriteTimeout != tc.expectedCfg.WriteTimeout {
+				t.Fatalf("got WriteTimeout %v; expected to have: %v", got.WriteTimeout, tc.expectedCfg.WriteTimeout)
+			}
+			if got.IdleTimeout != tc.expectedCfg.IdleTimeout {
+				t.Fatalf("got IdleTimeout %v; expected to have: %v", got.IdleTimeout, tc.expectedCfg.IdleTimeout)
+			}
+		})
+	}
+}
