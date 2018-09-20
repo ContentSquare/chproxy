@@ -128,15 +128,15 @@ listen_addr: <addr> | optional | default = `:443`
 # Each list item could be IP address or subnet mask
 allowed_networks: <network_groups>, <networks> ... | optional
 
-# ReadTimeout is the maximum duration for reading the entire
+# ReadTimeout is the maximum duration for proxy to reading the entire
 # request, including the body.
 read_timeout: <duration> | optional | default = 1m
 
-# WriteTimeout is the maximum duration before timing out writes of the response.
+# WriteTimeout is the maximum duration for proxy before timing out writes of the response.
 # Default is largest MaxExecutionTime + MaxQueueTime value from Users or Clusters
 write_timeout: <duration> | optional
 
-// IdleTimeout is the maximum amount of time to wait for the next request.
+// IdleTimeout is the maximum amount of time for proxy to wait for the next request.
 idle_timeout: <duration> | optional | default = 10m
 
 # Certificate and key files for client cert authentication to the server
