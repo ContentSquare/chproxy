@@ -1,0 +1,16 @@
+hack_me_please: true
+server:
+  http:
+    listen_addr: ":8080"
+    read_timeout: 1m
+    write_timeout: 1h
+    idle_timeout: 1d
+
+users:
+- name: "default"
+  to_cluster: "cluster"
+  to_user: "default"
+
+clusters:
+- name: "cluster"
+  nodes: ["127.0.0.1:8123"]

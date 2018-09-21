@@ -430,6 +430,19 @@ server:
     # By default requests are accepted from all the IPs.
     allowed_networks: ["office", "reporting-apps", "1.2.3.4"]
 
+    # ReadTimeout is the maximum duration for proxy to reading the entire
+    # request, including the body.
+    # Default value is 1m
+    read_timeout: 5m
+
+    # WriteTimeout is the maximum duration for proxy before timing out writes of the response.
+    # Default is largest MaxExecutionTime + MaxQueueTime value from Users or Clusters
+    write_timeout: 10m
+
+    # IdleTimeout is the maximum amount of time for proxy to wait for the next request.
+    # Default is 10m
+    idle_timeout: 20m
+
   # Configs for input https interface.
   # The interface works only if this section is present.
   https:

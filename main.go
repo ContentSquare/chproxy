@@ -76,12 +76,11 @@ func main() {
 	if server.HTTP.ForceAutocertHandler {
 		autocertManager = newAutocertManager(server.HTTPS.Autocert)
 	}
-	maxResponseTime := getMaxResponseTime(cfg)
 	if len(server.HTTPS.ListenAddr) != 0 {
-		go serveTLS(server.HTTPS, maxResponseTime)
+		go serveTLS(server.HTTPS)
 	}
 	if len(server.HTTP.ListenAddr) != 0 {
-		go serve(server.HTTP, maxResponseTime)
+		go serve(server.HTTP)
 	}
 
 	select {}
@@ -115,27 +114,6 @@ func newAutocertManager(cfg config.Autocert) *autocert.Manager {
 	}
 }
 
-// getMaxResponseTime returns the maximum possible response time
-// for the given cfg.
-func getMaxResponseTime(cfg *config.Config) time.Duration {
-	var d time.Duration
-	for _, u := range cfg.Users {
-		ud := time.Duration(u.MaxExecutionTime + u.MaxQueueTime)
-		if ud > d {
-			d = ud
-		}
-	}
-	for _, c := range cfg.Clusters {
-		for _, cu := range c.ClusterUsers {
-			cud := time.Duration(cu.MaxExecutionTime + cu.MaxQueueTime)
-			if cud > d {
-				d = cud
-			}
-		}
-	}
-	return d
-}
-
 func newListener(listenAddr string) net.Listener {
 	ln, err := net.Listen("tcp4", listenAddr)
 	if err != nil {
@@ -144,18 +122,18 @@ func newListener(listenAddr string) net.Listener {
 	return ln
 }
 
-func serveTLS(cfg config.HTTPS, maxResponseTime time.Duration) {
+func serveTLS(cfg config.HTTPS) {
 	ln := newListener(cfg.ListenAddr)
 	h := http.HandlerFunc(serveHTTP)
 	tlsCfg := newTLSConfig(cfg)
 	tln := tls.NewListener(ln, tlsCfg)
 	log.Infof("Serving https on %q", cfg.ListenAddr)
-	if err := listenAndServe(tln, h, maxResponseTime); err != nil {
+	if err := listenAndServe(tln, h, cfg.TimeoutCfg); err != nil {
 		log.Fatalf("TLS server error on %q: %s", cfg.ListenAddr, err)
 	}
 }
 
-func serve(cfg config.HTTP, maxResponseTime time.Duration) {
+func serve(cfg config.HTTP) {
 	var h http.Handler
 	ln := newListener(cfg.ListenAddr)
 	h = http.HandlerFunc(serveHTTP)
@@ -172,7 +150,7 @@ func serve(cfg config.HTTP, maxResponseTime time.Duration) {
 		h = autocertManager.HTTPHandler(h)
 	}
 	log.Infof("Serving http on %q", cfg.ListenAddr)
-	if err := listenAndServe(ln, h, maxResponseTime); err != nil {
+	if err := listenAndServe(ln, h, cfg.TimeoutCfg); err != nil {
 		log.Fatalf("HTTP server error on %q: %s", cfg.ListenAddr, err)
 	}
 }
@@ -201,20 +179,13 @@ func newTLSConfig(cfg config.HTTPS) *tls.Config {
 	return &tlsCfg
 }
 
-func listenAndServe(ln net.Listener, h http.Handler, maxResponseTime time.Duration) error {
-	if maxResponseTime < 0 {
-		maxResponseTime = 0
-	}
-	// Give an additional minute for the maximum response time,
-	// so the response body may be sent to the requester.
-	maxResponseTime += time.Minute
-
+func listenAndServe(ln net.Listener, h http.Handler, cfg config.TimeoutCfg) error {
 	s := &http.Server{
 		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 		Handler:      h,
-		ReadTimeout:  time.Minute,
-		WriteTimeout: maxResponseTime,
-		IdleTimeout:  time.Minute * 10,
+		ReadTimeout:  time.Duration(cfg.ReadTimeout),
+		WriteTimeout: time.Duration(cfg.WriteTimeout),
+		IdleTimeout:  time.Duration(cfg.IdleTimeout),
 
 		// Suppress error logging from the server, since chproxy
 		// must handle all these errors in the code.

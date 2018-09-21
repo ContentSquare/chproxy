@@ -39,12 +39,22 @@ func TestLoadConfig(t *testing.T) {
 						ListenAddr:           ":9090",
 						NetworksOrGroups:     []string{"office", "reporting-apps", "1.2.3.4"},
 						ForceAutocertHandler: true,
+						TimeoutCfg: TimeoutCfg{
+							ReadTimeout:  Duration(5 * time.Minute),
+							WriteTimeout: Duration(10 * time.Minute),
+							IdleTimeout:  Duration(20 * time.Minute),
+						},
 					},
 					HTTPS: HTTPS{
 						ListenAddr: ":443",
 						Autocert: Autocert{
 							CacheDir:     "certs_dir",
 							AllowedHosts: []string{"example.com"},
+						},
+						TimeoutCfg: TimeoutCfg{
+							ReadTimeout:  Duration(time.Minute),
+							WriteTimeout: Duration(140 * time.Second),
+							IdleTimeout:  Duration(10 * time.Minute),
 						},
 					},
 					Metrics: Metrics{
@@ -196,6 +206,11 @@ func TestLoadConfig(t *testing.T) {
 					HTTP: HTTP{
 						ListenAddr:       ":8080",
 						NetworksOrGroups: []string{"127.0.0.1"},
+						TimeoutCfg: TimeoutCfg{
+							ReadTimeout:  Duration(time.Minute),
+							WriteTimeout: Duration(time.Minute),
+							IdleTimeout:  Duration(10 * time.Minute),
+						},
 					},
 				},
 				Clusters: []Cluster{
@@ -516,5 +531,81 @@ func TestParseDurationNegative(t *testing.T) {
 		if err.Error() != tc.error {
 			t.Fatalf("unexpected error - got: %q; expected: %q", err, tc.error)
 		}
+	}
+}
+
+func TestConfigTimeouts(t *testing.T) {
+	var testCases = []struct {
+		name        string
+		file        string
+		expectedCfg TimeoutCfg
+	}{
+		{
+			"default",
+			"testdata/default_values.yml",
+			TimeoutCfg{
+				ReadTimeout:  Duration(time.Minute),
+				WriteTimeout: Duration(time.Minute),
+				IdleTimeout:  Duration(10 * time.Minute),
+			},
+		},
+		{
+			"defined",
+			"testdata/timeouts.defined.yml",
+			TimeoutCfg{
+				ReadTimeout:  Duration(time.Minute),
+				WriteTimeout: Duration(time.Hour),
+				IdleTimeout:  Duration(24 * time.Hour),
+			},
+		},
+		{
+			"calculated write 1",
+			"testdata/timeouts.write.calculated.yml",
+			TimeoutCfg{
+				ReadTimeout: Duration(time.Minute),
+				// 10 + 1 minute
+				WriteTimeout: Duration(11 * 60 * time.Second),
+				IdleTimeout:  Duration(10 * time.Minute),
+			},
+		},
+		{
+			"calculated write 2",
+			"testdata/timeouts.write.calculated2.yml",
+			TimeoutCfg{
+				ReadTimeout: Duration(time.Minute),
+				// 20 + 1 minute
+				WriteTimeout: Duration(21 * 60 * time.Second),
+				IdleTimeout:  Duration(10 * time.Minute),
+			},
+		},
+		{
+			"calculated write 3",
+			"testdata/timeouts.write.calculated3.yml",
+			TimeoutCfg{
+				ReadTimeout: Duration(time.Minute),
+				// 50 + 1 minute
+				WriteTimeout: Duration(51 * 60 * time.Second),
+				IdleTimeout:  Duration(10 * time.Minute),
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg, err := LoadFile(tc.file)
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+			got := cfg.Server.HTTP.TimeoutCfg
+			if got.ReadTimeout != tc.expectedCfg.ReadTimeout {
+				t.Fatalf("got ReadTimeout %v; expected to have: %v", got.ReadTimeout, tc.expectedCfg.ReadTimeout)
+			}
+			if got.WriteTimeout != tc.expectedCfg.WriteTimeout {
+				t.Fatalf("got WriteTimeout %v; expected to have: %v", got.WriteTimeout, tc.expectedCfg.WriteTimeout)
+			}
+			if got.IdleTimeout != tc.expectedCfg.IdleTimeout {
+				t.Fatalf("got IdleTimeout %v; expected to have: %v", got.IdleTimeout, tc.expectedCfg.IdleTimeout)
+			}
+		})
 	}
 }

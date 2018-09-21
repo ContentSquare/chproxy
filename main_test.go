@@ -503,7 +503,7 @@ func startTLS() (net.Listener, chan struct{}) {
 	tln := tls.NewListener(ln, tlsCfg)
 	h := http.HandlerFunc(serveHTTP)
 	go func() {
-		listenAndServe(tln, h, time.Minute)
+		listenAndServe(tln, h, config.TimeoutCfg{})
 		close(done)
 	}()
 	return tln, done
@@ -524,7 +524,7 @@ func startHTTP() (net.Listener, chan struct{}) {
 	}
 	h := http.HandlerFunc(serveHTTP)
 	go func() {
-		listenAndServe(ln, h, time.Minute)
+		listenAndServe(ln, h, config.TimeoutCfg{})
 		close(done)
 	}()
 	return ln, done
@@ -627,49 +627,6 @@ func TestNewTLSConfig(t *testing.T) {
 
 	if _, err := os.Stat(certCachePath); err != nil {
 		t.Fatalf("expected dir %s to be created", certCachePath)
-	}
-}
-
-func TestGetMaxResponseTime(t *testing.T) {
-	cfg := &config.Config{
-		Clusters: []config.Cluster{
-			{
-				ClusterUsers: []config.ClusterUser{
-					{
-						MaxExecutionTime: config.Duration(20 * time.Second),
-					},
-				},
-			},
-			{
-				ClusterUsers: []config.ClusterUser{
-					{
-						MaxExecutionTime: config.Duration(30 * time.Second),
-					},
-					{
-						MaxExecutionTime: config.Duration(10 * time.Second),
-					},
-				},
-			},
-		},
-		Users: []config.User{
-			{
-				MaxExecutionTime: config.Duration(10 * time.Second),
-			},
-			{
-				MaxExecutionTime: config.Duration(15 * time.Second),
-			},
-		},
-	}
-
-	expected := 30 * time.Second
-	if maxTime := getMaxResponseTime(cfg); maxTime != expected {
-		t.Fatalf("got %v; expected %v", maxTime, expected)
-	}
-
-	expected = time.Minute
-	cfg.Users[0].MaxExecutionTime = config.Duration(expected)
-	if maxTime := getMaxResponseTime(cfg); maxTime != expected {
-		t.Fatalf("got %v; expected %v", maxTime, expected)
 	}
 }
 
