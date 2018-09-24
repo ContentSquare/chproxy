@@ -327,7 +327,7 @@ an instant cache flush may be built on top of cache namespaces - just switch to 
 to flush the cache.
 
 ### Security
-`Chproxy` removes all the query params from input requests (except the user's [params](https://github.com/Vertamedia/chproxy/blob/master/config#param_groups_config) and the `query`, `database`, `default_format`, `compress`, `decompress`, `enable_http_compression`)
+`Chproxy` removes all the query params from input requests (except the user's [params](https://github.com/Vertamedia/chproxy/blob/master/config#param_groups_config) and listed [here](https://github.com/Vertamedia/chproxy/blob/master/scope.go#L292))
 before proxying them to `ClickHouse` nodes. This prevents from unsafe overriding
 of various `ClickHouse` [settings](http://clickhouse-docs.readthedocs.io/en/latest/interfaces/http_interface.html).
 
