@@ -1,4 +1,4 @@
-FROM golang:1.9-alpine AS build
+FROM golang:1.11-alpine AS build
 
 RUN apk add --update zstd-static zstd-dev make gcc musl-dev git
 RUN go get golang.org/x/lint/golint
