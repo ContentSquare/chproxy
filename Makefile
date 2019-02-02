@@ -11,6 +11,8 @@ BUILD_CONSTS = \
 
 BUILD_OPTS = -ldflags="$(BUILD_CONSTS)" -gcflags="-trimpath=$(GOPATH)/src"
 
+.PHONY: update format build test run lint reconfigure clean release-build release
+
 update:
 	dep ensure -update
 
@@ -29,12 +31,16 @@ run: build
 
 lint:
 	go vet $(pkgs)
-	go list ./... | grep -v /vendor/ | xargs -L1 golint
+	go list ./... | grep -v /vendor/ | xargs -n1 golint
 
 reconfigure:
 	kill -HUP `pidof chproxy`
 
-release: format lint test
+clean:
 	rm -f chproxy
+
+release-build:
 	GOOS=linux GOARCH=amd64 go build $(BUILD_OPTS)
+
+release: format lint test clean release-build
 	tar czf chproxy-linux-amd64-$(BUILD_TAG).tar.gz chproxy
