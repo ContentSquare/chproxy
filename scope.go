@@ -342,7 +342,7 @@ func (s *scope) decorateRequest(req *http.Request) (*http.Request, url.Values) {
 			}
 
 			// disable cache for external_data queries
-			params.Set("no_cache", "1")
+			origParams.Set("no_cache", "1")
 			log.Debugf("external data params detected - cache will be disabled")
 		}
 	}

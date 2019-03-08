@@ -386,14 +386,14 @@ func TestDecorateRequest(t *testing.T) {
 					},
 				},
 			},
-			[]string{"query_id", "query", "no_cache", "max_threads", "background_pool_size"},
+			[]string{"query_id", "query", "max_threads", "background_pool_size"},
 		},
 		{
 			"http://127.0.0.1?user=default&password=default&query=SELECT&testdata_structure=id+UInt32&testdata_format=TSV",
 			"multipart/form-data; boundary=foobar",
 			"POST",
 			nil,
-			[]string{"query_id", "testdata_structure", "testdata_format", "query", "no_cache"},
+			[]string{"query_id", "testdata_structure", "testdata_format", "query"},
 		},
 	}
 
@@ -423,7 +423,7 @@ func TestDecorateRequest(t *testing.T) {
 		}
 
 		if len(tc.expectedParams) != len(params) {
-			t.Fatalf("unexpected params for query %q: %#v", tc.request, params)
+			t.Fatalf("unexpected params for query %q: got %#v; want %#v", tc.request, params, tc.expectedParams)
 		}
 
 		sort.Strings(params)
