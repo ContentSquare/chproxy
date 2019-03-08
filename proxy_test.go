@@ -484,7 +484,7 @@ func TestReverseProxy_ServeHTTPConcurrent(t *testing.T) {
 	})
 	t.Run("parallel requests with config reloading", func(t *testing.T) {
 		f := func() {
-			go proxy.applyConfig(newConfig())
+			proxy.applyConfig(newConfig())
 			req := httptest.NewRequest("GET", fmt.Sprintf("%s/fast", fakeServer.URL), nil)
 			makeCustomRequest(proxy, req)
 		}
