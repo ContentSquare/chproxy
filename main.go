@@ -223,7 +223,7 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 		}
 		proxy.refreshCacheMetrics()
 		promHandler.ServeHTTP(rw, r)
-	case "/":
+	case "/", "/query":
 		var err error
 		var an *config.Networks
 		if r.TLS != nil {
