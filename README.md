@@ -334,7 +334,7 @@ of various `ClickHouse` [settings](http://clickhouse-docs.readthedocs.io/en/late
 Be careful when configuring limits, allowed networks, passwords etc.
 By default `chproxy` tries detecting the most obvious configuration errors such as `allowed_networks: ["0.0.0.0/0"]` or sending passwords via unencrypted HTTP.
 
-Special option `hack_me_please: true` may be used for disabling all the security-related checks during config validation (if you are feelying lucky :) ).
+Special option `hack_me_please: true` may be used for disabling all the security-related checks during config validation (if you are feeling lucky :) ).
 
 #### Example of [full](https://github.com/Vertamedia/chproxy/blob/master/config/testdata/full.yml) configuration:
 ```yml
