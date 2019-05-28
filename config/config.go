@@ -536,6 +536,15 @@ type Cache struct {
 	// Grace duration before the expired entry is deleted from the cache.
 	GraceTime Duration `yaml:"grace_time,omitempty"`
 
+	// RedisHost is the redis to connect to
+	RedisHost string `yaml:"redis_host"`
+
+	// RedisPort is the redis to connect to
+	RedisPort int `yaml:"redis_port"`
+
+	// RedisDB is the redis to connect to
+	RedisDB int `yaml:"redis_db"`
+
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
 }

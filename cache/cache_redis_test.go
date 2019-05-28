@@ -3,127 +3,151 @@ package cache
 import (
 	"bytes"
 	"fmt"
+	"github.com/alicebob/miniredis"
+	"github.com/contentsquare/chproxy/config"
 	"io"
-	"log"
 	"net/http"
-	"os"
+	"strconv"
 	"testing"
 	"time"
-
-	"github.com/Vertamedia/chproxy/config"
 )
 
-const testDir = "./test-data"
-
-func TestMain(m *testing.M) {
-	retCode := m.Run()
-	if err := os.RemoveAll(testDir); err != nil {
-		log.Fatalf("cannot remove %q: %s", testDir, err)
-	}
-	os.Exit(retCode)
-}
-
-func TestWriteReadHeader(t *testing.T) {
-	expectedS := "foo-bar1; baz"
-	bb := &bytes.Buffer{}
-	if err := writeHeader(bb, expectedS); err != nil {
-		t.Fatalf("cannot write header: %q", err)
-	}
-
-	s, err := readHeader(bb)
-	if err != nil {
-		t.Fatalf("cannot read header: %q", err)
-	}
-	if s != expectedS {
-		t.Fatalf("unexpected header %q; expecting %q", s, expectedS)
-	}
-}
-
-func TestKeyString(t *testing.T) {
-	testCases := []struct {
-		key      *Key
-		expected string
-	}{
-		{
-			key: &Key{
-				Query: []byte("SELECT 1 FROM system.numbers LIMIT 10"),
-			},
-			expected: "bebe3382e36ffdeea479b45d827b208a",
-		},
-		{
-			key: &Key{
-				Query:          []byte("SELECT 1 FROM system.numbers LIMIT 10"),
-				AcceptEncoding: "gzip",
-			},
-			expected: "498c1af30fb94280fd7c7225c0c8fb39",
-		},
-		{
-			key: &Key{
-				Query:          []byte("SELECT 1 FROM system.numbers LIMIT 10"),
-				AcceptEncoding: "gzip",
-				DefaultFormat:  "JSON",
-			},
-			expected: "720292aa0647cc5e53e0b6e6033eef34",
-		},
-		{
-			key: &Key{
-				Query:          []byte("SELECT 1 FROM system.numbers LIMIT 10"),
-				AcceptEncoding: "gzip",
-				DefaultFormat:  "JSON",
-				Database:       "foobar",
-			},
-			expected: "5c6a70736d71e570faca739c4557780c",
-		},
-		{
-			key: &Key{
-				Query:          []byte("SELECT 1 FROM system.numbers LIMIT 10"),
-				AcceptEncoding: "gzip",
-				DefaultFormat:  "JSON",
-				Database:       "foobar",
-				Namespace:      "ns123",
-			},
-			expected: "08b4baf6825e53bbd18136a88abda4f8",
-		},
-		{
-			key: &Key{
-				Query:          []byte("SELECT 1 FROM system.numbers LIMIT 10"),
-				AcceptEncoding: "gzip",
-				DefaultFormat:  "JSON",
-				Database:       "foobar",
-				Compress:       "1",
-				Namespace:      "ns123",
-			},
-			expected: "0e043f23ccd1b9039b33623b3b7c114a",
-		},
-	}
-
-	for _, tc := range testCases {
-		s := tc.key.String()
-		if !cachefileRegexp.MatchString(s) {
-			t.Fatalf("invalid key string format: %q", s)
-		}
-		if s != tc.expected {
-			t.Fatalf("unexpected key string: %q; expecting: %q", s, tc.expected)
-		}
-	}
-}
-
-func TestCacheClose(t *testing.T) {
-	for i := 0; i < 10; i++ {
-		c := newTestCache(t)
+func TestRedisCacheClose(t *testing.T) {
+	for i := 0; i < 2; i++ {
+		c := newRedisTestCache(t)
 		c.Close()
 	}
 }
 
-func TestCacheAddGet(t *testing.T) {
-	c := newTestCache(t)
+//func TestRedisCacheAddGet(t *testing.T) {
+//	c := newRedisTestCache(t)
+//	defer c.Close()
+//	var i = 0
+//	//for i := 0; i < 10; i++ {
+//		key := &Key{
+//			Query: []byte(fmt.Sprintf("SELECT %d", i)),
+//		}
+//		trw := &testRedisResponseWriter{}
+//		crw, err := c.NewResponseWriter(trw, key)
+//		fmt.Println(fmt.Sprintf("crw is %v", crw))
+//
+//		if err != nil {
+//			t.Fatalf("cannot create response writer: %s", err)
+//		}
+//
+//		ct := fmt.Sprintf("text/html; %d", i)
+//		crw.Header().Set("Content-Type", ct)
+//		ce := fmt.Sprintf("gzip; %d", i)
+//		crw.Header().Set("Content-Encoding", ce)
+//
+//		value := fmt.Sprintf("value %d", i)
+//		bs := bytes.NewBufferString(value)
+//		io.Copy(crw, bs)
+//		//if _, err := io.Copy(crw, bs); err != nil {
+//		//	t.Fatalf("cannot send response to cache: %s", err)
+//		//}
+//	//	if err := crw.Commit(); err != nil {
+//	//		t.Fatalf("cannot commit response to cache: %s", err)
+//	//	}
+//	//
+//	//	// Verify trw contains valid headers.
+//	//	gotCT := trw.Header().Get("Content-Type")
+//	//	if gotCT != ct {
+//	//		t.Fatalf("unexpected Content-Type: %q; expecting %q", gotCT, ct)
+//	//	}
+//	//	gotCE := trw.Header().Get("Content-Encoding")
+//	//	if gotCE != ce {
+//	//		t.Fatalf("unexpected Content-Encoding: %q; expecting %q", gotCE, ce)
+//	//	}
+//	//	cl := fmt.Sprintf("%d", len(value))
+//	//	gotCL := trw.Header().Get("Content-Length")
+//	//	if gotCL != cl {
+//	//		t.Fatalf("unexpected Content-Length: %q; expecting %q", gotCL, cl)
+//	//	}
+//	//
+//	//	// Verify trw contains the response.
+//	//	if string(trw.b) != value {
+//	//		t.Fatalf("unexpected response sent to client: %q; expecting %q", trw.b, value)
+//	//	}
+//	//}
+//
+//	//// Verify the responses are actually cached.
+//	//for i := 0; i < 10; i++ {
+//	//	key := &Key{
+//	//		Query: []byte(fmt.Sprintf("SELECT %d", i)),
+//	//	}
+//	//	trw := &testRedisResponseWriter{}
+//	//	if err := c.WriteTo(trw, key); err != nil {
+//	//		t.Fatalf("unexpected error: %s", err)
+//	//	}
+//	//	value := fmt.Sprintf("value %d", i)
+//	//
+//	//	ct := fmt.Sprintf("text/html; %d", i)
+//	//	gotCT := trw.Header().Get("Content-Type")
+//	//	if gotCT != ct {
+//	//		t.Fatalf("unexpected Content-Type: %q; expecting %q", gotCT, ct)
+//	//	}
+//	//	ce := fmt.Sprintf("gzip; %d", i)
+//	//	gotCE := trw.Header().Get("Content-Encoding")
+//	//	if gotCE != ce {
+//	//		t.Fatalf("unexpected Content-Encoding: %q; expecting %q", gotCE, ce)
+//	//	}
+//	//	cl := fmt.Sprintf("%d", len(value))
+//	//	gotCL := trw.Header().Get("Content-Length")
+//	//	if gotCL != cl {
+//	//		t.Fatalf("unexpected Content-Length: %q; expecting %q", gotCL, cl)
+//	//	}
+//	//
+//	//	if string(trw.b) != value {
+//	//		t.Fatalf("unexpected response sent to client: %q; expecting %q", trw.b, value)
+//	//	}
+//	//}
+//
+//	// Verify the cache may be re-opened.
+//	c1 := newRedisTestCache(t)
+//	defer c1.Close()
+//
+//	//for i := 0; i < 10; i++ {
+//	//	key := &Key{
+//	//		Query: []byte(fmt.Sprintf("SELECT %d", i)),
+//	//	}
+//	//	trw := &testRedisResponseWriter{}
+//	//	if err := c1.WriteTo(trw, key); err != nil {
+//	//		t.Fatalf("unexpected error: %s", err)
+//	//	}
+//	//	value := fmt.Sprintf("value %d", i)
+//	//
+//	//	ct := fmt.Sprintf("text/html; %d", i)
+//	//	gotCT := trw.Header().Get("Content-Type")
+//	//	if gotCT != ct {
+//	//		t.Fatalf("unexpected Content-Type: %q; expecting %q", gotCT, ct)
+//	//	}
+//	//	ce := fmt.Sprintf("gzip; %d", i)
+//	//	gotCE := trw.Header().Get("Content-Encoding")
+//	//	if gotCE != ce {
+//	//		t.Fatalf("unexpected Content-Encoding: %q; expecting %q", gotCE, ce)
+//	//	}
+//	//	cl := fmt.Sprintf("%d", len(value))
+//	//	gotCL := trw.Header().Get("Content-Length")
+//	//	if gotCL != cl {
+//	//		t.Fatalf("unexpected Content-Length: %q; expecting %q", gotCL, cl)
+//	//	}
+//	//
+//	//	if string(trw.b) != value {
+//	//		t.Fatalf("unexpected response sent to client: %q; expecting %q", trw.b, value)
+//	//	}
+//	//}
+//}
+
+func TestRedisCacheAddGet(t *testing.T) {
+	c := newRedisTestCache(t)
 	defer c.Close()
 
 	for i := 0; i < 10; i++ {
 		key := &Key{
 			Query: []byte(fmt.Sprintf("SELECT %d", i)),
 		}
-		trw := &testResponseWriter{}
+		trw := &testRedisResponseWriter{}
 		crw, err := c.NewResponseWriter(trw, key)
 		if err != nil {
 			t.Fatalf("cannot create response writer: %s", err)
@@ -169,7 +193,7 @@ func TestCacheAddGet(t *testing.T) {
 		key := &Key{
 			Query: []byte(fmt.Sprintf("SELECT %d", i)),
 		}
-		trw := &testResponseWriter{}
+		trw := &testFileResponseWriter{}
 		if err := c.WriteTo(trw, key); err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
@@ -197,14 +221,14 @@ func TestCacheAddGet(t *testing.T) {
 	}
 
 	// Verify the cache may be re-opened.
-	c1 := newTestCache(t)
+	c1 := newFileTestCache(t)
 	defer c1.Close()
 
 	for i := 0; i < 10; i++ {
 		key := &Key{
 			Query: []byte(fmt.Sprintf("SELECT %d", i)),
 		}
-		trw := &testResponseWriter{}
+		trw := &testFileResponseWriter{}
 		if err := c1.WriteTo(trw, key); err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
@@ -232,15 +256,15 @@ func TestCacheAddGet(t *testing.T) {
 	}
 }
 
-func TestCacheMiss(t *testing.T) {
-	c := newTestCache(t)
+func TestRedisCacheMiss(t *testing.T) {
+	c := newRedisTestCache(t)
 	defer c.Close()
 
 	for i := 0; i < 10; i++ {
 		key := &Key{
 			Query: []byte(fmt.Sprintf("SELECT %d cache miss", i)),
 		}
-		trw := &testResponseWriter{}
+		trw := &testRedisResponseWriter{}
 		err := c.WriteTo(trw, key)
 		if err == nil {
 			t.Fatalf("expecting error")
@@ -251,15 +275,15 @@ func TestCacheMiss(t *testing.T) {
 	}
 }
 
-func TestPendingEntries(t *testing.T) {
+func TestRedisPendingEntries(t *testing.T) {
 	cfg := config.Cache{
 		Name:      "foobar",
-		Dir:       testDir,
+		RedisHost: "localhost",
+		RedisPort: 32771,
 		MaxSize:   1e6,
 		Expire:    config.Duration(time.Minute),
-		GraceTime: config.Duration(30 * time.Second),
 	}
-	c, err := New(cfg)
+	c, err := NewCache(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -270,7 +294,7 @@ func TestPendingEntries(t *testing.T) {
 	}
 	value := "value for pending entries"
 
-	trw := &testResponseWriter{}
+	trw := &testRedisResponseWriter{}
 	err = c.WriteTo(trw, key)
 	if err == nil {
 		t.Fatalf("expecting error")
@@ -281,7 +305,7 @@ func TestPendingEntries(t *testing.T) {
 
 	ch := make(chan error)
 	go func() {
-		trw := &testResponseWriter{}
+		trw := &testRedisResponseWriter{}
 		// This should be delayed until the main goroutine writes
 		// the value for the given key.
 		if err := c.WriteTo(trw, key); err != nil {
@@ -303,7 +327,7 @@ func TestPendingEntries(t *testing.T) {
 	}
 
 	// Write the value to the cache.
-	trw = &testResponseWriter{}
+	trw = &testRedisResponseWriter{}
 	crw, err := c.NewResponseWriter(trw, key)
 	if err != nil {
 		t.Fatalf("cannot create response writer: %s", err)
@@ -327,15 +351,15 @@ func TestPendingEntries(t *testing.T) {
 	}
 }
 
-func TestCacheRollback(t *testing.T) {
-	c := newTestCache(t)
+func TestRedisCacheRollback(t *testing.T) {
+	c := newRedisTestCache(t)
 	defer c.Close()
 
 	for i := 0; i < 10; i++ {
 		key := &Key{
 			Query: []byte(fmt.Sprintf("SELECT %d cache rollback", i)),
 		}
-		trw := &testResponseWriter{}
+		trw := &testRedisResponseWriter{}
 		crw, err := c.NewResponseWriter(trw, key)
 		if err != nil {
 			t.Fatalf("cannot create response writer: %s", err)
@@ -361,7 +385,7 @@ func TestCacheRollback(t *testing.T) {
 		key := &Key{
 			Query: []byte(fmt.Sprintf("SELECT %d cache rollback", i)),
 		}
-		trw := &testResponseWriter{}
+		trw := &testRedisResponseWriter{}
 		err := c.WriteTo(trw, key)
 		if err == nil {
 			t.Fatalf("expecting non-nil error")
@@ -372,89 +396,42 @@ func TestCacheRollback(t *testing.T) {
 	}
 }
 
-func TestCacheClean(t *testing.T) {
-	cfg := config.Cache{
-		Name:    "foobar",
-		Dir:     testDir,
-		MaxSize: 8192,
-		Expire:  config.Duration(time.Minute),
-	}
-	c, err := New(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer c.Close()
-
-	// populate the cache with a lot of entries
-	for i := 0; i < 1000; i++ {
-		key := &Key{
-			Query: []byte(fmt.Sprintf("SELECT %d cache clean", i)),
-		}
-		trw := &testResponseWriter{}
-		crw, err := c.NewResponseWriter(trw, key)
-		if err != nil {
-			t.Fatalf("cannot create response writer: %s", err)
-		}
-
-		value := fmt.Sprintf("very big value %d", i)
-		bs := bytes.NewBufferString(value)
-		if _, err := io.Copy(crw, bs); err != nil {
-			t.Fatalf("cannot send response to cache: %s", err)
-		}
-		if err := crw.Commit(); err != nil {
-			t.Fatalf("cannot commit response to cache: %s", err)
-		}
-	}
-
-	// Forcibly clean the cache
-	c.clean()
-
-	// Make sure the total cache size doesnt exceed MaxSize
-	stats := c.Stats()
-	if stats.Size <= 0 {
-		t.Fatalf("cache size must be greater than 0; got %d", stats.Size)
-	}
-	if stats.Size > c.maxSize {
-		t.Fatalf("cache size %d cannot exceed %d", stats.Size, c.maxSize)
-	}
-
-	if stats.Items <= 0 {
-		t.Fatalf("cache items must be greater than 0; got %d", stats.Items)
-	}
-	if stats.Items > 1000 {
-		t.Fatalf("cache items %d cannot exceed %d", stats.Items, 1000)
-	}
-}
-
-type testResponseWriter struct {
+type testRedisResponseWriter struct {
 	h http.Header
 	b []byte
 }
 
-func (trw *testResponseWriter) Write(p []byte) (int, error) {
+func (trw *testRedisResponseWriter) Write(p []byte) (int, error) {
 	trw.b = append(trw.b, p...)
 	return len(p), nil
 }
 
-func (trw *testResponseWriter) Header() http.Header {
+func (trw *testRedisResponseWriter) Header() http.Header {
 	if trw.h == nil {
 		trw.h = make(http.Header)
 	}
 	return trw.h
 }
 
-func (trw *testResponseWriter) WriteHeader(statusCode int) {}
+func (trw *testRedisResponseWriter) WriteHeader(statusCode int) {}
 
-func newTestCache(t *testing.T) *Cache {
+func newRedisTestCache(t *testing.T) Cache {
+
 	t.Helper()
 
-	cfg := config.Cache{
-		Name:    "foobar",
-		Dir:     testDir,
-		MaxSize: 1e6,
-		Expire:  config.Duration(time.Minute),
+	s, err := miniredis.Run()
+	if err != nil {
+		panic(err)
 	}
-	c, err := New(cfg)
+	port, _ := strconv.Atoi(s.Port())
+	cfg := config.Cache{
+		Name:      "foobar",
+		RedisHost: s.Host(),
+		RedisPort: port,
+		MaxSize:   1e6,
+		Expire:    config.Duration(time.Minute),
+	}
+	c, err := NewCache(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}

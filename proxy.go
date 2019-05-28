@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Vertamedia/chproxy/cache"
-	"github.com/Vertamedia/chproxy/config"
-	"github.com/Vertamedia/chproxy/log"
+	"github.com/contentsquare/chproxy/cache"
+	"github.com/contentsquare/chproxy/config"
+	"github.com/contentsquare/chproxy/log"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -177,7 +177,7 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, srw *stat
 		since := float64(time.Since(startTime).Seconds())
 		proxiedResponseDuration.With(s.labels).Observe(since)
 
-		// cache.ResponseWriter pushes status code to srw on Commit/Rollback actions
+		// cache.FileResponseWriter pushes status code to srw on Commit/Rollback actions
 		// but they didn't happen yet, so manually propagate the status code from crw to srw.
 		if crw, ok := rw.(*cache.ResponseWriter); ok {
 			srw.statusCode = crw.StatusCode()
@@ -341,14 +341,16 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 			// Speed up applyConfig by closing caches in background,
 			// since the process of cache closing may be lengthy
 			// due to cleaning.
-			go tmpCache.Close()
+			go func(goCache *cache.Cache) {
+				goCache.Close()
+			}(tmpCache)
 		}
 	}()
 	for _, cc := range cfg.Caches {
 		if _, ok := caches[cc.Name]; ok {
 			return fmt.Errorf("duplicate config for cache %q", cc.Name)
 		}
-		tmpCache, err := cache.New(cc)
+		tmpCache, err := cache.NewCache(cc)
 		if err != nil {
 			return fmt.Errorf("cannot initialize cache %q: %s", cc.Name, err)
 		}
