@@ -59,7 +59,16 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		respondWith(rw, err, status)
 		return
 	}
-
+	
+	// If we find the result in the cache, we can return the result directly
+	if (s.user.cache != nil){
+		srw := &statResponseWriter{
+			ResponseWriter: rw,
+			bytesWritten:   responseBodyBytes.With(s.labels),
+		}
+		req, origParams := s.decorateRequest(req)
+		rp.serveFromCache(s, srw, req, origParams)
+	}else{
 	// WARNING: don't use s.labels before s.incQueued,
 	// since `replica` and `cluster_node` may change inside incQueued.
 	if err := s.incQueued(); err != nil {
@@ -92,18 +101,14 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	req, origParams := s.decorateRequest(req)
-
+    fmt.Println(origParams)
 	// wrap body into cachedReadCloser, so we could obtain the original
 	// request on error.
 	req.Body = &cachedReadCloser{
 		ReadCloser: req.Body,
 	}
-
-	if s.user.cache == nil {
-		rp.proxyRequest(s, srw, srw, req)
-	} else {
-		rp.serveFromCache(s, srw, req, origParams)
-	}
+	
+	rp.proxyRequest(s, srw, srw, req)
 
 	// It is safe calling getQuerySnippet here, since the request
 	// has been already read in proxyRequest or serveFromCache.
@@ -127,6 +132,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	).Inc()
 	since := float64(time.Since(startTime).Seconds())
 	requestDuration.With(s.labels).Observe(since)
+}
 }
 
 // proxyRequest proxies the given request to clickhouse and sends response
@@ -280,6 +286,14 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		log.Debugf("%s: cache hit", s)
 		return
 	}
+
+	if err == cache.ErrGraceTimeElapsed {
+		// grace time refuse error while serving the response.
+		err = fmt.Errorf("%s: %s; query: %q", s, err, q)
+		respondWith(srw, err, http.StatusGatewayTimeout)
+		return
+	}
+
 	if err != cache.ErrMissing {
 		// Unexpected error while serving the response.
 		err = fmt.Errorf("%s: %s; query: %q", s, err, q)
