@@ -286,7 +286,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		log.Debugf("%s: cache hit", s)
 		return
 	}
-
+    // If clickhouse does not response in grace time, we can return error to client.
 	if err == cache.ErrGraceTimeElapsed {
 		// grace time refuse error while serving the response.
 		err = fmt.Errorf("%s: %s; query: %q", s, err, q)
