@@ -377,7 +377,7 @@ again:
 		if time.Since(startTime) > c.graceTime {
 			// The entry didn't appear during graceTime.
 			// Let the caller creating it.
-			return nil, ErrMissing
+			return nil, ErrGraceTimeElapsed
 		}
 
 		// Wait for graceTime in the hope the entry will appear
@@ -413,6 +413,7 @@ again:
 
 // ErrMissing is returned when the entry isn't found in the cache.
 var ErrMissing = errors.New("missing cache entry")
+var ErrGraceTimeElapsed = errors.New("refused request when grace time elapsed")
 
 func (c *Cache) registerPendingEntry(path string) bool {
 	if c.graceTime <= 0 {
