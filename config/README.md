@@ -253,8 +253,12 @@ users:
 # By default timed out queries are killed from `default` user.
 kill_query_user: <kill_query_user_config> | optional
 
-# An interval for checking all cluster nodes for availability
+# DEPRECATED: An interval for checking all cluster nodes for availability
+# Use `heartbeat.interval`.
 heartbeat_interval: <duration> | optional | default = 5s
+
+# HeartBeat - user configuration for heart beat requests.
+heartbeat: <heartbeat_config> | optional
 ```
 
 ### <replica_config>
@@ -303,4 +307,22 @@ name: <string>
 
 # User password to access CH with basic auth
 password: <string> | optional
+```
+
+### <heartbeat_config>
+```yml
+# An interval for checking all cluster nodes for availability
+interval: <duration> | optional | default = 5s
+
+# A timeout of wait response from cluster nodes
+timeout: <duration> | optional | default = 3s
+
+# The parameter to set the URI to request in a health check
+request: <string> | optional | default = `/ping`
+
+# Reference response from clickhouse on health check request
+response: <string> | optional | default = `Ok.\n`
+
+# The name of cluster_user whom credentials will be used for heart beat request to clickhouse.
+to_user: <string> | optional
 ```

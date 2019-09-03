@@ -21,6 +21,10 @@ import (
 	"github.com/Vertamedia/chproxy/config"
 )
 
+const (
+	okResponse = "Ok.\n"
+)
+
 var goodCfg = &config.Config{
 	Clusters: []config.Cluster{
 		{
