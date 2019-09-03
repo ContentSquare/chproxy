@@ -16,10 +16,18 @@ var (
 	defaultCluster = Cluster{
 		Scheme:       "http",
 		ClusterUsers: []ClusterUser{defaultClusterUser},
+		HeartBeat:    defaultHeartBeat,
 	}
 
 	defaultClusterUser = ClusterUser{
 		Name: "default",
+	}
+
+	defaultHeartBeat = HeartBeat{
+		Interval: Duration(time.Second * 5),
+		Timeout: Duration(time.Second * 3),
+		Request: "/ping",
+		Response: "Ok.\n",
 	}
 )
 
@@ -300,10 +308,13 @@ type Cluster struct {
 	// By default timed out queries are killed under `default` user.
 	KillQueryUser KillQueryUser `yaml:"kill_query_user,omitempty"`
 
-	// HeartBeatInterval is an interval of checking
+	// DEPRECATED: HeartBeatInterval is an interval of checking
 	// all cluster nodes for availability
 	// if omitted or zero - interval will be set to 5s
 	HeartBeatInterval Duration `yaml:"heartbeat_interval,omitempty"`
+
+	// HeartBeat - user configuration for heart beat requests
+	HeartBeat HeartBeat `yaml:"heartbeat,omitempty"`
 
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
@@ -331,8 +342,11 @@ func (c *Cluster) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if c.Scheme != "http" && c.Scheme != "https" {
 		return fmt.Errorf("`cluster.scheme` must be `http` or `https`, got %q instead for %q", c.Scheme, c.Name)
 	}
-	if c.HeartBeatInterval == 0 {
-		c.HeartBeatInterval = Duration(time.Second * 5)
+	if c.HeartBeatInterval != 0 && c.HeartBeat.Interval != defaultHeartBeat.Interval {
+		return fmt.Errorf("cannot be use `heartbeat_interval` with `heartbeat.interval`")
+	}
+	if c.HeartBeat.Interval == 0 && c.HeartBeat.Timeout == 0 && c.HeartBeat.Response == "" {
+		return fmt.Errorf("`cluster.heartbeat` cannot be unset for %q", c.Name)
 	}
 	return checkOverflow(c.XXX, fmt.Sprintf("cluster %q", c.Name))
 }
@@ -386,6 +400,41 @@ func (u *KillQueryUser) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("`cluster.kill_query_user.name` must be specified")
 	}
 	return checkOverflow(u.XXX, "kill_query_user")
+}
+
+type HeartBeat struct {
+    // Interval is an interval of checking
+    // all cluster nodes for availability
+    // if omitted or zero - interval will be set to 5s
+    Interval Duration `yaml:"interval,omitempty"`
+
+    // Timeout is a timeout of wait response from cluster nodes
+    // if omitted or zero - interval will be set to 3s
+    Timeout Duration `yaml:"timeout,omitempty"`
+
+    // Request is a query
+    // default value is `/ping`
+    Request string `yaml:"request,omitempty"`
+
+    // Reference response from clickhouse on health check request
+    // default value is `Ok.\n`
+    Response string `yaml:"response,omitempty"`
+
+    // ToUser is the name of cluster_user
+    // whom credentials will be used for heart beat request to clickhouse
+    ToUser string `yaml:"to_user,omitempty"`
+
+    // Catches all undefined fields
+    XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (h *HeartBeat) UnmarshalYAML(unmarshal func(interface{}) error) error {
+    type plain HeartBeat
+    if err := unmarshal((*plain)(h)); err != nil {
+        return err
+    }
+    return checkOverflow(h.XXX, "heartbeat")
 }
 
 // User describes list of allowed users
