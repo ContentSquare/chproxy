@@ -79,12 +79,12 @@ func newScope(req *http.Request, u *user, c *cluster, cu *clusterUser) *scope {
 }
 
 func (s *scope) String() string {
-	return fmt.Sprintf("[ Id: %s; User %q(%d) proxying as %q(%d) to %q(%d); RemoteAddr: %q; LocalAddr: %q; Duration: %s ]",
+	return fmt.Sprintf("[ Id: %s; User %q(%d) proxying as %q(%d) to %q(%d); RemoteAddr: %q; LocalAddr: %q; Duration: %s μs]",
 		s.id,
 		s.user.name, s.user.queryCounter.load(),
 		s.clusterUser.name, s.clusterUser.queryCounter.load(),
 		s.host.addr.Host, s.host.load(),
-		s.remoteAddr, s.localAddr, time.Since(s.startTime))
+		s.remoteAddr, s.localAddr, time.Since(s.startTime).Nanoseconds() / 1000.0 )
 }
 
 func (s *scope) incQueued() error {
