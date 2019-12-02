@@ -34,6 +34,14 @@
   version = "v1.0.0"
 
 [[projects]]
+  branch = "master"
+  digest = "1:bdbab69b21c3c0409e24b3ec53a9bdf2c2dbc3d80bbe73e8d0c8ebc47f660e3d"
+  name = "github.com/mohae/deepcopy"
+  packages = ["."]
+  pruneopts = ""
+  revision = "c48cc78d482608239f6c4c92a4abd87eb8761c90"
+
+[[projects]]
   digest = "1:52b8f1dc01c8a930900aa94e227b0c4c36e7102a5b124687ff1f88a221590234"
   name = "github.com/pierrec/lz4"
   packages = ["."]
@@ -115,6 +123,7 @@
   analyzer-version = 1
   input-imports = [
     "github.com/DataDog/zstd",
+    "github.com/mohae/deepcopy",
     "github.com/pierrec/lz4",
     "github.com/prometheus/client_golang/prometheus",
     "github.com/prometheus/client_golang/prometheus/promhttp",

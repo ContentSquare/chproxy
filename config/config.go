@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"time"
 
+	"github.com/mohae/deepcopy"
 	"gopkg.in/yaml.v2"
 )
 
@@ -51,11 +52,26 @@ type Config struct {
 
 // String implements the Stringer interface
 func (c *Config) String() string {
-	b, err := yaml.Marshal(c)
+	b, err := yaml.Marshal(withoutSensitiveInfo(c))
 	if err != nil {
 		panic(err)
 	}
 	return string(b)
+}
+
+func withoutSensitiveInfo(config *Config) *Config {
+	var c *Config = deepcopy.Copy(config).(*Config)
+	for i, _ := range c.Users {
+		c.Users[i].Password = "XXX"
+	}
+
+	for i, _ := range c.Clusters {
+		for j, _ := range c.Clusters[i].ClusterUsers {
+			c.Clusters[i].ClusterUsers[j].Password = "XXX"
+		}
+	}
+
+	return c
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
