@@ -318,11 +318,8 @@ interval: <duration> | optional | default = 5s
 timeout: <duration> | optional | default = 3s
 
 # The parameter to set the URI to request in a health check
-request: <string> | optional | default = `/ping`
+request: <string> | optional | default = `/?query=SELECT%201`
 
 # Reference response from clickhouse on health check request
-response: <string> | optional | default = `Ok.\n`
-
-# The name of cluster_user whom credentials will be used for heart beat request to clickhouse.
-to_user: <string> | optional
+response: <string> | optional | default = `1\n`
 ```

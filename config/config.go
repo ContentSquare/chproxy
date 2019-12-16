@@ -26,8 +26,8 @@ var (
 	defaultHeartBeat = HeartBeat{
 		Interval: Duration(time.Second * 5),
 		Timeout: Duration(time.Second * 3),
-		Request: "/ping",
-		Response: "Ok.\n",
+		Request: "/?query=SELECT%201",
+		Response: "1\n",
 	}
 )
 
@@ -419,10 +419,6 @@ type HeartBeat struct {
     // Reference response from clickhouse on health check request
     // default value is `Ok.\n`
     Response string `yaml:"response,omitempty"`
-
-    // ToUser is the name of cluster_user
-    // whom credentials will be used for heart beat request to clickhouse
-    ToUser string `yaml:"to_user,omitempty"`
 
     // Catches all undefined fields
     XXX map[string]interface{} `yaml:",inline"`

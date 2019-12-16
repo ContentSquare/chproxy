@@ -19,28 +19,14 @@ type heartBeat struct {
 	password string
 }
 
-func newHeartBeat(c config.HeartBeat, clusterUsers map[string]*clusterUser, oldInterval time.Duration) (*heartBeat, error) {
-	heartBeatPassword, err := func() (string, error) {
-		if len(c.ToUser) == 0 {
-			return "", nil
-		}
-		hu, ok := clusterUsers[c.ToUser]
-		if !ok {
-			return "", fmt.Errorf("unknown `to_user` %q", c.ToUser)
-		}
-		return hu.password, nil
-	}()
-	if err != nil {
-		return nil, err
-	}
-
+func newHeartBeat(c config.HeartBeat, firstClusterUser config.ClusterUser, oldInterval time.Duration) (*heartBeat, error) {
 	newHB := &heartBeat{
 		interval:	time.Duration(c.Interval),
 		timeout:	time.Duration(c.Timeout),
 		request:	c.Request,
 		response:	c.Response,
-		user:       c.ToUser,
-		password:   heartBeatPassword,
+		user:		firstClusterUser.Name,
+		password:	firstClusterUser.Password,
 	}
 
 	if oldInterval != 0 {

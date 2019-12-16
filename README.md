@@ -566,6 +566,7 @@ clusters:
     heartbeat_interval: 1m
 
     # User configuration for heart beat requests.
+    # Credentials of the first user in clusters.users will be used for heart beat requests to clickhouse.
     heartbeat:
       # An interval for checking all cluster nodes for availability
       # By default each node is checked for every 5 seconds.
@@ -576,15 +577,12 @@ clusters:
       timeout: 10s
 
       # The parameter to set the URI to request in a health check
-      # By default "/ping"
-      request: "/?query=SELECT%201"
+      # By default "/?query=SELECT%201"
+      request: "/?query=SELECT%201%2B1"
 
       # Reference response from clickhouse on health check request
-      # By default "Ok.\n"
-      response: "1\n"
-
-      # The name of cluster_user whom credentials will be used for heart beat request to clickhouse.
-      to_user: "web"
+      # By default "1\n"
+      response: "2\n"
 
     # Timed out queries are killed using this user.
     # By default `default` user is used.

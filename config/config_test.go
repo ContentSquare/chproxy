@@ -83,9 +83,8 @@ func TestLoadConfig(t *testing.T) {
 						HeartBeat: HeartBeat{
 							Interval: Duration(time.Minute),
 							Timeout: Duration(10 * time.Second),
-							Request: "/?query=SELECT%201",
-							Response: "1\n",
-							ToUser: "web",
+							Request: "/ping",
+							Response: "Ok.\n",
 						},
 					},
 					{
@@ -120,8 +119,8 @@ func TestLoadConfig(t *testing.T) {
 						HeartBeat: HeartBeat{
 							Interval: Duration(5 * time.Second),
 							Timeout: Duration(3 * time.Second),
-							Request: "/ping",
-							Response: "Ok.\n",
+							Request: "/?query=SELECT%201",
+							Response: "1\n",
 						},
 					},
 				},
@@ -237,8 +236,8 @@ func TestLoadConfig(t *testing.T) {
 						HeartBeat: HeartBeat{
 							Interval: Duration(5 * time.Second),
 							Timeout: Duration(3 * time.Second),
-							Request: "/ping",
-							Response: "Ok.\n",
+							Request: "/?query=SELECT%201",
+							Response: "1\n",
 						},
 					},
 				},

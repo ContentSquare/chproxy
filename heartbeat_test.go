@@ -54,11 +54,6 @@ var (
 		Timeout: config.Duration(30 * time.Second),
 		Request: "/?query=SELECT%201",
 		Response: "1\n",
-		ToUser: "web",
-	}
-
-	heartBeatWrongUserCfg = config.HeartBeat{
-		ToUser: "test",
 	}
 
 	heartBeatWrongResponseCfg = config.HeartBeat{
@@ -76,7 +71,7 @@ func TestNewHeartBeat(t *testing.T) {
 	}
 	testCompareNum(t, "heartbeat_interval", int64(c.heartBeat.interval/time.Microsecond), int64(time.Duration(10 * time.Second)/time.Microsecond))
 
-	hb, err := newHeartBeat(heartBeatFullCfg, c.users, 0)
+	hb, err := newHeartBeat(heartBeatFullCfg, clusterCfg.ClusterUsers[0], 0)
 	if err != nil {
 		t.Fatalf("error while initialize heartbeat: %s", err)
 	}
@@ -93,13 +88,7 @@ func TestNewHeartBeat(t *testing.T) {
 		t.Fatalf("query request error `%q`", check)
 	}
 
-	_, err = newHeartBeat(heartBeatWrongUserCfg, c.users, 0)
-	if err == nil {
-		t.Fatalf("error expected")
-	}
-	testCompareStr(t, "error", err.Error(), "unknown `to_user` \"test\"")
-
-	hbWrong, err := newHeartBeat(heartBeatWrongResponseCfg, c.users, 0)
+	hbWrong, err := newHeartBeat(heartBeatWrongResponseCfg, clusterCfg.ClusterUsers[0], 0)
 	if err != nil {
 		t.Fatalf("error while initialize heartbeat: %s", err)
 	}
