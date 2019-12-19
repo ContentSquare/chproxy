@@ -726,13 +726,7 @@ func newCluster(c config.Cluster) (*cluster, error) {
 		clusterUsers[cu.Name] = newClusterUser(cu)
 	}
 
-	if (len(c.ClusterUsers) == 0) {
-		return nil, fmt.Errorf("cannot initialize heartbeat: clusters configuration must contain at least 1 user")
-	}
-	heartBeat, err := newHeartBeat(c.HeartBeat, c.ClusterUsers[0], time.Duration(c.HeartBeatInterval))
-	if err != nil {
-		return nil, fmt.Errorf("cannot initialize heartbeat: %s", err)
-	}
+	heartBeat := newHeartBeat(c.HeartBeat, c.ClusterUsers[0])
 
 	newC := &cluster{
 		name:                  c.Name,

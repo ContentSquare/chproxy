@@ -12,36 +12,30 @@ import (
 
 type heartBeat struct {
 	interval time.Duration
-	timeout time.Duration
-	request string
+	timeout  time.Duration
+	request  string
 	response string
-	user string
+	user     string
 	password string
 }
 
-func newHeartBeat(c config.HeartBeat, firstClusterUser config.ClusterUser, oldInterval time.Duration) (*heartBeat, error) {
+func newHeartBeat(c config.HeartBeat, firstClusterUser config.ClusterUser) *heartBeat {
 	newHB := &heartBeat{
-		interval:	time.Duration(c.Interval),
-		timeout:	time.Duration(c.Timeout),
-		request:	c.Request,
-		response:	c.Response,
-		user:		firstClusterUser.Name,
-		password:	firstClusterUser.Password,
+		interval: time.Duration(c.Interval),
+		timeout:  time.Duration(c.Timeout),
+		request:  c.Request,
+		response: c.Response,
+		user:     firstClusterUser.Name,
+		password: firstClusterUser.Password,
 	}
-
-	if oldInterval != 0 {
-		newHB.interval = oldInterval
-	}
-
-	return newHB, nil
+	return newHB
 }
 
 func (hb *heartBeat) isHealthy(addr string) error {
-	req, err := http.NewRequest("GET", addr + hb.request, nil)
+	req, err := http.NewRequest("GET", addr+hb.request, nil)
 	if err != nil {
 		return err
 	}
-
 	if hb.user != "" {
 		req.SetBasicAuth(hb.user, hb.password)
 	}
