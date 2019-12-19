@@ -3,14 +3,12 @@ package main
 import (
 	"bytes"
 	"compress/gzip"
-	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/Vertamedia/chproxy/chdecompressor"
 	"github.com/Vertamedia/chproxy/log"
@@ -36,41 +34,6 @@ func getAuth(req *http.Request) (string, string) {
 	}
 	// if still no credentials - treat it as `default` user request
 	return "default", ""
-}
-
-const (
-	okResponse       = "Ok.\n"
-	isHealthyTimeout = 3 * time.Second
-)
-
-func isHealthy(addr string) error {
-	req, err := http.NewRequest("GET", addr, nil)
-	if err != nil {
-		return err
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), isHealthyTimeout)
-	defer cancel()
-	req = req.WithContext(ctx)
-
-	startTime := time.Now()
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("cannot send request in %s: %s", time.Since(startTime), err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("non-200 status code: %s", resp.Status)
-	}
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("cannot read response in %s: %s", time.Since(startTime), err)
-	}
-	r := string(body)
-	if r != okResponse {
-		return fmt.Errorf("unexpected response: %s", r)
-	}
-	return nil
 }
 
 // getQuerySnippet returns query snippet.

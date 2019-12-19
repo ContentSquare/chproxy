@@ -81,6 +81,12 @@ func TestLoadConfig(t *testing.T) {
 							},
 						},
 						HeartBeatInterval: Duration(time.Minute),
+						HeartBeat: HeartBeat{
+							Interval: Duration(time.Minute),
+							Timeout:  Duration(3 * time.Second),
+							Request:  "/?query=SELECT%201",
+							Response: "1\n",
+						},
 					},
 					{
 						Name:   "second cluster",
@@ -111,7 +117,28 @@ func TestLoadConfig(t *testing.T) {
 								MaxQueueTime:         Duration(70 * time.Second),
 							},
 						},
-						HeartBeatInterval: Duration(5 * time.Second),
+						HeartBeat: HeartBeat{
+							Interval: Duration(5 * time.Second),
+							Timeout:  Duration(3 * time.Second),
+							Request:  "/?query=SELECT%201",
+							Response: "1\n",
+						},
+					},
+					{
+						Name:   "thrid cluster",
+						Scheme: "http",
+						Nodes:  []string{"thrid1:8123", "thrid2:8123"},
+						ClusterUsers: []ClusterUser{
+							{
+								Name: "default",
+							},
+						},
+						HeartBeat: HeartBeat{
+							Interval: Duration(2 * time.Minute),
+							Timeout:  Duration(10 * time.Second),
+							Request:  "/ping",
+							Response: "Ok.\n",
+						},
 					},
 				},
 
@@ -223,7 +250,12 @@ func TestLoadConfig(t *testing.T) {
 								Name: "default",
 							},
 						},
-						HeartBeatInterval: Duration(5 * time.Second),
+						HeartBeat: HeartBeat{
+							Interval: Duration(5 * time.Second),
+							Timeout:  Duration(3 * time.Second),
+							Request:  "/?query=SELECT%201",
+							Response: "1\n",
+						},
 					},
 				},
 				Users: []User{
@@ -388,6 +420,21 @@ func TestBadConfig(t *testing.T) {
 			"empty param group params",
 			"testdata/bad.param_groups.params.yml",
 			"`param_group.params` must contain at least one param",
+		},
+		{
+			"duplicate heartbeat interval",
+			"testdata/bad.heartbeat_interval.duplicate.yml",
+			"cannot be use `heartbeat_interval` with `heartbeat` section",
+		},
+		{
+			"empty heartbeat section",
+			"testdata/bad.heartbeat_section.empty1.yml",
+			"`cluster.heartbeat` cannot be unset for \"cluster\"",
+		},
+		{
+			"empty heartbeat section with heartbeat_interval",
+			"testdata/bad.heartbeat_section.empty2.yml",
+			"cannot be use `heartbeat_interval` with `heartbeat` section",
 		},
 	}
 

@@ -630,8 +630,9 @@ func (h *host) runHeartbeat(done <-chan struct{}) {
 		"replica":      h.replica.name,
 		"cluster_node": h.addr.Host,
 	}
+	hb := h.replica.cluster.heartBeat
 	heartbeat := func() {
-		if err := isHealthy(h.addr.String()); err == nil {
+		if err := hb.isHealthy(h.addr.String()); err == nil {
 			atomic.StoreUint32(&h.active, uint32(1))
 			hostHealth.With(label).Set(1)
 		} else {
@@ -641,12 +642,11 @@ func (h *host) runHeartbeat(done <-chan struct{}) {
 		}
 	}
 	heartbeat()
-	interval := h.replica.cluster.heartBeatInterval
 	for {
 		select {
 		case <-done:
 			return
-		case <-time.After(interval):
+		case <-time.After(hb.interval):
 			heartbeat()
 		}
 	}
@@ -714,7 +714,7 @@ type cluster struct {
 	killQueryUserName     string
 	killQueryUserPassword string
 
-	heartBeatInterval time.Duration
+	heartBeat *heartBeat
 }
 
 func newCluster(c config.Cluster) (*cluster, error) {
@@ -726,12 +726,14 @@ func newCluster(c config.Cluster) (*cluster, error) {
 		clusterUsers[cu.Name] = newClusterUser(cu)
 	}
 
+	heartBeat := newHeartBeat(c.HeartBeat, c.ClusterUsers[0])
+
 	newC := &cluster{
 		name:                  c.Name,
 		users:                 clusterUsers,
 		killQueryUserName:     c.KillQueryUser.Name,
 		killQueryUserPassword: c.KillQueryUser.Password,
-		heartBeatInterval:     time.Duration(c.HeartBeatInterval),
+		heartBeat:             heartBeat,
 	}
 
 	replicas, err := newReplicas(c.Replicas, c.Nodes, c.Scheme, newC)
