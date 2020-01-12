@@ -8,6 +8,8 @@ github.com/cespare/xxhash/v2
 github.com/golang/protobuf/proto
 # github.com/matttproud/golang_protobuf_extensions v1.0.1
 github.com/matttproud/golang_protobuf_extensions/pbutil
+# github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
+github.com/mohae/deepcopy
 # github.com/pierrec/lz4 v2.4.0+incompatible
 github.com/pierrec/lz4
 github.com/pierrec/lz4/internal/xxh32
