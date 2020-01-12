@@ -60,17 +60,19 @@ func (c *Config) String() string {
 }
 
 func withoutSensitiveInfo(config *Config) *Config {
-	var c *Config = deepcopy.Copy(config).(*Config)
+	const pswPlaceHolder = "XXX"
+	c := deepcopy.Copy(config).(*Config)
 	for i, _ := range c.Users {
-		c.Users[i].Password = "XXX"
+		c.Users[i].Password = pswPlaceHolder
 	}
-
 	for i, _ := range c.Clusters {
+		if len(c.Clusters[i].KillQueryUser.Name) > 0 {
+			c.Clusters[i].KillQueryUser.Password = pswPlaceHolder
+		}
 		for j, _ := range c.Clusters[i].ClusterUsers {
-			c.Clusters[i].ClusterUsers[j].Password = "XXX"
+			c.Clusters[i].ClusterUsers[j].Password = pswPlaceHolder
 		}
 	}
-
 	return c
 }
 
