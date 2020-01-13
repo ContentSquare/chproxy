@@ -78,7 +78,7 @@ func (r *Reader) readNextBlock() error {
 	case noneType:
 		r.data = block
 	case lz4Type:
-		if _, err := lz4.UncompressBlock(block, r.data, 0); err != nil {
+		if _, err := lz4.UncompressBlock(block, r.data); err != nil {
 			return fmt.Errorf("cannot decompress lz4 block: %s", err)
 		}
 	case zstdType:

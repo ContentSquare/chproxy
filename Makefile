@@ -1,7 +1,6 @@
 pkgs = $(shell go list ./...)
 gofiles := $(shell find . -name "*.go" -type f -not -path "./vendor/*")
 
-
 BUILD_TAG = $(shell git tag --points-at HEAD)
 
 BUILD_CONSTS = \
@@ -12,9 +11,6 @@ BUILD_CONSTS = \
 BUILD_OPTS = -ldflags="$(BUILD_CONSTS)" -gcflags="-trimpath=$(GOPATH)/src"
 
 .PHONY: update format build test run lint reconfigure clean release-build release
-
-update:
-	dep ensure -update
 
 format:
 	go fmt $(pkgs)
