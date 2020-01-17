@@ -355,6 +355,10 @@ func (s *scope) decorateRequest(req *http.Request) (*http.Request, url.Values) {
 	// Rewrite possible previous Basic Auth and send request
 	// as cluster user.
 	req.SetBasicAuth(s.clusterUser.name, s.clusterUser.password)
+	// Delete possible X-ClickHouse headers,
+	// it is not allowed to use X-ClickHouse HTTP headers and other authentication methods simultaneously
+	req.Header.Del("X-ClickHouse-User")
+	req.Header.Del("X-ClickHouse-Key")
 
 	// Send request to the chosen host from cluster.
 	req.URL.Scheme = s.host.addr.Scheme
