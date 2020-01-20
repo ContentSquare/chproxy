@@ -21,7 +21,7 @@ func respondWith(rw http.ResponseWriter, err error, status int) {
 }
 
 // getAuth retrieves auth credentials from request
-// according to CH documentation @see "http://clickhouse.readthedocs.io/en/latest/reference_en.html#HTTP interface"
+// according to CH documentation @see "https://clickhouse.yandex/docs/en/interfaces/http/"
 func getAuth(req *http.Request) (string, string) {
 	// check X-ClickHouse- headers
 	name := req.Header.Get("X-ClickHouse-User")
