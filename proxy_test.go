@@ -349,6 +349,42 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 				return makeCustomRequest(p, req)
 			},
 		},
+		{
+			cfg:           authCfg,
+			name:          "headers auth ok",
+			expResponse:   okResponse,
+			expStatusCode: http.StatusOK,
+			f: func(p *reverseProxy) *http.Response {
+				req := httptest.NewRequest("POST", fakeServer.URL, nil)
+				req.Header.Set("X-ClickHouse-User", "foo")
+				req.Header.Set("X-ClickHouse-Key", "bar")
+				return makeCustomRequest(p, req)
+			},
+		},
+		{
+			cfg:           authCfg,
+			name:          "header auth wrong name",
+			expResponse:   "invalid username or password for user \"fooo\"",
+			expStatusCode: http.StatusUnauthorized,
+			f: func(p *reverseProxy) *http.Response {
+				req := httptest.NewRequest("POST", fakeServer.URL, nil)
+				req.Header.Set("X-ClickHouse-User", "fooo")
+				req.Header.Set("X-ClickHouse-Key", "bar")
+				return makeCustomRequest(p, req)
+			},
+		},
+		{
+			cfg:           authCfg,
+			name:          "header auth wrong name",
+			expResponse:   "invalid username or password for user \"foo\"",
+			expStatusCode: http.StatusUnauthorized,
+			f: func(p *reverseProxy) *http.Response {
+				req := httptest.NewRequest("POST", fakeServer.URL, nil)
+				req.Header.Set("X-ClickHouse-User", "foo")
+				req.Header.Set("X-ClickHouse-Key", "baar")
+				return makeCustomRequest(p, req)
+			},
+		},
 	}
 
 	for _, tc := range testCases {
