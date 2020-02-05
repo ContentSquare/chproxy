@@ -84,7 +84,7 @@ func (s *scope) String() string {
 		s.user.name, s.user.queryCounter.load(),
 		s.clusterUser.name, s.clusterUser.queryCounter.load(),
 		s.host.addr.Host, s.host.load(),
-		s.remoteAddr, s.localAddr, time.Since(s.startTime).Nanoseconds() / 1000.0 )
+		s.remoteAddr, s.localAddr, time.Since(s.startTime).Nanoseconds()/1000.0)
 }
 
 func (s *scope) incQueued() error {

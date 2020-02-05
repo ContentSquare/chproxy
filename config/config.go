@@ -70,14 +70,14 @@ func (c *Config) String() string {
 func withoutSensitiveInfo(config *Config) *Config {
 	const pswPlaceHolder = "XXX"
 	c := deepcopy.Copy(config).(*Config)
-	for i, _ := range c.Users {
+	for i := range c.Users {
 		c.Users[i].Password = pswPlaceHolder
 	}
-	for i, _ := range c.Clusters {
+	for i := range c.Clusters {
 		if len(c.Clusters[i].KillQueryUser.Name) > 0 {
 			c.Clusters[i].KillQueryUser.Password = pswPlaceHolder
 		}
-		for j, _ := range c.Clusters[i].ClusterUsers {
+		for j := range c.Clusters[i].ClusterUsers {
 			c.Clusters[i].ClusterUsers[j].Password = pswPlaceHolder
 		}
 	}
@@ -423,6 +423,7 @@ func (u *KillQueryUser) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return checkOverflow(u.XXX, "kill_query_user")
 }
 
+// HeartBeat - configuration for heartbeat.
 type HeartBeat struct {
 	// Interval is an interval of checking
 	// all cluster nodes for availability
