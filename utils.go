@@ -47,7 +47,7 @@ func getAuth(req *http.Request) (string, string) {
 //
 // getQuerySnippet must be called only for error reporting.
 func getQuerySnippet(req *http.Request) string {
-	if req.Method == http.MethodGet {
+	if req.Method == http.MethodGet && req.URL.Query().Get("query") != "" {
 		return req.URL.Query().Get("query")
 	}
 
@@ -84,7 +84,7 @@ func getQuerySnippet(req *http.Request) string {
 
 // getFullQuery returns full query from req.
 func getFullQuery(req *http.Request) ([]byte, error) {
-	if req.Method == http.MethodGet {
+	if req.Method == http.MethodGet && req.URL.Query().Get("query") != "" {
 		return []byte(req.URL.Query().Get("query")), nil
 	}
 	data, err := ioutil.ReadAll(req.Body)

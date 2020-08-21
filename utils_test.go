@@ -80,6 +80,17 @@ func TestGetQuerySnippetGET(t *testing.T) {
 	}
 }
 
+func TestGetQuerySnippetGETBody(t *testing.T) {
+	q := "SELECT column FROM table"
+	body := bytes.NewBufferString(q)
+	req, err := http.NewRequest("GET", "", body)
+	checkErr(t, err)
+	query := getQuerySnippet(req)
+	if query != q {
+		t.Fatalf("got: %q; expected: %q", query, q)
+	}
+}
+
 func TestGetQuerySnippetPOST(t *testing.T) {
 	q := "SELECT column FROM table"
 	body := bytes.NewBufferString(q)
