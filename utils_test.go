@@ -68,7 +68,7 @@ func testCanCacheQuery(t *testing.T, q string, expected bool) {
 }
 
 func TestGetQuerySnippetGET(t *testing.T) {
-	req, err := http.NewRequest("GET", "", nil)
+	req, err := http.NewRequest("GET", "", bytes.NewBuffer(nil))
 	checkErr(t, err)
 	params := make(url.Values)
 	q := "SELECT column FROM table"
@@ -88,6 +88,25 @@ func TestGetQuerySnippetGETBody(t *testing.T) {
 	query := getQuerySnippet(req)
 	if query != q {
 		t.Fatalf("got: %q; expected: %q", query, q)
+	}
+}
+
+func TestGetQuerySnippetGETBothQueryAndBody(t *testing.T) {
+	queryPart := "SELECT column"
+	bodyPart := "FROM table"
+	expectedQuery := "SELECT column\nFROM table"
+
+	body := bytes.NewBufferString(bodyPart)
+	req, err := http.NewRequest("GET", "", body)
+	checkErr(t, err)
+
+	params := make(url.Values)
+	params.Set("query", queryPart)
+	req.URL.RawQuery = params.Encode()
+
+	query := getQuerySnippet(req)
+	if query != expectedQuery {
+		t.Fatalf("got: %q; expected: %q", query, expectedQuery)
 	}
 }
 

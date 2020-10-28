@@ -47,8 +47,10 @@ func getAuth(req *http.Request) (string, string) {
 //
 // getQuerySnippet must be called only for error reporting.
 func getQuerySnippet(req *http.Request) string {
-	if req.Method == http.MethodGet && req.URL.Query().Get("query") != "" {
-		return req.URL.Query().Get("query")
+	var query string
+
+	if req.URL.Query().Get("query") != "" {
+		query = req.URL.Query().Get("query")
 	}
 
 	crc, ok := req.Body.(*cachedReadCloser)
@@ -66,26 +68,44 @@ func getQuerySnippet(req *http.Request) string {
 
 	u := getDecompressor(req)
 	if u == nil {
-		return data
+		if len(query) != 0 && len(data) != 0 {
+			query += "\n"
+		}
+
+		return query + data
 	}
 	bs := bytes.NewBufferString(data)
 	b, err := u.decompress(bs)
 	if err == nil {
-		return string(b)
+		if len(query) != 0 && len(b) != 0 {
+			query += "\n"
+		}
+
+		return query + string(b)
 	}
 	// It is better to return partially decompressed data instead of an empty string.
 	if len(b) > 0 {
-		return string(b)
+		if len(query) != 0 && len(b) != 0 {
+			query += "\n"
+		}
+
+		return query + string(b)
 	}
+
 	// The data failed to be decompressed. Return compressed data
 	// instead of an empty string.
-	return data
+	if len(query) != 0 && len(data) != 0 {
+		query += "\n"
+	}
+
+	return query + data
 }
 
 // getFullQuery returns full query from req.
 func getFullQuery(req *http.Request) ([]byte, error) {
-	if req.Method == http.MethodGet && req.URL.Query().Get("query") != "" {
-		return []byte(req.URL.Query().Get("query")), nil
+	var result bytes.Buffer
+	if req.URL.Query().Get("query") != "" {
+		result.WriteString(req.URL.Query().Get("query"))
 	}
 	data, err := ioutil.ReadAll(req.Body)
 	if err != nil {
@@ -95,14 +115,25 @@ func getFullQuery(req *http.Request) ([]byte, error) {
 	req.Body = ioutil.NopCloser(bytes.NewBuffer(data))
 	u := getDecompressor(req)
 	if u == nil {
-		return data, nil
+		if result.Len() != 0 && len(data) != 0 {
+			result.WriteByte('\n')
+		}
+		result.Write(data)
+
+		return result.Bytes(), nil
 	}
 	br := bytes.NewReader(data)
 	b, err := u.decompress(br)
 	if err != nil {
 		return nil, fmt.Errorf("cannot uncompress query: %s", err)
 	}
-	return b, nil
+
+	if result.Len() != 0 && len(b) != 0 {
+		result.WriteByte('\n')
+	}
+	result.Write(b)
+
+	return result.Bytes(), nil
 }
 
 // canCacheQuery returns true if q can be cached.
