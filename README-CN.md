@@ -6,30 +6,31 @@
 
 [English](README.md) | [简体中文](README-CN.md)
 
-Chproxy, is an http proxy and load balancer for [ClickHouse](https://ClickHouse.yandex) database. It provides the following features:
+ Chproxy 是一个用于 [ClickHouse](https://clickhouse.tech) 数据库的 http 代理、负载均衡器。具有以下特性：
 
-- May proxy requests to multiple distinct `ClickHouse` clusters depending on the input user. For instance, requests from `appserver` user may go to `stats-raw` cluster, while requests from `reportserver` user may go to `stats-aggregate` cluster.
-- May map input users to per-cluster users. This prevents from exposing real usernames and passwords used in `ClickHouse` clusters. Additionally this allows mapping multiple distinct input users to a single `ClickHouse` user.
-- May accept incoming requests via HTTP and HTTPS.
-- May limit HTTP and HTTPS access by IP/IP-mask lists.
-- May limit per-user access by IP/IP-mask lists.
-- May limit per-user query duration. Timed out or canceled queries are forcibly killed
-  via [KILL QUERY](http://clickhouse-docs.readthedocs.io/en/latest/query_language/queries.html#kill-query).
-- May limit per-user requests rate.
-- May limit per-user number of concurrent requests.
-- All the limits may be independently set for each input user and for each per-cluster user.
-- May delay request execution until it fits per-user limits.
-- Per-user [response caching](#caching) may be configured.
-- Response caches have built-in protection against [thundering herd](https://en.wikipedia.org/wiki/Cache_stampede) problem aka `dogpile effect`.
-- Evenly spreads requests among replicas and nodes using `least loaded` + `round robin` technique.
-- Monitors node health and prevents from sending requests to unhealthy nodes.
-- Supports automatic HTTPS certificate issuing and renewal via [Let’s Encrypt](https://letsencrypt.org/).
-- May proxy requests to each configured cluster via either HTTP or [HTTPS](https://github.com/yandex/ClickHouse/blob/96d1ab89da451911eb54eccf1017eb5f94068a34/dbms/src/Server/config.xml#L15).
-- Prepends User-Agent request header with remote/local address and in/out usernames before proxying it to `ClickHouse`, so this info may be queried from [system.query_log.http_user_agent](https://github.com/yandex/ClickHouse/issues/847).
-- Exposes various useful [metrics](#metrics) in [prometheus text format](https://prometheus.io/docs/instrumenting/exposition_formats/).
-- Configuration may be updated without restart - just send `SIGHUP` signal to `chproxy` process.
-- Easy to manage and run - just pass config file path to a single `chproxy` binary.
-- Easy to [configure](https://github.com/Vertamedia/chproxy/blob/master/config/examples/simple.yml):
+* 支持根据输入用户代理请求到多个 `ClickHouse` 集群。比如，把来自 `appserver` 的用户请求代理到 `stats-raw`  集群，把来自 `reportserver` 用户的请求代理到 `stats-aggregate` 集群。
+* 支持将输入用户映射到每个 ClickHouse 实际用户，这能够防止暴露 ClickHouse 集群的真实用户名称、密码信息。此外，chrpoxy 还允许映射多个输入用户到某一个单一的 ClickHouse 实际用户。
+* 支持接收 HTTP 和 HTTPS 请求。
+* 支持通过 IP 或 IP 掩码列表限制 HTTP、HTTPS 访问。
+* 支持通过 IP 或 IP 掩码列表限制每个用户的访问。
+* 支持限制每个用户的查询时间，通过 [KILL QUERY](https://clickhouse.tech/docs/en/sql-reference/statements/kill/#kill-query-statement) 强制杀执行超时或者被取消的查询。
+* 支持限制每个用户的请求频率。
+* 支持限制每个用户的请求并发数。
+* 所有的限制都可以对每个输入用户、每个集群用户进行设置。
+* 支持自动延迟请求，直到满足对用户的限制条件。
+* 支持配置每个用户的[响应缓存](#caching)。
+* 响应缓存具有内建保护功能，可以防止 [惊群效应（thundering herd）](https://en.wikipedia.org/wiki/Cache_stampede)，即 dogpile 效应。
+* 通过 `least loaded` 和 `round robin` 技术实现请求在副本和节点间的均衡负载。
+* 支持检查节点健康情况，防止向不健康的节点发送请求。
+* 通过 [Let’s Encrypt](https://letsencrypt.org/) 支持 HTTPS 自动签发和更新。
+* 可以自行指定选用 HTTP 或 HTTPS 向每个配置的集群代理请求。
+* 在将请求代理到 `ClickHouse` 之前，预先将 User-Agent 请求头与远程/本地地址，和输入/输出的用户名进行关联，因此这些信息可以在  [system.query_log.http_user_agent](https://github.com/yandex/ClickHouse/issues/847) 中查询到。
+* 暴露各种有用的符合 [prometheus](https://prometheus.io/docs/instrumenting/exposition_formats/) 内容格式的[指标（metrics）](#metrics)。
+* 支持配置热更新，配置变更无需重启 —— 只需向 `chproxy`  进程发送一个 `SIGHUP` 信号即可。
+* 易于管理和运行 —— 只需传递一个配置文件路径给 `chproxy` 即可。
+* 易于[配置](https://github.com/Vertamedia/chproxy/blob/master/config/examples/simple.yml):
+
+
 ```yml
 server:
   http:
@@ -48,48 +49,51 @@ clusters:
 
 ```
 
-## How to install
+## 如何安装
 
-### Precompiled binaries
+### 使用预编译的二进制文件
 
-Precompiled `chproxy` binaries are available [here](https://github.com/Vertamedia/chproxy/releases).
-Just download the latest stable binary, unpack and run it with the desired [config](#configuration):
+可以从[此处](https://github.com/Vertamedia/chproxy/releases)下载预编译的 `chproxy` 二进制文件。
+
+只需要下载最新的稳定版二进制文件，解压使用所需要的[配置](#configuration)运行。
 
 ```
 ./chproxy -config=/path/to/config.yml
 ```
 
-### Building from source
+### 从源码进行编译
 
-Chproxy is written in [Go](https://golang.org/). The easiest way to install it from sources is:
+Chproxy 是基于 [Go](https://golang.org/) 开发的，最简单的方式是如下的源编译安装：
 
 ```
 go get -u github.com/Vertamedia/chproxy
 ```
 
-If you don't have Go installed on your system - follow [this guide](https://golang.org/doc/install).
+如果你的系统没有安装 Go，可以参考这个[操作指南](https://golang.org/doc/install)。
 
 
-## Why it was created
+## 为什么开发了Chproxy
 
-`ClickHouse` may exceed [max_execution_time](http://clickhouse-docs.readthedocs.io/en/latest/settings/query_complexity.html#max-execution-time) and [max_concurrent_queries](https://github.com/yandex/ClickHouse/blob/add13f233eb6d30da4c75c4309542047a1dde033/dbms/src/Server/config.xml#L75) limits due to various reasons:
-- `max_execution_time` may be exceeded due to the current [implementation deficiencies](https://github.com/yandex/ClickHouse/issues/217).
-- `max_concurrent_queries` works only on a per-node basis. There is no way to limit the number of concurrent queries on a cluster if queries are spread across cluster nodes.
+由于各种原因，ClickHouse 的最大执行时间、最大并发语句可能会超过 [max_execution_time](http://clickhouse-docs.readthedocs.io/en/latest/settings/query_complexity.html#max-execution-time) 和[max_concurrent_queries](https://github.com/yandex/ClickHouse/blob/add13f233eb6d30da4c75c4309542047a1dde033/dbms/src/Server/config.xml#L75) 的限制：
 
-Such "leaky" limits may lead to high resource usage on all the cluster nodes. After facing this problem we had to maintain two distinct http proxies in front of our `ClickHouse` cluster - one for spreading `INSERT`s among cluster nodes and another one for sending `SELECT`s to a dedicated node where limits may be enforced somehow. This was fragile and inconvenient to manage, so `chproxy` has been created :)
+* `max_execution_time`  可能会因为当前实现的缺陷而被超过。
+* `max_concurrent_queries`  只针对每个节点的限制。如果是在集群节点上，是没法限制集群整体的并发查询数量。
+
+这种 “泄漏” 的限制可能会导致所有集群节点的高资源使用率。遇到这个问题后，我们不得不在我们的 ClickHouse 集群前维护 2 个不同的 http 代理 —— 一个用于在集群节点间分散 `INSERT` 操作，另一个用于发送 `SELECT` 到一个专用节点，在该节点再通过某种方式进行限制。这样很不健壮，管理起来也很不方便，所以我们开发了 Chproxy。：）
 
 
-## Use cases
+## 使用示例
 
-### Spread `INSERT`s among cluster shards
+### 在集群分片间分散 `INSERT`
 
-Usually `INSERT`s are sent from app servers located in a limited number of subnetworks. `INSERT`s from other subnetworks must be denied.
+ 通常 `INSERT` 操作是由有限的几个子网络中的应用服务器发送的，来自其他子网络的 `INSERT` 操作必须被拒绝。
 
-All the `INSERT`s may be routed to a [distributed table](http://clickhouse-docs.readthedocs.io/en/latest/table_engines/distributed.html) on a single node. But this increases resource usage (CPU and network) on the node comparing to other nodes, since it must parse each row to be inserted and route it to the corresponding node (shard).
+所有的 `INSERT` 操作可能会被路由到一个节点上的[分布式表](https://clickhouse.tech/docs/en/engines/table-engines/special/distributed/)，但与其他节点对比，会增加该节点上的资源使用（CPU 和网络资源），因为该节点必须解析每一条被插入的记录，并路由到对应的节点分片。
 
-It would be better to spread `INSERT`s among available shards and to route them directly to per-shard tables instead of distributed tables. The routing logic may be embedded either directly into applications generating `INSERT`s or may be moved to a proxy. Proxy approach is better since it allows re-configuring `ClickHouse` cluster without modification of application configs and without application downtime. Multiple identical proxies may be started on distinct servers for scalability and availability purposes.
+所以最好是将 `INSERT` 分散到可用的分片节点上，并将其路由到每个分片表，而不是直接向分布式表进行请求。路由逻辑可以直接嵌入到应用程序生成分散后的 `INSERT` ，或者通过代理请求的方式。代理请求的方式会更好一些，因为它允许在不修改应用程序配置，对 `ClickHouse` 集群进行重新配置，避免应用程序的停机时间。多个相同的代理服务可以在不同的服务器上运行，以达到可拓展、高可用的目的。
 
-The following minimal `chproxy` config may be used for [this use case](https://github.com/Vertamedia/chproxy/blob/master/config/examples/spread.inserts.yml):
+以下是[INSERT分散示例](https://github.com/Vertamedia/chproxy/blob/master/config/examples/spread.inserts.yml)的最小 `chproxy` 配置：
+
 ```yml
 server:
   http:
@@ -116,18 +120,16 @@ clusters:
     ]
 ```
 
-### Spread `SELECT`s from reporting apps among cluster nodes
+### 在集群节点间分散来自报表应用的 `SELECT` 
 
-Reporting apps usually generate various customer reports from `SELECT` query results.
-The load generated by such `SELECT`s on `ClickHouse` cluster may vary depending
-on the number of online customers and on the generated report types. It is obvious
-that the load must be limited in order to prevent cluster overload.
+报表应用通常会从 `SELECT` 查询结果中产生各种用户报表。这些 `SELECT` 产生的负载在 `ClickHouse` 集群上可能会有所不同，这取决于在线用户数量和生成的报表类型。很明显，为了防止集群过载，必须限制负载。
 
-All the `SELECT`s may be routed to a [distributed table](http://clickhouse-docs.readthedocs.io/en/latest/table_engines/distributed.html) on a single node. But this increases resource usage (RAM, CPU and network) on the node comparing to other nodes, since it must do final aggregation, sorting and filtering for the data obtained from cluster nodes (shards).
+所有的 `SELECT` 可能会被路由到单个节点上的[分布式表](https://clickhouse.tech/docs/en/engines/table-engines/special/distributed/)，该节点会有比其他节点更高的资源使用量（RAM、CPU、网络），因为它必须对从集群其他分片节点获取到数据进行聚合、排序、过滤。
 
-It would be better to create identical distributed tables on each shard and spread `SELECT`s among all the available shards.
+最好是在每个分片节点上创建相同的分布式表，并将 `SELECT` 分散到所有可用的分片节点上。
 
-The following minimal `chproxy` config may be used for [this use case](https://github.com/Vertamedia/chproxy/blob/master/config/examples/spread.selects.yml):
+以下是[SELECT分散示例](https://github.com/Vertamedia/chproxy/blob/master/config/examples/spread.selects.yml)的最小 `chproxy` 配置：
+
 ```yml
 server:
   http:
@@ -154,13 +156,12 @@ clusters:
         password: "****"
 ```
 
-### Authorize users by passwords via HTTPS
+### 通过 HTTPS 进行用户密码认证
 
-Suppose you need to access `ClickHouse` cluster from anywhere by username/password.
-This may be used for building graphs from [ClickHouse-grafana](https://github.com/Vertamedia/ClickHouse-grafana) or [tabix](https://tabix.io/).
-It is bad idea to transfer unencrypted password and data over untrusted networks.
-So HTTPS must be used for accessing the cluster in such cases.
-The following `chproxy` config may be used for [this use case](https://github.com/Vertamedia/chproxy/blob/master/config/examples/https.yml):
+假如你需要设置用户名称/密码用于在任何地方访问 `ClickHouse` 集群，可能用于在 [ClickHouse-grafana](https://github.com/Vertamedia/ClickHouse-grafana) 或 [tabix](https://tabix.io/) 创建图形界面管理。通过不信任的网络传输为加密的密码和数据，是一个坏主意。因此在这种情况下，必须通过 HTTPS 访问集群。
+
+以下的 `chproxy` 配置示例演示了 [HTTPS 配置](https://github.com/Vertamedia/chproxy/blob/master/config/examples/https.yml)：
+
 ```yml
 server:
   https:
@@ -213,9 +214,9 @@ caches:
     expire: 130s
 ```
 
-### All the above configs combined
+### 以上配置的组合
 
-All the above cases may be combined in a single `chproxy` [config](https://github.com/Vertamedia/chproxy/blob/master/config/examples/combined.yml):
+以上的配置可以通过一个单独的 `chproxy` [config](https://github.com/Vertamedia/chproxy/blob/master/config/examples/combined.yml) 配置文件进行组合：
 
 ```yml
 server:
@@ -283,63 +284,65 @@ caches:
     expire: 130s
 ```
 
-## Configuration
+## 配置
 
-### Server
-`Chproxy` may accept requests over `HTTP` and `HTTPS` protocols. [HTTPS](https://github.com/Vertamedia/chproxy/blob/master/config#https_config) must be configured with custom certificate or with automated [Let's Encrypt](https://letsencrypt.org/) certificates.
+### 服务配置
+`Chproxy`  可以接收 HTTP 和 HTTPS 协议的请求。其中 [HTTPS](https://github.com/Vertamedia/chproxy/tree/master/config#https_config) 必须使用自定义证书或自动 [Let's Encrypt](https://letsencrypt.org) 证书进行配置。
 
-Access to `chproxy` can be limitied by list of IPs or IP masks. This option can be applied to [HTTP](https://github.com/Vertamedia/chproxy/blob/master/config#http_config), [HTTPS](https://github.com/Vertamedia/chproxy/blob/master/config#https_config), [metrics](https://github.com/Vertamedia/chproxy/blob/master/config#metrics_config), [user](https://github.com/Vertamedia/chproxy/blob/master/config#user_config) or [cluster-user](https://github.com/Vertamedia/chproxy/blob/master/config#cluster_user_config).
+可以通过 IP 列表或 IP 掩码进行限制对  `chproxy`  的访问进行限制。这个选项可以应用于  [HTTP](https://github.com/Vertamedia/chproxy/blob/master/config#http_config), [HTTPS](https://github.com/Vertamedia/chproxy/blob/master/config#https_config), [metrics](https://github.com/Vertamedia/chproxy/blob/master/config#metrics_config), [user](https://github.com/Vertamedia/chproxy/blob/master/config#user_config) 或 [cluster-user](https://github.com/Vertamedia/chproxy/blob/master/config#cluster_user_config) 配置。
 
-### Users
-There are two types of users: `in-users` (in global section) and `out-users` (in cluster section).
-This means all requests will be matched to `in-users` and if all checks are Ok - will be matched to `out-users`
-with overriding credentials.
+### 用户配置
+有两种类型的用户： `in-users` (在全局部分) 和 `out-users` (在集群部分)。
 
-Suppose we have one ClickHouse user `web` with `read-only` permissions and `max_concurrent_queries: 4` limit.
-There are two distinct applications `reading` from ClickHouse. We may create two distinct `in-users` with `to_user: "web"` and `max_concurrent_queries: 2` each in order to avoid situation when a single application exhausts all the 4-request limit on the `web` user.
+所有的请求都会匹配到  `in-users` ，如果所有检查通过，将会被覆盖凭证后匹配到 `out-users`。
 
-Requests to `chproxy` must be authorized with credentials from [user_config](https://github.com/Vertamedia/chproxy/blob/master/config#user_config). Credentials can be passed via [BasicAuth](https://en.wikipedia.org/wiki/Basic_access_authentication) or via `user` and `password` [query string](https://en.wikipedia.org/wiki/Query_string) args.
+假设我们有一个只读权限 `read-only` 的 `ClickHouse` 用户 `web` ，和 `max_concurrent_queries: 4`  的最高并发限制。
 
-Limits for `in-users` and `out-users` are independent.
+有两个不同的应用程序从 `ClickHouse` 读取，我们可以创建两个不同的 `in-users` ，对应的 `to_user`  为 “web”，同时为每一个都设置 `max_concurrent_queries: 2`，以避免任意一个应用用尽所有 web 用户的 4 并发请求限制。
 
-### Clusters
-`Chproxy` can be configured with multiple `cluster`s. Each `cluster` must have a name and either a list of nodes
-or a list of replicas with nodes. See [cluster-config](https://github.com/Vertamedia/chproxy/tree/master/config#cluster_config) for details.
-Requests to each cluster are balanced among replicas and nodes using `round-robin` + `least-loaded` approach.
-The node priority is automatically decreased for a short interval if recent requests to it were unsuccessful.
-This means that the `chproxy` will choose the next least loaded healthy node among least loaded replica
-for every new request.
+对 `chproxy`的请求必须通过 [user_config](https://github.com/Vertamedia/chproxy/blob/master/config#user_config) 配置中的用户凭证认证，凭证信息可以通过 [BasicAuth](https://en.wikipedia.org/wiki/Basic_access_authentication) 或用户名/密码的查询字符串参数来传递。
 
-Additionally each node is periodically checked for availability. Unavailable nodes are automatically excluded from the cluster until they become available again. This allows performing node maintenance without removing unavailable nodes from the cluster config.
+对于  `in-users` 和 `out-users` 的限制是相互独立的。
 
-`Chproxy` automatically kills queries exceeding `max_execution_time` limit. By default `chproxy` tries to kill such queries
-under `default` user. The user may be overriden with [kill_query_user](https://github.com/Vertamedia/chproxy/blob/master/config#kill_query_user_config).
+### 集群配置
+`Chproxy` 可以配置多个逻辑集群 `cluster`，每个逻辑集群必须包含一个名称和节点列表、或者副本节点列表。请参考 [cluster-config](https://github.com/Vertamedia/chproxy/tree/master/config#cluster_config) 了解更详细的内容。
 
-If `cluster`'s [users](https://github.com/Vertamedia/chproxy/blob/master/config#cluster_user_config) section isn't specified, then `default` user is used with no limits.
+对集群节点、副本节点之间的请求采用的是 `round-robin` + `least-loaded` 的均衡方式。
 
-### Caching
+如果在近期对某个节点请求不成功，该节点在很短的时间间隔内优先度会被自动降低。这意味着 `chproxy` 在每次请求中，会自动选择副本负载最小的健康节点。
 
-`Chproxy` may be configured to cache responses. It is possible to create multiple
-[cache-configs](https://github.com/Vertamedia/chproxy/blob/master/config/#cache_config) with various settings.
-Response caching is enabled by assigning cache name to user. Multiple users may share the same cache.
-Currently only `SELECT` responses are cached.
-Caching is disabled for request with `no_cache=1` in query string.
-Optional cache namespace may be passed in query string as `cache_namespace=aaaa`. This allows caching
-distinct responses for the identical query under distinct cache namespaces. Additionally,
-an instant cache flush may be built on top of cache namespaces - just switch to new namespace in order
-to flush the cache.
+此外，每个节点都会定期检查可用性。不可用的节点会被自动从逻辑集群中排除，直到它们再次可用为止。这允许在不从实际的 ClickHouse 集群中删除不可用节点的情况下，进行节点维护。
 
-### Security
-`Chproxy` removes all the query params from input requests (except the user's [params](https://github.com/Vertamedia/chproxy/blob/master/config#param_groups_config) and listed [here](https://github.com/Vertamedia/chproxy/blob/master/scope.go#L292))
-before proxying them to `ClickHouse` nodes. This prevents from unsafe overriding
-of various `ClickHouse` [settings](http://clickhouse-docs.readthedocs.io/en/latest/interfaces/http_interface.html).
+`Chproxy` 会自动杀死超过 `max_execution_time` 限制的查询。默认情况下，`chproxy` 会尝试杀死  `default` 用户下的这些超时查询，可以通过 [kill_query_user](https://github.com/Vertamedia/chproxy/blob/master/config#kill_query_user_config) 来覆盖该用户设置。
 
-Be careful when configuring limits, allowed networks, passwords etc.
-By default `chproxy` tries detecting the most obvious configuration errors such as `allowed_networks: ["0.0.0.0/0"]` or sending passwords via unencrypted HTTP.
+如果没有指定逻辑集群的[用户配置](https://github.com/Vertamedia/chproxy/blob/master/config#cluster_user_config)部分，会默认使用 `default` 用户。
 
-Special option `hack_me_please: true` may be used for disabling all the security-related checks during config validation (if you are feeling lucky :) ).
+### 缓存配置
 
-#### Example of [full](https://github.com/Vertamedia/chproxy/blob/master/config/testdata/full.yml) configuration:
+`Chproxy`  支持配置响应缓存。可以创建多个 [cache-configs](https://github.com/Vertamedia/chproxy/blob/master/config/#cache_config) 中的各项细节配置。
+
+通过给用户指定缓存名称，可以启用响应缓存。多个用户可以共享同一个缓存。
+
+目前只有  `SELECT`  响应会被缓存。
+
+对于请求字符串中设置了  `no_cache=1` 的请求，缓存会被禁用。
+
+
+可以在查询字符串中传递可选的缓存命名空间，如  `cache_namespace=aaaa` 。这允许缓存在不同命名空间下对相同的查询做出不同的响应。此外，可以在缓存空间上建立即时缓存刷新 —— 只需按照顺序切换到新的命名空间，即可刷新缓存。
+
+### 安全配置
+`Chproxy` 可以在将请求代理到 ClickHouse 集群前，自定义从输入请求中删除查询参数（除了这里列出的[用户参数](https://github.com/Vertamedia/chproxy/blob/master/config#param_groups_config) 和[这些参数](https://github.com/Vertamedia/chproxy/blob/master/scope.go#L292)）。这可以防止请求不安全地覆盖各种 ClickHouse [设置](https://clickhouse.tech/docs/en/interfaces/http/#cli-queries-with-parameters)。
+
+在设置限制时候需要小心，比如允许网络、密码等。
+
+默认情况下，`chproxy` 会尝试检测最明显的安全配置问题时，如 `allowed_networks: ["0.0.0.0/0"]` ，或未加密的 HTTP 发送密码行为。
+
+特殊选项 `hack_me_please: true` 可以用于禁用 chproxy 对配置的安全相关检查。（如果你感觉良好 ：））
+
+
+
+#### 完整配置[示例](https://github.com/Vertamedia/chproxy/blob/master/config/testdata/full.yml)
+
 ```yml
 # Whether to print debug logs.
 #
@@ -627,10 +630,10 @@ clusters:
         allowed_networks: ["office"]
 ```
 
-#### Full specification is located [here](https://github.com/Vertamedia/chproxy/blob/master/config)
+#### 完整的配置规范请参考[这里](https://github.com/Vertamedia/chproxy/blob/master/config)
 
-## Metrics
-Metrics are exposed in [prometheus text format](https://prometheus.io/docs/instrumenting/exposition_formats/) at `/metrics` path.
+## 指标
+所有的指标都以 prometheus 文本格式暴露在 `/metrics` 路径上。
 
 | Name | Type | Description | Labels |
 | ------------- | ------------- | ------------- | ------------- |
@@ -660,24 +663,23 @@ Metrics are exposed in [prometheus text format](https://prometheus.io/docs/instr
 | timeout_request_total | Counter | The number of timed out requests | `user`, `cluster`, `cluster_user`, `replica`, `cluster_node` |
 | user_queue_overflow_total | Counter | The number of overflows for per-user request queues | `user`, `cluster`, `cluster_user` |
 
-An example of [Grafana's](https://grafana.com) dashboard for `chproxy` metrics is available [here](https://github.com/Vertamedia/chproxy/blob/master/chproxy_overview.json)
+[这里](https://github.com/Vertamedia/chproxy/blob/master/chproxy_overview.json)与一个 [Grafana](https://grafana.com) 的 chproxy 指标仪表盘例子。
 
 ![dashboard example](https://user-images.githubusercontent.com/2902918/31392734-b2fd4a18-ade2-11e7-84a9-4aaaac4c10d7.png)
 
 
 ## FAQ
 
-* *Is `chproxy` production ready?*
+*  *`chproxy`  是否可用于生产环境？*
 
-  Yes, we successfully use it in production for both `INSERT` and `SELECT`
-  requests.
+  是的，我们生产环境中将它成功用于 `INSERT` 和 `SELECT` 请求。
 
-* *What about `chproxy` performance?*
+* *`chproxy` 性能表现怎么样？*
 
-  A single `chproxy` instance easily proxies 1Gbps of compressed `INSERT` data
-  while using less than 20% of a single CPU core in our production setup.
+  在我们的生产环境中，单个 chproxy 实例可以在使用不到 20% 的单 CPU 核心资源情况下，轻松代理 1Gbps 的压缩 `INSERT` 数据。
 
-* *Does `chproxy` support [native interface](http://clickhouse-docs.readthedocs.io/en/latest/interfaces/tcp.html) for ClickHouse?*
+*  *`chproxy`  是否支持 ClickHouse 的 Native 协议？*
 
-  No. Because currently all our services work with ClickHouse only via HTTP.
-  Support for `native interface` may be added in the future.
+  不支持，应为我们所有的所有的应用只通过 HTTP 协议与 ClickHouse 通讯。
+
+  可能会在未来增加对 Native 协议的支持。
