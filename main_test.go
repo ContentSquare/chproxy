@@ -103,6 +103,44 @@ func TestServe(t *testing.T) {
 			startTLS,
 		},
 		{
+			"https cache with mix query source",
+			"testdata/https.cache.yml",
+			func(t *testing.T) {
+				// do request which response must be cached
+				queryURLParam := "SELECT * FROM system.numbers"
+				queryBody := "LIMIT 10"
+				expectedQuery := queryURLParam + "\n" + queryBody
+				buf := bytes.NewBufferString(queryBody)
+				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query="+url.QueryEscape(queryURLParam), buf)
+				checkErr(t, err)
+				req.SetBasicAuth("default", "qwerty")
+				resp, err := tlsClient.Do(req)
+				checkErr(t, err)
+				if resp.StatusCode != http.StatusOK {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
+				}
+				resp.Body.Close()
+
+				// check cached response
+				key := &cache.Key{
+					Query:          []byte(expectedQuery),
+					AcceptEncoding: "gzip",
+				}
+				path := fmt.Sprintf("%s/cache/%s", testDir, key.String())
+				if _, err := os.Stat(path); err != nil {
+					t.Fatalf("err while getting file %q info: %s", path, err)
+				}
+				rw := httptest.NewRecorder()
+				cc := proxy.caches["https_cache"]
+				if err := cc.WriteTo(rw, key); err != nil {
+					t.Fatalf("unexpected error while writing reposnse from cache: %s", err)
+				}
+				expected := "Ok.\n"
+				checkResponse(t, rw.Body, expected)
+			},
+			startTLS,
+		},
+		{
 			"bad https cache",
 			"testdata/https.cache.yml",
 			func(t *testing.T) {

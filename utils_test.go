@@ -80,6 +80,36 @@ func TestGetQuerySnippetGET(t *testing.T) {
 	}
 }
 
+func TestGetQuerySnippetGETBody(t *testing.T) {
+	q := "SELECT column FROM table"
+	body := bytes.NewBufferString(q)
+	req, err := http.NewRequest("GET", "", body)
+	checkErr(t, err)
+	query := getQuerySnippet(req)
+	if query != q {
+		t.Fatalf("got: %q; expected: %q", query, q)
+	}
+}
+
+func TestGetQuerySnippetGETBothQueryAndBody(t *testing.T) {
+	queryPart := "SELECT column"
+	bodyPart := "FROM table"
+	expectedQuery := "SELECT column\nFROM table"
+
+	body := bytes.NewBufferString(bodyPart)
+	req, err := http.NewRequest("GET", "", body)
+	checkErr(t, err)
+
+	params := make(url.Values)
+	params.Set("query", queryPart)
+	req.URL.RawQuery = params.Encode()
+
+	query := getQuerySnippet(req)
+	if query != expectedQuery {
+		t.Fatalf("got: %q; expected: %q", query, expectedQuery)
+	}
+}
+
 func TestGetQuerySnippetPOST(t *testing.T) {
 	q := "SELECT column FROM table"
 	body := bytes.NewBufferString(q)
