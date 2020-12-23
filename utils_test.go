@@ -68,7 +68,7 @@ func testCanCacheQuery(t *testing.T, q string, expected bool) {
 }
 
 func TestGetQuerySnippetGET(t *testing.T) {
-	req, err := http.NewRequest("GET", "", bytes.NewBuffer(nil))
+	req, err := http.NewRequest("GET", "", nil)
 	checkErr(t, err)
 	params := make(url.Values)
 	q := "SELECT column FROM table"

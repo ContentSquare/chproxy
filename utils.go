@@ -58,6 +58,10 @@ func getQuerySnippet(req *http.Request) string {
 }
 
 func getQuerySnippetFromBody(req *http.Request) string {
+	if req.Body == nil {
+		return ""
+	}
+
 	crc, ok := req.Body.(*cachedReadCloser)
 	if !ok {
 		crc = &cachedReadCloser{
@@ -113,6 +117,10 @@ func getFullQuery(req *http.Request) ([]byte, error) {
 }
 
 func getFullQueryFromBody(req *http.Request) ([]byte, error) {
+	if req.Body == nil {
+		return nil, nil
+	}
+
 	data, err := ioutil.ReadAll(req.Body)
 	if err != nil {
 		return nil, err
