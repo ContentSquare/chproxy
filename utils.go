@@ -146,12 +146,11 @@ var cachableStatements = []string{"SELECT", "WITH"}
 func canCacheQuery(q []byte) bool {
 	q = skipLeadingComments(q)
 
-	// Currently only SELECT queries may be cached.
-	if len(q) < len("SELECT") {
-		return false
-	}
-
 	for _, statement := range cachableStatements {
+		if len(q) < len(statement) {
+			continue
+		}
+
 		l := bytes.ToUpper(q[:len(statement)])
 		if bytes.HasPrefix(l, []byte(statement)) {
 			return true
