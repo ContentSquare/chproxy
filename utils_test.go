@@ -57,6 +57,7 @@ func TestCanCacheQuery(t *testing.T) {
 	testCanCacheQuery(t, "\t\t   sElECt 123   ", true)
 	testCanCacheQuery(t, "   --- sd s\n /* dfsf */\n seleCT ", true)
 	testCanCacheQuery(t, "   --- sd s\n /* dfsf */\n insert ", false)
+	testCanCacheQuery(t, "WITH 1 as alias SELECT alias FROM nothing ", true)
 }
 
 func testCanCacheQuery(t *testing.T, q string, expected bool) {

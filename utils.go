@@ -140,16 +140,24 @@ func getFullQueryFromBody(req *http.Request) ([]byte, error) {
 	return b, nil
 }
 
+var cachableStatements = []string{"SELECT", "WITH"}
+
 // canCacheQuery returns true if q can be cached.
 func canCacheQuery(q []byte) bool {
 	q = skipLeadingComments(q)
 
-	// Currently only SELECT queries may be cached.
-	if len(q) < len("SELECT") {
-		return false
+	for _, statement := range cachableStatements {
+		if len(q) < len(statement) {
+			continue
+		}
+
+		l := bytes.ToUpper(q[:len(statement)])
+		if bytes.HasPrefix(l, []byte(statement)) {
+			return true
+		}
 	}
-	q = bytes.ToUpper(q[:len("SELECT")])
-	return bytes.HasPrefix(q, []byte("SELECT"))
+
+	return false
 }
 
 func skipLeadingComments(q []byte) []byte {
