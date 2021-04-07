@@ -47,8 +47,6 @@ func (qc *userClusterQueryCounter) Inc(s *scope) {
 	if !s.user.detectIdenticalConcurrentQueries || s.query == "" {
 		return
 	}
-	qc.Lock()
-	defer qc.Unlock()
 
 	sq := userClusterQuery{
 		cluster: s.cluster,
@@ -59,6 +57,9 @@ func (qc *userClusterQueryCounter) Inc(s *scope) {
 			s.user.identicalQueryExecutionDoneCh <- struct{}{}
 		}()
 	}
+
+	qc.Lock()
+	defer qc.Unlock()
 	qc.m[sq]++
 }
 
@@ -66,13 +67,14 @@ func (qc *userClusterQueryCounter) Dec(s *scope) {
 	if !s.user.detectIdenticalConcurrentQueries || s.query == "" {
 		return
 	}
-	qc.Lock()
-	defer qc.Unlock()
 
 	sq := userClusterQuery{
 		cluster: s.cluster,
 		query:   s.query,
 	}
+
+	qc.Lock()
+	defer qc.Unlock()
 
 	if qc.m[sq] > 0 {
 		qc.m[sq]--
@@ -90,12 +92,14 @@ func (qc *userClusterQueryCounter) Load(s *scope) uint32 {
 	if !s.user.detectIdenticalConcurrentQueries || s.query == "" {
 		return 0
 	}
-	qc.RLock()
-	defer qc.RUnlock()
 	sq := userClusterQuery{
 		cluster: s.cluster,
 		query:   s.query,
 	}
+
+	qc.RLock()
+	defer qc.RUnlock()
+
 	return qc.m[sq]
 }
 
@@ -608,7 +612,7 @@ func (up usersProfile) newUser(u config.User) (*user, error) {
 
 	identicalQueryExecutionDoneCh := make(chan struct{})
 
-	uniqueQueriesCounter := userClusterQueryCounter{
+	clusterQueryCounter := userClusterQueryCounter{
 		m: make(map[userClusterQuery]uint32),
 	}
 	return &user{
@@ -619,7 +623,7 @@ func (up usersProfile) newUser(u config.User) (*user, error) {
 		maxConcurrentQueries:             u.MaxConcurrentQueries,
 		maxExecutionTime:                 time.Duration(u.MaxExecutionTime),
 		detectIdenticalConcurrentQueries: u.DetectIdenticalConcurrentQueries,
-		clusterQueryCounter:              uniqueQueriesCounter,
+		clusterQueryCounter:              clusterQueryCounter,
 		reqPerMin:                        u.ReqPerMin,
 		queueCh:                          queueCh,
 		identicalQueryExecutionDoneCh:    identicalQueryExecutionDoneCh,
