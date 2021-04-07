@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -32,6 +33,72 @@ func newScopeID() scopeID {
 
 var nextScopeID = uint64(time.Now().UnixNano())
 
+type userClusterQuery struct {
+	cluster *cluster
+	query   string
+}
+
+type userClusterQueryCounter struct {
+	sync.RWMutex
+	m map[userClusterQuery]uint32
+}
+
+func (qc *userClusterQueryCounter) Inc(s *scope) {
+	if !s.user.detectIdenticalConcurrentQueries || s.query == "" {
+		return
+	}
+	qc.Lock()
+	defer qc.Unlock()
+
+	sq := userClusterQuery{
+		cluster: s.cluster,
+		query:   s.query,
+	}
+	if qc.m[sq] == 0 {
+		go func() {
+			s.user.identicalQueryExecutionDoneCh <- struct{}{}
+		}()
+	}
+	qc.m[sq]++
+}
+
+func (qc *userClusterQueryCounter) Dec(s *scope) {
+	if !s.user.detectIdenticalConcurrentQueries || s.query == "" {
+		return
+	}
+	qc.Lock()
+	defer qc.Unlock()
+
+	sq := userClusterQuery{
+		cluster: s.cluster,
+		query:   s.query,
+	}
+
+	if qc.m[sq] > 0 {
+		qc.m[sq]--
+		go func() {
+			s.user.identicalQueryExecutionDoneCh <- struct{}{}
+		}()
+	}
+
+	if qc.m[sq] == 0 {
+		delete(qc.m, sq)
+	}
+}
+
+func (qc *userClusterQueryCounter) Load(s *scope) uint32 {
+	if !s.user.detectIdenticalConcurrentQueries || s.query == "" {
+		return 0
+	}
+	qc.RLock()
+	defer qc.RUnlock()
+	sq := userClusterQuery{
+		cluster: s.cluster,
+		query:   s.query,
+	}
+	return qc.m[sq]
+}
+
 type scope struct {
 	startTime   time.Time
 	id          scopeID
@@ -42,6 +109,7 @@ type scope struct {
 
 	remoteAddr string
 	localAddr  string
+	query      string
 
 	// is true when KillQuery has been called
 	canceled bool
@@ -56,6 +124,13 @@ func newScope(req *http.Request, u *user, c *cluster, cu *clusterUser) *scope {
 	if addr, ok := req.Context().Value(http.LocalAddrContextKey).(net.Addr); ok {
 		localAddr = addr.String()
 	}
+	query := ""
+	q, err := getFullQuery(req)
+
+	if err == nil {
+		query = string(skipLeadingComments(q))
+	}
+
 	s := &scope{
 		startTime:   time.Now(),
 		id:          newScopeID(),
@@ -66,6 +141,7 @@ func newScope(req *http.Request, u *user, c *cluster, cu *clusterUser) *scope {
 
 		remoteAddr: req.RemoteAddr,
 		localAddr:  localAddr,
+		query:      query,
 
 		labels: prometheus.Labels{
 			"user":         u.name,
@@ -75,6 +151,9 @@ func newScope(req *http.Request, u *user, c *cluster, cu *clusterUser) *scope {
 			"cluster_node": h.addr.Host,
 		},
 	}
+
+	s.user.clusterQueryCounter.Inc(s)
+
 	return s
 }
 
@@ -88,7 +167,7 @@ func (s *scope) String() string {
 }
 
 func (s *scope) incQueued() error {
-	if s.user.queueCh == nil && s.clusterUser.queueCh == nil {
+	if s.user.queueCh == nil && s.clusterUser.queueCh == nil && !s.user.detectIdenticalConcurrentQueries {
 		// Request queues in the current scope are disabled.
 		return s.inc()
 	}
@@ -101,37 +180,38 @@ func (s *scope) incQueued() error {
 		"cluster_user": s.labels["cluster_user"],
 	}
 
-	if s.user.queueCh != nil {
-		select {
-		case s.user.queueCh <- struct{}{}:
-			defer func() {
-				<-s.user.queueCh
-			}()
-		default:
-			// Per-user request queue is full.
-			// Give the request the last chance to run.
-			err := s.inc()
-			if err != nil {
-				userQueueOverflow.With(labels).Inc()
+	if !s.user.detectIdenticalConcurrentQueries || (s.user.detectIdenticalConcurrentQueries && !s.identicalQueryAlreadyProcessing()) {
+		if s.user.queueCh != nil {
+			select {
+			case s.user.queueCh <- struct{}{}:
+				defer func() {
+					<-s.user.queueCh
+				}()
+			default:
+				// Per-user request queue is full.
+				// Give the request the last chance to run.
+				err := s.inc()
+				if err != nil {
+					userQueueOverflow.With(labels).Inc()
+				}
+				return err
 			}
-			return err
 		}
-	}
-
-	if s.clusterUser.queueCh != nil {
-		select {
-		case s.clusterUser.queueCh <- struct{}{}:
-			defer func() {
-				<-s.clusterUser.queueCh
-			}()
-		default:
-			// Per-clusterUser request queue is full.
-			// Give the request the last chance to run.
-			err := s.inc()
-			if err != nil {
-				clusterUserQueueOverflow.With(labels).Inc()
+		if s.clusterUser.queueCh != nil {
+			select {
+			case s.clusterUser.queueCh <- struct{}{}:
+				defer func() {
+					<-s.clusterUser.queueCh
+				}()
+			default:
+				// Per-clusterUser request queue is full.
+				// Give the request the last chance to run.
+				err := s.inc()
+				if err != nil {
+					clusterUserQueueOverflow.With(labels).Inc()
+				}
+				return err
 			}
-			return err
 		}
 	}
 
@@ -151,7 +231,18 @@ func (s *scope) incQueued() error {
 	}
 	deadline := time.Now().Add(d)
 	for {
-		err := s.inc()
+		var err error
+		if s.user.detectIdenticalConcurrentQueries && s.identicalQueryAlreadyProcessing() {
+			select {
+			case <-s.user.identicalQueryExecutionDoneCh:
+				err = s.inc()
+			default:
+				err = fmt.Errorf("concurrent identical query for user %q, spent too long time in queue", s.user.name)
+			}
+		} else {
+			err = s.inc()
+		}
+
 		if err == nil {
 			// The request is allowed to start.
 			return nil
@@ -179,6 +270,10 @@ func (s *scope) incQueued() error {
 		s.labels["replica"] = h.replica.name
 		s.labels["cluster_node"] = h.addr.Host
 	}
+}
+
+func (s *scope) identicalQueryAlreadyProcessing() bool {
+	return s.user.clusterQueryCounter.Load(s) > 1
 }
 
 func (s *scope) inc() error {
@@ -235,6 +330,7 @@ func (s *scope) dec() {
 	s.clusterUser.queryCounter.dec()
 	s.host.dec()
 	concurrentQueries.With(s.labels).Dec()
+	s.user.clusterQueryCounter.Dec(s)
 }
 
 const killQueryTimeout = time.Second * 30
@@ -430,16 +526,19 @@ type user struct {
 	toCluster string
 	toUser    string
 
-	maxConcurrentQueries uint32
-	queryCounter         counter
+	maxConcurrentQueries             uint32
+	queryCounter                     counter
+	detectIdenticalConcurrentQueries bool
+	clusterQueryCounter              userClusterQueryCounter
 
 	maxExecutionTime time.Duration
 
 	reqPerMin   uint32
 	rateLimiter rateLimiter
 
-	queueCh      chan struct{}
-	maxQueueTime time.Duration
+	queueCh                       chan struct{}
+	maxQueueTime                  time.Duration
+	identicalQueryExecutionDoneCh chan struct{}
 
 	allowedNetworks config.Networks
 
@@ -493,6 +592,10 @@ func (up usersProfile) newUser(u config.User) (*user, error) {
 		if cc == nil {
 			return nil, fmt.Errorf("unknown `cache` %q", u.Cache)
 		}
+	} else {
+		if u.DetectIdenticalConcurrentQueries {
+			return nil, fmt.Errorf("`detect_identical_concurrent_queries` does not make any sense w/o cache")
+		}
 	}
 
 	var params *paramsRegistry
@@ -503,22 +606,30 @@ func (up usersProfile) newUser(u config.User) (*user, error) {
 		}
 	}
 
+	identicalQueryExecutionDoneCh := make(chan struct{})
+
+	uniqueQueriesCounter := userClusterQueryCounter{
+		m: make(map[userClusterQuery]uint32),
+	}
 	return &user{
-		name:                 u.Name,
-		password:             u.Password,
-		toCluster:            u.ToCluster,
-		toUser:               u.ToUser,
-		maxConcurrentQueries: u.MaxConcurrentQueries,
-		maxExecutionTime:     time.Duration(u.MaxExecutionTime),
-		reqPerMin:            u.ReqPerMin,
-		queueCh:              queueCh,
-		maxQueueTime:         time.Duration(u.MaxQueueTime),
-		allowedNetworks:      u.AllowedNetworks,
-		denyHTTP:             u.DenyHTTP,
-		denyHTTPS:            u.DenyHTTPS,
-		allowCORS:            u.AllowCORS,
-		cache:                cc,
-		params:               params,
+		name:                             u.Name,
+		password:                         u.Password,
+		toCluster:                        u.ToCluster,
+		toUser:                           u.ToUser,
+		maxConcurrentQueries:             u.MaxConcurrentQueries,
+		maxExecutionTime:                 time.Duration(u.MaxExecutionTime),
+		detectIdenticalConcurrentQueries: u.DetectIdenticalConcurrentQueries,
+		clusterQueryCounter:              uniqueQueriesCounter,
+		reqPerMin:                        u.ReqPerMin,
+		queueCh:                          queueCh,
+		identicalQueryExecutionDoneCh:    identicalQueryExecutionDoneCh,
+		maxQueueTime:                     time.Duration(u.MaxQueueTime),
+		allowedNetworks:                  u.AllowedNetworks,
+		denyHTTP:                         u.DenyHTTP,
+		denyHTTPS:                        u.DenyHTTPS,
+		allowCORS:                        u.AllowCORS,
+		cache:                            cc,
+		params:                           params,
 	}, nil
 }
 
