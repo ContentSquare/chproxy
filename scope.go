@@ -38,12 +38,12 @@ type userClusterQuery struct {
 	query   string
 }
 
-type userClusterQueryCounter struct {
+type userIdenticalQueryCounter struct {
 	sync.RWMutex
 	m map[userClusterQuery]uint32
 }
 
-func (qc *userClusterQueryCounter) Inc(s *scope) {
+func (qc *userIdenticalQueryCounter) Inc(s *scope) {
 	if !s.user.detectIdenticalConcurrentQueries || s.query == "" {
 		return
 	}
@@ -54,7 +54,7 @@ func (qc *userClusterQueryCounter) Inc(s *scope) {
 	}
 	if qc.m[sq] == 0 {
 		go func() {
-			s.user.identicalQueryExecutionDoneCh <- struct{}{}
+			s.user.identicalQueryExecutionReadyCh <- struct{}{}
 		}()
 	}
 
@@ -63,7 +63,7 @@ func (qc *userClusterQueryCounter) Inc(s *scope) {
 	qc.m[sq]++
 }
 
-func (qc *userClusterQueryCounter) Dec(s *scope) {
+func (qc *userIdenticalQueryCounter) Dec(s *scope) {
 	if !s.user.detectIdenticalConcurrentQueries || s.query == "" {
 		return
 	}
@@ -79,7 +79,7 @@ func (qc *userClusterQueryCounter) Dec(s *scope) {
 	if qc.m[sq] > 0 {
 		qc.m[sq]--
 		go func() {
-			s.user.identicalQueryExecutionDoneCh <- struct{}{}
+			s.user.identicalQueryExecutionReadyCh <- struct{}{}
 		}()
 	}
 
@@ -88,7 +88,7 @@ func (qc *userClusterQueryCounter) Dec(s *scope) {
 	}
 }
 
-func (qc *userClusterQueryCounter) Load(s *scope) uint32 {
+func (qc *userIdenticalQueryCounter) Load(s *scope) uint32 {
 	if !s.user.detectIdenticalConcurrentQueries || s.query == "" {
 		return 0
 	}
@@ -156,7 +156,7 @@ func newScope(req *http.Request, u *user, c *cluster, cu *clusterUser) *scope {
 		},
 	}
 
-	s.user.clusterQueryCounter.Inc(s)
+	s.user.identicalQueryCounter.Inc(s)
 
 	return s
 }
@@ -238,7 +238,7 @@ func (s *scope) incQueued() error {
 		var err error
 		if s.user.detectIdenticalConcurrentQueries && s.identicalQueryAlreadyProcessing() {
 			select {
-			case <-s.user.identicalQueryExecutionDoneCh:
+			case <-s.user.identicalQueryExecutionReadyCh:
 				err = s.inc()
 			default:
 				err = fmt.Errorf("concurrent identical query for user %q, spent too long time in queue", s.user.name)
@@ -277,7 +277,7 @@ func (s *scope) incQueued() error {
 }
 
 func (s *scope) identicalQueryAlreadyProcessing() bool {
-	return s.user.clusterQueryCounter.Load(s) > 1
+	return s.user.identicalQueryCounter.Load(s) > 1
 }
 
 func (s *scope) inc() error {
@@ -334,7 +334,7 @@ func (s *scope) dec() {
 	s.clusterUser.queryCounter.dec()
 	s.host.dec()
 	concurrentQueries.With(s.labels).Dec()
-	s.user.clusterQueryCounter.Dec(s)
+	s.user.identicalQueryCounter.Dec(s)
 }
 
 const killQueryTimeout = time.Second * 30
@@ -533,16 +533,16 @@ type user struct {
 	maxConcurrentQueries             uint32
 	queryCounter                     counter
 	detectIdenticalConcurrentQueries bool
-	clusterQueryCounter              userClusterQueryCounter
+	identicalQueryCounter            userIdenticalQueryCounter
 
 	maxExecutionTime time.Duration
 
 	reqPerMin   uint32
 	rateLimiter rateLimiter
 
-	queueCh                       chan struct{}
-	maxQueueTime                  time.Duration
-	identicalQueryExecutionDoneCh chan struct{}
+	queueCh                        chan struct{}
+	maxQueueTime                   time.Duration
+	identicalQueryExecutionReadyCh chan struct{}
 
 	allowedNetworks config.Networks
 
@@ -612,7 +612,7 @@ func (up usersProfile) newUser(u config.User) (*user, error) {
 
 	identicalQueryExecutionDoneCh := make(chan struct{})
 
-	clusterQueryCounter := userClusterQueryCounter{
+	userIdenticalQueryCounter := userIdenticalQueryCounter{
 		m: make(map[userClusterQuery]uint32),
 	}
 	return &user{
@@ -623,10 +623,10 @@ func (up usersProfile) newUser(u config.User) (*user, error) {
 		maxConcurrentQueries:             u.MaxConcurrentQueries,
 		maxExecutionTime:                 time.Duration(u.MaxExecutionTime),
 		detectIdenticalConcurrentQueries: u.DetectIdenticalConcurrentQueries,
-		clusterQueryCounter:              clusterQueryCounter,
+		identicalQueryCounter:            userIdenticalQueryCounter,
 		reqPerMin:                        u.ReqPerMin,
 		queueCh:                          queueCh,
-		identicalQueryExecutionDoneCh:    identicalQueryExecutionDoneCh,
+		identicalQueryExecutionReadyCh:   identicalQueryExecutionDoneCh,
 		maxQueueTime:                     time.Duration(u.MaxQueueTime),
 		allowedNetworks:                  u.AllowedNetworks,
 		denyHTTP:                         u.DenyHTTP,
