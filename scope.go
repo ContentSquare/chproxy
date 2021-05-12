@@ -846,14 +846,14 @@ func (r *replica) getHost() *host {
 			tmpIdx = (sessionId) % n
 			tmpHSticky := r.hosts[tmpIdx]
 			if !tmpHSticky.isActive() {
-				log.Debugf("Sticky Session Server has been picked up but not available")
+				log.Debugf("Sticky Session Server has been picked up, but it is not available")
 				continue
 			}
 			log.Debugf("Sticky Session Server is: %s, session: %d, idx mod: %d - %d", tmpH.addr, sessionId, tmpIdx, n)
 			return tmpH
 		}
 
-		// continue as usual
+		// handling least loaded host flow
 		tmpReqs := tmpH.load()
 
 		if !tmpH.isActive() {
