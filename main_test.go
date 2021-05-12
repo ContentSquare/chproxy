@@ -285,6 +285,28 @@ func TestServe(t *testing.T) {
 			startHTTP,
 		},
 		{
+			"http POST request with session id",
+			"testdata/http-session-id.yml",
+			func(t *testing.T) {
+				// buf := bytes.NewBufferString("SELECT * FROM system.numbers LIMIT 10")
+				data := url.Values{}
+				data.Set("query", `SELECT * FROM system.numbers LIMIT 10`)
+				data.Add("session_id", "1234")
+				data.Add("query_id", "1234")
+				req, err := http.NewRequest("POST", "http://127.0.0.1:9090/", bytes.NewBufferString(data.Encode()))
+				req.Header.Set("Content-Type", "application/x-www-form-urlencoded; param=value") // This makes it work
+
+				checkErr(t, err)
+				resp, err := http.DefaultClient.Do(req)
+				checkErr(t, err)
+				if resp.StatusCode != http.StatusOK {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
+				}
+				resp.Body.Close()
+			},
+			startHTTP,
+		},
+		{
 			"http request",
 			"testdata/http.yml",
 			func(t *testing.T) {

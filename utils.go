@@ -47,7 +47,9 @@ func getAuth(req *http.Request) (string, string) {
 // getSessionId retrieves session id
 func getSessionId(req *http.Request) string {
 	params := req.URL.Query()
-	return params.Get("session_id")
+	sessionId := params.Get("session_id")
+	req.Header.Set("X-ClickHouse-Session-ID", sessionId)
+	return sessionId
 }
 
 // getQuerySnippet returns query snippet.
