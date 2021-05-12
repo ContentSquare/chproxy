@@ -435,7 +435,7 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 	return nil
 }
 
-// refreshCacheMetrics refresehs cacheSize and cacheItems metrics.
+// refreshCacheMetrics refreshes cacheSize and cacheItems metrics.
 func (rp *reverseProxy) refreshCacheMetrics() {
 	rp.lock.RLock()
 	defer rp.lock.RUnlock()
@@ -452,7 +452,7 @@ func (rp *reverseProxy) refreshCacheMetrics() {
 
 func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 	name, password := getAuth(req)
-
+	sessionId := getSessionId(req)
 	var (
 		u  *user
 		c  *cluster
@@ -467,6 +467,7 @@ func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 		// Fix applyConfig if c or cu equal to nil.
 		c = rp.clusters[u.toCluster]
 		cu = c.users[u.toUser]
+		c.sessionId = sessionId
 	}
 	rp.lock.RUnlock()
 

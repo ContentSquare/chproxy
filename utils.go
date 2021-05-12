@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -43,6 +44,12 @@ func getAuth(req *http.Request) (string, string) {
 	return "default", ""
 }
 
+// getSessionId retrieves session id
+func getSessionId(req *http.Request) string {
+	params := req.URL.Query()
+	return params.Get("session_id")
+}
+
 // getQuerySnippet returns query snippet.
 //
 // getQuerySnippet must be called only for error reporting.
@@ -55,6 +62,12 @@ func getQuerySnippet(req *http.Request) string {
 	}
 
 	return query + body
+}
+
+func hash(s string) uint32 {
+	h := fnv.New32a()
+	h.Write([]byte(s))
+	return h.Sum32()
 }
 
 func getQuerySnippetFromBody(req *http.Request) string {

@@ -19,6 +19,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+// var route = make(map[int]*host)
+
 type scopeID uint64
 
 func (sid scopeID) String() string {
@@ -305,6 +307,8 @@ var allowedParams = []string{
 	"extremes",
 	// what to do if the volume of the result exceeds one of the limits
 	"result_overflow_mode",
+	// session stickiness
+	"session_id",
 }
 
 // This regexp must match params needed to describe a way to use external data
@@ -718,6 +722,8 @@ type cluster struct {
 	killQueryUserName     string
 	killQueryUserPassword string
 
+	sessionId string
+
 	heartBeat *heartBeat
 }
 
@@ -829,18 +835,30 @@ func (r *replica) getHost() *host {
 		reqs = ^uint32(0)
 	}
 
-	if reqs == 0 {
-		return h
-	}
-
 	// Scan all the hosts for the least loaded host.
 	for i := uint32(1); i < n; i++ {
 		tmpIdx := (idx + i) % n
 		tmpH := r.hosts[tmpIdx]
+
+		// handling sticky session
+		if r.cluster.sessionId != "" {
+			sessionId := hash(r.cluster.sessionId)
+			tmpIdx = (sessionId) % n
+			tmpHSticky := r.hosts[tmpIdx]
+			if !tmpHSticky.isActive() {
+				log.Debugf("Sticky Session Server has been picked up but not available")
+				continue
+			}
+			log.Debugf("Sticky Session Server is: %s, session: %d, idx mod: %d - %d", tmpH.addr, sessionId, tmpIdx, n)
+			return tmpH
+		}
+
+		// continue as usual
+		tmpReqs := tmpH.load()
+
 		if !tmpH.isActive() {
 			continue
 		}
-		tmpReqs := tmpH.load()
 		if tmpReqs == 0 {
 			return tmpH
 		}
