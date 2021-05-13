@@ -51,8 +51,10 @@ func newReverseProxy() *reverseProxy {
 
 func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	startTime := time.Now()
-
 	s, status, err := rp.getScope(req)
+	if s.sessionId != "" {
+		rw.Header().Set("X-ClickHouse-Session-Id", s.sessionId)
+	}
 	if err != nil {
 		q := getQuerySnippet(req)
 		err = fmt.Errorf("%q: %s; query: %q", req.RemoteAddr, err, q)
@@ -467,7 +469,6 @@ func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 		// Fix applyConfig if c or cu equal to nil.
 		c = rp.clusters[u.toCluster]
 		cu = c.users[u.toUser]
-		c.sessionId = sessionId
 	}
 	rp.lock.RUnlock()
 
@@ -490,6 +491,6 @@ func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 		return nil, http.StatusForbidden, fmt.Errorf("cluster user %q is not allowed to access", cu.name)
 	}
 
-	s := newScope(req, u, c, cu)
+	s := newScope(req, u, c, cu, sessionId)
 	return s, 0, nil
 }

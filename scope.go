@@ -42,6 +42,8 @@ type scope struct {
 	user        *user
 	clusterUser *clusterUser
 
+	sessionId string
+
 	remoteAddr string
 	localAddr  string
 
@@ -51,9 +53,12 @@ type scope struct {
 	labels prometheus.Labels
 }
 
-func newScope(req *http.Request, u *user, c *cluster, cu *clusterUser) *scope {
-	h := c.getHost()
+func newScope(req *http.Request, u *user, c *cluster, cu *clusterUser, sessionId string) *scope {
 
+	h := c.getHost()
+	if sessionId != "" {
+		h = c.getHostSticky(sessionId)
+	}
 	var localAddr string
 	if addr, ok := req.Context().Value(http.LocalAddrContextKey).(net.Addr); ok {
 		localAddr = addr.String()
@@ -65,6 +70,7 @@ func newScope(req *http.Request, u *user, c *cluster, cu *clusterUser) *scope {
 		cluster:     c,
 		user:        u,
 		clusterUser: cu,
+		sessionId:   sessionId,
 
 		remoteAddr: req.RemoteAddr,
 		localAddr:  localAddr,
@@ -722,8 +728,6 @@ type cluster struct {
 	killQueryUserName     string
 	killQueryUserPassword string
 
-	sessionId string
-
 	heartBeat *heartBeat
 }
 
@@ -816,6 +820,44 @@ func (c *cluster) getReplica() *replica {
 	return r
 }
 
+// getHostSticky returns host by stickiness from replica.
+//
+// Always returns non-nil.
+func (r *replica) getHostSticky(sessionId string) *host {
+	idx := atomic.AddUint32(&r.nextHostIdx, 1)
+	n := uint32(len(r.hosts))
+	if n == 1 {
+		return r.hosts[0]
+	}
+
+	idx %= n
+	h := r.hosts[idx]
+
+	// Scan all the hosts for the least loaded host.
+	for i := uint32(1); i < n; i++ {
+		tmpIdx := (idx + i) % n
+
+		// handling sticky session
+		if sessionId != "" {
+			sessionId := hash(sessionId)
+			tmpIdx = (sessionId) % n
+			tmpHSticky := r.hosts[tmpIdx]
+			log.Debugf("Sticky server candidate is: %s", tmpHSticky.addr)
+			if !tmpHSticky.isActive() {
+				log.Debugf("Sticky session server has been picked up, but it is not available")
+				continue
+			}
+			log.Debugf("Sticky session server is: %s, session_id: %d, server_idx: %d, max nodes in pool: %d", tmpHSticky.addr, sessionId, tmpIdx, n)
+			return tmpHSticky
+		}
+	}
+
+	// The returned host may be inactive. This is OK,
+	// since this means all the hosts are inactive,
+	// so let's try proxying the request to any host.
+	return h
+}
+
 // getHost returns least loaded + round-robin host from replica.
 //
 // Always returns non-nil.
@@ -835,30 +877,18 @@ func (r *replica) getHost() *host {
 		reqs = ^uint32(0)
 	}
 
+	if reqs == 0 {
+		return h
+	}
+
 	// Scan all the hosts for the least loaded host.
 	for i := uint32(1); i < n; i++ {
 		tmpIdx := (idx + i) % n
 		tmpH := r.hosts[tmpIdx]
-
-		// handling sticky session
-		if r.cluster.sessionId != "" {
-			sessionId := hash(r.cluster.sessionId)
-			tmpIdx = (sessionId) % n
-			tmpHSticky := r.hosts[tmpIdx]
-			if !tmpHSticky.isActive() {
-				log.Debugf("Sticky Session Server has been picked up, but it is not available")
-				continue
-			}
-			log.Debugf("Sticky Session Server is: %s, session: %d, idx mod: %d - %d", tmpH.addr, sessionId, tmpIdx, n)
-			return tmpH
-		}
-
-		// handling least loaded host flow
-		tmpReqs := tmpH.load()
-
 		if !tmpH.isActive() {
 			continue
 		}
+		tmpReqs := tmpH.load()
 		if tmpReqs == 0 {
 			return tmpH
 		}
@@ -872,6 +902,14 @@ func (r *replica) getHost() *host {
 	// since this means all the hosts are inactive,
 	// so let's try proxying the request to any host.
 	return h
+}
+
+// getHostSticky returns host based on stickiness from cluster.
+//
+// Always returns non-nil.
+func (c *cluster) getHostSticky(sessionId string) *host {
+	r := c.getReplica()
+	return r.getHostSticky(sessionId)
 }
 
 // getHost returns least loaded + round-robin host from cluster.
