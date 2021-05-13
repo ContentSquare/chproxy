@@ -98,6 +98,11 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		ReadCloser: req.Body,
 	}
 
+	// publish session_id if needed
+	if s.sessionId != "" {
+		rw.Header().Set("X-ClickHouse-Server-Session-Id", s.sessionId)
+	}
+
 	if s.user.cache == nil {
 		rp.proxyRequest(s, srw, srw, req)
 	} else {
@@ -112,11 +117,6 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		log.Debugf("%s: request success; query: %q; Method: %s; URL: %q", s, q, req.Method, req.URL.String())
 	} else {
 		log.Debugf("%s: request failure: non-200 status code %d; query: %q; Method: %s; URL: %q", s, srw.statusCode, q, req.Method, req.URL.String())
-	}
-
-	// publish session_id if needed
-	if s.sessionId != "" {
-		rw.Header().Set("X-ClickHouse-Session-Id", s.sessionId)
 	}
 
 	statusCodes.With(
