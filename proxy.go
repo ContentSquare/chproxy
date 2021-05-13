@@ -52,9 +52,6 @@ func newReverseProxy() *reverseProxy {
 func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	startTime := time.Now()
 	s, status, err := rp.getScope(req)
-	if s.sessionId != "" {
-		rw.Header().Set("X-ClickHouse-Session-Id", s.sessionId)
-	}
 	if err != nil {
 		q := getQuerySnippet(req)
 		err = fmt.Errorf("%q: %s; query: %q", req.RemoteAddr, err, q)
@@ -115,6 +112,11 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		log.Debugf("%s: request success; query: %q; Method: %s; URL: %q", s, q, req.Method, req.URL.String())
 	} else {
 		log.Debugf("%s: request failure: non-200 status code %d; query: %q; Method: %s; URL: %q", s, srw.statusCode, q, req.Method, req.URL.String())
+	}
+
+	// publish session_id if needed
+	if s.sessionId != "" {
+		rw.Header().Set("X-ClickHouse-Session-Id", s.sessionId)
 	}
 
 	statusCodes.With(
