@@ -297,7 +297,7 @@ func TestServe(t *testing.T) {
 				resp, err := http.DefaultClient.Do(req)
 				checkErr(t, err)
 
-				if resp.StatusCode != http.StatusOK || resp.Header.Get("X-Clickhouse-Server-Session-Id") == "" {
+				if resp.StatusCode != http.StatusOK || resp.StatusCode != http.StatusOK && resp.Header.Get("X-Clickhouse-Server-Session-Id") == "" {
 					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
 				}
 				resp.Body.Close()
