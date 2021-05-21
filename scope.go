@@ -842,18 +842,16 @@ func (r *replica) getHostSticky(sessionId string) *host {
 		tmpIdx := (idx + i) % n
 
 		// handling sticky session
-		if sessionId != "" {
-			sessionId := hash(sessionId)
-			tmpIdx = (sessionId) % n
-			tmpHSticky := r.hosts[tmpIdx]
-			log.Debugf("Sticky server candidate is: %s", tmpHSticky.addr)
-			if !tmpHSticky.isActive() {
-				log.Debugf("Sticky session server has been picked up, but it is not available")
-				continue
-			}
-			log.Debugf("Sticky session server is: %s, session_id: %d, server_idx: %d, max nodes in pool: %d", tmpHSticky.addr, sessionId, tmpIdx, n)
-			return tmpHSticky
+		sessionId := hash(sessionId)
+		tmpIdx = (sessionId) % n
+		tmpHSticky := r.hosts[tmpIdx]
+		log.Debugf("Sticky server candidate is: %s", tmpHSticky.addr)
+		if !tmpHSticky.isActive() {
+			log.Debugf("Sticky session server has been picked up, but it is not available")
+			continue
 		}
+		log.Debugf("Sticky session server is: %s, session_id: %d, server_idx: %d, max nodes in pool: %d", tmpHSticky.addr, sessionId, tmpIdx, n)
+		return tmpHSticky
 	}
 
 	// The returned host may be inactive. This is OK,
