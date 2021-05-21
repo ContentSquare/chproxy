@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/Vertamedia/chproxy/chdecompressor"
@@ -49,6 +50,16 @@ func getSessionId(req *http.Request) string {
 	params := req.URL.Query()
 	sessionId := params.Get("session_id")
 	return sessionId
+}
+
+// getSessionId retrieves session id
+func getSessionTimeout(req *http.Request) int {
+	params := req.URL.Query()
+	sessionTimeout, err := strconv.Atoi(params.Get("session_timeout"))
+	if err != nil && sessionTimeout > 0 {
+		return sessionTimeout
+	}
+	return 60
 }
 
 // getQuerySnippet returns query snippet.

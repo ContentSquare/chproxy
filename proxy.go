@@ -457,6 +457,7 @@ func (rp *reverseProxy) refreshCacheMetrics() {
 func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 	name, password := getAuth(req)
 	sessionId := getSessionId(req)
+	sessionTimeout := getSessionTimeout(req)
 	var (
 		u  *user
 		c  *cluster
@@ -493,6 +494,6 @@ func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 		return nil, http.StatusForbidden, fmt.Errorf("cluster user %q is not allowed to access", cu.name)
 	}
 
-	s := newScope(req, u, c, cu, sessionId)
+	s := newScope(req, u, c, cu, sessionId, sessionTimeout)
 	return s, 0, nil
 }

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -42,7 +43,8 @@ type scope struct {
 	user        *user
 	clusterUser *clusterUser
 
-	sessionId string
+	sessionId      string
+	sessionTimeout int
 
 	remoteAddr string
 	localAddr  string
@@ -53,8 +55,7 @@ type scope struct {
 	labels prometheus.Labels
 }
 
-func newScope(req *http.Request, u *user, c *cluster, cu *clusterUser, sessionId string) *scope {
-
+func newScope(req *http.Request, u *user, c *cluster, cu *clusterUser, sessionId string, sessionTimeout int) *scope {
 	h := c.getHost()
 	if sessionId != "" {
 		h = c.getHostSticky(sessionId)
@@ -64,13 +65,14 @@ func newScope(req *http.Request, u *user, c *cluster, cu *clusterUser, sessionId
 		localAddr = addr.String()
 	}
 	s := &scope{
-		startTime:   time.Now(),
-		id:          newScopeID(),
-		host:        h,
-		cluster:     c,
-		user:        u,
-		clusterUser: cu,
-		sessionId:   sessionId,
+		startTime:      time.Now(),
+		id:             newScopeID(),
+		host:           h,
+		cluster:        c,
+		user:           u,
+		clusterUser:    cu,
+		sessionId:      sessionId,
+		sessionTimeout: sessionTimeout,
 
 		remoteAddr: req.RemoteAddr,
 		localAddr:  localAddr,
@@ -315,6 +317,8 @@ var allowedParams = []string{
 	"result_overflow_mode",
 	// session stickiness
 	"session_id",
+	// session timeout
+	"session_timeout",
 }
 
 // This regexp must match params needed to describe a way to use external data
@@ -359,6 +363,8 @@ func (s *scope) decorateRequest(req *http.Request) (*http.Request, url.Values) {
 
 	// Set query_id as scope_id to have possibility to kill query if needed.
 	params.Set("query_id", s.id.String())
+	// Set session_timeout an idle timeout for session
+	params.Set("session_timeout", strconv.Itoa(s.sessionTimeout))
 
 	req.URL.RawQuery = params.Encode()
 
