@@ -20,8 +20,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// var route = make(map[int]*host)
-
 type scopeID uint64
 
 func (sid scopeID) String() string {
