@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"compress/gzip"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/Vertamedia/chproxy/chdecompressor"
@@ -43,6 +45,23 @@ func getAuth(req *http.Request) (string, string) {
 	return "default", ""
 }
 
+// getSessionId retrieves session id
+func getSessionId(req *http.Request) string {
+	params := req.URL.Query()
+	sessionId := params.Get("session_id")
+	return sessionId
+}
+
+// getSessionId retrieves session id
+func getSessionTimeout(req *http.Request) int {
+	params := req.URL.Query()
+	sessionTimeout, err := strconv.Atoi(params.Get("session_timeout"))
+	if err != nil && sessionTimeout > 0 {
+		return sessionTimeout
+	}
+	return 60
+}
+
 // getQuerySnippet returns query snippet.
 //
 // getQuerySnippet must be called only for error reporting.
@@ -55,6 +74,12 @@ func getQuerySnippet(req *http.Request) string {
 	}
 
 	return query + body
+}
+
+func hash(s string) uint32 {
+	h := fnv.New32a()
+	h.Write([]byte(s))
+	return h.Sum32()
 }
 
 func getQuerySnippetFromBody(req *http.Request) string {

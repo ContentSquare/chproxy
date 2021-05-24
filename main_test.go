@@ -285,6 +285,26 @@ func TestServe(t *testing.T) {
 			startHTTP,
 		},
 		{
+			"http POST request with session id",
+			"testdata/http-session-id.yml",
+			func(t *testing.T) {
+				req, err := http.NewRequest("POST",
+					"http://127.0.0.1:9090/?query_id=45395792-a432-4b92-8cc9-536c14e1e1a9&extremes=0&session_id=default-session-id233",
+					bytes.NewBufferString("SELECT * FROM system.numbers LIMIT 10"))
+				req.Header.Set("Content-Type", "application/x-www-form-urlencoded;") // This makes it work
+
+				checkErr(t, err)
+				resp, err := http.DefaultClient.Do(req)
+				checkErr(t, err)
+
+				if resp.StatusCode != http.StatusOK || resp.StatusCode != http.StatusOK && resp.Header.Get("X-Clickhouse-Server-Session-Id") == "" {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
+				}
+				resp.Body.Close()
+			},
+			startHTTP,
+		},
+		{
 			"http request",
 			"testdata/http.yml",
 			func(t *testing.T) {

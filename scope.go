@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -40,6 +41,9 @@ type scope struct {
 	user        *user
 	clusterUser *clusterUser
 
+	sessionId      string
+	sessionTimeout int
+
 	remoteAddr string
 	localAddr  string
 
@@ -49,20 +53,24 @@ type scope struct {
 	labels prometheus.Labels
 }
 
-func newScope(req *http.Request, u *user, c *cluster, cu *clusterUser) *scope {
+func newScope(req *http.Request, u *user, c *cluster, cu *clusterUser, sessionId string, sessionTimeout int) *scope {
 	h := c.getHost()
-
+	if sessionId != "" {
+		h = c.getHostSticky(sessionId)
+	}
 	var localAddr string
 	if addr, ok := req.Context().Value(http.LocalAddrContextKey).(net.Addr); ok {
 		localAddr = addr.String()
 	}
 	s := &scope{
-		startTime:   time.Now(),
-		id:          newScopeID(),
-		host:        h,
-		cluster:     c,
-		user:        u,
-		clusterUser: cu,
+		startTime:      time.Now(),
+		id:             newScopeID(),
+		host:           h,
+		cluster:        c,
+		user:           u,
+		clusterUser:    cu,
+		sessionId:      sessionId,
+		sessionTimeout: sessionTimeout,
 
 		remoteAddr: req.RemoteAddr,
 		localAddr:  localAddr,
@@ -305,6 +313,10 @@ var allowedParams = []string{
 	"extremes",
 	// what to do if the volume of the result exceeds one of the limits
 	"result_overflow_mode",
+	// session stickiness
+	"session_id",
+	// session timeout
+	"session_timeout",
 }
 
 // This regexp must match params needed to describe a way to use external data
@@ -349,6 +361,8 @@ func (s *scope) decorateRequest(req *http.Request) (*http.Request, url.Values) {
 
 	// Set query_id as scope_id to have possibility to kill query if needed.
 	params.Set("query_id", s.id.String())
+	// Set session_timeout an idle timeout for session
+	params.Set("session_timeout", strconv.Itoa(s.sessionTimeout))
 
 	req.URL.RawQuery = params.Encode()
 
@@ -810,6 +824,42 @@ func (c *cluster) getReplica() *replica {
 	return r
 }
 
+// getHostSticky returns host by stickiness from replica.
+//
+// Always returns non-nil.
+func (r *replica) getHostSticky(sessionId string) *host {
+	idx := atomic.AddUint32(&r.nextHostIdx, 1)
+	n := uint32(len(r.hosts))
+	if n == 1 {
+		return r.hosts[0]
+	}
+
+	idx %= n
+	h := r.hosts[idx]
+
+	// Scan all the hosts for the least loaded host.
+	for i := uint32(1); i < n; i++ {
+		tmpIdx := (idx + i) % n
+
+		// handling sticky session
+		sessionId := hash(sessionId)
+		tmpIdx = (sessionId) % n
+		tmpHSticky := r.hosts[tmpIdx]
+		log.Debugf("Sticky server candidate is: %s", tmpHSticky.addr)
+		if !tmpHSticky.isActive() {
+			log.Debugf("Sticky session server has been picked up, but it is not available")
+			continue
+		}
+		log.Debugf("Sticky session server is: %s, session_id: %d, server_idx: %d, max nodes in pool: %d", tmpHSticky.addr, sessionId, tmpIdx, n)
+		return tmpHSticky
+	}
+
+	// The returned host may be inactive. This is OK,
+	// since this means all the hosts are inactive,
+	// so let's try proxying the request to any host.
+	return h
+}
+
 // getHost returns least loaded + round-robin host from replica.
 //
 // Always returns non-nil.
@@ -854,6 +904,14 @@ func (r *replica) getHost() *host {
 	// since this means all the hosts are inactive,
 	// so let's try proxying the request to any host.
 	return h
+}
+
+// getHostSticky returns host based on stickiness from cluster.
+//
+// Always returns non-nil.
+func (c *cluster) getHostSticky(sessionId string) *host {
+	r := c.getReplica()
+	return r.getHostSticky(sessionId)
 }
 
 // getHost returns least loaded + round-robin host from cluster.

@@ -330,14 +330,14 @@ func TestDecorateRequest(t *testing.T) {
 			"text/plain",
 			"GET",
 			nil,
-			[]string{"query_id", "query"},
+			[]string{"query_id", "session_timeout", "query"},
 		},
 		{
 			"http://127.0.0.1?user=default&password=default&query=SELECT&database=default&wait_end_of_query=1",
 			"text/plain",
 			"GET",
 			nil,
-			[]string{"query_id", "query", "database"},
+			[]string{"query_id", "session_timeout", "query", "database"},
 		},
 		{
 			"http://127.0.0.1?user=default&password=default&query=SELECT&testdata_structure=id+UInt32&testdata_format=TSV",
@@ -352,7 +352,7 @@ func TestDecorateRequest(t *testing.T) {
 					},
 				},
 			},
-			[]string{"query_id", "query", "max_threads"},
+			[]string{"query_id", "session_timeout", "query", "max_threads"},
 		},
 		{
 			"http://127.0.0.1?user=default&password=default&query=SELECT&testdata_structure=id+UInt32&testdata_format=TSV",
@@ -367,7 +367,7 @@ func TestDecorateRequest(t *testing.T) {
 					},
 				},
 			},
-			[]string{"query_id", "query"},
+			[]string{"query_id", "session_timeout", "query"},
 		},
 		{
 			"http://127.0.0.1?user=default&password=default&query=SELECT&testdata_type_buzz=1&testdata_structure_foo=id+UInt32&testdata_format-bar=TSV",
@@ -386,14 +386,14 @@ func TestDecorateRequest(t *testing.T) {
 					},
 				},
 			},
-			[]string{"query_id", "query", "max_threads", "background_pool_size"},
+			[]string{"query_id", "session_timeout", "query", "max_threads", "background_pool_size"},
 		},
 		{
 			"http://127.0.0.1?user=default&password=default&query=SELECT&testdata_structure=id+UInt32&testdata_format=TSV",
 			"multipart/form-data; boundary=foobar",
 			"POST",
 			nil,
-			[]string{"query_id", "testdata_structure", "testdata_format", "query"},
+			[]string{"query_id", "session_timeout", "testdata_structure", "testdata_format", "query"},
 		},
 	}
 

@@ -51,7 +51,6 @@ func newReverseProxy() *reverseProxy {
 
 func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	startTime := time.Now()
-
 	s, status, err := rp.getScope(req)
 	if err != nil {
 		q := getQuerySnippet(req)
@@ -99,6 +98,11 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		ReadCloser: req.Body,
 	}
 
+	// publish session_id if needed
+	if s.sessionId != "" {
+		rw.Header().Set("X-ClickHouse-Server-Session-Id", s.sessionId)
+	}
+
 	if s.user.cache == nil {
 		rp.proxyRequest(s, srw, srw, req)
 	} else {
@@ -110,9 +114,9 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	q := getQuerySnippet(req)
 	if srw.statusCode == http.StatusOK {
 		requestSuccess.With(s.labels).Inc()
-		log.Debugf("%s: request success; query: %q; URL: %q", s, q, req.URL.String())
+		log.Debugf("%s: request success; query: %q; Method: %s; URL: %q", s, q, req.Method, req.URL.String())
 	} else {
-		log.Debugf("%s: request failure: non-200 status code %d; query: %q; URL: %q", s, srw.statusCode, q, req.URL.String())
+		log.Debugf("%s: request failure: non-200 status code %d; query: %q; Method: %s; URL: %q", s, srw.statusCode, q, req.Method, req.URL.String())
 	}
 
 	statusCodes.With(
@@ -435,7 +439,7 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 	return nil
 }
 
-// refreshCacheMetrics refresehs cacheSize and cacheItems metrics.
+// refreshCacheMetrics refreshes cacheSize and cacheItems metrics.
 func (rp *reverseProxy) refreshCacheMetrics() {
 	rp.lock.RLock()
 	defer rp.lock.RUnlock()
@@ -452,7 +456,8 @@ func (rp *reverseProxy) refreshCacheMetrics() {
 
 func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 	name, password := getAuth(req)
-
+	sessionId := getSessionId(req)
+	sessionTimeout := getSessionTimeout(req)
 	var (
 		u  *user
 		c  *cluster
@@ -489,6 +494,6 @@ func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 		return nil, http.StatusForbidden, fmt.Errorf("cluster user %q is not allowed to access", cu.name)
 	}
 
-	s := newScope(req, u, c, cu)
+	s := newScope(req, u, c, cu, sessionId, sessionTimeout)
 	return s, 0, nil
 }
