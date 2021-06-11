@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -43,6 +44,25 @@ func newReverseProxy() *reverseProxy {
 			// Suppress error logging in ReverseProxy, since all the errors
 			// are handled and logged in the code below.
 			ErrorLog: log.NilLogger,
+			ErrorHandler: func(rw http.ResponseWriter, req *http.Request, err error) {
+				log.Errorf("http: proxy error: %v", err)
+				rw.WriteHeader(http.StatusBadGateway)
+			},
+
+			Transport: &http.Transport {
+				DisableKeepAlives: true,
+				Proxy: http.ProxyFromEnvironment,
+				DialContext: (&net.Dialer{
+					Timeout:   30 * time.Second,
+					KeepAlive: 30 * time.Second,
+					DualStack: true,
+				}).DialContext,
+				ForceAttemptHTTP2:     true,
+				MaxIdleConns:          100,
+				IdleConnTimeout:       90 * time.Second,
+				TLSHandshakeTimeout:   10 * time.Second,
+				ExpectContinueTimeout: 1 * time.Second,
+			},
 		},
 		reloadSignal: make(chan struct{}),
 		reloadWG:     sync.WaitGroup{},
