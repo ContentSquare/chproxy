@@ -461,14 +461,14 @@ type user struct {
 	denyHTTPS bool
 	allowCORS bool
 
-	cache  *cache.Cache
+	cache  *cache.AsyncCache
 	params *paramsRegistry
 }
 
 type usersProfile struct {
 	cfg      []config.User
 	clusters map[string]*cluster
-	caches   map[string]*cache.Cache
+	caches   map[string]*cache.AsyncCache
 	params   map[string]*paramsRegistry
 }
 
@@ -501,7 +501,7 @@ func (up usersProfile) newUser(u config.User) (*user, error) {
 		queueCh = make(chan struct{}, u.MaxQueueSize)
 	}
 
-	var cc *cache.Cache
+	var cc *cache.AsyncCache
 	if len(u.Cache) > 0 {
 		cc = up.caches[u.Cache]
 		if cc == nil {

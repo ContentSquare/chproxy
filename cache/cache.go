@@ -1,13 +1,9 @@
 package cache
 
 import (
-	"bufio"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"os"
@@ -23,10 +19,10 @@ import (
 
 // cacheVersion must be increased with each backwads-incompatible change
 // in the cache storage.
-const cacheVersion = 2
+//const cacheVersion = 2
 
-// Cache represents a file cache.
-type Cache struct {
+// FSCache represents a file cache.
+type FSCache struct {
 	// Name is cache name.
 	Name string
 
@@ -44,74 +40,13 @@ type Cache struct {
 	stopCh chan struct{}
 }
 
-type pendingEntry struct {
-	deadline time.Time
-}
-
-// Stats represents cache stats
-type Stats struct {
-	// Size is the cache size in bytes.
-	Size uint64
-
-	// Items is the number of items in the cache.
-	Items uint64
-}
-
-// Key is the key for use in the cache.
-type Key struct {
-	// Query must contain full request query.
-	Query []byte
-
-	// AcceptEncoding must contain 'Accept-Encoding' request header value.
-	AcceptEncoding string
-
-	// DefaultFormat must contain `default_format` query arg.
-	DefaultFormat string
-
-	// Database must contain `database` query arg.
-	Database string
-
-	// Compress must contain `compress` query arg.
-	Compress string
-
-	// EnableHTTPCompression must contain `enable_http_compression` query arg.
-	EnableHTTPCompression string
-
-	// Namespace is an optional cache namespace.
-	Namespace string
-
-	// MaxResultRows must contain `max_result_rows` query arg
-	MaxResultRows string
-
-	// Extremes must contain `extremes` query arg
-	Extremes string
-
-	// ResultOverflowMode must contain `result_overflow_mode` query arg
-	ResultOverflowMode string
-
-	// UserParamsHash must contain hashed value of users params
-	UserParamsHash uint32
-}
-
-// String returns string representation of the key.
-func (k *Key) String() string {
-	s := fmt.Sprintf("V%d; Query=%q; AcceptEncoding=%q; DefaultFormat=%q; Database=%q; Compress=%q; EnableHTTPCompression=%q; Namespace=%q; MaxResultRows=%q; Extremes=%q; ResultOverflowMode=%q; UserParams=%d",
-		cacheVersion, k.Query, k.AcceptEncoding, k.DefaultFormat, k.Database, k.Compress, k.EnableHTTPCompression, k.Namespace,
-		k.MaxResultRows, k.Extremes, k.ResultOverflowMode, k.UserParamsHash)
-	h := sha256.Sum256([]byte(s))
-
-	// The first 16 bytes of the hash should be enough
-	// for collision prevention :)
-	return hex.EncodeToString(h[:16])
-}
-
 // This regexp must match Key.String output
 var cachefileRegexp = regexp.MustCompile(`^[0-9a-f]{32}$`)
 
 // Stats returns cache stats.
 //
 // The returned stats is approximate.
-func (c *Cache) Stats() Stats {
+func (c *FSCache) Stats() Stats {
 	var s Stats
 	s.Size = atomic.LoadUint64(&c.stats.Size)
 	s.Items = atomic.LoadUint64(&c.stats.Items)
@@ -119,7 +54,7 @@ func (c *Cache) Stats() Stats {
 }
 
 // New returns new cache for the given cfg.
-func New(cfg config.Cache) (*Cache, error) {
+func New(cfg config.Cache) (*FSCache, error) {
 	if len(cfg.Dir) == 0 {
 		return nil, fmt.Errorf("`dir` cannot be empty")
 	}
@@ -140,7 +75,7 @@ func New(cfg config.Cache) (*Cache, error) {
 		graceTime = 0
 	}
 
-	c := &Cache{
+	c := &FSCache{
 		Name: cfg.Name,
 
 		dir:       cfg.Dir,
@@ -178,14 +113,14 @@ func New(cfg config.Cache) (*Cache, error) {
 // Close stops the cache.
 //
 // The cache may be used after it is stopped, but it is no longer cleaned.
-func (c *Cache) Close() {
+func (c *FSCache) Close() {
 	log.Debugf("cache %q: stopping", c.Name)
 	close(c.stopCh)
 	c.wg.Wait()
 	log.Debugf("cache %q: stopped", c.Name)
 }
 
-func (c *Cache) cleaner() {
+func (c *FSCache) cleaner() {
 	d := c.expire / 2
 	if d < time.Minute {
 		d = time.Minute
@@ -214,7 +149,7 @@ func (c *Cache) cleaner() {
 	}
 }
 
-func (c *Cache) clean() {
+func (c *FSCache) clean() {
 	currentTime := time.Now()
 
 	log.Debugf("cache %q: start cleaning dir %q", c.Name, c.dir)
@@ -299,48 +234,14 @@ func (c *Cache) clean() {
 	log.Debugf("cache %q: finish cleaning dir %q", c.Name, c.dir)
 }
 
-// walkDir calls f on all the cache files in the given dir.
-func walkDir(dir string, f func(fi os.FileInfo)) error {
-	// Do not use filepath.Walk, since it is inefficient
-	// for large number of files.
-	// See https://golang.org/pkg/path/filepath/#Walk .
-	fd, err := os.Open(dir)
-	if err != nil {
-		return fmt.Errorf("cannot open %q: %s", dir, err)
-	}
-	defer fd.Close()
-
-	for {
-		fis, err := fd.Readdir(1024)
-		if err != nil {
-			if err == io.EOF {
-				return nil
-			}
-			return fmt.Errorf("cannot read files in %q: %s", dir, err)
-		}
-		for _, fi := range fis {
-			if fi.IsDir() {
-				// Skip subdirectories
-				continue
-			}
-			fn := fi.Name()
-			if !cachefileRegexp.MatchString(fn) {
-				// Skip invalid filenames
-				continue
-			}
-			f(fi)
-		}
-	}
-}
-
 // WriteTo writes cached response for the given key to rw.
 //
 // Returns ErrMissing if the response isn't found in the cache.
-func (c *Cache) WriteTo(rw http.ResponseWriter, key *Key) error {
+func (c *FSCache) WriteTo(rw http.ResponseWriter, key *Key) error {
 	return c.writeTo(rw, key, http.StatusOK)
 }
 
-func (c *Cache) writeTo(rw http.ResponseWriter, key *Key, statusCode int) error {
+func (c *FSCache) writeTo(rw http.ResponseWriter, key *Key, statusCode int) error {
 	f, err := c.get(key)
 	if err != nil {
 		return err
@@ -354,7 +255,7 @@ func (c *Cache) writeTo(rw http.ResponseWriter, key *Key, statusCode int) error 
 	return nil
 }
 
-func (c *Cache) get(key *Key) (*os.File, error) {
+func (c *FSCache) get(key *Key) (*os.File, error) {
 	fp := c.filepath(key)
 
 	startTime := time.Now()
@@ -414,7 +315,7 @@ again:
 // ErrMissing is returned when the entry isn't found in the cache.
 var ErrMissing = errors.New("missing cache entry")
 
-func (c *Cache) registerPendingEntry(path string) bool {
+func (c *FSCache) registerPendingEntry(path string) bool {
 	if c.graceTime <= 0 {
 		return true
 	}
@@ -430,7 +331,7 @@ func (c *Cache) registerPendingEntry(path string) bool {
 	return !exists
 }
 
-func (c *Cache) unregisterPendingEntry(path string) {
+func (c *FSCache) unregisterPendingEntry(path string) {
 	if c.graceTime <= 0 {
 		return
 	}
@@ -440,7 +341,7 @@ func (c *Cache) unregisterPendingEntry(path string) {
 	c.pendingEntriesLock.Unlock()
 }
 
-func (c *Cache) pendingEntriesCleaner() {
+func (c *FSCache) pendingEntriesCleaner() {
 	if c.graceTime <= 0 {
 		return
 	}
@@ -474,12 +375,12 @@ func (c *Cache) pendingEntriesCleaner() {
 	}
 }
 
-func (c *Cache) filepath(key *Key) string {
+func (c *FSCache) filepath(key *Key) string {
 	k := key.String()
 	return filepath.Join(c.dir, k)
 }
 
-func (c *Cache) fileInfoPath(fi os.FileInfo) string {
+func (c *FSCache) fileInfoPath(fi os.FileInfo) string {
 	return filepath.Join(c.dir, fi.Name())
 }
 
@@ -488,225 +389,23 @@ func (c *Cache) fileInfoPath(fi os.FileInfo) string {
 //
 // The rw must implement http.CloseNotifier.
 //
-// Commit or Rollback must be called on the returned response writer
+// Finalize or Rollback must be called on the returned response writer
 // after it is no longer needed.
-func (c *Cache) NewResponseWriter(rw http.ResponseWriter, key *Key) (*ResponseWriter, error) {
-	f, err := ioutil.TempFile(c.dir, "tmp")
-	if err != nil {
-		return nil, fmt.Errorf("cache %q: cannot create temporary file in %q: %s", c.Name, c.dir, err)
-	}
-	return &ResponseWriter{
-		ResponseWriter: rw,
-
-		key: key,
-		c:   c,
-
-		tmpFile: f,
-		bw:      bufio.NewWriter(f),
-	}, nil
-}
-
-// ResponseWriter caches the response.
+//func (c *FSCache) NewResponseWriter(rw http.ResponseWriter, key *Key) (*FSResponseWriter, error) {
+//	f, err := ioutil.TempFile(c.dir, "tmp")
+//	if err != nil {
+//		return nil, fmt.Errorf("cache %q: cannot create temporary file in %q: %s", c.Name, c.dir, err)
+//	}
+//	return &FSResponseWriter{
+//		ResponseWriter: rw,
 //
-// Commit or Rollback must be called after the response writer
-// is no longer needed.
-type ResponseWriter struct {
-	http.ResponseWriter // the original response writer
-
-	headersCaptured bool
-	statusCode      int
-
-	key *Key
-	c   *Cache
-
-	tmpFile *os.File      // temporary file for response streaming
-	bw      *bufio.Writer // buffered writer for the temporary file
-}
-
-func (rw *ResponseWriter) captureHeaders() error {
-	if rw.headersCaptured {
-		return nil
-	}
-
-	rw.headersCaptured = true
-	h := rw.Header()
-
-	ct := h.Get("Content-Type")
-	if err := writeHeader(rw.bw, ct); err != nil {
-		fn := rw.tmpFile.Name()
-		return fmt.Errorf("cache %q: cannot write Content-Type to %q: %s", rw.c.Name, fn, err)
-	}
-	ce := h.Get("Content-Encoding")
-	if err := writeHeader(rw.bw, ce); err != nil {
-		fn := rw.tmpFile.Name()
-		return fmt.Errorf("cache %q: cannot write Content-Encoding to %q: %s", rw.c.Name, fn, err)
-	}
-	return nil
-}
-
-// CloseNotify implements http.CloseNotifier
-func (rw *ResponseWriter) CloseNotify() <-chan bool {
-	// The rw.ResponseWriter must implement http.CloseNotifier.
-	return rw.ResponseWriter.(http.CloseNotifier).CloseNotify()
-}
-
-// WriteHeader captures response status code.
-func (rw *ResponseWriter) WriteHeader(statusCode int) {
-	rw.statusCode = statusCode
-	// Do not call rw.ResponseWriter.WriteHeader here
-	// It will be called explicitly in Commit / Rollback.
-}
-
-// StatusCode returns captured status code from WriteHeader.
-func (rw *ResponseWriter) StatusCode() int {
-	if rw.statusCode == 0 {
-		return http.StatusOK
-	}
-	return rw.statusCode
-}
-
-// Write writes b into rw.
-func (rw *ResponseWriter) Write(b []byte) (int, error) {
-	if err := rw.captureHeaders(); err != nil {
-		return 0, err
-	}
-	return rw.bw.Write(b)
-}
-
-// Commit stores the response to the cache and writes it
-// to the wrapped response writer.
-func (rw *ResponseWriter) Commit() error {
-	fp := rw.c.filepath(rw.key)
-	defer rw.c.unregisterPendingEntry(fp)
-	fn := rw.tmpFile.Name()
-
-	if err := rw.captureHeaders(); err != nil {
-		rw.tmpFile.Close()
-		os.Remove(fn)
-		return err
-	}
-
-	if err := rw.bw.Flush(); err != nil {
-		rw.tmpFile.Close()
-		os.Remove(fn)
-		return fmt.Errorf("cache %q: cannot flush data into %q: %s", rw.c.Name, fn, err)
-	}
-
-	// Update cache stats.
-	fi, err := rw.tmpFile.Stat()
-	if err != nil {
-		os.Remove(fn)
-		return fmt.Errorf("cache %q: cannot stat %q: %s", rw.c.Name, fn, err)
-	}
-	fs := uint64(fi.Size())
-	atomic.AddUint64(&rw.c.stats.Size, fs)
-	atomic.AddUint64(&rw.c.stats.Items, 1)
-
-	if err := rw.tmpFile.Close(); err != nil {
-		os.Remove(fn)
-		return fmt.Errorf("cache %q: cannot close %q: %s", rw.c.Name, fn, err)
-	}
-
-	if err := os.Rename(fn, fp); err != nil {
-		return fmt.Errorf("cache %q: cannot rename %q to %q: %s", rw.c.Name, fn, fp, err)
-	}
-
-	return rw.c.writeTo(rw.ResponseWriter, rw.key, rw.StatusCode())
-}
-
-// Rollback writes the response to the wrapped response writer and discards
-// it from the cache.
-func (rw *ResponseWriter) Rollback() error {
-	fp := rw.c.filepath(rw.key)
-	defer rw.c.unregisterPendingEntry(fp)
-	fn := rw.tmpFile.Name()
-
-	if err := rw.captureHeaders(); err != nil {
-		rw.tmpFile.Close()
-		os.Remove(fn)
-		return err
-	}
-
-	if err := rw.bw.Flush(); err != nil {
-		rw.tmpFile.Close()
-		os.Remove(fn)
-		return fmt.Errorf("cache %q: cannot flush data into %q: %s", rw.c.Name, fn, err)
-	}
-
-	if _, err := rw.tmpFile.Seek(0, io.SeekStart); err != nil {
-		rw.tmpFile.Close()
-		os.Remove(fn)
-		return fmt.Errorf("cache %q: cannot seek to the beginning of %q: %s", rw.c.Name, fn, err)
-	}
-
-	if err := sendResponseFromFile(rw.ResponseWriter, rw.tmpFile, 0, rw.StatusCode()); err != nil {
-		rw.tmpFile.Close()
-		os.Remove(fn)
-		return fmt.Errorf("cache %q: %s", rw.c.Name, err)
-	}
-
-	if err := rw.tmpFile.Close(); err != nil {
-		os.Remove(fn)
-		return fmt.Errorf("cache %q: cannot close %q: %s", rw.c.Name, fn, err)
-	}
-	if err := os.Remove(fn); err != nil {
-		return fmt.Errorf("cache %q: cannot remove %q: %s", rw.c.Name, fn, err)
-	}
-	return nil
-}
-
-// sendResponseFromFile sends response to rw from f.
+//		key: key,
+//		c:   c,
 //
-// Sets 'Cache-Control: max-age' header if expire > 0.
-// Sets the given response status code.
-func sendResponseFromFile(rw http.ResponseWriter, f *os.File, expire time.Duration, statusCode int) error {
-	h := rw.Header()
-
-	ct, err := readHeader(f)
-	if err != nil {
-		return fmt.Errorf("cannot read Content-Type from %q: %s", f.Name(), err)
-	}
-	if len(ct) > 0 {
-		h.Set("Content-Type", ct)
-	}
-	ce, err := readHeader(f)
-	if err != nil {
-		return fmt.Errorf("cannot read Content-Encoding from %q: %s", f.Name(), err)
-	}
-	if len(ce) > 0 {
-		h.Set("Content-Encoding", ce)
-	}
-
-	// Determine Content-Length
-	off, err := f.Seek(0, io.SeekCurrent)
-	if err != nil {
-		return fmt.Errorf("cannot determine the current position in %q: %s", f.Name(), err)
-	}
-	fi, err := f.Stat()
-	if err != nil {
-		return fmt.Errorf("cannot stat %q: %s", f.Name(), err)
-	}
-	fs := fi.Size()
-	cl := fs - off
-	h.Set("Content-Length", fmt.Sprintf("%d", cl))
-
-	// Set 'Cache-Control: max-age' on non-temporary file
-	if expire > 0 {
-		mt := fi.ModTime()
-		age := time.Since(mt)
-		left := expire - age
-		if left > 0 {
-			leftSeconds := uint(left / time.Second)
-			h.Set("Cache-Control", fmt.Sprintf("max-age=%d", leftSeconds))
-		}
-	}
-
-	rw.WriteHeader(statusCode)
-	if _, err := io.Copy(rw, f); err != nil {
-		return fmt.Errorf("cannot send %q to client: %s", f.Name(), err)
-	}
-	return nil
-}
+//		tmpFile: f,
+//		bw:      bufio.NewWriter(f),
+//	}, nil
+//}
 
 func writeHeader(w io.Writer, s string) error {
 	n := uint32(len(s))

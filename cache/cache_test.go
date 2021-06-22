@@ -124,7 +124,7 @@ func TestCacheAddGet(t *testing.T) {
 			Query: []byte(fmt.Sprintf("SELECT %d", i)),
 		}
 		trw := &testResponseWriter{}
-		crw, err := c.NewResponseWriter(trw, key)
+		crw, err := NewClickhouseResponseWriter(trw, "/dir")
 		if err != nil {
 			t.Fatalf("cannot create response writer: %s", err)
 		}
@@ -445,7 +445,7 @@ func (trw *testResponseWriter) Header() http.Header {
 
 func (trw *testResponseWriter) WriteHeader(statusCode int) {}
 
-func newTestCache(t *testing.T) *Cache {
+func newTestCache(t *testing.T) *FSCache {
 	t.Helper()
 
 	cfg := config.Cache{

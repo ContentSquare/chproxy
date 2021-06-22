@@ -32,7 +32,7 @@ type reverseProxy struct {
 
 	users    map[string]*user
 	clusters map[string]*cluster
-	caches   map[string]*cache.Cache
+	caches   map[string]*cache.AsyncCache
 }
 
 func newReverseProxy() *reverseProxy {
@@ -181,9 +181,9 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, srw *stat
 		since := float64(time.Since(startTime).Seconds())
 		proxiedResponseDuration.With(s.labels).Observe(since)
 
-		// cache.ResponseWriter pushes status code to srw on Commit/Rollback actions
+		// cache.FSResponseWriter pushes status code to srw on Finalize/Rollback actions
 		// but they didn't happen yet, so manually propagate the status code from crw to srw.
-		if crw, ok := rw.(*cache.ResponseWriter); ok {
+		if crw, ok := rw.(*cache.ClickhouseResponseWriter); ok {
 			srw.statusCode = crw.StatusCode()
 		}
 
@@ -249,7 +249,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	// Do not store `replica` and `cluster_node` in labels, since they have
 	// no sense for cache metrics.
 	labels := prometheus.Labels{
-		"cache":        s.user.cache.Name,
+		"cache":        s.user.cache.Name(),
 		"user":         s.labels["user"],
 		"cluster":      s.labels["cluster"],
 		"cluster_user": s.labels["cluster_user"],
@@ -275,7 +275,9 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	}
 
 	startTime := time.Now()
-	err = s.user.cache.WriteTo(srw, key)
+
+	userCache := s.user.cache
+	err = userCache.Get(srw, key)
 	if err == nil {
 		// The response has been successfully served from cache.
 		cacheHit.With(labels).Inc()
@@ -284,6 +286,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		log.Debugf("%s: cache hit", s)
 		return
 	}
+
 	if err != cache.ErrMissing {
 		// Unexpected error while serving the response.
 		err = fmt.Errorf("%s: %s; query: %q", s, err, q)
@@ -291,27 +294,61 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		return
 	}
 
+	found := awaitGraceTime(key, userCache, time.Second)
+
+	if found {
+		err = userCache.Get(srw, key)
+		if err != nil {
+			//todo cry
+		}
+		return
+	}
+
 	// The response wasn't found in the cache.
 	// Request it from clickhouse.
 	cacheMiss.With(labels).Inc()
 	log.Debugf("%s: cache miss", s)
-	crw, err := s.user.cache.NewResponseWriter(srw, key)
+
+	clickhouseRespWriter, err := cache.NewClickhouseResponseWriter(srw, "/tmp")
 	if err != nil {
 		err = fmt.Errorf("%s: %s; query: %q", s, err, q)
 		respondWith(srw, err, http.StatusInternalServerError)
 		return
 	}
-	rp.proxyRequest(s, crw, srw, req)
 
-	if crw.StatusCode() != http.StatusOK || s.canceled {
+	err = userCache.Register(key)
+	if err != nil {
+		return //todo respond
+	}
+
+	rp.proxyRequest(s, clickhouseRespWriter, srw, req)
+
+	//todo verify if captures header is well handled this way
+	if clickhouseRespWriter.StatusCode() != http.StatusOK || s.canceled {
 		// Do not cache non-200 or cancelled responses.
 		// Restore the original status code by proxyRequest if it was set.
 		if srw.statusCode != 0 {
-			crw.WriteHeader(srw.statusCode)
+			clickhouseRespWriter.WriteHeader(srw.statusCode)
 		}
-		err = crw.Rollback()
+
+		// read from file and
+		// todo: we have to write to response writer the result of the query. From tmp file
+		// rollback -> clickhouse errors
+		// commit -> result data
+		reader, err := clickhouseRespWriter.GetReader()
+		if err!= nil {
+
+		}
+		err = userCache.Rollback(reader, key)
 	} else {
-		err = crw.Commit()
+		// read from file
+		reader, err := clickhouseRespWriter.GetReader()
+		if err!= nil {
+
+		}
+
+		err = userCache.Commit(reader, key)
+
 	}
 
 	if err != nil {
@@ -319,6 +356,35 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		respondWith(srw, err, http.StatusInternalServerError)
 		return
 	}
+}
+
+func awaitGraceTime(key *cache.Key, transaction cache.TransactionRepository, graceTime time.Duration) bool {
+	startTime := time.Now()
+
+	for {
+		if time.Since(startTime) > graceTime {
+			// The entry didn't appear during graceTime.
+			// Let the caller creating it.
+			return false
+		}
+
+		ok := transaction.Status(key)
+		if ok {
+			return ok
+		}
+
+		// Wait for graceTime in the hope the entry will appear
+		// in the cache.
+		//
+		// This should protect from thundering herd problem when
+		// a single slow query is executed from concurrent requests.
+		d := 100 * time.Millisecond
+		if d > graceTime {
+			d = graceTime
+		}
+		time.Sleep(d)
+	}
+
 }
 
 // applyConfig applies the given cfg to reverseProxy.
@@ -337,7 +403,7 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 		return err
 	}
 
-	caches := make(map[string]*cache.Cache, len(cfg.Caches))
+	caches := make(map[string]*cache.AsyncCache, len(cfg.Caches))
 	defer func() {
 		// caches is swapped with old caches from rp.caches
 		// on successful config reload - see the end of reloadConfig.
@@ -352,10 +418,10 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 		if _, ok := caches[cc.Name]; ok {
 			return fmt.Errorf("duplicate config for cache %q", cc.Name)
 		}
-		tmpCache, err := cache.New(cc)
-		if err != nil {
-			return fmt.Errorf("cannot initialize cache %q: %s", cc.Name, err)
-		}
+		tmpCache := cache.NewAsyncCache() // cache.New(cc) todo
+		//if err != nil {
+		//	return fmt.Errorf("cannot initialize cache %q: %s", cc.Name, err)
+		//}
 		caches[cc.Name] = tmpCache
 	}
 
@@ -447,7 +513,7 @@ func (rp *reverseProxy) refreshCacheMetrics() {
 	for _, c := range rp.caches {
 		stats := c.Stats()
 		labels := prometheus.Labels{
-			"cache": c.Name,
+			"cache": c.Name(),
 		}
 		cacheSize.With(labels).Set(float64(stats.Size))
 		cacheItems.With(labels).Set(float64(stats.Items))

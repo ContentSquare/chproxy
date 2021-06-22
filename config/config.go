@@ -607,6 +607,17 @@ type Cache struct {
 	XXX map[string]interface{} `yaml:",inline"`
 }
 
+type FSCache struct {
+	Cache
+	//// Path to directory where cached files will be saved
+	Dir string `yaml:"dir"`
+}
+
+type RedisCache struct {
+	Cache
+	//todo url port etc
+}
+
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (c *Cache) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	type plain Cache
