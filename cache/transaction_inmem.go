@@ -17,6 +17,20 @@ type InMemoryTransaction struct {
 	stopCh    chan struct{}
 }
 
+// todo check l'histoire du pending entries cleaner
+func NewInMemoryTransaction(graceTime time.Duration) *InMemoryTransaction {
+	inMemoryTransaction := &InMemoryTransaction{
+		pendingEntriesLock: sync.Mutex{},
+		pendingEntries:     make(map[*Key]pendingEntry),
+		graceTime:          graceTime,
+		stopCh:             make(chan struct{}),
+	}
+
+	go inMemoryTransaction.pendingEntriesCleaner()
+
+	return inMemoryTransaction
+}
+
 func (i *InMemoryTransaction) Unregister(key *Key) error {
 	i.pendingEntriesLock.Lock()
 	defer i.pendingEntriesLock.Unlock()

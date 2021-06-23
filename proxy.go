@@ -419,7 +419,7 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 		if _, ok := caches[cc.Name]; ok {
 			return fmt.Errorf("duplicate config for cache %q", cc.Name)
 		}
-		tmpCache := cache.NewAsyncCache() // cache.New(cc) todo
+		tmpCache := cache.NewAsyncCache(cc) // cache.New(cc) todo
 		//if err != nil {
 		//	return fmt.Errorf("cannot initialize cache %q: %s", cc.Name, err)
 		//}

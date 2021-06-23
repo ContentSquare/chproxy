@@ -112,10 +112,7 @@ func (f *FileSystemCache) Get(rw http.ResponseWriter, key *Key) error {
 	fp := key.filePath(f.dir)
 	file, err := os.Open(fp)
 	if err != nil {
-		if !os.IsNotExist(err) {
-			// Unexpected error.
-			return fmt.Errorf("cache %q: cannot open %q: %s", f.Name(), fp, err)
-		}
+			return ErrMissing
 	}
 	fi, err := file.Stat()
 	if err != nil {
@@ -142,23 +139,23 @@ func (f *FileSystemCache) Get(rw http.ResponseWriter, key *Key) error {
 	return nil
 }
 
-func (f *FileSystemCache) Put(file *os.File, key *Key) error {
+func (f *FileSystemCache) Put(file *os.File, key *Key) (time.Duration, error) {
 	fp := key.filePath(f.dir)
 
 	if err := os.Rename(file.Name(), fp); err != nil {
-		return fmt.Errorf("cache %q: cannot read buffer to file: %s : %s", f.Name(), key, err)
+		return f.expire, fmt.Errorf("cache %q: cannot read buffer to file: %s : %s", f.Name(), key, err)
 	}
 
 	// Update cache stats.
 	stat, err := file.Stat()
 	if err != nil {
-		return fmt.Errorf("cache %q: cannot stat %q: %s", f.Name(), fp, err)
+		return f.expire, fmt.Errorf("cache %q: cannot stat %q: %s", f.Name(), fp, err)
 	}
 	fs := uint64(stat.Size())
 	atomic.AddUint64(&f.stats.Size, fs)
 	atomic.AddUint64(&f.stats.Items, 1)
 
-	return nil
+	return f.expire, nil
 }
 
 func (f *FileSystemCache) cleaner() {
