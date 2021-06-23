@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"github.com/Vertamedia/chproxy/log"
 	"sync"
 	"time"
 )
@@ -15,20 +16,32 @@ type InMemoryTransaction struct {
 
 	graceTime time.Duration
 	stopCh    chan struct{}
+	wg        sync.WaitGroup
 }
 
-// todo check l'histoire du pending entries cleaner
-func NewInMemoryTransaction(graceTime time.Duration) *InMemoryTransaction {
-	inMemoryTransaction := &InMemoryTransaction{
+func (i *InMemoryTransaction) Close() error {
+	close(i.stopCh)
+	i.wg.Wait()
+	return nil
+}
+
+func newInMemoryTransaction(graceTime time.Duration) *InMemoryTransaction {
+	transaction := &InMemoryTransaction{
 		pendingEntriesLock: sync.Mutex{},
 		pendingEntries:     make(map[*Key]pendingEntry),
 		graceTime:          graceTime,
 		stopCh:             make(chan struct{}),
 	}
 
-	go inMemoryTransaction.pendingEntriesCleaner()
+	transaction.wg.Add(1)
+	go func() {
+		log.Debugf("inmem transaction: cleaner start")
+		transaction.pendingEntriesCleaner()
+		transaction.wg.Done()
+		log.Debugf("inmem transaction: cleaner stop")
+	}()
 
-	return inMemoryTransaction
+	return transaction
 }
 
 func (i *InMemoryTransaction) Unregister(key *Key) error {
