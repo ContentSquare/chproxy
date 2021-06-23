@@ -124,7 +124,7 @@ func TestCacheAddGet(t *testing.T) {
 			Query: []byte(fmt.Sprintf("SELECT %d", i)),
 		}
 		trw := &testResponseWriter{}
-		crw, err := NewClickhouseResponseWriter(trw, "/dir")
+		crw, err := NewTmpFileResponseWriter(trw, "/dir")
 		if err != nil {
 			t.Fatalf("cannot create response writer: %s", err)
 		}

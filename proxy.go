@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/Vertamedia/chproxy/cache/transaction"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -181,9 +182,9 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, srw *stat
 		since := float64(time.Since(startTime).Seconds())
 		proxiedResponseDuration.With(s.labels).Observe(since)
 
-		// cache.FSResponseWriter pushes status code to srw on Finalize/Rollback actions
+		// cache.FSResponseWriter pushes status code to srw on Finalize/Unregister actions
 		// but they didn't happen yet, so manually propagate the status code from crw to srw.
-		if crw, ok := rw.(*cache.ClickhouseResponseWriter); ok {
+		if crw, ok := rw.(*cache.TmpFileResponseWriter); ok {
 			srw.statusCode = crw.StatusCode()
 		}
 
@@ -298,10 +299,9 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 
 	if found {
 		err = userCache.Get(srw, key)
-		if err != nil {
-			//todo cry
+		if err == nil {
+			return
 		}
-		return
 	}
 
 	// The response wasn't found in the cache.
@@ -309,47 +309,48 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	cacheMiss.With(labels).Inc()
 	log.Debugf("%s: cache miss", s)
 
-	clickhouseRespWriter, err := cache.NewClickhouseResponseWriter(srw, "/tmp")
+	tmpRespWriter, err := cache.NewTmpFileResponseWriter(srw, "/tmp")
 	if err != nil {
 		err = fmt.Errorf("%s: %s; query: %q", s, err, q)
 		respondWith(srw, err, http.StatusInternalServerError)
 		return
 	}
+	defer tmpRespWriter.Close()
 
 	err = userCache.Register(key)
 	if err != nil {
-		return //todo respond
+		log.Errorf("%s: %s; query: %q - failed to register transaction", s, err, q)
 	}
+	defer func() {
+		if err = userCache.Unregister(key) ; err != nil {
+			log.Errorf("%s: %s; query: %q", s, err, q)
+		}
+	}()
 
-	rp.proxyRequest(s, clickhouseRespWriter, srw, req)
+	rp.proxyRequest(s, tmpRespWriter, srw, req)
 
 	//todo verify if captures header is well handled this way
-	if clickhouseRespWriter.StatusCode() != http.StatusOK || s.canceled {
+	file, err := tmpRespWriter.GetFile()
+
+	if err != nil {
+		err = fmt.Errorf("%s: %s; query: %q", s, err, q)
+		respondWith(srw, err, http.StatusInternalServerError)
+	}
+
+	if tmpRespWriter.StatusCode() != http.StatusOK || s.canceled {
 		// Do not cache non-200 or cancelled responses.
 		// Restore the original status code by proxyRequest if it was set.
 		if srw.statusCode != 0 {
-			clickhouseRespWriter.WriteHeader(srw.statusCode)
+			tmpRespWriter.WriteHeader(srw.statusCode)
 		}
-
-		// read from file and
-		// todo: we have to write to response writer the result of the query. From tmp file
-		// rollback -> clickhouse errors
-		// commit -> result data
-		reader, err := clickhouseRespWriter.GetReader()
-		if err!= nil {
-
-		}
-		err = userCache.Rollback(reader, key)
 	} else {
-		// read from file
-		reader, err := clickhouseRespWriter.GetReader()
-		if err!= nil {
-
+		err = userCache.Put(file, key)
+		if err != nil {
+			log.Errorf("%s: %s; query: %q - failed to put response in the cache", s, err, q)
 		}
-
-		err = userCache.Commit(reader, key)
-
 	}
+
+	err = cache.SendResponseFromFile(srw, file, 1 * time.Second, tmpRespWriter.StatusCode())
 
 	if err != nil {
 		err = fmt.Errorf("%s: %s; query: %q", s, err, q)
@@ -358,7 +359,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	}
 }
 
-func awaitGraceTime(key *cache.Key, transaction cache.TransactionRepository, graceTime time.Duration) bool {
+func awaitGraceTime(key *cache.Key, transaction transaction.Repository, graceTime time.Duration) bool {
 	startTime := time.Now()
 
 	for {
@@ -368,7 +369,7 @@ func awaitGraceTime(key *cache.Key, transaction cache.TransactionRepository, gra
 			return false
 		}
 
-		ok := transaction.Status(key)
+		ok := transaction.IsDone(key)
 		if ok {
 			return ok
 		}

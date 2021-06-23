@@ -11,7 +11,7 @@ package cache
 //
 ////FSResponseWriter caches the response.
 ////
-////Finalize or Rollback must be called after the response writer
+////Finalize or Unregister must be called after the response writer
 ////is no longer needed.
 //type FSResponseWriter struct {
 //	http.ResponseWriter // the original response writer
@@ -56,7 +56,7 @@ package cache
 //func (rw *FSResponseWriter) WriteHeader(statusCode int) {
 //	rw.statusCode = statusCode
 //	// Do not call rw.FSResponseWriter.WriteHeader here
-//	// It will be called explicitly in Finalize / Rollback.
+//	// It will be called explicitly in Finalize / Unregister.
 //}
 ////
 ////// StatusCode returns captured status code from WriteHeader.
@@ -117,9 +117,9 @@ package cache
 //	//rw.c.writeTo(rw.ResponseWriter, rw.key, rw.StatusCode())
 //}
 ////
-////// Rollback writes the response to the wrapped response writer and discards
+////// Unregister writes the response to the wrapped response writer and discards
 //// it from the cache.
-//func (rw *FSResponseWriter) Rollback() error {
+//func (rw *FSResponseWriter) Unregister() error {
 //	//fp := rw.c.filepath(rw.key)
 //	//defer rw.c.unregisterPendingEntry(fp)
 //	fn := rw.tmpFile.Name()

@@ -41,8 +41,6 @@ type FSCache struct {
 }
 
 // This regexp must match Key.String output
-var cachefileRegexp = regexp.MustCompile(`^[0-9a-f]{32}$`)
-
 // Stats returns cache stats.
 //
 // The returned stats is approximate.
@@ -248,7 +246,7 @@ func (c *FSCache) writeTo(rw http.ResponseWriter, key *Key, statusCode int) erro
 	}
 	defer f.Close()
 
-	if err := sendResponseFromFile(rw, f, c.expire, statusCode); err != nil {
+	if err := SendResponseFromFile(rw, f, c.expire, statusCode); err != nil {
 		return fmt.Errorf("cache %q: %s", c.Name, err)
 	}
 
@@ -382,50 +380,4 @@ func (c *FSCache) filepath(key *Key) string {
 
 func (c *FSCache) fileInfoPath(fi os.FileInfo) string {
 	return filepath.Join(c.dir, fi.Name())
-}
-
-// NewResponseWriter wraps rw into cached response writer
-// that automatically caches the response under the given key.
-//
-// The rw must implement http.CloseNotifier.
-//
-// Finalize or Rollback must be called on the returned response writer
-// after it is no longer needed.
-//func (c *FSCache) NewResponseWriter(rw http.ResponseWriter, key *Key) (*FSResponseWriter, error) {
-//	f, err := ioutil.TempFile(c.dir, "tmp")
-//	if err != nil {
-//		return nil, fmt.Errorf("cache %q: cannot create temporary file in %q: %s", c.Name, c.dir, err)
-//	}
-//	return &FSResponseWriter{
-//		ResponseWriter: rw,
-//
-//		key: key,
-//		c:   c,
-//
-//		tmpFile: f,
-//		bw:      bufio.NewWriter(f),
-//	}, nil
-//}
-
-func writeHeader(w io.Writer, s string) error {
-	n := uint32(len(s))
-
-	b := make([]byte, 0, n+4)
-	b = append(b, byte(n>>24), byte(n>>16), byte(n>>8), byte(n))
-	b = append(b, s...)
-	_, err := w.Write(b)
-	return err
-}
-
-func readHeader(r io.Reader) (string, error) {
-	b := make([]byte, 4)
-	if _, err := io.ReadFull(r, b); err != nil {
-		return "", fmt.Errorf("cannot read header length: %s", err)
-	}
-	n := uint32(b[3]) | (uint32(b[2]) << 8) | (uint32(b[1]) << 16) | (uint32(b[0]) << 24)
-	s := make([]byte, n)
-	if _, err := io.ReadFull(r, s); err != nil {
-		return "", fmt.Errorf("cannot read header value with length %d: %s", n, err)
-	}
-	return string(s), nil
 }

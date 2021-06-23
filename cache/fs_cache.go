@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"github.com/Vertamedia/chproxy/config"
 	"github.com/Vertamedia/chproxy/log"
-	"io"
 	"math/rand"
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -17,6 +17,7 @@ import (
 // cacheVersion must be increased with each backwads-incompatible change
 // in the cache storage.
 const cacheVersion = 2
+var cachefileRegexp = regexp.MustCompile(`^[0-9a-f]{32}$`)
 
 // FileSystemCache represents a file cache.
 type FileSystemCache struct {
@@ -107,7 +108,7 @@ func (f *FileSystemCache) Stats() Stats {
 	return s
 }
 
-func (f *FileSystemCache) Get(w io.Writer, key *Key) error {
+func (f *FileSystemCache) Get(rw http.ResponseWriter, key *Key) error {
 	fp := key.filePath(f.dir)
 	file, err := os.Open(fp)
 	if err != nil {
@@ -134,29 +135,17 @@ func (f *FileSystemCache) Get(w io.Writer, key *Key) error {
 	}
 
 	// todo
-	if err := sendResponseFromFile(w, file, f.expire, http.StatusOK); err != nil {
+	if err := SendResponseFromFile(rw, file, f.expire, http.StatusOK); err != nil {
 		return fmt.Errorf("cache %q: %s", f.Name(), err)
 	}
 
 	return nil
 }
 
-// todo ensure copying of the file is not a perf killer
-func (f *FileSystemCache) Put(r io.Reader, key *Key) error {
+func (f *FileSystemCache) Put(file *os.File, key *Key) error {
 	fp := key.filePath(f.dir)
-	//if err := rw.captureHeaders(); err != nil {
-	//	rw.tmpFile.Close()
-	//	os.Remove(fn)
-	//	return err
-	//}
 
-	file, err := os.Create(fp)
-	if err != nil {
-		return fmt.Errorf("cache %q: cannot create %q: %s", f.Name(), fp, err)
-	}
-	defer file.Close()
-
-	if _, err := io.Copy(file, r); err != nil {
+	if err := os.Rename(file.Name(), fp); err != nil {
 		return fmt.Errorf("cache %q: cannot read buffer to file: %s : %s", f.Name(), key, err)
 	}
 
@@ -264,7 +253,7 @@ func (f *FileSystemCache) clean() {
 			fs := uint64(fi.Size())
 			fn := f.fileInfoPath(fi)
 			if err := os.Remove(fn); err != nil {
-				log.Errorf("cache %q: cannot remove file %q: %s", c.Name, fn, err)
+				log.Errorf("cache %q: cannot remove file %q: %s", f.Name(), fn, err)
 				return
 			}
 			removedSize += fs

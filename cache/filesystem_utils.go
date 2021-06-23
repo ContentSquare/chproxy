@@ -12,7 +12,7 @@ import (
 //
 // Sets 'FSCache-Control: max-age' header if expire > 0.
 // Sets the given response status code.
-func sendResponseFromFile(rw http.ResponseWriter, f *os.File, expire time.Duration, statusCode int) error {
+func SendResponseFromFile(rw http.ResponseWriter, f *os.File, expire time.Duration, statusCode int) error {
 	h := rw.Header()
 
 	ct, err := readHeader(f)
