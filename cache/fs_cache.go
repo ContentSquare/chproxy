@@ -17,6 +17,7 @@ import (
 // cacheVersion must be increased with each backwads-incompatible change
 // in the cache storage.
 const cacheVersion = 3
+
 var cachefileRegexp = regexp.MustCompile(`^[0-9a-f]{32}$`)
 
 // FileSystemCache represents a file cache.
@@ -94,7 +95,7 @@ func (f *FileSystemCache) Get(rw http.ResponseWriter, key *Key) error {
 	fp := key.filePath(f.dir)
 	file, err := os.Open(fp)
 	if err != nil {
-			return ErrMissing
+		return ErrMissing
 	}
 	fi, err := file.Stat()
 	if err != nil {
@@ -113,7 +114,6 @@ func (f *FileSystemCache) Get(rw http.ResponseWriter, key *Key) error {
 		// with the fresh file during graceTime.
 	}
 
-	// todo
 	if err := SendResponseFromFile(rw, file, f.expire, http.StatusOK); err != nil {
 		return fmt.Errorf("cache %q: %s", f.Name(), err)
 	}
