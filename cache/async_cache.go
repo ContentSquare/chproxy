@@ -1,10 +1,8 @@
 package cache
 
-import "github.com/Vertamedia/chproxy/cache/transaction"
-
 type AsyncCache struct {
 	Cache
-	transaction.Repository
+	Transaction
 }
 
 func NewAsyncCache() *AsyncCache {

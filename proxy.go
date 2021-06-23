@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/Vertamedia/chproxy/cache/transaction"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -309,13 +308,13 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	cacheMiss.With(labels).Inc()
 	log.Debugf("%s: cache miss", s)
 
-	tmpRespWriter, err := cache.NewTmpFileResponseWriter(srw, "/tmp")
+	tmpFileRespWriter, err := cache.NewTmpFileResponseWriter(srw, "/tmp")
 	if err != nil {
 		err = fmt.Errorf("%s: %s; query: %q", s, err, q)
 		respondWith(srw, err, http.StatusInternalServerError)
 		return
 	}
-	defer tmpRespWriter.Close()
+	defer tmpFileRespWriter.Close()
 
 	err = userCache.Register(key)
 	if err != nil {
@@ -327,30 +326,29 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		}
 	}()
 
-	rp.proxyRequest(s, tmpRespWriter, srw, req)
+	rp.proxyRequest(s, tmpFileRespWriter, srw, req)
 
-	//todo verify if captures header is well handled this way
-	file, err := tmpRespWriter.GetFile()
+	file, err := tmpFileRespWriter.GetFile()
 
 	if err != nil {
 		err = fmt.Errorf("%s: %s; query: %q", s, err, q)
 		respondWith(srw, err, http.StatusInternalServerError)
 	}
 
-	if tmpRespWriter.StatusCode() != http.StatusOK || s.canceled {
+	if tmpFileRespWriter.StatusCode() != http.StatusOK || s.canceled {
 		// Do not cache non-200 or cancelled responses.
 		// Restore the original status code by proxyRequest if it was set.
 		if srw.statusCode != 0 {
-			tmpRespWriter.WriteHeader(srw.statusCode)
+			tmpFileRespWriter.WriteHeader(srw.statusCode)
 		}
 	} else {
-		err = userCache.Put(file, key)
+		expiration, err := userCache.Put(file, key)
 		if err != nil {
 			log.Errorf("%s: %s; query: %q - failed to put response in the cache", s, err, q)
 		}
 	}
 
-	err = cache.SendResponseFromFile(srw, file, 1 * time.Second, tmpRespWriter.StatusCode())
+	err = cache.SendResponseFromFile(srw, file, 1 * time.Second, tmpFileRespWriter.StatusCode()) // todo: set grace time
 
 	if err != nil {
 		err = fmt.Errorf("%s: %s; query: %q", s, err, q)
@@ -359,7 +357,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	}
 }
 
-func awaitGraceTime(key *cache.Key, transaction transaction.Repository, graceTime time.Duration) bool {
+func awaitGraceTime(key *cache.Key, transaction cache.Transaction, graceTime time.Duration) bool {
 	startTime := time.Now()
 
 	for {

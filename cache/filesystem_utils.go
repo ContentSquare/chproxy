@@ -43,14 +43,14 @@ func SendResponseFromFile(rw http.ResponseWriter, f *os.File, expire time.Durati
 	cl := fs - off
 	h.Set("Content-Length", fmt.Sprintf("%d", cl))
 
-	// Set 'FSCache-Control: max-age' on non-temporary file
+	// Set 'Cache-Control: max-age' on non-temporary file
 	if expire > 0 {
 		mt := fi.ModTime()
 		age := time.Since(mt)
 		left := expire - age
 		if left > 0 {
 			leftSeconds := uint(left / time.Second)
-			h.Set("FSCache-Control", fmt.Sprintf("max-age=%d", leftSeconds))
+			h.Set("Cache-Control", fmt.Sprintf("max-age=%d", leftSeconds))
 		}
 	}
 

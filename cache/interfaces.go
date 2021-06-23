@@ -1,16 +1,22 @@
 package cache
 
 import (
+	"errors"
 	"io"
 	"net/http"
 	"os"
+	"time"
 )
+
+type Expiration time.Duration
 
 type Cache interface {
 	io.Closer
 	Stats() Stats
 	Get(w http.ResponseWriter, key *Key) error
-	Put(r *os.File, key *Key) error
+	Put(r *os.File, key *Key) (Expiration, error)
 	Name() string
 }
 
+// ErrMissing is returned when the entry isn't found in the cache.
+var ErrMissing = errors.New("missing cache entry")
