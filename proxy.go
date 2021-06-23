@@ -335,20 +335,22 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		respondWith(srw, err, http.StatusInternalServerError)
 	}
 
+	var expiration time.Duration
 	if tmpFileRespWriter.StatusCode() != http.StatusOK || s.canceled {
 		// Do not cache non-200 or cancelled responses.
 		// Restore the original status code by proxyRequest if it was set.
 		if srw.statusCode != 0 {
 			tmpFileRespWriter.WriteHeader(srw.statusCode)
 		}
+		expiration = 0
 	} else {
-		expiration, err := userCache.Put(file, key)
+		expiration, err = userCache.Put(file, key)
 		if err != nil {
 			log.Errorf("%s: %s; query: %q - failed to put response in the cache", s, err, q)
 		}
 	}
 
-	err = cache.SendResponseFromFile(srw, file, 1 * time.Second, tmpFileRespWriter.StatusCode()) // todo: set grace time
+	err = cache.SendResponseFromFile(srw, file, expiration, tmpFileRespWriter.StatusCode()) // todo: set grace time
 
 	if err != nil {
 		err = fmt.Errorf("%s: %s; query: %q", s, err, q)

@@ -8,13 +8,11 @@ import (
 	"time"
 )
 
-type Expiration time.Duration
-
 type Cache interface {
 	io.Closer
 	Stats() Stats
 	Get(w http.ResponseWriter, key *Key) error
-	Put(r *os.File, key *Key) (Expiration, error)
+	Put(r *os.File, key *Key) (time.Duration, error)
 	Name() string
 }
 
