@@ -305,9 +305,6 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 
 	// The response wasn't found in the cache.
 	// Request it from clickhouse.
-	cacheMiss.With(labels).Inc()
-	log.Debugf("%s: cache miss", s)
-
 	tmpFileRespWriter, err := cache.NewTmpFileResponseWriter(srw, "/tmp")
 	if err != nil {
 		err = fmt.Errorf("%s: %s; query: %q", s, err, q)
@@ -345,6 +342,8 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		expiration = 0
 	} else {
 		// todo: get it from cache after put
+		cacheMiss.With(labels).Inc()
+		log.Debugf("%s: cache miss", s)
 		expiration, err = userCache.Put(file, key)
 		if err != nil {
 			log.Errorf("%s: %s; query: %q - failed to put response in the cache", s, err, q)
