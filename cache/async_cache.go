@@ -10,6 +10,12 @@ type AsyncCache struct {
 	Transaction
 }
 
+func (c *AsyncCache) Close() error {
+	c.Transaction.Close()
+	c.Cache.Close()
+	return nil
+}
+
 func NewAsyncCache(cfg config.Cache) *AsyncCache {
 	graceTime := time.Duration(cfg.GraceTime)
 	if graceTime == 0 {
