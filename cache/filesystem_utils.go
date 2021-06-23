@@ -8,11 +8,15 @@ import (
 	"time"
 )
 
-// sendResponseFromFile sends response to rw from f.
+// SendResponseFromFile sends response to rw from f.
 //
-// Sets 'FSCache-Control: max-age' header if expire > 0.
+// Sets 'Cache-Control: max-age' header if expire > 0.
 // Sets the given response status code.
 func SendResponseFromFile(rw http.ResponseWriter, f *os.File, expire time.Duration, statusCode int) error {
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return fmt.Errorf("sendRespFromFile: cannot seek to the beginning: %s",err)
+	}
+
 	h := rw.Header()
 
 	ct, err := readHeader(f)

@@ -344,13 +344,14 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		}
 		expiration = 0
 	} else {
+		// todo: get it from cache after put
 		expiration, err = userCache.Put(file, key)
 		if err != nil {
 			log.Errorf("%s: %s; query: %q - failed to put response in the cache", s, err, q)
 		}
 	}
 
-	err = cache.SendResponseFromFile(srw, file, expiration, tmpFileRespWriter.StatusCode()) // todo: set grace time
+	err = cache.SendResponseFromFile(srw, file, expiration, tmpFileRespWriter.StatusCode())
 
 	if err != nil {
 		err = fmt.Errorf("%s: %s; query: %q", s, err, q)
