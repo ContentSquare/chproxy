@@ -35,7 +35,7 @@ type FileSystemCache struct {
 }
 
 // New returns new cache for the given cfg.
-func NewFSCache(cfg config.Cache) (*FileSystemCache, error) {
+func newFSCache(cfg config.Cache, graceTime time.Duration) (*FileSystemCache, error) {
 	if len(cfg.Dir) == 0 {
 		return nil, fmt.Errorf("`dir` cannot be empty")
 	}
@@ -44,16 +44,6 @@ func NewFSCache(cfg config.Cache) (*FileSystemCache, error) {
 	}
 	if cfg.Expire <= 0 {
 		return nil, fmt.Errorf("`expire` must be positive")
-	}
-
-	graceTime := time.Duration(cfg.GraceTime)
-	if graceTime == 0 {
-		// Default grace time.
-		graceTime = 5 * time.Second
-	}
-	if graceTime < 0 {
-		// Disable protection from `dogpile effect`.
-		graceTime = 0
 	}
 
 	c := &FileSystemCache{
@@ -72,19 +62,11 @@ func NewFSCache(cfg config.Cache) (*FileSystemCache, error) {
 
 	c.wg.Add(1)
 	go func() {
-		log.Debugf("cache %q: cleaner start", c.Name)
+		log.Debugf("cache %q: cleaner start", c.Name())
 		c.cleaner()
-		log.Debugf("cache %q: cleaner stop", c.Name)
+		log.Debugf("cache %q: cleaner stop", c.Name())
 		c.wg.Done()
 	}()
-
-	//c.wg.Add(1)
-	//go func() {
-	//	log.Debugf("cache %q: pendingEntriesCleaner start", c.Name)
-	//	c.pendingEntriesCleaner()
-	//	log.Debugf("cache %q: pendingEntriesCleander stop", c.Name)
-	//	c.wg.Done()
-	//}()
 
 	return c, nil
 }

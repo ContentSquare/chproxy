@@ -11,14 +11,24 @@ type AsyncCache struct {
 }
 
 func NewAsyncCache(cfg config.Cache) *AsyncCache {
-	fsCache, err := NewFSCache(cfg)
+	graceTime := time.Duration(cfg.GraceTime)
+	if graceTime == 0 {
+		// Default grace time.
+		graceTime = 5 * time.Second
+	}
+	if graceTime < 0 {
+		// Disable protection from `dogpile effect`.
+		graceTime = 0
+	}
+
+	fsCache, err := newFSCache(cfg, graceTime)
 
 	if err != nil {
 		panic("can not instanciate file system cache")
 	}
 
 	return &AsyncCache{
-		Cache: fsCache,
-		Transaction: NewInMemoryTransaction(10 * time.Second), // todo set duration from config
+		Cache:       fsCache,
+		Transaction: newInMemoryTransaction(graceTime),
 	}
 }
