@@ -8,12 +8,42 @@ import (
 type AsyncCache struct {
 	Cache
 	Transaction
+
+	graceTime time.Duration
 }
 
 func (c *AsyncCache) Close() error {
 	c.Transaction.Close()
 	c.Cache.Close()
 	return nil
+}
+
+func (c *AsyncCache) AwaitForConcurrentTransaction(key *Key) bool {
+	startTime := time.Now()
+
+	for {
+		if time.Since(startTime) > c.graceTime {
+			// The entry didn't appear during graceTime.
+			// Let the caller creating it.
+			return false
+		}
+
+		ok := c.Transaction.IsDone(key)
+		if ok {
+			return ok
+		}
+
+		// Wait for graceTime in the hope the entry will appear
+		// in the cache.
+		//
+		// This should protect from thundering herd problem when
+		// a single slow query is executed from concurrent requests.
+		d := 100 * time.Millisecond
+		if d > c.graceTime {
+			d = c.graceTime
+		}
+		time.Sleep(d)
+	}
 }
 
 func NewAsyncCache(cfg config.Cache) *AsyncCache {
@@ -36,5 +66,6 @@ func NewAsyncCache(cfg config.Cache) *AsyncCache {
 	return &AsyncCache{
 		Cache:       fsCache,
 		Transaction: newInMemoryTransaction(graceTime),
+		graceTime: graceTime,
 	}
 }

@@ -294,9 +294,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		return
 	}
 
-	found := awaitGraceTime(key, userCache, time.Second)
-
-	if found {
+	if userCache.AwaitForConcurrentTransaction(key) {
 		err = userCache.Get(srw, key)
 		if err == nil {
 			return
@@ -357,35 +355,6 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		respondWith(srw, err, http.StatusInternalServerError)
 		return
 	}
-}
-
-func awaitGraceTime(key *cache.Key, transaction cache.Transaction, graceTime time.Duration) bool {
-	startTime := time.Now()
-
-	for {
-		if time.Since(startTime) > graceTime {
-			// The entry didn't appear during graceTime.
-			// Let the caller creating it.
-			return false
-		}
-
-		ok := transaction.IsDone(key)
-		if ok {
-			return ok
-		}
-
-		// Wait for graceTime in the hope the entry will appear
-		// in the cache.
-		//
-		// This should protect from thundering herd problem when
-		// a single slow query is executed from concurrent requests.
-		d := 100 * time.Millisecond
-		if d > graceTime {
-			d = graceTime
-		}
-		time.Sleep(d)
-	}
-
 }
 
 // applyConfig applies the given cfg to reverseProxy.
