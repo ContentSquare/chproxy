@@ -16,7 +16,7 @@ import (
 
 // cacheVersion must be increased with each backwads-incompatible change
 // in the cache storage.
-const cacheVersion = 3
+const cacheVersion = 2
 
 var cachefileRegexp = regexp.MustCompile(`^[0-9a-f]{32}$`)
 

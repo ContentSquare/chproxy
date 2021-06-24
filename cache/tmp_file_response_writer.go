@@ -64,8 +64,7 @@ func (rw *TmpFileResponseWriter) captureHeaders() error {
 	}
 	ce := h.Get("Content-Encoding")
 	if err := writeHeader(rw.bw, ce); err != nil {
-		//fn := rw.tmpFile.Name()
-		return fmt.Errorf("cache %q: cannot write Content-Encoding to %q: %s", err) // todo
+		return fmt.Errorf("tmp_file_resp_writer: cannot write Content-Encoding to %q: %s", rw.tmpFile.Name(), err)
 	}
 	return nil
 }

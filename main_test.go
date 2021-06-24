@@ -94,7 +94,7 @@ func TestServe(t *testing.T) {
 				}
 				rw := httptest.NewRecorder()
 				cc := proxy.caches["https_cache"]
-				if err := cc.WriteTo(rw, key); err != nil {
+				if err := cc.Get(rw, key); err != nil {
 					t.Fatalf("unexpected error while writing reposnse from cache: %s", err)
 				}
 				expected := "Ok.\n"
@@ -132,7 +132,7 @@ func TestServe(t *testing.T) {
 				}
 				rw := httptest.NewRecorder()
 				cc := proxy.caches["https_cache"]
-				if err := cc.WriteTo(rw, key); err != nil {
+				if err := cc.Get(rw, key); err != nil {
 					t.Fatalf("unexpected error while writing reposnse from cache: %s", err)
 				}
 				expected := "Ok.\n"
