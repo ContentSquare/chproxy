@@ -27,7 +27,7 @@ func TestInMemoryTransaction(t *testing.T) {
 
 	isDone = inMemoryTransaction.IsDone(key)
 	if !isDone {
-		t.Fatalf("unexpected: transaction should be pending")
+		t.Fatalf("unexpected: transaction should be done")
 	}
 
 }
