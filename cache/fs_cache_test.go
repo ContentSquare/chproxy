@@ -241,11 +241,13 @@ func TestCacheRollback(t *testing.T) {
 func TestCacheClean(t *testing.T) {
 	cfg := config.Cache{
 		Name:    "foobar",
-		Dir:     testDir,
-		MaxSize: 8192,
+		FS: config.FSCacheConfig{
+			Dir:     testDir,
+			MaxSize: 8192,
+		},
 		Expire:  config.Duration(time.Minute),
 	}
-	c, err := newFSCache(cfg, 0 * time.Second)
+	c, err := newFSCache(cfg, time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -323,11 +325,13 @@ func newTestCache(t *testing.T) *FileSystemCache {
 
 	cfg := config.Cache{
 		Name:    "foobar",
-		Dir:     testDir,
-		MaxSize: 1e6,
+		FS: config.FSCacheConfig{
+			Dir:     testDir,
+			MaxSize: 1e6,
+		},
 		Expire:  config.Duration(time.Minute),
 	}
-	c, err := newFSCache(cfg, time.Second)
+	c, err := newFSCache(cfg, 1 * time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}

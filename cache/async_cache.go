@@ -65,8 +65,8 @@ func NewAsyncCache(cfg config.Cache) *AsyncCache {
 
 	switch cfg.Mode {
 	case "fs":
-		cache, err = newFSCache(cfg)
-		transaction = newInMemoryTransaction(time.Duration(cfg.GraceTime))
+		cache, err = newFSCache(cfg, graceTime)
+		transaction = newInMemoryTransaction(graceTime)
 	case "redis":
 		var redisClient redis.UniversalClient
 		redisClient, err = newRedisClient(cfg.Redis)
@@ -81,6 +81,7 @@ func NewAsyncCache(cfg config.Cache) *AsyncCache {
 	return &AsyncCache{
 		Cache:       cache,
 		Transaction: transaction,
+		graceTime: graceTime,
 	}
 
 }

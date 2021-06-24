@@ -303,7 +303,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 
 	// The response wasn't found in the cache.
 	// Request it from clickhouse.
-	tmpFileRespWriter, err := cache.NewTmpFileResponseWriter(srw, "/tmp")
+	tmpFileRespWriter, err := cache.NewTmpFileResponseWriter(srw, "/Users/pawelgontarz/projects/cs/chproxy")
 	if err != nil {
 		err = fmt.Errorf("%s: %s; query: %q", s, err, q)
 		respondWith(srw, err, http.StatusInternalServerError)
@@ -388,10 +388,7 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 		if _, ok := caches[cc.Name]; ok {
 			return fmt.Errorf("duplicate config for cache %q", cc.Name)
 		}
-		tmpCache := cache.NewAsyncCache(cc) // cache.New(cc) todo
-		//if err != nil {
-		//	return fmt.Errorf("cannot initialize cache %q: %s", cc.Name, err)
-		//}
+		tmpCache := cache.NewAsyncCache(cc)
 		caches[cc.Name] = tmpCache
 	}
 

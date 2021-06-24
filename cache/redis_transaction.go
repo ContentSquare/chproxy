@@ -2,20 +2,22 @@ package cache
 
 import (
 	"context"
-	"encoding/json"
+	"github.com/Vertamedia/chproxy/log"
 	"github.com/go-redis/redis/v8"
 	"time"
 )
 
+const PendingTransactionVal = ""
+
 type RedisTransaction struct {
 	redisClient redis.UniversalClient
-	graceTime time.Duration
+	graceTime   time.Duration
 }
 
 func newRedisTransaction(redisClient redis.UniversalClient, graceTime time.Duration) *RedisTransaction {
 	return &RedisTransaction{
 		redisClient: redisClient,
-		graceTime: graceTime,
+		graceTime:   graceTime,
 	}
 }
 
@@ -23,16 +25,17 @@ func (r RedisTransaction) Close() error {
 	return r.redisClient.Close()
 }
 
-// todo binary encoding
 func (r RedisTransaction) Register(key *Key) error {
-	redisCachedValue := &RedisCachedValue{State: PENDING}
-	j, _ := json.Marshal(redisCachedValue)
-	return r.redisClient.Set(context.Background(), key.String(), string(j), r.graceTime).Err()
+	return r.redisClient.Set(context.Background(), key.String(), PendingTransactionVal, r.graceTime).Err()
 }
 
-// count on redis ttl
 func (r RedisTransaction) Unregister(key *Key) error {
-	return nil
+	isDone := r.IsDone(key)
+	if isDone {
+		return nil
+	} else {
+		return r.redisClient.Del(context.Background(), key.String()).Err()
+	}
 }
 
 func (r RedisTransaction) IsDone(key *Key) bool {
@@ -42,29 +45,10 @@ func (r RedisTransaction) IsDone(key *Key) bool {
 		return true
 	}
 
-	// todo check types of errors
 	if err != nil {
-		return false
+		log.Errorf("Failed to fetch transaction status from redis for key: %s", key.String())
+		return true
 	}
 
-	var redisCachedValue RedisCachedValue
-	err = json.Unmarshal([]byte(value), &redisCachedValue)
-
-	if err != nil {
-		return false
-	}
-
-	return redisCachedValue.State == OK
-}
-
-
-const (
-	OK = "OK"
-	NOK = "NOK"
-	PENDING = "PENDING"
-)
-
-type RedisCachedValue struct {
-	State string `json:"state"`
-	Value []byte `json:"value,omitempty"`
+	return value != PendingTransactionVal
 }

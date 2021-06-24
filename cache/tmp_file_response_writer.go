@@ -36,7 +36,8 @@ func NewTmpFileResponseWriter(rw http.ResponseWriter, dir string) (*TmpFileRespo
 }
 
 func (rw *TmpFileResponseWriter) Close() error {
-	return rw.tmpFile.Close()
+	rw.tmpFile.Close()
+	return os.Remove(rw.tmpFile.Name())
 }
 
 func (rw *TmpFileResponseWriter) GetFile() (*os.File, error) {

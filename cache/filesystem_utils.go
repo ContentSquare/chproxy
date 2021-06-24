@@ -47,16 +47,7 @@ func SendResponseFromFile(rw http.ResponseWriter, f *os.File, expire time.Durati
 	cl := fs - off
 	h.Set("Content-Length", fmt.Sprintf("%d", cl))
 
-	// Set 'Cache-Control: max-age' on non-temporary file
-	if expire > 0 {
-		mt := fi.ModTime()
-		age := time.Since(mt)
-		left := expire - age
-		if left > 0 {
-			leftSeconds := uint(left / time.Second)
-			h.Set("Cache-Control", fmt.Sprintf("max-age=%d", leftSeconds))
-		}
-	}
+	setCacheControl(h, expire, fi.ModTime())
 
 	rw.WriteHeader(statusCode)
 	if _, err := io.Copy(rw, f); err != nil {
@@ -65,6 +56,18 @@ func SendResponseFromFile(rw http.ResponseWriter, f *os.File, expire time.Durati
 	return nil
 }
 
+func setCacheControl(h http.Header, expire time.Duration, modifTime time.Time) {
+	// Set 'Cache-Control: max-age' on non-temporary file
+	if expire > 0 {
+		mt := modifTime
+		age := time.Since(mt)
+		left := expire - age
+		if left > 0 {
+			leftSeconds := uint(left / time.Second)
+			h.Set("Cache-Control", fmt.Sprintf("max-age=%d", leftSeconds))
+		}
+	}
+}
 // walkDir calls f on all the cache files in the given dir.
 func walkDir(dir string, f func(fi os.FileInfo)) error {
 	// Do not use filepath.Walk, since it is inefficient

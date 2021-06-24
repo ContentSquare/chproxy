@@ -104,8 +104,10 @@ func newAsyncTestCache(t *testing.T, graceTime time.Duration) *AsyncCache {
 	t.Helper()
 	cfg := config.Cache{
 		Name:    "foobar",
-		Dir:     asyncTestDir,
-		MaxSize: 1e6,
+		FS: config.FSCacheConfig{
+			Dir:     asyncTestDir,
+			MaxSize: 1e6,
+		},
 		Expire:  config.Duration(time.Minute),
 	}
 	c, err := newFSCache(cfg, graceTime)
