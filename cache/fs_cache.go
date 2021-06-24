@@ -36,11 +36,11 @@ type FileSystemCache struct {
 }
 
 // New returns new cache for the given cfg.
-func newFSCache(cfg config.Cache, graceTime time.Duration) (*FileSystemCache, error) {
-	if len(cfg.Dir) == 0 {
+func newFSCache(cfg config.Cache) (*FileSystemCache, error) {
+	if len(cfg.FS.Dir) == 0 {
 		return nil, fmt.Errorf("`dir` cannot be empty")
 	}
-	if cfg.MaxSize <= 0 {
+	if cfg.FS.MaxSize <= 0 {
 		return nil, fmt.Errorf("`max_size` must be positive")
 	}
 	if cfg.Expire <= 0 {
@@ -50,10 +50,10 @@ func newFSCache(cfg config.Cache, graceTime time.Duration) (*FileSystemCache, er
 	c := &FileSystemCache{
 		name: cfg.Name,
 
-		dir:     cfg.Dir,
-		maxSize: uint64(cfg.MaxSize),
+		dir:     cfg.FS.Dir,
+		maxSize: uint64(cfg.FS.MaxSize),
 		expire:  time.Duration(cfg.Expire),
-		grace:   graceTime,
+		grace:   time.Duration(cfg.GraceTime),
 		stopCh:  make(chan struct{}),
 	}
 

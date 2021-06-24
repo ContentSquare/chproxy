@@ -1,7 +1,9 @@
 package cache
 
 import (
+	"context"
 	"github.com/Vertamedia/chproxy/config"
+	"github.com/go-redis/redis/v8"
 	"time"
 )
 
@@ -57,15 +59,39 @@ func NewAsyncCache(cfg config.Cache) *AsyncCache {
 		graceTime = 0
 	}
 
-	fsCache, err := newFSCache(cfg, graceTime)
+	var cache Cache
+	var transaction Transaction
+	var err error
+
+	switch cfg.Mode {
+	case "fs":
+		cache, err = newFSCache(cfg)
+		transaction = newInMemoryTransaction(time.Duration(cfg.GraceTime))
+	case "redis":
+		var redisClient redis.UniversalClient
+		redisClient, err = newRedisClient(cfg.Redis)
+		cache = newRedisCache(redisClient, cfg)
+		transaction = newRedisTransaction(redisClient, time.Duration(cfg.GraceTime))
+	}
 
 	if err != nil {
-		panic("can not instanciate file system cache")
+		panic("can not instantiate file system cache")
 	}
 
 	return &AsyncCache{
-		Cache:       fsCache,
-		Transaction: newInMemoryTransaction(graceTime),
-		graceTime: graceTime,
+		Cache:       cache,
+		Transaction: transaction,
 	}
+
+}
+
+
+func newRedisClient(cfg config.RedisCacheConfig) (redis.UniversalClient, error) {
+	r := redis.NewUniversalClient(&redis.UniversalOptions{
+		Addrs: cfg.Addresses,
+	})
+
+	err := r.Ping(context.Background()).Err()
+
+	return r, err
 }
