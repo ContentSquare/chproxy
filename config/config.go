@@ -584,16 +584,11 @@ type NetworksOrGroups []string
 // Cache describes configuration options for caching
 // responses from CH clusters
 type Cache struct {
+	// Mode of cache (fs, redis)
+	Mode string `yaml:"mode"`
+
 	// Name of configuration for further assign
 	Name string `yaml:"name"`
-
-	// Path to directory where cached files will be saved
-	Dir string `yaml:"dir"`
-
-	// Maximum total size of all cached to Dir files
-	// If size is exceeded - the oldest files in Dir will be deleted
-	// until total size becomes normal
-	MaxSize ByteSize `yaml:"max_size"`
 
 	// Expiration period for cached response
 	// Files which are older than expiration period will be deleted
@@ -605,24 +600,63 @@ type Cache struct {
 
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
+
+	Redis RedisCacheConfig `yaml:"redis,omitempty"`
+
+	FS FSCacheConfig `yaml:"fs,omitempty"`
+}
+
+type FSCacheConfig struct {
+	//// Path to directory where cached files will be saved
+	Dir string `yaml:"dir"`
+
+	// Maximum total size of all cached to Dir files
+	// If size is exceeded - the oldest files in Dir will be deleted
+	// until total size becomes normal
+	MaxSize ByteSize `yaml:"max_size"`
+}
+
+type RedisCacheConfig struct {
+	Addresses    []string `yaml:"addresses"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *Cache) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *Cache) UnmarshalYAML(unmarshal func(interface{}) error) (err error) {
 	type plain Cache
-	if err := unmarshal((*plain)(c)); err != nil {
+	if err = unmarshal((*plain)(c)); err != nil {
 		return err
 	}
 	if len(c.Name) == 0 {
 		return fmt.Errorf("`cache.name` must be specified")
 	}
-	if len(c.Dir) == 0 {
-		return fmt.Errorf("`cache.dir` must be specified for %q", c.Name)
+
+	switch c.Mode {
+		case "fs":  err = c.checkFSConfig()
+		case "redis": err = c.checkRedisConfig()
 	}
-	if c.MaxSize <= 0 {
-		return fmt.Errorf("`cache.max_size` must be specified for %q", c.Name)
+
+	if err != nil {
+		return fmt.Errorf("failed to configure cache for %q", c.Name)
 	}
+
 	return checkOverflow(c.XXX, fmt.Sprintf("cache %q", c.Name))
+}
+
+func (c *Cache) checkFSConfig() error {
+	if len(c.FS.Dir) == 0 {
+		return fmt.Errorf("`cache.fs.dir` must be specified for %q", c.Name)
+	}
+	if c.FS.MaxSize <= 0 {
+		return fmt.Errorf("`cache.fs.max_size` must be specified for %q", c.Name)
+	}
+	return nil
+}
+
+func (c *Cache) checkRedisConfig() error {
+	if len(c.Redis.Addresses) <= 0 {
+		return fmt.Errorf("`cache.redis.addresses` must be specified for %q", c.Name)
+	}
+	return nil
 }
 
 // ParamGroup describes named group of GET params
