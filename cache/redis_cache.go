@@ -1,9 +1,10 @@
 package cache
 
 import (
+	"bytes"
 	"context"
-	"fmt"
 	"github.com/Vertamedia/chproxy/config"
+	"github.com/Vertamedia/chproxy/log"
 	"github.com/go-redis/redis/v8"
 	"io/ioutil"
 	"net/http"
@@ -11,6 +12,9 @@ import (
 	"time"
 )
 
+// todo:
+// execute command to set max size of database at startup
+// https://redis.io/topics/lru-cache in order to respect max size parameter
 type RedisCache struct {
 	name   string
 	client redis.UniversalClient
@@ -47,22 +51,14 @@ func (r *RedisCache) Get(w http.ResponseWriter, key *Key) error {
 		return ErrMissing
 	}
 
-	f, err := ioutil.TempFile("/tmp", "tmp")
-	if err != nil {
-		return fmt.Errorf("cannot create temporary file in /tmp: %s", err)
-	}
-	defer func() {
-		f.Close()
-		os.Remove(f.Name())
-	}()
-	if _, err := f.Write([]byte(val)); err != nil {
-		return err
+	ttl, err := r.client.TTL(context.Background(), key.String()).Result()
+	if err == redis.Nil {
+		log.Errorf("Not able to fetch TTL for: %s ", key)
 	}
 
-	return SendResponseFromFile(w, f, r.expire, 200)
+	return SendResponseFromReader(w, bytes.NewReader([]byte(val)), ttl, 200)
 }
 
-// todo set state
 func (r *RedisCache) Put(file *os.File, key *Key) (time.Duration, error) {
 	data, err := ioutil.ReadFile(file.Name())
 	if err != nil {
