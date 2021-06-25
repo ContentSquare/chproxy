@@ -98,9 +98,10 @@ func (f *FileSystemCache) Get(rw http.ResponseWriter, key *Key) error {
 	if err != nil {
 		return ErrMissing
 	}
+
+	defer file.Close()
 	fi, err := file.Stat()
 	if err != nil {
-		file.Close()
 		return fmt.Errorf("cache %q: cannot stat %q: %s", f.Name(), fp, err)
 	}
 	mt := fi.ModTime()
@@ -108,7 +109,6 @@ func (f *FileSystemCache) Get(rw http.ResponseWriter, key *Key) error {
 	if age > f.expire {
 		// check if file exceeded expiration time + grace time
 		if age > f.expire+f.grace {
-			file.Close()
 			return ErrMissing
 		}
 		// Serve expired file in the hope it will be substituted
