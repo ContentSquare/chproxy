@@ -3,6 +3,7 @@ package cache
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"github.com/Vertamedia/chproxy/config"
 	"github.com/Vertamedia/chproxy/log"
 	"github.com/go-redis/redis/v8"
@@ -28,6 +29,21 @@ func newRedisCache(client redis.UniversalClient, cfg config.Cache) *RedisCache {
 	}
 
 	return redisCache
+}
+
+func newRedisClient(cfg config.RedisCacheConfig) (redis.UniversalClient, error) {
+	r := redis.NewUniversalClient(&redis.UniversalOptions{
+		Addrs: cfg.Addresses,
+	})
+
+	err := r.Ping(context.Background()).Err()
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to reach redis: %w", err)
+	}
+
+	return r, nil
+
 }
 
 func (r *RedisCache) Close() error {
