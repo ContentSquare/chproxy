@@ -21,15 +21,21 @@ func TestLoadConfig(t *testing.T) {
 				Caches: []Cache{
 					{
 						Name:      "longterm",
-						Dir:       "/path/to/longterm/cachedir",
-						MaxSize:   ByteSize(100 << 30),
+						Mode: "fs",
+						FS: FSCacheConfig{
+							Dir:       "/path/to/longterm/cachedir",
+							MaxSize:   ByteSize(100 << 30),
+						},
 						Expire:    Duration(time.Hour),
 						GraceTime: Duration(20 * time.Second),
 					},
 					{
 						Name:    "shortterm",
-						Dir:     "/path/to/shortterm/cachedir",
-						MaxSize: ByteSize(100 << 20),
+						Mode: "fs",
+						FS: FSCacheConfig{
+							Dir:     "/path/to/shortterm/cachedir",
+							MaxSize:   ByteSize(100 << 20),
+						},
 						Expire:  Duration(10 * time.Second),
 					},
 				},

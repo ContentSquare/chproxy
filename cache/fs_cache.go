@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/Vertamedia/chproxy/config"
 	"github.com/Vertamedia/chproxy/log"
+	"io"
 	"math/rand"
 	"net/http"
 	"os"
@@ -121,23 +122,28 @@ func (f *FileSystemCache) Get(rw http.ResponseWriter, key *Key) error {
 	return nil
 }
 
-func (f *FileSystemCache) Put(file *os.File, key *Key) (time.Duration, error) {
+func (f *FileSystemCache) Put(r io.Reader, key *Key) (time.Duration, error) {
 	fp := key.filePath(f.dir)
 
-	if err := os.Rename(file.Name(), fp); err != nil {
-		return f.expire, fmt.Errorf("cache %q: cannot read buffer to file: %s : %s", f.Name(), key, err)
-	}
+	// it's dangerous what we do here. If client decides to pass for instance memory buffer, we're screwed.
+	// we should think of safeguarding it. Maybe better to tradeoff performance (copy entire underlying buffer)?
+	if file, ok := r.(*os.File); ok {
+		if err := os.Rename(file.Name(), fp); err != nil {
+			return 0, fmt.Errorf("cache %q: cannot re to file: %s : %s", f.Name(), key, err)
+		}
 
-	// Update cache stats.
-	stat, err := file.Stat()
-	if err != nil {
-		return f.expire, fmt.Errorf("cache %q: cannot stat %q: %s", f.Name(), fp, err)
+		// Update cache stats.
+		stat, err := file.Stat()
+		if err != nil {
+			return 0, fmt.Errorf("cache %q: cannot stat %q: %s", f.Name(), fp, err)
+		}
+		fs := uint64(stat.Size())
+		atomic.AddUint64(&f.stats.Size, fs)
+		atomic.AddUint64(&f.stats.Items, 1)
+		return f.expire, nil
+	} else {
+		return 0, fmt.Errorf("cache %q: expected file as a reader for filesystem cache", f.Name())
 	}
-	fs := uint64(stat.Size())
-	atomic.AddUint64(&f.stats.Size, fs)
-	atomic.AddUint64(&f.stats.Items, 1)
-
-	return f.expire, nil
 }
 
 func (f *FileSystemCache) cleaner() {

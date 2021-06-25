@@ -60,16 +60,16 @@ func SendResponseFromFile(rw http.ResponseWriter, f *os.File, expire time.Durati
 //
 // Sets 'Cache-Control: max-age' header if expire > 0.
 // Sets the given response status code.
-func SendResponseFromReader(rw http.ResponseWriter, f io.ReadSeeker, expire time.Duration, statusCode int) error {
+func SendResponseFromReader(rw http.ResponseWriter, src io.ReadSeeker, expire time.Duration, statusCode int) error {
 	h := rw.Header()
-	ct, err := readHeader(f)
+	ct, err := readHeader(src)
 	if err != nil {
 		return fmt.Errorf("cannot read Content-Type from provided reader: %s", err)
 	}
 	if len(ct) > 0 {
 		h.Set("Content-Type", ct)
 	}
-	ce, err := readHeader(f)
+	ce, err := readHeader(src)
 	if err != nil {
 		return fmt.Errorf("cannot read Content-Encoding from provided reader: %s", err)
 	}
@@ -78,18 +78,18 @@ func SendResponseFromReader(rw http.ResponseWriter, f io.ReadSeeker, expire time
 	}
 
 	// Determine Content-Length
-	start, err := f.Seek(0, io.SeekCurrent)
+	start, err := src.Seek(0, io.SeekCurrent)
 	if err != nil {
 		return fmt.Errorf("cannot determine the current position in: %s", err)
 	}
 
-	end, err := f.Seek(0, io.SeekEnd)
+	end, err := src.Seek(0, io.SeekEnd)
 	if err != nil {
 		return fmt.Errorf("cannot determine the current position in: %s", err)
 	}
 
 	// Determine Content-Length
-	_, err = f.Seek(start, io.SeekStart)
+	_, err = src.Seek(start, io.SeekStart)
 	if err != nil {
 		return fmt.Errorf("cannot determine the current position in: %s", err)
 	}
@@ -105,7 +105,7 @@ func SendResponseFromReader(rw http.ResponseWriter, f io.ReadSeeker, expire time
 
 	rw.WriteHeader(statusCode)
 
-	if _, err := io.Copy(rw, f); err != nil {
+	if _, err := io.Copy(rw, src); err != nil {
 		return fmt.Errorf("cannot send response to client: %s", err)
 	}
 

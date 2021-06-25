@@ -103,7 +103,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		rw.Header().Set("X-ClickHouse-Server-Session-Id", s.sessionId)
 	}
 
-	if s.user.cache == nil {
+	if s.user.cache == nil || s.user.cache.Cache == nil {
 		rp.proxyRequest(s, srw, srw, req)
 	} else {
 		rp.serveFromCache(s, srw, req, origParams)
@@ -381,7 +381,9 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 			// Speed up applyConfig by closing caches in background,
 			// since the process of cache closing may be lengthy
 			// due to cleaning.
-			go tmpCache.Close()
+			go func() {
+				tmpCache.Close()
+			}()
 		}
 	}()
 	for _, cc := range cfg.Caches {
