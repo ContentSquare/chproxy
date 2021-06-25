@@ -58,8 +58,8 @@ func (r *RedisCache) Get(w http.ResponseWriter, key *Key) error {
 	return SendResponseFromReader(w, bytes.NewReader([]byte(val)), ttl, 200)
 }
 
-func (r *RedisCache) Put(reader io.Reader, key *Key) (time.Duration, error) {
-	data, err := streamToByte(reader)
+func (r *RedisCache) Put(reader io.ReadSeeker, key *Key) (time.Duration, error) {
+	data, err := streamToBytes(reader)
 	if err != nil {
 		return 0, err
 	}
@@ -77,9 +77,14 @@ func (r *RedisCache) Name() string {
 	return r.name
 }
 
-func streamToByte(stream io.Reader) ([]byte, error) {
+func streamToBytes(stream io.ReadSeeker) ([]byte, error) {
 	buf := new(bytes.Buffer)
-	_, err := buf.ReadFrom(stream)
+	_, err := stream.Seek(0, io.SeekStart)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = buf.ReadFrom(stream)
 	if err != nil {
 		return nil, err
 	}

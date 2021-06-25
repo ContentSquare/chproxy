@@ -122,7 +122,7 @@ func (f *FileSystemCache) Get(rw http.ResponseWriter, key *Key) error {
 	return nil
 }
 
-func (f *FileSystemCache) Put(r io.Reader, key *Key) (time.Duration, error) {
+func (f *FileSystemCache) Put(r io.ReadSeeker, key *Key) (time.Duration, error) {
 	fp := key.filePath(f.dir)
 
 	// it's dangerous what we do here. If client decides to pass for instance memory buffer, we're screwed.

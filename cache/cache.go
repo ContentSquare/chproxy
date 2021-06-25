@@ -11,7 +11,7 @@ type Cache interface {
 	io.Closer
 	Stats() Stats
 	Get(w http.ResponseWriter, key *Key) error
-	Put(r io.Reader, key *Key) (time.Duration, error)
+	Put(r io.ReadSeeker, key *Key) (time.Duration, error)
 	Name() string
 }
 
