@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"github.com/Vertamedia/chproxy/cache"
 	"io"
 	"io/ioutil"
 	"net"
@@ -18,7 +19,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Vertamedia/chproxy/cache"
 	"github.com/Vertamedia/chproxy/config"
 	"github.com/Vertamedia/chproxy/log"
 )

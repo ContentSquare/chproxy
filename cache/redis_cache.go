@@ -6,9 +6,8 @@ import (
 	"github.com/Vertamedia/chproxy/config"
 	"github.com/Vertamedia/chproxy/log"
 	"github.com/go-redis/redis/v8"
-	"io/ioutil"
+	"io"
 	"net/http"
-	"os"
 	"time"
 )
 
@@ -59,8 +58,8 @@ func (r *RedisCache) Get(w http.ResponseWriter, key *Key) error {
 	return SendResponseFromReader(w, bytes.NewReader([]byte(val)), ttl, 200)
 }
 
-func (r *RedisCache) Put(file *os.File, key *Key) (time.Duration, error) {
-	data, err := ioutil.ReadFile(file.Name())
+func (r *RedisCache) Put(reader io.Reader, key *Key) (time.Duration, error) {
+	data, err := streamToByte(reader)
 	if err != nil {
 		return 0, err
 	}
@@ -76,4 +75,13 @@ func (r *RedisCache) Put(file *os.File, key *Key) (time.Duration, error) {
 
 func (r *RedisCache) Name() string {
 	return r.name
+}
+
+func streamToByte(stream io.Reader) ([]byte, error) {
+	buf := new(bytes.Buffer)
+	_, err := buf.ReadFrom(stream)
+	if err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"os"
 	"time"
 )
 
@@ -12,7 +11,7 @@ type Cache interface {
 	io.Closer
 	Stats() Stats
 	Get(w http.ResponseWriter, key *Key) error
-	Put(r *os.File, key *Key) (time.Duration, error)
+	Put(r io.Reader, key *Key) (time.Duration, error)
 	Name() string
 }
 

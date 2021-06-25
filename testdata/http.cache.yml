@@ -17,6 +17,7 @@ clusters:
 
 caches:
   - name: "shortterm"
-    dir: "temp-test-data/cache"
-    max_size: "10M"
+    fs:
+      dir: "temp-test-data/cache"
+      max_size: "10M"
     expire: "1m"

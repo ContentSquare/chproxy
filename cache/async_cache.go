@@ -15,8 +15,12 @@ type AsyncCache struct {
 }
 
 func (c *AsyncCache) Close() error {
-	c.Transaction.Close()
-	c.Cache.Close()
+	if c.Transaction != nil {
+		c.Transaction.Close()
+	}
+	if c.Cache != nil {
+		c.Cache.Close()
+	}
 	return nil
 }
 
