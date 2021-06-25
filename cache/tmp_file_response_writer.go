@@ -13,7 +13,7 @@ import (
 //
 // Collect response to tmp file, capture headers and status.
 type TmpFileResponseWriter struct {
-	http.ResponseWriter // the original response writer // todo
+	http.ResponseWriter // the original response writer
 
 	headersCaptured bool
 	statusCode      int
@@ -61,7 +61,7 @@ func (rw *TmpFileResponseWriter) captureHeaders() error {
 	ct := h.Get("Content-Type")
 	if err := writeHeader(rw.bw, ct); err != nil {
 		fn := rw.tmpFile.Name()
-		return fmt.Errorf("cannot write Content-Type to %q: %s", fn, err) // todo
+		return fmt.Errorf("cannot write Content-Type to %q: %s", fn, err)
 	}
 	ce := h.Get("Content-Encoding")
 	if err := writeHeader(rw.bw, ce); err != nil {

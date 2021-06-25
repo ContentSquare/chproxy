@@ -348,6 +348,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		}
 	}
 
+	// todo: use SendResponseFromFile instead
 	err = cache.SendResponseFromFile(srw, file, expiration, tmpFileRespWriter.StatusCode())
 
 	if err != nil {
