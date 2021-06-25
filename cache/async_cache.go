@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"fmt"
 	"github.com/Vertamedia/chproxy/config"
 	"github.com/go-redis/redis/v8"
 	"time"
@@ -52,7 +53,7 @@ func (c *AsyncCache) AwaitForConcurrentTransaction(key *Key) bool {
 	}
 }
 
-func NewAsyncCache(cfg config.Cache) *AsyncCache {
+func NewAsyncCache(cfg config.Cache) (*AsyncCache, error) {
 	graceTime := time.Duration(cfg.GraceTime)
 	if graceTime == 0 {
 		// Default grace time.
@@ -79,14 +80,14 @@ func NewAsyncCache(cfg config.Cache) *AsyncCache {
 	}
 
 	if err != nil {
-		panic("can not instantiate file system cache")
+		return nil, err
 	}
 
 	return &AsyncCache{
 		Cache:       cache,
 		Transaction: transaction,
 		graceTime: graceTime,
-	}
+	}, nil
 
 }
 
@@ -98,5 +99,10 @@ func newRedisClient(cfg config.RedisCacheConfig) (redis.UniversalClient, error) 
 
 	err := r.Ping(context.Background()).Err()
 
-	return r, err
+	if err != nil {
+		return nil, fmt.Errorf("failed to reach redis: %w", err)
+	}
+
+	return r, nil
+
 }
