@@ -348,7 +348,6 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		}
 	}
 
-	// todo: use SendResponseFromFile instead
 	err = cache.SendResponseFromFile(srw, file, expiration, tmpFileRespWriter.StatusCode())
 
 	if err != nil {
@@ -382,9 +381,7 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 			// Speed up applyConfig by closing caches in background,
 			// since the process of cache closing may be lengthy
 			// due to cleaning.
-			go func() {
-				tmpCache.Close()
-			}()
+			go tmpCache.Close()
 		}
 	}()
 	for _, cc := range cfg.Caches {
