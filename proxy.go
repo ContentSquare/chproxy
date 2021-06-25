@@ -303,7 +303,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 
 	// The response wasn't found in the cache.
 	// Request it from clickhouse.
-	tmpFileRespWriter, err := cache.NewTmpFileResponseWriter(srw, "/Users/pawelgontarz/projects/cs/chproxy")
+	tmpFileRespWriter, err := cache.NewTmpFileResponseWriter(srw, "/tmp")
 	if err != nil {
 		err = fmt.Errorf("%s: %s; query: %q", s, err, q)
 		respondWith(srw, err, http.StatusInternalServerError)
@@ -316,7 +316,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		log.Errorf("%s: %s; query: %q - failed to register transaction", s, err, q)
 	}
 	defer func() {
-		if err = userCache.Unregister(key) ; err != nil {
+		if err = userCache.Unregister(key); err != nil {
 			log.Errorf("%s: %s; query: %q", s, err, q)
 		}
 	}()
