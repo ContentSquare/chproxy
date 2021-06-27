@@ -21,6 +21,7 @@ import (
 
 	"github.com/Vertamedia/chproxy/config"
 	"github.com/Vertamedia/chproxy/log"
+	"github.com/alicebob/miniredis/v2"
 )
 
 var testDir = "./temp-test-data"
@@ -32,8 +33,11 @@ func TestMain(m *testing.M) {
 	if err := os.RemoveAll(testDir); err != nil {
 		log.Fatalf("cannot remove %q: %s", testDir, err)
 	}
+	redisClient.Close()
 	os.Exit(retCode)
 }
+
+var redisClient *miniredis.Miniredis
 
 func TestServe(t *testing.T) {
 	var testCases = []struct {
@@ -314,6 +318,41 @@ func TestServe(t *testing.T) {
 			startHTTP,
 		},
 		{
+			"http requests with caching in redis ",
+			"testdata/http.cache.redis.yml",
+			func(t *testing.T) {
+
+				q := "SELECT redis_cache_mate"
+				req, err := http.NewRequest("GET", "http://127.0.0.1:9090?query="+url.QueryEscape(q), nil)
+				checkErr(t, err)
+
+				httpRequest(t, req, http.StatusOK)
+				httpRequest(t, req, http.StatusOK)
+				keys := redisClient.Keys()
+				if len(keys) != 1 {
+					t.Fatalf("unexpected amount of keys in redis: %v", len(keys))
+				}
+
+				// check cached response
+				key := &cache.Key{
+					Query:          []byte(q),
+					AcceptEncoding: "gzip",
+				}
+				str, err := redisClient.Get(key.String())
+				checkErr(t, err)
+
+				if !strings.Contains(str, "Ok") || !strings.Contains(str, "text/plain") || !strings.Contains(str, "charset=utf-8") {
+					t.Fatalf("result from cache query is wrong: %s", str)
+				}
+
+				duration := redisClient.TTL(key.String())
+				if duration > 1*time.Minute || duration < 30*time.Second {
+					t.Fatalf("ttl on redis key was wrongly set: %s", duration.String())
+				}
+			},
+			startHTTP,
+		},
+		{
 			"http gzipped POST request",
 			"testdata/http.cache.yml",
 			func(t *testing.T) {
@@ -484,6 +523,7 @@ func TestServe(t *testing.T) {
 
 	// Wait until CHServer starts.
 	go startCHServer()
+	redisClient = startRedis(t)
 	startTime := time.Now()
 	i := 0
 	for i < 10 {
@@ -586,6 +626,14 @@ func startHTTP() (net.Listener, chan struct{}) {
 		close(done)
 	}()
 	return ln, done
+}
+
+func startRedis(t *testing.T) *miniredis.Miniredis {
+	redis := miniredis.NewMiniRedis()
+	if err := redis.StartAddr("127.0.0.1:6379"); err != nil {
+		t.Fatalf("Failed to create redis server: %s", err)
+	}
+	return redis
 }
 
 func startCHServer() {
@@ -722,6 +770,18 @@ func checkResponse(t *testing.T, r io.Reader, expected string) {
 
 func httpGet(t *testing.T, url string, statusCode int) *http.Response {
 	resp, err := http.Get(url)
+	if err != nil {
+		t.Fatalf("unexpected erorr while doing GET request: %s", err)
+	}
+	if resp.StatusCode != statusCode {
+		t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, statusCode)
+	}
+	return resp
+}
+
+func httpRequest(t *testing.T, request *http.Request, statusCode int) *http.Response {
+	client := http.Client{}
+	resp, err := client.Do(request)
 	if err != nil {
 		t.Fatalf("unexpected erorr while doing GET request: %s", err)
 	}
