@@ -42,8 +42,10 @@ clusters:
 
 caches:
   - name: "shortterm"
-    dir: "/path/to/cache/dir"
-    max_size: 150Mb
+    mode: "file_system"
+    file_system:
+      dir: "/path/to/cache/dir"
+      max_size: 150Mb
 
     # Cached responses will expire in 130s.
     expire: 130s

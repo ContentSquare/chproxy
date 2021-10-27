@@ -1,8 +1,10 @@
 # cache configuration
 caches:
   - name: "cache"
-    dir: "temp-test-data/cache_deadline"
-    max_size: "10M"
+    mode: "file_system"
+    file_system:
+      dir: "temp-test-data/cache_deadline"
+      max_size: "10M"
     expire: "1m"
 
 server:

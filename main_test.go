@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"github.com/Vertamedia/chproxy/cache"
 	"io"
 	"io/ioutil"
 	"net"
@@ -18,7 +19,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Vertamedia/chproxy/cache"
 	"github.com/Vertamedia/chproxy/config"
 	"github.com/Vertamedia/chproxy/log"
 )
@@ -94,7 +94,7 @@ func TestServe(t *testing.T) {
 				}
 				rw := httptest.NewRecorder()
 				cc := proxy.caches["https_cache"]
-				if err := cc.WriteTo(rw, key); err != nil {
+				if err := cc.Get(rw, key); err != nil {
 					t.Fatalf("unexpected error while writing reposnse from cache: %s", err)
 				}
 				expected := "Ok.\n"
@@ -132,7 +132,7 @@ func TestServe(t *testing.T) {
 				}
 				rw := httptest.NewRecorder()
 				cc := proxy.caches["https_cache"]
-				if err := cc.WriteTo(rw, key); err != nil {
+				if err := cc.Get(rw, key); err != nil {
 					t.Fatalf("unexpected error while writing reposnse from cache: %s", err)
 				}
 				expected := "Ok.\n"

@@ -1,7 +1,9 @@
 caches:
   - name: "longterm"
-    dir: "cache_dir"
-    max_size: "-10B"
+    mode: "file_system"
+    file_system:
+      dir: "cache_dir"
+      max_size: "-10B"
 
 server:
   http:
