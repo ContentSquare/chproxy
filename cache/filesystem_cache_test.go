@@ -80,7 +80,7 @@ func TestCacheAddGet(t *testing.T) {
 			t.Fatalf("failed to put it to cache: %s", err)
 		}
 
-		if err := SendResponseFromFile(trw, f, 0*time.Second, http.StatusOK); err != nil {
+		if err := SendResponseFromReader(trw, f, 0*time.Second, http.StatusOK); err != nil {
 			t.Fatalf("cannot commit response to cache: %s", err)
 		}
 
@@ -111,7 +111,13 @@ func TestCacheAddGet(t *testing.T) {
 			Query: []byte(fmt.Sprintf("SELECT %d", i)),
 		}
 		trw := &testResponseWriter{}
-		if err := c.Get(trw, key); err != nil {
+		v, err := c.Get(key)
+
+		if err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
+
+		if err := SendResponseFromReader(trw, v.Data, v.Ttl, 200); err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
 		value := fmt.Sprintf("value %d", i)
@@ -146,7 +152,14 @@ func TestCacheAddGet(t *testing.T) {
 			Query: []byte(fmt.Sprintf("SELECT %d", i)),
 		}
 		trw := &testResponseWriter{}
-		if err := c1.Get(trw, key); err != nil {
+
+		v, err := c1.Get(key)
+
+		if err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
+
+		if err := SendResponseFromReader(trw, v.Data, v.Ttl, 200); err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
 		value := fmt.Sprintf("value %d", i)
@@ -181,11 +194,9 @@ func TestCacheMiss(t *testing.T) {
 		key := &Key{
 			Query: []byte(fmt.Sprintf("SELECT %d cache miss", i)),
 		}
-		trw := &testResponseWriter{}
-		err := c.Get(trw, key)
-		if err == nil {
-			t.Fatalf("expecting error")
-		}
+
+		_, err := c.Get(key)
+
 		if err != ErrMissing {
 			t.Fatalf("unexpected error: %s; expecting %s", err, ErrMissing)
 		}
@@ -209,7 +220,7 @@ func TestCacheRollback(t *testing.T) {
 			t.Fatalf("cannot send response to cache: %s", err)
 		}
 		if f, err := crw.GetFile(); err == nil {
-			if err := SendResponseFromFile(trw, f, 0*time.Second, http.StatusOK); err != nil {
+			if err := SendResponseFromReader(trw, f, 0*time.Second, http.StatusOK); err != nil {
 				t.Fatalf("cannot commit response to cache: %s", err)
 			}
 		} else {
@@ -227,8 +238,7 @@ func TestCacheRollback(t *testing.T) {
 		key := &Key{
 			Query: []byte(fmt.Sprintf("SELECT %d cache rollback", i)),
 		}
-		trw := &testResponseWriter{}
-		err := c.Get(trw, key)
+		_, err := c.Get(key)
 		if err == nil {
 			t.Fatalf("expecting non-nil error")
 		}

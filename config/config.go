@@ -584,7 +584,7 @@ type NetworksOrGroups []string
 // Cache describes configuration options for caching
 // responses from CH clusters
 type Cache struct {
-	// Mode of cache (filesystem)
+	// Mode of cache (filesystem, redis)
 	// todo make it an enum
 	Mode string `yaml:"mode"`
 
@@ -603,6 +603,8 @@ type Cache struct {
 	XXX map[string]interface{} `yaml:",inline"`
 
 	FileSystem FileSystemCacheConfig `yaml:"file_system,omitempty"`
+
+	Redis RedisCacheConfig `yaml:"redis,omitempty"`
 }
 
 type FileSystemCacheConfig struct {
@@ -613,6 +615,13 @@ type FileSystemCacheConfig struct {
 	// If size is exceeded - the oldest files in Dir will be deleted
 	// until total size becomes normal
 	MaxSize ByteSize `yaml:"max_size"`
+}
+
+type RedisCacheConfig struct {
+	Username  string                 `yaml:"username,omitempty"`
+	Password  string                 `yaml:"password,omitempty"`
+	Addresses []string               `yaml:"addresses"`
+	XXX       map[string]interface{} `yaml:",inline"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -628,6 +637,8 @@ func (c *Cache) UnmarshalYAML(unmarshal func(interface{}) error) (err error) {
 	switch c.Mode {
 	case "file_system":
 		err = c.checkFileSystemConfig()
+	case "redis":
+		err = c.checkRedisConfig()
 	default:
 		err = fmt.Errorf("not supported cache type %v. Supported types: [file_system]", c.Mode)
 	}
@@ -645,6 +656,13 @@ func (c *Cache) checkFileSystemConfig() error {
 	}
 	if c.FileSystem.MaxSize <= 0 {
 		return fmt.Errorf("`cache.filesystem.max_size` must be specified for %q", c.Name)
+	}
+	return nil
+}
+
+func (c *Cache) checkRedisConfig() error {
+	if len(c.Redis.Addresses) <= 0 {
+		return fmt.Errorf("`cache.redis.addresses` must be specified for %q", c.Name)
 	}
 	return nil
 }

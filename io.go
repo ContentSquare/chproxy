@@ -1,9 +1,11 @@
 package main
 
 import (
+	"github.com/Vertamedia/chproxy/cache"
 	"io"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -22,6 +24,10 @@ type statResponseWriter struct {
 	wroteHeader bool
 
 	bytesWritten prometheus.Counter
+}
+
+func (rw *statResponseWriter) RespondWithData(data io.ReadSeeker, ttl time.Duration, statusCode int) error {
+	return cache.SendResponseFromReader(rw, data, ttl, statusCode)
 }
 
 func (rw *statResponseWriter) Write(b []byte) (int, error) {

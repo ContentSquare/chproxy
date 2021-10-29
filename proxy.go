@@ -281,13 +281,14 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 
 	userCache := s.user.cache
 	// Try to serve from cache
-	err = userCache.Get(srw, key)
+	cachedData, err := userCache.Get(key)
 	if err == nil {
 		// The response has been successfully served from cache.
 		cacheHit.With(labels).Inc()
 		since := float64(time.Since(startTime).Seconds())
 		cachedResponseDuration.With(labels).Observe(since)
 		log.Debugf("%s: cache hit", s)
+		srw.RespondWithData(cachedData.Data, cachedData.Ttl, http.StatusOK)
 		return
 	}
 
@@ -300,8 +301,9 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 
 	// Await for potential result from concurrent query
 	if userCache.AwaitForConcurrentTransaction(key) {
-		err = userCache.Get(srw, key)
+		cachedData, err := userCache.Get(key)
 		if err == nil {
+			srw.RespondWithData(cachedData.Data, cachedData.Ttl, http.StatusOK)
 			return
 		}
 	}
@@ -355,7 +357,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		}
 	}
 
-	err = cache.SendResponseFromFile(srw, file, expiration, tmpFileRespWriter.StatusCode())
+	err = srw.RespondWithData(file, expiration, tmpFileRespWriter.StatusCode())
 
 	if err != nil {
 		err = fmt.Errorf("%s: %s; query: %q", s, err, q)

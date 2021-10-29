@@ -1,12 +1,13 @@
 package cache
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/Vertamedia/chproxy/config"
 	"github.com/Vertamedia/chproxy/log"
 	"io"
+	"io/ioutil"
 	"math/rand"
-	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -92,34 +93,41 @@ func (f *fileSystemCache) Stats() Stats {
 	return s
 }
 
-func (f *fileSystemCache) Get(rw http.ResponseWriter, key *Key) error {
+func (f *fileSystemCache) Get(key *Key) (*CachedData, error) {
 	fp := key.filePath(f.dir)
 	file, err := os.Open(fp)
 	if err != nil {
-		return ErrMissing
+		return nil, ErrMissing
 	}
 
 	defer file.Close()
 	fi, err := file.Stat()
 	if err != nil {
-		return fmt.Errorf("cache %q: cannot stat %q: %s", f.Name(), fp, err)
+		return nil, fmt.Errorf("cache %q: cannot stat %q: %s", f.Name(), fp, err)
 	}
 	mt := fi.ModTime()
 	age := time.Since(mt)
 	if age > f.expire {
 		// check if file exceeded expiration time + grace time
 		if age > f.expire+f.grace {
-			return ErrMissing
+			return nil, ErrMissing
 		}
 		// Serve expired file in the hope it will be substituted
 		// with the fresh file during graceTime.
 	}
 
-	if err := SendResponseFromFile(rw, file, f.expire, http.StatusOK); err != nil {
-		return fmt.Errorf("cache %q: %s", f.Name(), err)
+	b, err := ioutil.ReadAll(file)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file content from %q: %s", f.Name(), err)
 	}
 
-	return nil
+	value := &CachedData{
+		Data: bytes.NewReader(b),
+		Ttl:  f.expire - age,
+	}
+
+	return value, nil
 }
 
 func (f *fileSystemCache) Put(r io.ReadSeeker, key *Key) (time.Duration, error) {

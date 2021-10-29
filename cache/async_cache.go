@@ -1,7 +1,9 @@
 package cache
 
 import (
+	"github.com/Vertamedia/chproxy/clients"
 	"github.com/Vertamedia/chproxy/config"
+	"github.com/go-redis/redis/v8"
 	"time"
 )
 
@@ -72,6 +74,11 @@ func NewAsyncCache(cfg config.Cache) (*AsyncCache, error) {
 	case "file_system":
 		cache, err = newFilesSystemCache(cfg, graceTime)
 		transaction = newInMemoryTransactionRegistry(graceTime)
+	case "redis":
+		var redisClient redis.UniversalClient
+		redisClient, err = clients.NewRedisClient(cfg.Redis)
+		cache = newRedisCache(redisClient, cfg)
+		transaction = newRedisTransactionRegistry(redisClient, time.Duration(cfg.GraceTime))
 	}
 
 	if err != nil {
