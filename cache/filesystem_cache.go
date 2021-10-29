@@ -124,26 +124,24 @@ func (f *fileSystemCache) Get(rw http.ResponseWriter, key *Key) error {
 
 func (f *fileSystemCache) Put(r io.ReadSeeker, key *Key) (time.Duration, error) {
 	fp := key.filePath(f.dir)
+	file, err := os.Create(fp)
 
-	// it's dangerous what we do here. If client decides to pass for instance memory buffer, we're screwed.
-	// we should think of safeguarding it. Maybe better to tradeoff performance (copy entire underlying buffer)?
-	if file, ok := r.(*os.File); ok {
-		if err := os.Rename(file.Name(), fp); err != nil {
-			return 0, fmt.Errorf("cache %q: cannot re to file: %s : %s", f.Name(), key, err)
-		}
-
-		// Update cache stats.
-		stat, err := file.Stat()
-		if err != nil {
-			return 0, fmt.Errorf("cache %q: cannot stat %q: %s", f.Name(), fp, err)
-		}
-		fs := uint64(stat.Size())
-		atomic.AddUint64(&f.stats.Size, fs)
-		atomic.AddUint64(&f.stats.Items, 1)
-		return f.expire, nil
-	} else {
-		return 0, fmt.Errorf("cache %q: expected file as a reader for filesystem cache", f.Name())
+	if err != nil {
+		return 0, fmt.Errorf("cache %q: cannot create file: %s : %s", f.Name(), key, err)
 	}
+
+	if _, err = r.Seek(0, io.SeekStart); err != nil {
+		return 0, fmt.Errorf("cache %q: cannot seek: %s : %s", f.Name(), key, err)
+	}
+
+	cnt, err := io.Copy(file, r)
+	if err != nil {
+		return 0, fmt.Errorf("cache %q: cannot write results to file: %s : %s", f.Name(), key, err)
+	}
+
+	atomic.AddUint64(&f.stats.Size, uint64(cnt))
+	atomic.AddUint64(&f.stats.Items, 1)
+	return f.expire, nil
 }
 
 func (f *fileSystemCache) cleaner() {
