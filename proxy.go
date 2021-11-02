@@ -292,13 +292,6 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		return
 	}
 
-	if err != cache.ErrMissing {
-		// Unexpected error while serving the response.
-		err = fmt.Errorf("%s: %s; query: %q", s, err, q)
-		respondWith(srw, err, http.StatusInternalServerError)
-		return
-	}
-
 	// Await for potential result from concurrent query
 	if userCache.AwaitForConcurrentTransaction(key) {
 		cachedData, err := userCache.Get(key)

@@ -85,12 +85,20 @@ func (r *redisCache) Get(key *Key) (*CachedData, error) {
 	defer cancelFunc()
 	val, err := r.client.Get(ctx, key.String()).Result()
 
+	// if key not found in cache
 	if err == redis.Nil || val == pendingTransactionVal {
 		return nil, ErrMissing
 	}
 
+	// others errors, such as timeouts
+	if err != nil {
+		log.Errorf("failed to get key %s with error: %s", key.String(), err)
+		return nil, ErrMissing
+	}
+
 	ttl, err := r.client.TTL(ctx, key.String()).Result()
-	if err == redis.Nil {
+
+	if err != nil {
 		log.Errorf("Not able to fetch TTL for: %s ", key)
 	}
 
