@@ -47,14 +47,17 @@ func (r *redisCache) Stats() Stats {
 
 func (r *redisCache) nbOfKeys() uint64 {
 	nbOfKeys, err := r.client.DBSize(context.Background()).Result()
-	log.Errorf("failed to fetch nb of keys in redis: %s", err)
+	if err != nil {
+		log.Errorf("failed to fetch nb of keys in redis: %s", err)
+	}
 	return uint64(nbOfKeys)
 }
 
 func (r *redisCache) nbOfBytes() uint64 {
 	memoryInfo, err := r.client.Info(context.Background(), "memory").Result()
-	log.Errorf("failed to fetch nb of bytes in redis: %s", err)
-
+	if err != nil {
+		log.Errorf("failed to fetch nb of bytes in redis: %s", err)
+	}
 	matches := usedMemoryRegexp.FindStringSubmatch(memoryInfo)
 
 	var cacheSize int
