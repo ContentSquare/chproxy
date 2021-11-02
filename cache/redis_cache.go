@@ -18,6 +18,10 @@ type redisCache struct {
 	expire time.Duration
 }
 
+const getTimeout = 1 * time.Second
+const putTimeout = 2 * time.Second
+const statsTimeout = 500 * time.Millisecond
+
 func newRedisCache(client redis.UniversalClient, cfg config.Cache) *redisCache {
 	redisCache := &redisCache{
 		name:   cfg.Name,
@@ -46,7 +50,9 @@ func (r *redisCache) Stats() Stats {
 }
 
 func (r *redisCache) nbOfKeys() uint64 {
-	nbOfKeys, err := r.client.DBSize(context.Background()).Result()
+	ctx, cancelFunc := context.WithTimeout(context.Background(), statsTimeout)
+	defer cancelFunc()
+	nbOfKeys, err := r.client.DBSize(ctx).Result()
 	if err != nil {
 		log.Errorf("failed to fetch nb of keys in redis: %s", err)
 	}
@@ -54,7 +60,9 @@ func (r *redisCache) nbOfKeys() uint64 {
 }
 
 func (r *redisCache) nbOfBytes() uint64 {
-	memoryInfo, err := r.client.Info(context.Background(), "memory").Result()
+	ctx, cancelFunc := context.WithTimeout(context.Background(), statsTimeout)
+	defer cancelFunc()
+	memoryInfo, err := r.client.Info(ctx, "memory").Result()
 	if err != nil {
 		log.Errorf("failed to fetch nb of bytes in redis: %s", err)
 	}
@@ -73,13 +81,15 @@ func (r *redisCache) nbOfBytes() uint64 {
 }
 
 func (r *redisCache) Get(key *Key) (*CachedData, error) {
-	val, err := r.client.Get(context.Background(), key.String()).Result()
+	ctx, cancelFunc := context.WithTimeout(context.Background(), getTimeout)
+	defer cancelFunc()
+	val, err := r.client.Get(ctx, key.String()).Result()
 
 	if err == redis.Nil || val == pendingTransactionVal {
 		return nil, ErrMissing
 	}
 
-	ttl, err := r.client.TTL(context.Background(), key.String()).Result()
+	ttl, err := r.client.TTL(ctx, key.String()).Result()
 	if err == redis.Nil {
 		log.Errorf("Not able to fetch TTL for: %s ", key)
 	}
@@ -98,7 +108,9 @@ func (r *redisCache) Put(reader io.ReadSeeker, key *Key) (time.Duration, error) 
 		return 0, err
 	}
 
-	err = r.client.Set(context.Background(), key.String(), data, r.expire).Err()
+	ctx, cancelFunc := context.WithTimeout(context.Background(), putTimeout)
+	defer cancelFunc()
+	err = r.client.Set(ctx, key.String(), data, r.expire).Err()
 
 	if err != nil {
 		return 0, err
