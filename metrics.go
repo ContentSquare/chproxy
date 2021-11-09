@@ -146,6 +146,21 @@ var (
 		},
 		[]string{"user", "cluster", "cluster_user", "replica", "cluster_node"},
 	)
+	cacheHitFromConcurrentQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "cache_hit_concurrent_query_total",
+			Help: "The amount of cache hits after having awaited concurrently executed queries",
+		},
+		[]string{"cache", "user", "cluster", "cluster_user"},
+	)
+
+	cacheMissFromConcurrentQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "cache_miss_concurrent_query_total",
+			Help: "The amount of cache misses, even if previously reported as queries available in the cache, after having awaited concurrently executed queries",
+		},
+		[]string{"cache", "user", "cluster", "cluster_user"},
+	)
 	killedRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "killed_request_total",

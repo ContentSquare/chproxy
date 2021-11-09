@@ -297,8 +297,14 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		cachedData, err := userCache.Get(key)
 		if err == nil {
 			srw.RespondWithData(cachedData.Data, cachedData.Ttl, http.StatusOK)
+			cacheHitFromConcurrentQueries.With(labels).Inc()
+			log.Debugf("%s: cache hit after awaiting concurrent query", s)
 			return
+		} else {
+			cacheMissFromConcurrentQueries.With(labels).Inc()
+			log.Debugf("%s: cache miss after awaiting concurrent query", s)
 		}
+
 	}
 
 	// The response wasn't found in the cache.
