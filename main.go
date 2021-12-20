@@ -40,7 +40,6 @@ func main() {
 		fmt.Printf("%s\n", versionString())
 		os.Exit(0)
 	}
-
 	log.Infof("%s", versionString())
 	log.Infof("Loading config: %s", *configFile)
 	cfg, err := loadConfig()
@@ -268,6 +267,8 @@ func applyConfig(cfg *config.Config) error {
 	allowedNetworksHTTP.Store(&cfg.Server.HTTP.AllowedNetworks)
 	allowedNetworksHTTPS.Store(&cfg.Server.HTTPS.AllowedNetworks)
 	allowedNetworksMetrics.Store(&cfg.Server.Metrics.AllowedNetworks)
+	r:=cfg.LogRotates
+	log.InitLogger(r.Filename,r.MaxSize,r.MaxBackups,r.MaxAge,r.Compress)
 	log.SetDebug(cfg.LogDebug)
 	log.Infof("Loaded config:\n%s", cfg)
 

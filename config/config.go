@@ -43,6 +43,8 @@ type Config struct {
 	// Whether to print debug logs
 	LogDebug bool `yaml:"log_debug,omitempty"`
 
+	LogRotates LogRotate `yaml:"log_rotate,omitempty"`
+
 	// Whether to ignore security warnings
 	HackMePlease bool `yaml:"hack_me_please,omitempty"`
 
@@ -133,6 +135,38 @@ type Server struct {
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
 func (s *Server) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	type plain Server
+	if err := unmarshal((*plain)(s)); err != nil {
+		return err
+	}
+	return checkOverflow(s.XXX, "server")
+}
+
+type LogRotate struct {
+	//filename = path/logfile
+	Filename 	string `yaml:"filename,omitempty"`
+
+	//megabytes for MB, It defaults to 100 megabytes.
+	MaxSize 	int `yaml:"maxSize,omitempty"`
+
+	// max backups, The default is not to remove old log files
+	// based on age.
+	MaxBackups 	int `yaml:"maxBackups,omitempty"`
+
+	// days, The default
+	// is to retain all old log files (though MaxAge may still cause them to get
+	// deleted.)
+	MaxAge 		int `yaml:"maxAge,omitempty"`
+
+	// compress gz, The default is not to perform compression.
+	Compress 	bool `yaml:"compress,omitempty"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (s *LogRotate) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain LogRotate
 	if err := unmarshal((*plain)(s)); err != nil {
 		return err
 	}

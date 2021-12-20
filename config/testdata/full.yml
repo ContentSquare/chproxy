@@ -3,6 +3,20 @@
 # By default debug logs are disabled.
 log_debug: true
 
+# rotate log file
+log_rotate:
+  # filename = path/logfile
+  filename: "logpath/test.log"
+  # megabytes for MB, megabytes for MB, It defaults to 100 megabytes.
+  maxSize: 1
+  # max backups, The default is not to remove old log files based on age.
+  maxBackups: 2
+  # days, The default is to retain all old log files (though MaxAge may
+  # still cause them to get deleted.)
+  maxAge: 1
+  # compress gz, The default is not to perform compression.
+  compress: true
+
 # Whether to ignore security checks during config parsing.
 #
 # By default security checks are enabled.

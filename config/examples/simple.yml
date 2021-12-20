@@ -1,3 +1,7 @@
+log_rotate:
+  # filename = path/logfile
+  filename: "logpath/test.log"
+
 server:
   http:
       listen_addr: ":9090"

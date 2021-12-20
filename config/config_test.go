@@ -62,6 +62,13 @@ func TestLoadConfig(t *testing.T) {
 					},
 				},
 				LogDebug: true,
+				LogRotates: LogRotate{
+					Filename: "logpath/test.log",
+					MaxSize: 1,
+					MaxBackups: 2,
+					MaxAge: 1,
+					Compress: true,
+				},
 
 				Clusters: []Cluster{
 					{

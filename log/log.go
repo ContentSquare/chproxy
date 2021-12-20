@@ -2,6 +2,7 @@ package log
 
 import (
 	"fmt"
+	"gopkg.in/natefinch/lumberjack.v2"
 	"io/ioutil"
 	"log"
 	"os"
@@ -20,6 +21,24 @@ var (
 	// NilLogger suppresses all the log messages.
 	NilLogger = log.New(ioutil.Discard, "", stdLogFlags)
 )
+
+func InitLogger(filename string,maxSize,maxBackups,maxAge int ,compress bool)  {
+	if filename == ""{
+		return
+	}
+	logger := &lumberjack.Logger{
+		Filename:   filename,
+		MaxSize:    maxSize, // megabytes for MB
+		MaxBackups: maxBackups,
+		MaxAge:     maxAge,    // days
+		Compress:   compress, // disabled by default
+	}
+
+	debugLogger = log.New(logger, "DEBUG: ", stdLogFlags)
+	infoLogger  = log.New(logger, "INFO: ", stdLogFlags)
+	errorLogger = log.New(logger, "ERROR: ", stdLogFlags)
+	fatalLogger = log.New(logger, "FATAL: ", stdLogFlags)
+}
 
 // SuppressOutput suppresses all output from logs if `suppress` is true
 // used while testing
