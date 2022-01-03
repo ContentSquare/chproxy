@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -55,10 +56,7 @@ func TestCacheAddGet(t *testing.T) {
 			Query: []byte(fmt.Sprintf("SELECT %d", i)),
 		}
 		trw := &testResponseWriter{}
-		crw, err := NewTmpFileResponseWriter(trw, "/tmp")
-		if err != nil {
-			t.Fatalf("cannot create response writer: %s", err)
-		}
+		crw := NewBufferedResponseWriter(trw)
 
 		ct := fmt.Sprintf("text/html; %d", i)
 		crw.Header().Set("Content-Type", ct)
@@ -71,74 +69,36 @@ func TestCacheAddGet(t *testing.T) {
 			t.Fatalf("cannot send response to cache: %s", err)
 		}
 
-		f, err := crw.GetFile()
-		if err != nil {
-			t.Fatalf("cannot get file: %s", err)
-		}
+		buffer := crw.Reader()
 
-		if _, err := c.Put(f, key); err != nil {
+		length := int64(len(value))
+		if _, err := c.Put(buffer, ContentMetadata{Encoding: ce, Type: ct, Length: length}, key); err != nil {
 			t.Fatalf("failed to put it to cache: %s", err)
 		}
 
-		if err := SendResponseFromReader(trw, f, 0*time.Second, http.StatusOK); err != nil {
-			t.Fatalf("cannot commit response to cache: %s", err)
+		cachedData, err := c.Get(key)
+		if err != nil {
+			t.Fatalf("failed to get data from filesystem cache: %s", err)
 		}
 
 		// Verify trw contains valid headers.
-		gotCT := trw.Header().Get("Content-Type")
-		if gotCT != ct {
-			t.Fatalf("unexpected Content-Type: %q; expecting %q", gotCT, ct)
+		if cachedData.Type != ct {
+			t.Fatalf("unexpected Content-Type: %q; expecting %q", cachedData.Type, ct)
 		}
-		gotCE := trw.Header().Get("Content-Encoding")
-		if gotCE != ce {
-			t.Fatalf("unexpected Content-Encoding: %q; expecting %q", gotCE, ce)
+		if cachedData.Encoding != ce {
+			t.Fatalf("unexpected Content-Encoding: %q; expecting %q", cachedData.Encoding, ce)
 		}
-		cl := fmt.Sprintf("%d", len(value))
-		gotCL := trw.Header().Get("Content-Length")
-		if gotCL != cl {
-			t.Fatalf("unexpected Content-Length: %q; expecting %q", gotCL, cl)
+		cl := length
+		if cachedData.Length != cl {
+			t.Fatalf("unexpected Content-Length: %q; expecting %q", cachedData.Length, cl)
 		}
-
-		// Verify trw contains the response.
-		if string(trw.b) != value {
-			t.Fatalf("unexpected response sent to client: %q; expecting %q", trw.b, value)
-		}
-	}
-
-	// Verify the responses are actually cached.
-	for i := 0; i < 10; i++ {
-		key := &Key{
-			Query: []byte(fmt.Sprintf("SELECT %d", i)),
-		}
-		trw := &testResponseWriter{}
-		v, err := c.Get(key)
-
+		buf := new(strings.Builder)
+		_, err = io.Copy(buf, cachedData.Data)
 		if err != nil {
-			t.Fatalf("unexpected error: %s", err)
+			t.Fatalf("couldn't read buffer to string %s", err)
 		}
-
-		if err := SendResponseFromReader(trw, v.Data, v.Ttl, 200); err != nil {
-			t.Fatalf("unexpected error: %s", err)
-		}
-		value := fmt.Sprintf("value %d", i)
-
-		ct := fmt.Sprintf("text/html; %d", i)
-		gotCT := trw.Header().Get("Content-Type")
-		if gotCT != ct {
-			t.Fatalf("unexpected Content-Type: %q; expecting %q", gotCT, ct)
-		}
-		ce := fmt.Sprintf("gzip; %d", i)
-		gotCE := trw.Header().Get("Content-Encoding")
-		if gotCE != ce {
-			t.Fatalf("unexpected Content-Encoding: %q; expecting %q", gotCE, ce)
-		}
-		cl := fmt.Sprintf("%d", len(value))
-		gotCL := trw.Header().Get("Content-Length")
-		if gotCL != cl {
-			t.Fatalf("unexpected Content-Length: %q; expecting %q", gotCL, cl)
-		}
-
-		if string(trw.b) != value {
+		// Verify trw contains the response.
+		if buf.String() != value {
 			t.Fatalf("unexpected response sent to client: %q; expecting %q", trw.b, value)
 		}
 	}
@@ -151,37 +111,32 @@ func TestCacheAddGet(t *testing.T) {
 		key := &Key{
 			Query: []byte(fmt.Sprintf("SELECT %d", i)),
 		}
-		trw := &testResponseWriter{}
-
-		v, err := c1.Get(key)
-
+		cachedData, err := c.Get(key)
 		if err != nil {
-			t.Fatalf("unexpected error: %s", err)
-		}
-
-		if err := SendResponseFromReader(trw, v.Data, v.Ttl, 200); err != nil {
-			t.Fatalf("unexpected error: %s", err)
+			t.Fatalf("failed to get data from filesystem cache: %s", err)
 		}
 		value := fmt.Sprintf("value %d", i)
-
 		ct := fmt.Sprintf("text/html; %d", i)
-		gotCT := trw.Header().Get("Content-Type")
-		if gotCT != ct {
-			t.Fatalf("unexpected Content-Type: %q; expecting %q", gotCT, ct)
-		}
 		ce := fmt.Sprintf("gzip; %d", i)
-		gotCE := trw.Header().Get("Content-Encoding")
-		if gotCE != ce {
-			t.Fatalf("unexpected Content-Encoding: %q; expecting %q", gotCE, ce)
+		// Verify trw contains valid headers.
+		if cachedData.Type != ct {
+			t.Fatalf("unexpected Content-Type: %q; expecting %q", cachedData.Type, ct)
 		}
-		cl := fmt.Sprintf("%d", len(value))
-		gotCL := trw.Header().Get("Content-Length")
-		if gotCL != cl {
-			t.Fatalf("unexpected Content-Length: %q; expecting %q", gotCL, cl)
+		if cachedData.Encoding != ce {
+			t.Fatalf("unexpected Content-Encoding: %q; expecting %q", cachedData.Encoding, ce)
 		}
-
-		if string(trw.b) != value {
-			t.Fatalf("unexpected response sent to client: %q; expecting %q", trw.b, value)
+		cl := int64(len(value))
+		if cachedData.Length != cl {
+			t.Fatalf("unexpected Content-Length: %q; expecting %q", cachedData.Length, cl)
+		}
+		buf := new(strings.Builder)
+		_, err = io.Copy(buf, cachedData.Data)
+		if err != nil {
+			t.Fatalf("couldn't read buffer to string %s", err)
+		}
+		// Verify that payloads match.
+		if buf.String() != value {
+			t.Fatalf("unexpected value found in cache: %q; expecting %q", buf.String(), value)
 		}
 	}
 }
@@ -199,51 +154,6 @@ func TestCacheMiss(t *testing.T) {
 
 		if err != ErrMissing {
 			t.Fatalf("unexpected error: %s; expecting %s", err, ErrMissing)
-		}
-	}
-}
-
-func TestCacheRollback(t *testing.T) {
-	c := newTestCache(t)
-	defer c.Close()
-
-	for i := 0; i < 10; i++ {
-		trw := &testResponseWriter{}
-		crw, err := NewTmpFileResponseWriter(trw, "/tmp")
-		if err != nil {
-			t.Fatalf("cannot create response writer: %s", err)
-		}
-
-		value := fmt.Sprintf("very big value %d", i)
-		bs := bytes.NewBufferString(value)
-		if _, err := io.Copy(crw, bs); err != nil {
-			t.Fatalf("cannot send response to cache: %s", err)
-		}
-		if f, err := crw.GetFile(); err == nil {
-			if err := SendResponseFromReader(trw, f, 0*time.Second, http.StatusOK); err != nil {
-				t.Fatalf("cannot commit response to cache: %s", err)
-			}
-		} else {
-			t.Fatalf("cannot rollback response: %s", err)
-		}
-
-		// Verify trw contains valid response
-		if string(trw.b) != value {
-			t.Fatalf("unexpected value received: %q; expecting %q", trw.b, value)
-		}
-	}
-
-	// Verify that rolled back values aren't cached
-	for i := 0; i < 10; i++ {
-		key := &Key{
-			Query: []byte(fmt.Sprintf("SELECT %d cache rollback", i)),
-		}
-		_, err := c.Get(key)
-		if err == nil {
-			t.Fatalf("expecting non-nil error")
-		}
-		if err != ErrMissing {
-			t.Fatalf("unexpected error: %q; expecting %q", err, ErrMissing)
 		}
 	}
 }
@@ -269,10 +179,7 @@ func TestCacheClean(t *testing.T) {
 			Query: []byte(fmt.Sprintf("SELECT %d cache clean", i)),
 		}
 		trw := &testResponseWriter{}
-		crw, err := NewTmpFileResponseWriter(trw, "/tmp")
-		if err != nil {
-			t.Fatalf("cannot create response writer: %s", err)
-		}
+		crw := NewBufferedResponseWriter(trw)
 
 		value := fmt.Sprintf("very big value %d", i)
 		bs := bytes.NewBufferString(value)
@@ -280,15 +187,10 @@ func TestCacheClean(t *testing.T) {
 			t.Fatalf("cannot send response to cache: %s", err)
 		}
 
-		f, err := crw.GetFile()
-		if err != nil {
-			t.Fatalf("cannot get file: %s", err)
-		}
-
-		if _, err := c.Put(f, key); err != nil {
+		reader := crw.Reader()
+		if _, err := c.Put(reader, ContentMetadata{}, key); err != nil {
 			t.Fatalf("failed to put it to cache: %s", err)
 		}
-		crw.Close()
 	}
 
 	// Forcibly clean the cache

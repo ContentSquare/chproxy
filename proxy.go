@@ -35,9 +35,6 @@ type reverseProxy struct {
 	caches   map[string]*cache.AsyncCache
 }
 
-// tmpDir temporary path to store ongoing queries results
-const tmpDir = "/tmp"
-
 func newReverseProxy() *reverseProxy {
 	return &reverseProxy{
 		rp: &httputil.ReverseProxy{
@@ -186,7 +183,7 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, srw *stat
 
 		// cache.FSResponseWriter pushes status code to srw on Finalize/Unregister actions
 		// but they didn't happen yet, so manually propagate the status code from crw to srw.
-		if crw, ok := rw.(*cache.TmpFileResponseWriter); ok {
+		if crw, ok := rw.(*cache.BufferedResponseWriter); ok {
 			srw.statusCode = crw.StatusCode()
 		}
 
@@ -262,23 +259,9 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	if s.user.params != nil {
 		paramsHash = s.user.params.key
 	}
-	key := &cache.Key{
-		Query: skipLeadingComments(q),
-		// sort `Accept-Encoding` header to get the same combination for different browsers
-		AcceptEncoding:        sortHeader(req.Header.Get("Accept-Encoding")),
-		DefaultFormat:         origParams.Get("default_format"),
-		Database:              origParams.Get("database"),
-		Compress:              origParams.Get("compress"),
-		EnableHTTPCompression: origParams.Get("enable_http_compression"),
-		Namespace:             origParams.Get("cache_namespace"),
-		Extremes:              origParams.Get("extremes"),
-		MaxResultRows:         origParams.Get("max_result_rows"),
-		ResultOverflowMode:    origParams.Get("result_overflow_mode"),
-		UserParamsHash:        paramsHash,
-	}
+	key := cache.NewKey(skipLeadingComments(q), origParams, sortHeader(req.Header.Get("Accept-Encoding")), paramsHash)
 
 	startTime := time.Now()
-
 	userCache := s.user.cache
 	// Try to serve from cache
 	cachedData, err := userCache.Get(key)
@@ -288,7 +271,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		since := float64(time.Since(startTime).Seconds())
 		cachedResponseDuration.With(labels).Observe(since)
 		log.Debugf("%s: cache hit", s)
-		srw.RespondWithData(cachedData.Data, cachedData.Ttl, http.StatusOK)
+		_ = RespondWithData(srw, cachedData.Data, cachedData.ContentMetadata, cachedData.Ttl, http.StatusOK)
 		return
 	}
 
@@ -296,7 +279,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	if userCache.AwaitForConcurrentTransaction(key) {
 		cachedData, err := userCache.Get(key)
 		if err == nil {
-			srw.RespondWithData(cachedData.Data, cachedData.Ttl, http.StatusOK)
+			_ = RespondWithData(srw, cachedData.Data, cachedData.ContentMetadata, cachedData.Ttl, http.StatusOK)
 			cacheHitFromConcurrentQueries.With(labels).Inc()
 			log.Debugf("%s: cache hit after awaiting concurrent query", s)
 			return
@@ -309,13 +292,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 
 	// The response wasn't found in the cache.
 	// Request it from clickhouse.
-	tmpFileRespWriter, err := cache.NewTmpFileResponseWriter(srw, tmpDir)
-	if err != nil {
-		err = fmt.Errorf("%s: %s; query: %q", s, err, q)
-		respondWith(srw, err, http.StatusInternalServerError)
-		return
-	}
-	defer tmpFileRespWriter.Close()
+	bufferedRespWriter := cache.NewBufferedResponseWriter(srw)
 
 	// Initialise transaction
 	err = userCache.Register(key)
@@ -329,40 +306,39 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		}
 	}()
 
-	rp.proxyRequest(s, tmpFileRespWriter, srw, req)
-
-	file, err := tmpFileRespWriter.GetFile()
-
-	if err != nil {
-		err = fmt.Errorf("%s: %s; query: %q", s, err, q)
-		respondWith(srw, err, http.StatusInternalServerError)
-	}
-
-	var expiration time.Duration
-	if tmpFileRespWriter.StatusCode() != http.StatusOK || s.canceled {
+	// proxy request and capture response along with headers to [[BufferedResponseWriter]]
+	rp.proxyRequest(s, bufferedRespWriter, srw, req)
+	if bufferedRespWriter.StatusCode() != http.StatusOK || s.canceled {
 		// Do not cache non-200 or cancelled responses.
 		// Restore the original status code by proxyRequest if it was set.
 		if srw.statusCode != 0 {
-			tmpFileRespWriter.WriteHeader(srw.statusCode)
+			bufferedRespWriter.WriteHeader(srw.statusCode)
 		}
-		expiration = 0
-	} else {
-		// todo: get it from cache after put
-		cacheMiss.With(labels).Inc()
-		log.Debugf("%s: cache miss", s)
-		expiration, err = userCache.Put(file, key)
+		err = RespondWithoutData(srw)
 		if err != nil {
 			log.Errorf("%s: %s; query: %q - failed to put response in the cache", s, err, q)
 		}
+	} else {
+		cacheMiss.With(labels).Inc()
+		log.Debugf("%s: cache miss", s)
+		contentEncoding := bufferedRespWriter.GetCapturedContentEncoding()
+		contentType := bufferedRespWriter.GetCapturedContentType()
+		contentLength := bufferedRespWriter.GetCapturedContentLength()
+		reader := bufferedRespWriter.Reader()
+
+		contentMetadata := cache.ContentMetadata{Length: contentLength, Encoding: contentEncoding, Type: contentType}
+		expiration, err := userCache.Put(reader, contentMetadata, key)
+		if err != nil {
+			log.Errorf("%s: %s; query: %q - failed to put response in the cache", s, err, q)
+		}
+		err = RespondWithData(srw, reader, contentMetadata, expiration, bufferedRespWriter.StatusCode())
+		if err != nil {
+			err = fmt.Errorf("%s: %s; query: %q", s, err, q)
+			respondWith(srw, err, http.StatusInternalServerError)
+			return
+		}
 	}
 
-	err = srw.RespondWithData(file, expiration, tmpFileRespWriter.StatusCode())
-
-	if err != nil {
-		err = fmt.Errorf("%s: %s; query: %q", s, err, q)
-		respondWith(srw, err, http.StatusInternalServerError)
-		return
-	}
 }
 
 // applyConfig applies the given cfg to reverseProxy.

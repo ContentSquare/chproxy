@@ -3,6 +3,7 @@ package cache
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"github.com/Vertamedia/chproxy/config"
 	"github.com/Vertamedia/chproxy/log"
 	"github.com/go-redis/redis/v8"
@@ -21,6 +22,13 @@ type redisCache struct {
 const getTimeout = 1 * time.Second
 const putTimeout = 2 * time.Second
 const statsTimeout = 500 * time.Millisecond
+
+type redisCachePayload struct {
+	Length   int64  `json:"l"`
+	Type     string `json:"t"`
+	Encoding string `json:"enc"`
+	Payload  string `json:"payload"`
+}
 
 func newRedisCache(client redis.UniversalClient, cfg config.Cache) *redisCache {
 	redisCache := &redisCache{
@@ -96,6 +104,14 @@ func (r *redisCache) Get(key *Key) (*CachedData, error) {
 		return nil, ErrMissing
 	}
 
+	var payload redisCachePayload
+	err = json.Unmarshal([]byte(val), &payload)
+
+	if err != nil {
+		log.Errorf("corrupted payload for key %s with error: %s", key.String(), err)
+		return nil, ErrMissing
+	}
+
 	ttl, err := r.client.TTL(ctx, key.String()).Result()
 
 	if err != nil {
@@ -103,22 +119,36 @@ func (r *redisCache) Get(key *Key) (*CachedData, error) {
 	}
 
 	value := &CachedData{
-		Data: bytes.NewReader([]byte(val)),
+		ContentMetadata: ContentMetadata{
+			Length:   payload.Length,
+			Type:     payload.Type,
+			Encoding: payload.Encoding,
+		},
+		Data: bytes.NewReader([]byte(payload.Payload)),
 		Ttl:  ttl,
 	}
 
 	return value, nil
 }
 
-func (r *redisCache) Put(reader io.ReadSeeker, key *Key) (time.Duration, error) {
+func (r *redisCache) Put(reader io.Reader, contentMetadata ContentMetadata, key *Key) (time.Duration, error) {
 	data, err := toBytes(reader)
 	if err != nil {
 		return 0, err
 	}
 
+	payload := &redisCachePayload{
+		Length: contentMetadata.Length, Type: contentMetadata.Type, Encoding: contentMetadata.Encoding, Payload: string(data),
+	}
+
+	marshalled, err := json.Marshal(payload)
+	if err != nil {
+		return 0, nil
+	}
+
 	ctx, cancelFunc := context.WithTimeout(context.Background(), putTimeout)
 	defer cancelFunc()
-	err = r.client.Set(ctx, key.String(), data, r.expire).Err()
+	err = r.client.Set(ctx, key.String(), marshalled, r.expire).Err()
 
 	if err != nil {
 		return 0, err
@@ -131,14 +161,10 @@ func (r *redisCache) Name() string {
 	return r.name
 }
 
-func toBytes(stream io.ReadSeeker) ([]byte, error) {
+func toBytes(stream io.Reader) ([]byte, error) {
 	buf := new(bytes.Buffer)
-	_, err := stream.Seek(0, io.SeekStart)
-	if err != nil {
-		return nil, err
-	}
 
-	_, err = buf.ReadFrom(stream)
+	_, err := buf.ReadFrom(stream)
 	if err != nil {
 		return nil, err
 	}

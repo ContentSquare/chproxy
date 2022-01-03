@@ -91,6 +91,7 @@ func TestServe(t *testing.T) {
 				key := &cache.Key{
 					Query:          []byte(q),
 					AcceptEncoding: "gzip",
+					Version:        cache.Version,
 				}
 				path := fmt.Sprintf("%s/cache/%s", testDir, key.String())
 				if _, err := os.Stat(path); err != nil {
@@ -99,14 +100,14 @@ func TestServe(t *testing.T) {
 				rw := httptest.NewRecorder()
 				cc := proxy.caches["https_cache"]
 
-				v, err := cc.Get(key)
+				cachedData, err := cc.Get(key)
 
 				if err != nil {
-					t.Fatalf("unexpected error while writing reposnse from cache: %s", err)
+					t.Fatalf("unexpected error while getting response from cache: %s", err)
 				}
-
-				if err := cache.SendResponseFromReader(rw, v.Data, v.Ttl, 200); err != nil {
-					t.Fatalf("unexpected error while writing reposnse from cache: %s", err)
+				err = RespondWithData(rw, cachedData.Data, cachedData.ContentMetadata, cachedData.Ttl, 200)
+				if err != nil {
+					t.Fatalf("unexpected error while getting response from cache: %s", err)
 				}
 				expected := "Ok.\n"
 				checkResponse(t, rw.Body, expected)
@@ -136,6 +137,7 @@ func TestServe(t *testing.T) {
 				key := &cache.Key{
 					Query:          []byte(expectedQuery),
 					AcceptEncoding: "gzip",
+					Version: cache.Version,
 				}
 				path := fmt.Sprintf("%s/cache/%s", testDir, key.String())
 				if _, err := os.Stat(path); err != nil {
@@ -144,15 +146,17 @@ func TestServe(t *testing.T) {
 				rw := httptest.NewRecorder()
 				cc := proxy.caches["https_cache"]
 
-				v, err := cc.Get(key)
+				cachedData, err := cc.Get(key)
 
 				if err != nil {
 					t.Fatalf("unexpected error while writing reposnse from cache: %s", err)
 				}
 
-				if err := cache.SendResponseFromReader(rw, v.Data, v.Ttl, 200); err != nil {
-					t.Fatalf("unexpected error while writing reposnse from cache: %s", err)
+				err = RespondWithData(rw, cachedData.Data, cachedData.ContentMetadata, cachedData.Ttl, 200)
+				if err != nil {
+					t.Fatalf("unexpected error while getting response from cache: %s", err)
 				}
+
 				expected := "Ok.\n"
 				checkResponse(t, rw.Body, expected)
 			},
@@ -178,6 +182,7 @@ func TestServe(t *testing.T) {
 				key := &cache.Key{
 					Query:          []byte(q),
 					AcceptEncoding: "gzip",
+					Version: cache.Version,
 				}
 				path := fmt.Sprintf("%s/cache/%s", testDir, key.String())
 				if _, err := os.Stat(path); !os.IsNotExist(err) {
@@ -351,6 +356,7 @@ func TestServe(t *testing.T) {
 				key := &cache.Key{
 					Query:          []byte(q),
 					AcceptEncoding: "gzip",
+					Version: cache.Version,
 				}
 				str, err := redisClient.Get(key.String())
 				checkErr(t, err)
@@ -764,7 +770,7 @@ func TestReloadConfig(t *testing.T) {
 
 func checkErr(t *testing.T, err error) {
 	if err != nil {
-		t.Fatalf("unexpected erorr: %s", err)
+		t.Fatalf("unexpected error: %s", err)
 	}
 }
 

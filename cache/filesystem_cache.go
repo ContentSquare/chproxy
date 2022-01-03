@@ -11,14 +11,15 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
 )
 
-// cacheVersion must be increased with each backwads-incompatible change
+// Version must be increased with each backward-incompatible change
 // in the cache storage.
-const cacheVersion = 2
+const Version = 3
 
 var cachefileRegexp = regexp.MustCompile(`^[0-9a-f]{32}$`)
 
@@ -122,15 +123,54 @@ func (f *fileSystemCache) Get(key *Key) (*CachedData, error) {
 		return nil, fmt.Errorf("failed to read file content from %q: %s", f.Name(), err)
 	}
 
+	reader := bytes.NewReader(b)
+
+	metadata, err := decodeHeader(reader)
+	if err != nil {
+		return nil, err
+	}
+
 	value := &CachedData{
-		Data: bytes.NewReader(b),
-		Ttl:  f.expire - age,
+		ContentMetadata: *metadata,
+		Data:            reader,
+		Ttl:             f.expire - age,
 	}
 
 	return value, nil
 }
 
-func (f *fileSystemCache) Put(r io.ReadSeeker, key *Key) (time.Duration, error) {
+// decodeHeader decodes header from raw byte stream. Data is encoded as follows:
+// length(contentType)|contentType|length(contentEncoding)|contentEncoding|length(contentLength)|contentLength|cachedData
+func decodeHeader(reader *bytes.Reader) (*ContentMetadata, error) {
+	contentType, err := readHeader(reader)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read Content-Type from provided reader: %s", err)
+	}
+
+	contentEncoding, err := readHeader(reader)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read Content-Encoding from provided reader: %s", err)
+	}
+
+	contentLengthStr, err := readHeader(reader)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read Content-Encoding from provided reader: %s", err)
+	}
+
+	contentLength, err := strconv.Atoi(contentLengthStr)
+	if err != nil {
+		log.Errorf("found corrupted content length %s", err)
+		contentLength = 0
+	}
+
+	return &ContentMetadata{
+		Length:   int64(contentLength),
+		Type:     contentType,
+		Encoding: contentEncoding,
+	}, nil
+}
+
+func (f *fileSystemCache) Put(r io.Reader, contentMetadata ContentMetadata, key *Key) (time.Duration, error) {
 	fp := key.filePath(f.dir)
 	file, err := os.Create(fp)
 
@@ -138,8 +178,19 @@ func (f *fileSystemCache) Put(r io.ReadSeeker, key *Key) (time.Duration, error) 
 		return 0, fmt.Errorf("cache %q: cannot create file: %s : %s", f.Name(), key, err)
 	}
 
-	if _, err = r.Seek(0, io.SeekStart); err != nil {
-		return 0, fmt.Errorf("cache %q: cannot seek: %s : %s", f.Name(), key, err)
+	if err := writeHeader(file, contentMetadata.Type); err != nil {
+		fn := file.Name()
+		return 0, fmt.Errorf("cannot write Content-Type to %q: %s", fn, err)
+	}
+
+	if err := writeHeader(file, contentMetadata.Encoding); err != nil {
+		fn := file.Name()
+		return 0, fmt.Errorf("cannot write Content-Encoding to %q: %s", fn, err)
+	}
+
+	if err := writeHeader(file, fmt.Sprintf("%d", contentMetadata.Length)); err != nil {
+		fn := file.Name()
+		return 0, fmt.Errorf("cannot write Content-Encoding to %q: %s", fn, err)
 	}
 
 	cnt, err := io.Copy(file, r)
@@ -268,4 +319,29 @@ func (f *fileSystemCache) clean() {
 		f.Name(), totalSize, totalItems, removedSize, removedItems)
 
 	log.Debugf("cache %q: finish cleaning dir %q", f.Name(), f.dir)
+}
+
+// writeHeader encodes headers in little endian
+func writeHeader(w io.Writer, s string) error {
+	n := uint32(len(s))
+
+	b := make([]byte, 0, n+4)
+	b = append(b, byte(n>>24), byte(n>>16), byte(n>>8), byte(n))
+	b = append(b, s...)
+	_, err := w.Write(b)
+	return err
+}
+
+// readHeader decodes headers to big endian
+func readHeader(r io.Reader) (string, error) {
+	b := make([]byte, 4)
+	if _, err := io.ReadFull(r, b); err != nil {
+		return "", fmt.Errorf("cannot read header length: %s", err)
+	}
+	n := uint32(b[3]) | (uint32(b[2]) << 8) | (uint32(b[1]) << 16) | (uint32(b[0]) << 24)
+	s := make([]byte, n)
+	if _, err := io.ReadFull(r, s); err != nil {
+		return "", fmt.Errorf("cannot read header value with length %d: %s", n, err)
+	}
+	return string(s), nil
 }

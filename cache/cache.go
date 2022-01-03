@@ -12,12 +12,19 @@ type Cache interface {
 	// TODO consider the value of Stats in future iterations. Maybe it is not needed?
 	Stats() Stats
 	Get(key *Key) (*CachedData, error)
-	Put(r io.ReadSeeker, key *Key) (time.Duration, error)
+	Put(r io.Reader, ctMetadata ContentMetadata, key *Key) (time.Duration, error)
 	Name() string
 }
 
+type ContentMetadata struct {
+	Length   int64
+	Type     string
+	Encoding string
+}
+
 type CachedData struct {
-	Data io.ReadSeeker
+	ContentMetadata
+	Data io.Reader
 	Ttl  time.Duration
 }
 
