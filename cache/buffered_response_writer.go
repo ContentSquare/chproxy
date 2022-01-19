@@ -37,6 +37,9 @@ func (rw *BufferedResponseWriter) GetCapturedContentType() string {
 }
 
 func (rw *BufferedResponseWriter) GetCapturedContentLength() int64 {
+	if rw.contentLength == 0 {
+		rw.contentLength = int64(rw.buffer.Len())
+	}
 	return rw.contentLength
 }
 

@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -326,12 +328,15 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		contentLength := bufferedRespWriter.GetCapturedContentLength()
 		reader := bufferedRespWriter.Reader()
 
+		// we create this buffer to be able to stream data both to cache as well as to an end user
+		var buf bytes.Buffer
+		tee := io.TeeReader(reader, &buf)
 		contentMetadata := cache.ContentMetadata{Length: contentLength, Encoding: contentEncoding, Type: contentType}
-		expiration, err := userCache.Put(reader, contentMetadata, key)
+		expiration, err := userCache.Put(tee, contentMetadata, key)
 		if err != nil {
 			log.Errorf("%s: %s; query: %q - failed to put response in the cache", s, err, q)
 		}
-		err = RespondWithData(srw, reader, contentMetadata, expiration, bufferedRespWriter.StatusCode())
+		err = RespondWithData(srw, &buf, contentMetadata, expiration, bufferedRespWriter.StatusCode())
 		if err != nil {
 			err = fmt.Errorf("%s: %s; query: %q", s, err, q)
 			respondWith(srw, err, http.StatusInternalServerError)

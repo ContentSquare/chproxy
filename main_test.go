@@ -40,6 +40,7 @@ func TestMain(m *testing.M) {
 var redisClient *miniredis.Miniredis
 
 func TestServe(t *testing.T) {
+	expectedOkResp := "Ok.\n"
 	var testCases = []struct {
 		name     string
 		file     string
@@ -85,7 +86,7 @@ func TestServe(t *testing.T) {
 				if resp.StatusCode != http.StatusOK {
 					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
 				}
-				resp.Body.Close()
+				checkHttpResponse(t, resp, expectedOkResp)
 
 				// check cached response
 				key := &cache.Key{
@@ -109,8 +110,7 @@ func TestServe(t *testing.T) {
 				if err != nil {
 					t.Fatalf("unexpected error while getting response from cache: %s", err)
 				}
-				expected := "Ok.\n"
-				checkResponse(t, rw.Body, expected)
+				checkResponse(t, rw.Body, expectedOkResp)
 			},
 			startTLS,
 		},
@@ -157,7 +157,7 @@ func TestServe(t *testing.T) {
 					t.Fatalf("unexpected error while getting response from cache: %s", err)
 				}
 
-				expected := "Ok.\n"
+				expected := expectedOkResp
 				checkResponse(t, rw.Body, expected)
 			},
 			startTLS,
@@ -345,8 +345,10 @@ func TestServe(t *testing.T) {
 				req, err := http.NewRequest("GET", "http://127.0.0.1:9090?query="+url.QueryEscape(q), nil)
 				checkErr(t, err)
 
-				httpRequest(t, req, http.StatusOK)
-				httpRequest(t, req, http.StatusOK)
+				resp := httpRequest(t, req, http.StatusOK)
+				checkHttpResponse(t, resp, expectedOkResp)
+				resp2 := httpRequest(t, req, http.StatusOK)
+				checkHttpResponse(t, resp2, expectedOkResp)
 				keys := redisClient.Keys()
 				if len(keys) != 1 {
 					t.Fatalf("unexpected amount of keys in redis: %v", len(keys))
@@ -587,6 +589,20 @@ func TestServe(t *testing.T) {
 
 			tc.testFn(t)
 		})
+	}
+}
+
+func checkHttpResponse(t *testing.T, resp *http.Response, expectedResp string) {
+	buf := new(bytes.Buffer)
+	_, err := buf.ReadFrom(resp.Body)
+	if err != nil {
+		t.Fatalf("unexpected error while reading a response body: %v", err)
+	}
+	responseBodyStr := buf.String()
+	resp.Body.Close()
+
+	if responseBodyStr != expectedResp {
+		t.Fatalf("got: %q; expected: %q", responseBodyStr, expectedResp)
 	}
 }
 
