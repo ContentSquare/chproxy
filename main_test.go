@@ -33,7 +33,9 @@ func TestMain(m *testing.M) {
 	if err := os.RemoveAll(testDir); err != nil {
 		log.Fatalf("cannot remove %q: %s", testDir, err)
 	}
-	redisClient.Close()
+	if redisClient != nil {
+		redisClient.Close()
+	}
 	os.Exit(retCode)
 }
 
@@ -137,7 +139,7 @@ func TestServe(t *testing.T) {
 				key := &cache.Key{
 					Query:          []byte(expectedQuery),
 					AcceptEncoding: "gzip",
-					Version: cache.Version,
+					Version:        cache.Version,
 				}
 				path := fmt.Sprintf("%s/cache/%s", testDir, key.String())
 				if _, err := os.Stat(path); err != nil {
@@ -182,7 +184,7 @@ func TestServe(t *testing.T) {
 				key := &cache.Key{
 					Query:          []byte(q),
 					AcceptEncoding: "gzip",
-					Version: cache.Version,
+					Version:        cache.Version,
 				}
 				path := fmt.Sprintf("%s/cache/%s", testDir, key.String())
 				if _, err := os.Stat(path); !os.IsNotExist(err) {
@@ -358,7 +360,7 @@ func TestServe(t *testing.T) {
 				key := &cache.Key{
 					Query:          []byte(q),
 					AcceptEncoding: "gzip",
-					Version: cache.Version,
+					Version:        cache.Version,
 				}
 				str, err := redisClient.Get(key.String())
 				checkErr(t, err)
