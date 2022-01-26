@@ -6,7 +6,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"github.com/Vertamedia/chproxy/cache"
+	"github.com/contentsquare/chproxy/cache"
 	"io"
 	"io/ioutil"
 	"net"
@@ -19,8 +19,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Vertamedia/chproxy/config"
-	"github.com/Vertamedia/chproxy/log"
+	"github.com/contentsquare/chproxy/config"
+	"github.com/contentsquare/chproxy/log"
 	"github.com/alicebob/miniredis/v2"
 )
 
