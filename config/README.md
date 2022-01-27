@@ -49,18 +49,52 @@ name: "office"
 networks: <networks> ...
 ```
 
-### <cache_config>
+### <file_system_cache_config>
 ```yml
 # Cache name, which may be passed into `cache` option on the `user` level.
 #
 # Multiple users may share the same cache.
 name: <string>
 
-# Path to directory where cached responses will be stored.
-dir: <string>
+mode: "file_system"
 
-# Maximum cache size.
-max_size: <byte_size>
+file_system:
+    # Path to directory where cached responses will be stored.
+    dir: <string>
+
+    # Maximum cache size.
+    max_size: <byte_size>
+
+# Expiration time for cached responses.
+expire: <duration>
+
+# When multiple requests with identical query simultaneously hit `chproxy`
+# and there is no cached response for the query, then only a single
+# request will be proxied to clickhouse. Other requests will wait
+# for the cached response during this grace duration.
+# This is known as protection from `thundering herd` problem.
+#
+# By default `grace_time` is 5s. Negative value disables the protection
+# from `thundering herd` problem.
+grace_time: <duration>
+```
+
+### <distributed_cache_config>
+```yml
+# Cache name, which may be passed into `cache` option on the `user` level.
+#
+# Multiple users may share the same cache.
+name: <string>
+
+mode: "redis"
+
+# Applicable for cache mode: redis
+redis:
+  # list of addresses to redis nodes 
+  addresses:
+    - <string> # example "localhost:6379"
+  username: <string>
+  password: <string>
 
 # Expiration time for cached responses.
 expire: <duration>

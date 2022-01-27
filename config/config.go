@@ -584,7 +584,7 @@ type NetworksOrGroups []string
 // Cache describes configuration options for caching
 // responses from CH clusters
 type Cache struct {
-	// Mode of cache (filesystem, redis)
+	// Mode of cache (file_system, redis)
 	// todo make it an enum
 	Mode string `yaml:"mode"`
 

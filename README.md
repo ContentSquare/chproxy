@@ -206,8 +206,10 @@ clusters:
 
 caches:
   - name: "shortterm"
-    dir: "/path/to/cache/dir"
-    max_size: 150Mb
+    mode: "file_system"
+    file_system:
+      dir: "/path/to/cache/dir"
+      max_size: 150Mb
 
     # Cached responses will expire in 130s.
     expire: 130s
@@ -278,8 +280,10 @@ clusters:
 
 caches:
   - name: "shortterm"
-    dir: "/path/to/cache/dir"
-    max_size: 150Mb
+    mode: "file_system"
+    file_system:
+      dir: "/path/to/cache/dir"
+      max_size: 150Mb
     expire: 130s
 ```
 
@@ -320,7 +324,7 @@ If `cluster`'s [users](https://github.com/Vertamedia/chproxy/blob/master/config#
 ### Caching
 
 `Chproxy` may be configured to cache responses. It is possible to create multiple
-[cache-configs](https://github.com/Vertamedia/chproxy/blob/master/config/#cache_config) with various settings.
+cache-configs with various settings.
 Response caching is enabled by assigning cache name to user. Multiple users may share the same cache.
 Currently only `SELECT` responses are cached.
 Caching is disabled for request with `no_cache=1` in query string.
@@ -328,6 +332,19 @@ Optional cache namespace may be passed in query string as `cache_namespace=aaaa`
 distinct responses for the identical query under distinct cache namespaces. Additionally,
 an instant cache flush may be built on top of cache namespaces - just switch to new namespace in order
 to flush the cache.
+
+Two types of cache configuration are supported:
+- local instance cache 
+- distributed cache
+
+#### Local cache
+Local cache is stored on machine's file system. Therefore it is suitable for single replica deployments.
+Configuration template for local cache can be found [here](https://github.com/Vertamedia/chproxy/blob/master/config/#file_system_cache_config)
+
+#### Distributed cache
+Distributed cache relies on external database to share cache across multiple replicas. Therefore it is suitable for 
+multiple replicas deployments. Currently only [redis](https://redis.io/) key value store is supported. 
+Configuration template for distributed cache can be found [here](https://github.com/Vertamedia/chproxy/blob/master/config/#distributed_cache_config)
 
 ### Security
 `Chproxy` removes all the query params from input requests (except the user's [params](https://github.com/Vertamedia/chproxy/blob/master/config#param_groups_config) and listed [here](https://github.com/Vertamedia/chproxy/blob/master/scope.go#L292))
@@ -354,18 +371,30 @@ hack_me_please: true
 # Optional response cache configs.
 #
 # Multiple distinct caches with different settings may be configured.
+
+name: "shortterm"
+  mode: "file_system"
+  file_system:
+    dir: "/path/to/cache/dir"
+    max_size: 150Mb
+  expire: 130s
 caches:
     # Cache name, which may be passed into `cache` option on the `user` level.
     #
     # Multiple users may share the same cache.
   - name: "longterm"
 
-    # Path to directory where cached responses will be stored.
-    dir: "/path/to/longterm/cachedir"
-
-    # Maximum cache size.
-    # `Kb`, `Mb`, `Gb` and `Tb` suffixes may be used.
-    max_size: 100Gb
+    # Cache mode, either [[file_system]] or [[redis]] 
+    mode: "file_system"
+    
+    # Applicable for cache mode: file_system
+    file_system:
+      # Path to directory where cached responses will be stored.
+      dir: "/path/to/longterm/cachedir"
+    
+      # Maximum cache size.
+      # `Kb`, `Mb`, `Gb` and `Tb` suffixes may be used.
+      max_size: 100Gb
 
     # Expiration time for cached responses.
     expire: 1h
@@ -381,8 +410,14 @@ caches:
     grace_time: 20s
 
   - name: "shortterm"
-    dir: "/path/to/shortterm/cachedir"
-    max_size: 100Mb
+    mode: "redis"
+    
+    # Applicable for cache mode: redis
+    redis:
+      addresses:
+        - "localhost:6379"
+      username: "user"
+      password: "pass"
     expire: 10s
 
 # Optional network lists, might be used as values for `allowed_networks`.
