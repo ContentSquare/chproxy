@@ -1,2 +1,8 @@
 /chproxy
 /tags
+
+# Documentation dependencies and artefacts
+/docs/node_modules
+/docs/.output
+/docs/.nuxt
+/docs/static/sw.js
