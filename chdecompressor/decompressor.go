@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/DataDog/zstd"
 	"github.com/pierrec/lz4"
 )
 
@@ -81,11 +80,11 @@ func (r *Reader) readNextBlock() error {
 		if _, err := lz4.UncompressBlock(block, r.data); err != nil {
 			return fmt.Errorf("cannot decompress lz4 block: %s", err)
 		}
-	case zstdType:
-		r.data, err = zstd.Decompress(r.data, block)
-		if err != nil {
-			return fmt.Errorf("cannot decompress zstd block: %s", err)
-		}
+	// case zstdType:
+	// 	r.data, err = zstd.Decompress(r.data, block)
+	// 	if err != nil {
+	// 		return fmt.Errorf("cannot decompress zstd block: %s", err)
+	// 	}
 	default:
 		return fmt.Errorf("unknown compressionType: %X", compressionType)
 	}
@@ -95,7 +94,7 @@ func (r *Reader) readNextBlock() error {
 const (
 	noneType = 0x02
 	lz4Type  = 0x82
-	zstdType = 0x90
+	// zstdType = 0x90
 )
 
 func (r *Reader) readUint32() (uint32, error) {
