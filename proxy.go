@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net/http"
 	"net/http/httputil"
@@ -38,6 +39,9 @@ type reverseProxy struct {
 func newReverseProxy() *reverseProxy {
 	return &reverseProxy{
 		rp: &httputil.ReverseProxy{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			},
 			Director: func(*http.Request) {},
 
 			// Suppress error logging in ReverseProxy, since all the errors
