@@ -9,7 +9,7 @@ BUILD_CONSTS = \
 	-X main.buildRevision=`git rev-parse HEAD` \
 	-X main.buildTag=$(BUILD_TAG)
 
-BUILD_OPTS = -ldflags="$(BUILD_CONSTS)" -gcflags="-trimpath=$(GOPATH)/src"
+BUILD_OPTS = -ldflags="$(BUILD_CONSTS)"
 
 .PHONY: update format build test run lint reconfigure clean release-build release
 
@@ -39,10 +39,10 @@ clean:
 release-build:
 	@echo "Ver: $(BUILD_TAG), OPTS: $(BUILD_OPTS)"
 	GOOS=linux GOARCH=amd64 go build $(BUILD_OPTS)
-	rm chproxy-linux-amd64-*.tar.gz
+	if [ -f chproxy-linux-amd64-*.tar.gz ]; then rm chproxy-linux-amd64-*.tar.gz; fi
 	tar czf chproxy-linux-amd64-$(BUILD_TAG).tar.gz chproxy
 
-release: format lint test clean release-build
+release: format test clean release-build
 	@echo "Ver: $(BUILD_TAG), OPTS: $(BUILD_OPTS)"
 	tar czf chproxy-linux-amd64-$(BUILD_TAG).tar.gz chproxy
 
