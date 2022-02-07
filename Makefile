@@ -30,6 +30,15 @@ lint:
 	go vet $(pkgs)
 	go list ./... | grep -v /vendor/ | xargs -n1 golint
 
+tidy:
+	go mod tidy
+
+deps:
+	go mod download
+
+go-lint: deps tidy
+	golangci-lint run -v
+
 reconfigure:
 	kill -HUP `pidof chproxy`
 
