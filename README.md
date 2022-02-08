@@ -1,6 +1,6 @@
-[![Go Report Card](https://goreportcard.com/badge/github.com/Vertamedia/chproxy)](https://goreportcard.com/report/github.com/Vertamedia/chproxy)
-[![Build Status](https://travis-ci.org/Vertamedia/chproxy.svg?branch=master)](https://travis-ci.org/Vertamedia/chproxy?branch=master)
-[![Coverage](https://img.shields.io/badge/gocover.io-75.7%25-green.svg)](http://gocover.io/github.com/Vertamedia/chproxy?version=1.9)
+[![Go Report Card](https://goreportcard.com/badge/github.com/ContentSquare/chproxy)](https://goreportcard.com/report/github.com/ContentSquare/chproxy)
+[![Build Status](https://travis-ci.org/ContentSquare/chproxy.svg?branch=master)](https://travis-ci.org/ContentSquare/chproxy?branch=master)
+[![Coverage](https://img.shields.io/badge/gocover.io-75.7%25-green.svg)](http://gocover.io/github.com/ContentSquare/chproxy?version=1.9)
 
 # chproxy
 
@@ -29,7 +29,7 @@ Chproxy, is an http proxy and load balancer for [ClickHouse](https://ClickHouse.
 - Exposes various useful [metrics](#metrics) in [prometheus text format](https://prometheus.io/docs/instrumenting/exposition_formats/).
 - Configuration may be updated without restart - just send `SIGHUP` signal to `chproxy` process.
 - Easy to manage and run - just pass config file path to a single `chproxy` binary.
-- Easy to [configure](https://github.com/Vertamedia/chproxy/blob/master/config/examples/simple.yml):
+- Easy to [configure](https://github.com/ContentSquare/chproxy/blob/master/config/examples/simple.yml):
 ```yml
 server:
   http:
@@ -52,7 +52,7 @@ clusters:
 
 ### Precompiled binaries
 
-Precompiled `chproxy` binaries are available [here](https://github.com/Vertamedia/chproxy/releases).
+Precompiled `chproxy` binaries are available [here](https://github.com/ContentSquare/chproxy/releases).
 Just download the latest stable binary, unpack and run it with the desired [config](#configuration):
 
 ```
@@ -64,7 +64,7 @@ Just download the latest stable binary, unpack and run it with the desired [conf
 Chproxy is written in [Go](https://golang.org/). The easiest way to install it from sources is:
 
 ```
-go get -u github.com/Vertamedia/chproxy
+go get -u github.com/ContentSquare/chproxy
 ```
 
 If you don't have Go installed on your system - follow [this guide](https://golang.org/doc/install).
@@ -89,7 +89,7 @@ All the `INSERT`s may be routed to a [distributed table](http://clickhouse-docs.
 
 It would be better to spread `INSERT`s among available shards and to route them directly to per-shard tables instead of distributed tables. The routing logic may be embedded either directly into applications generating `INSERT`s or may be moved to a proxy. Proxy approach is better since it allows re-configuring `ClickHouse` cluster without modification of application configs and without application downtime. Multiple identical proxies may be started on distinct servers for scalability and availability purposes.
 
-The following minimal `chproxy` config may be used for [this use case](https://github.com/Vertamedia/chproxy/blob/master/config/examples/spread.inserts.yml):
+The following minimal `chproxy` config may be used for [this use case](https://github.com/ContentSquare/chproxy/blob/master/config/examples/spread.inserts.yml):
 ```yml
 server:
   http:
@@ -127,7 +127,7 @@ All the `SELECT`s may be routed to a [distributed table](http://clickhouse-docs.
 
 It would be better to create identical distributed tables on each shard and spread `SELECT`s among all the available shards.
 
-The following minimal `chproxy` config may be used for [this use case](https://github.com/Vertamedia/chproxy/blob/master/config/examples/spread.selects.yml):
+The following minimal `chproxy` config may be used for [this use case](https://github.com/ContentSquare/chproxy/blob/master/config/examples/spread.selects.yml):
 ```yml
 server:
   http:
@@ -157,10 +157,10 @@ clusters:
 ### Authorize users by passwords via HTTPS
 
 Suppose you need to access `ClickHouse` cluster from anywhere by username/password.
-This may be used for building graphs from [ClickHouse-grafana](https://github.com/Vertamedia/ClickHouse-grafana) or [tabix](https://tabix.io/).
+This may be used for building graphs from [ClickHouse-grafana](https://github.com/ContentSquare/ClickHouse-grafana) or [tabix](https://tabix.io/).
 It is bad idea to transfer unencrypted password and data over untrusted networks.
 So HTTPS must be used for accessing the cluster in such cases.
-The following `chproxy` config may be used for [this use case](https://github.com/Vertamedia/chproxy/blob/master/config/examples/https.yml):
+The following `chproxy` config may be used for [this use case](https://github.com/ContentSquare/chproxy/blob/master/config/examples/https.yml):
 ```yml
 server:
   https:
@@ -206,8 +206,10 @@ clusters:
 
 caches:
   - name: "shortterm"
-    dir: "/path/to/cache/dir"
-    max_size: 150Mb
+    mode: "file_system"
+    file_system:
+      dir: "/path/to/cache/dir"
+      max_size: 150Mb
 
     # Cached responses will expire in 130s.
     expire: 130s
@@ -215,7 +217,7 @@ caches:
 
 ### All the above configs combined
 
-All the above cases may be combined in a single `chproxy` [config](https://github.com/Vertamedia/chproxy/blob/master/config/examples/combined.yml):
+All the above cases may be combined in a single `chproxy` [config](https://github.com/ContentSquare/chproxy/blob/master/config/examples/combined.yml):
 
 ```yml
 server:
@@ -278,17 +280,19 @@ clusters:
 
 caches:
   - name: "shortterm"
-    dir: "/path/to/cache/dir"
-    max_size: 150Mb
+    mode: "file_system"
+    file_system:
+      dir: "/path/to/cache/dir"
+      max_size: 150Mb
     expire: 130s
 ```
 
 ## Configuration
 
 ### Server
-`Chproxy` may accept requests over `HTTP` and `HTTPS` protocols. [HTTPS](https://github.com/Vertamedia/chproxy/blob/master/config#https_config) must be configured with custom certificate or with automated [Let's Encrypt](https://letsencrypt.org/) certificates.
+`Chproxy` may accept requests over `HTTP` and `HTTPS` protocols. [HTTPS](https://github.com/ContentSquare/chproxy/blob/master/config#https_config) must be configured with custom certificate or with automated [Let's Encrypt](https://letsencrypt.org/) certificates.
 
-Access to `chproxy` can be limitied by list of IPs or IP masks. This option can be applied to [HTTP](https://github.com/Vertamedia/chproxy/blob/master/config#http_config), [HTTPS](https://github.com/Vertamedia/chproxy/blob/master/config#https_config), [metrics](https://github.com/Vertamedia/chproxy/blob/master/config#metrics_config), [user](https://github.com/Vertamedia/chproxy/blob/master/config#user_config) or [cluster-user](https://github.com/Vertamedia/chproxy/blob/master/config#cluster_user_config).
+Access to `chproxy` can be limitied by list of IPs or IP masks. This option can be applied to [HTTP](https://github.com/ContentSquare/chproxy/blob/master/config#http_config), [HTTPS](https://github.com/ContentSquare/chproxy/blob/master/config#https_config), [metrics](https://github.com/ContentSquare/chproxy/blob/master/config#metrics_config), [user](https://github.com/ContentSquare/chproxy/blob/master/config#user_config) or [cluster-user](https://github.com/ContentSquare/chproxy/blob/master/config#cluster_user_config).
 
 ### Users
 There are two types of users: `in-users` (in global section) and `out-users` (in cluster section).
@@ -298,13 +302,13 @@ with overriding credentials.
 Suppose we have one ClickHouse user `web` with `read-only` permissions and `max_concurrent_queries: 4` limit.
 There are two distinct applications `reading` from ClickHouse. We may create two distinct `in-users` with `to_user: "web"` and `max_concurrent_queries: 2` each in order to avoid situation when a single application exhausts all the 4-request limit on the `web` user.
 
-Requests to `chproxy` must be authorized with credentials from [user_config](https://github.com/Vertamedia/chproxy/blob/master/config#user_config). Credentials can be passed via [BasicAuth](https://en.wikipedia.org/wiki/Basic_access_authentication) or via `user` and `password` [query string](https://en.wikipedia.org/wiki/Query_string) args.
+Requests to `chproxy` must be authorized with credentials from [user_config](https://github.com/ContentSquare/chproxy/blob/master/config#user_config). Credentials can be passed via [BasicAuth](https://en.wikipedia.org/wiki/Basic_access_authentication) or via `user` and `password` [query string](https://en.wikipedia.org/wiki/Query_string) args.
 
 Limits for `in-users` and `out-users` are independent.
 
 ### Clusters
 `Chproxy` can be configured with multiple `cluster`s. Each `cluster` must have a name and either a list of nodes
-or a list of replicas with nodes. See [cluster-config](https://github.com/Vertamedia/chproxy/tree/master/config#cluster_config) for details.
+or a list of replicas with nodes. See [cluster-config](https://github.com/ContentSquare/chproxy/tree/master/config#cluster_config) for details.
 Requests to each cluster are balanced among replicas and nodes using `round-robin` + `least-loaded` approach.
 The node priority is automatically decreased for a short interval if recent requests to it were unsuccessful.
 This means that the `chproxy` will choose the next least loaded healthy node among least loaded replica
@@ -313,14 +317,14 @@ for every new request.
 Additionally each node is periodically checked for availability. Unavailable nodes are automatically excluded from the cluster until they become available again. This allows performing node maintenance without removing unavailable nodes from the cluster config.
 
 `Chproxy` automatically kills queries exceeding `max_execution_time` limit. By default `chproxy` tries to kill such queries
-under `default` user. The user may be overriden with [kill_query_user](https://github.com/Vertamedia/chproxy/blob/master/config#kill_query_user_config).
+under `default` user. The user may be overriden with [kill_query_user](https://github.com/ContentSquare/chproxy/blob/master/config#kill_query_user_config).
 
-If `cluster`'s [users](https://github.com/Vertamedia/chproxy/blob/master/config#cluster_user_config) section isn't specified, then `default` user is used with no limits.
+If `cluster`'s [users](https://github.com/ContentSquare/chproxy/blob/master/config#cluster_user_config) section isn't specified, then `default` user is used with no limits.
 
 ### Caching
 
 `Chproxy` may be configured to cache responses. It is possible to create multiple
-[cache-configs](https://github.com/Vertamedia/chproxy/blob/master/config/#cache_config) with various settings.
+cache-configs with various settings.
 Response caching is enabled by assigning cache name to user. Multiple users may share the same cache.
 Currently only `SELECT` responses are cached.
 Caching is disabled for request with `no_cache=1` in query string.
@@ -329,8 +333,21 @@ distinct responses for the identical query under distinct cache namespaces. Addi
 an instant cache flush may be built on top of cache namespaces - just switch to new namespace in order
 to flush the cache.
 
+Two types of cache configuration are supported:
+- local instance cache 
+- distributed cache
+
+#### Local cache
+Local cache is stored on machine's file system. Therefore it is suitable for single replica deployments.
+Configuration template for local cache can be found [here](https://github.com/ContentSquare/chproxy/blob/master/config/#file_system_cache_config)
+
+#### Distributed cache
+Distributed cache relies on external database to share cache across multiple replicas. Therefore it is suitable for 
+multiple replicas deployments. Currently only [redis](https://redis.io/) key value store is supported. 
+Configuration template for distributed cache can be found [here](https://github.com/ContentSquare/chproxy/blob/master/config/#distributed_cache_config)
+
 ### Security
-`Chproxy` removes all the query params from input requests (except the user's [params](https://github.com/Vertamedia/chproxy/blob/master/config#param_groups_config) and listed [here](https://github.com/Vertamedia/chproxy/blob/master/scope.go#L292))
+`Chproxy` removes all the query params from input requests (except the user's [params](https://github.com/ContentSquare/chproxy/blob/master/config#param_groups_config) and listed [here](https://github.com/ContentSquare/chproxy/blob/master/scope.go#L292))
 before proxying them to `ClickHouse` nodes. This prevents from unsafe overriding
 of various `ClickHouse` [settings](http://clickhouse-docs.readthedocs.io/en/latest/interfaces/http_interface.html).
 
@@ -339,7 +356,7 @@ By default `chproxy` tries detecting the most obvious configuration errors such 
 
 Special option `hack_me_please: true` may be used for disabling all the security-related checks during config validation (if you are feeling lucky :) ).
 
-#### Example of [full](https://github.com/Vertamedia/chproxy/blob/master/config/testdata/full.yml) configuration:
+#### Example of [full](https://github.com/ContentSquare/chproxy/blob/master/config/testdata/full.yml) configuration:
 ```yml
 # Whether to print debug logs.
 #
@@ -354,18 +371,30 @@ hack_me_please: true
 # Optional response cache configs.
 #
 # Multiple distinct caches with different settings may be configured.
+
+name: "shortterm"
+  mode: "file_system"
+  file_system:
+    dir: "/path/to/cache/dir"
+    max_size: 150Mb
+  expire: 130s
 caches:
     # Cache name, which may be passed into `cache` option on the `user` level.
     #
     # Multiple users may share the same cache.
   - name: "longterm"
 
-    # Path to directory where cached responses will be stored.
-    dir: "/path/to/longterm/cachedir"
-
-    # Maximum cache size.
-    # `Kb`, `Mb`, `Gb` and `Tb` suffixes may be used.
-    max_size: 100Gb
+    # Cache mode, either [[file_system]] or [[redis]] 
+    mode: "file_system"
+    
+    # Applicable for cache mode: file_system
+    file_system:
+      # Path to directory where cached responses will be stored.
+      dir: "/path/to/longterm/cachedir"
+    
+      # Maximum cache size.
+      # `Kb`, `Mb`, `Gb` and `Tb` suffixes may be used.
+      max_size: 100Gb
 
     # Expiration time for cached responses.
     expire: 1h
@@ -381,8 +410,14 @@ caches:
     grace_time: 20s
 
   - name: "shortterm"
-    dir: "/path/to/shortterm/cachedir"
-    max_size: 100Mb
+    mode: "redis"
+    
+    # Applicable for cache mode: redis
+    redis:
+      addresses:
+        - "localhost:6379"
+      username: "user"
+      password: "pass"
     expire: 10s
 
 # Optional network lists, might be used as values for `allowed_networks`.
@@ -627,7 +662,7 @@ clusters:
         allowed_networks: ["office"]
 ```
 
-#### Full specification is located [here](https://github.com/Vertamedia/chproxy/blob/master/config)
+#### Full specification is located [here](https://github.com/ContentSquare/chproxy/blob/master/config)
 
 ## Metrics
 Metrics are exposed in [prometheus text format](https://prometheus.io/docs/instrumenting/exposition_formats/) at `/metrics` path.
@@ -660,7 +695,7 @@ Metrics are exposed in [prometheus text format](https://prometheus.io/docs/instr
 | timeout_request_total | Counter | The number of timed out requests | `user`, `cluster`, `cluster_user`, `replica`, `cluster_node` |
 | user_queue_overflow_total | Counter | The number of overflows for per-user request queues | `user`, `cluster`, `cluster_user` |
 
-An example of [Grafana's](https://grafana.com) dashboard for `chproxy` metrics is available [here](https://github.com/Vertamedia/chproxy/blob/master/chproxy_overview.json)
+An example of [Grafana's](https://grafana.com) dashboard for `chproxy` metrics is available [here](https://github.com/ContentSquare/chproxy/blob/master/chproxy_overview.json)
 
 ![dashboard example](https://user-images.githubusercontent.com/2902918/31392734-b2fd4a18-ade2-11e7-84a9-4aaaac4c10d7.png)
 

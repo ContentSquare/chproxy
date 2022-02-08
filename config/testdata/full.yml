@@ -17,12 +17,14 @@ caches:
     # Multiple users may share the same cache.
   - name: "longterm"
 
-    # Path to directory where cached responses will be stored.
-    dir: "/path/to/longterm/cachedir"
+    mode: "file_system"
+    file_system:
+      # Maximum cache size.
+      # `Kb`, `Mb`, `Gb` and `Tb` suffixes may be used.
+      max_size: 100Gb
 
-    # Maximum cache size.
-    # `Kb`, `Mb`, `Gb` and `Tb` suffixes may be used.
-    max_size: 100Gb
+      # Path to directory where cached responses will be stored.
+      dir: "/path/to/longterm/cachedir"
 
     # Expiration time for cached responses.
     expire: 1h
@@ -38,8 +40,10 @@ caches:
     grace_time: 20s
 
   - name: "shortterm"
-    dir: "/path/to/shortterm/cachedir"
-    max_size: 100Mb
+    mode: "file_system"
+    file_system:
+      max_size: 100Mb
+      dir: "/path/to/shortterm/cachedir"
     expire: 10s
 
 # Optional network lists, might be used as values for `allowed_networks`.

@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"github.com/Vertamedia/chproxy/cache"
 	"io"
 	"io/ioutil"
 	"net"
@@ -18,9 +19,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Vertamedia/chproxy/cache"
 	"github.com/Vertamedia/chproxy/config"
 	"github.com/Vertamedia/chproxy/log"
+	"github.com/alicebob/miniredis/v2"
 )
 
 var testDir = "./temp-test-data"
@@ -32,10 +33,16 @@ func TestMain(m *testing.M) {
 	if err := os.RemoveAll(testDir); err != nil {
 		log.Fatalf("cannot remove %q: %s", testDir, err)
 	}
+	if redisClient != nil {
+		redisClient.Close()
+	}
 	os.Exit(retCode)
 }
 
+var redisClient *miniredis.Miniredis
+
 func TestServe(t *testing.T) {
+	expectedOkResp := "Ok.\n"
 	var testCases = []struct {
 		name     string
 		file     string
@@ -81,12 +88,13 @@ func TestServe(t *testing.T) {
 				if resp.StatusCode != http.StatusOK {
 					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
 				}
-				resp.Body.Close()
+				checkHttpResponse(t, resp, expectedOkResp)
 
 				// check cached response
 				key := &cache.Key{
 					Query:          []byte(q),
 					AcceptEncoding: "gzip",
+					Version:        cache.Version,
 				}
 				path := fmt.Sprintf("%s/cache/%s", testDir, key.String())
 				if _, err := os.Stat(path); err != nil {
@@ -94,11 +102,17 @@ func TestServe(t *testing.T) {
 				}
 				rw := httptest.NewRecorder()
 				cc := proxy.caches["https_cache"]
-				if err := cc.WriteTo(rw, key); err != nil {
-					t.Fatalf("unexpected error while writing reposnse from cache: %s", err)
+
+				cachedData, err := cc.Get(key)
+
+				if err != nil {
+					t.Fatalf("unexpected error while getting response from cache: %s", err)
 				}
-				expected := "Ok.\n"
-				checkResponse(t, rw.Body, expected)
+				err = RespondWithData(rw, cachedData.Data, cachedData.ContentMetadata, cachedData.Ttl, 200)
+				if err != nil {
+					t.Fatalf("unexpected error while getting response from cache: %s", err)
+				}
+				checkResponse(t, rw.Body, expectedOkResp)
 			},
 			startTLS,
 		},
@@ -125,6 +139,7 @@ func TestServe(t *testing.T) {
 				key := &cache.Key{
 					Query:          []byte(expectedQuery),
 					AcceptEncoding: "gzip",
+					Version:        cache.Version,
 				}
 				path := fmt.Sprintf("%s/cache/%s", testDir, key.String())
 				if _, err := os.Stat(path); err != nil {
@@ -132,10 +147,19 @@ func TestServe(t *testing.T) {
 				}
 				rw := httptest.NewRecorder()
 				cc := proxy.caches["https_cache"]
-				if err := cc.WriteTo(rw, key); err != nil {
+
+				cachedData, err := cc.Get(key)
+
+				if err != nil {
 					t.Fatalf("unexpected error while writing reposnse from cache: %s", err)
 				}
-				expected := "Ok.\n"
+
+				err = RespondWithData(rw, cachedData.Data, cachedData.ContentMetadata, cachedData.Ttl, 200)
+				if err != nil {
+					t.Fatalf("unexpected error while getting response from cache: %s", err)
+				}
+
+				expected := expectedOkResp
 				checkResponse(t, rw.Body, expected)
 			},
 			startTLS,
@@ -160,6 +184,7 @@ func TestServe(t *testing.T) {
 				key := &cache.Key{
 					Query:          []byte(q),
 					AcceptEncoding: "gzip",
+					Version:        cache.Version,
 				}
 				path := fmt.Sprintf("%s/cache/%s", testDir, key.String())
 				if _, err := os.Stat(path); !os.IsNotExist(err) {
@@ -310,6 +335,44 @@ func TestServe(t *testing.T) {
 			func(t *testing.T) {
 				httpGet(t, "http://127.0.0.1:9090?query=asd", http.StatusOK)
 				httpGet(t, "http://127.0.0.1:9090/metrics", http.StatusOK)
+			},
+			startHTTP,
+		},
+		{
+			"http requests with caching in redis ",
+			"testdata/http.cache.redis.yml",
+			func(t *testing.T) {
+
+				q := "SELECT redis_cache_mate"
+				req, err := http.NewRequest("GET", "http://127.0.0.1:9090?query="+url.QueryEscape(q), nil)
+				checkErr(t, err)
+
+				resp := httpRequest(t, req, http.StatusOK)
+				checkHttpResponse(t, resp, expectedOkResp)
+				resp2 := httpRequest(t, req, http.StatusOK)
+				checkHttpResponse(t, resp2, expectedOkResp)
+				keys := redisClient.Keys()
+				if len(keys) != 1 {
+					t.Fatalf("unexpected amount of keys in redis: %v", len(keys))
+				}
+
+				// check cached response
+				key := &cache.Key{
+					Query:          []byte(q),
+					AcceptEncoding: "gzip",
+					Version:        cache.Version,
+				}
+				str, err := redisClient.Get(key.String())
+				checkErr(t, err)
+
+				if !strings.Contains(str, "Ok") || !strings.Contains(str, "text/plain") || !strings.Contains(str, "charset=utf-8") {
+					t.Fatalf("result from cache query is wrong: %s", str)
+				}
+
+				duration := redisClient.TTL(key.String())
+				if duration > 1*time.Minute || duration < 30*time.Second {
+					t.Fatalf("ttl on redis key was wrongly set: %s", duration.String())
+				}
 			},
 			startHTTP,
 		},
@@ -484,6 +547,7 @@ func TestServe(t *testing.T) {
 
 	// Wait until CHServer starts.
 	go startCHServer()
+	redisClient = startRedis(t)
 	startTime := time.Now()
 	i := 0
 	for i < 10 {
@@ -527,6 +591,20 @@ func TestServe(t *testing.T) {
 
 			tc.testFn(t)
 		})
+	}
+}
+
+func checkHttpResponse(t *testing.T, resp *http.Response, expectedResp string) {
+	buf := new(bytes.Buffer)
+	_, err := buf.ReadFrom(resp.Body)
+	if err != nil {
+		t.Fatalf("unexpected error while reading a response body: %v", err)
+	}
+	responseBodyStr := buf.String()
+	resp.Body.Close()
+
+	if responseBodyStr != expectedResp {
+		t.Fatalf("got: %q; expected: %q", responseBodyStr, expectedResp)
 	}
 }
 
@@ -588,6 +666,16 @@ func startHTTP() (net.Listener, chan struct{}) {
 	return ln, done
 }
 
+// TODO randomise port for each instance of the mock
+func startRedis(t *testing.T) *miniredis.Miniredis {
+	redis := miniredis.NewMiniRedis()
+	if err := redis.StartAddr("127.0.0.1:6379"); err != nil {
+		t.Fatalf("Failed to create redis server: %s", err)
+	}
+	return redis
+}
+
+// TODO randomise port for each instance of the mock
 func startCHServer() {
 	http.ListenAndServe(":8124", http.HandlerFunc(fakeCHHandler))
 }
@@ -702,7 +790,7 @@ func TestReloadConfig(t *testing.T) {
 
 func checkErr(t *testing.T, err error) {
 	if err != nil {
-		t.Fatalf("unexpected erorr: %s", err)
+		t.Fatalf("unexpected error: %s", err)
 	}
 }
 
@@ -722,6 +810,18 @@ func checkResponse(t *testing.T, r io.Reader, expected string) {
 
 func httpGet(t *testing.T, url string, statusCode int) *http.Response {
 	resp, err := http.Get(url)
+	if err != nil {
+		t.Fatalf("unexpected erorr while doing GET request: %s", err)
+	}
+	if resp.StatusCode != statusCode {
+		t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, statusCode)
+	}
+	return resp
+}
+
+func httpRequest(t *testing.T, request *http.Request, statusCode int) *http.Response {
+	client := http.Client{}
+	resp, err := client.Do(request)
 	if err != nil {
 		t.Fatalf("unexpected erorr while doing GET request: %s", err)
 	}
