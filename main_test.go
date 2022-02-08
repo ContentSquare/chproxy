@@ -666,6 +666,7 @@ func startHTTP() (net.Listener, chan struct{}) {
 	return ln, done
 }
 
+// TODO randomise port for each instance of the mock
 func startRedis(t *testing.T) *miniredis.Miniredis {
 	redis := miniredis.NewMiniRedis()
 	if err := redis.StartAddr("127.0.0.1:6379"); err != nil {
@@ -674,6 +675,7 @@ func startRedis(t *testing.T) *miniredis.Miniredis {
 	return redis
 }
 
+// TODO randomise port for each instance of the mock
 func startCHServer() {
 	http.ListenAndServe(":8124", http.HandlerFunc(fakeCHHandler))
 }

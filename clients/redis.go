@@ -7,6 +7,7 @@ import (
 	"github.com/go-redis/redis/v8"
 )
 
+// TODO Implement TLS Client
 func NewRedisClient(cfg config.RedisCacheConfig) (redis.UniversalClient, error) {
 	r := redis.NewUniversalClient(&redis.UniversalOptions{
 		Addrs:    cfg.Addresses,

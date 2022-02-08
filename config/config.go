@@ -599,12 +599,12 @@ type Cache struct {
 	// Grace duration before the expired entry is deleted from the cache.
 	GraceTime Duration `yaml:"grace_time,omitempty"`
 
-	// Catches all undefined fields
-	XXX map[string]interface{} `yaml:",inline"`
-
 	FileSystem FileSystemCacheConfig `yaml:"file_system,omitempty"`
 
 	Redis RedisCacheConfig `yaml:"redis,omitempty"`
+
+	// Catches all undefined fields
+	XXX map[string]interface{} `yaml:",inline"`
 }
 
 type FileSystemCacheConfig struct {
