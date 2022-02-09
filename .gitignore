@@ -1,5 +1,6 @@
 /chproxy
 /tags
+/dist
 
 # Documentation dependencies and artefacts
 /docs/node_modules

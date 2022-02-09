@@ -1,15 +1,11 @@
-FROM golang:1.16-alpine AS build
+FROM golang:1.17-alpine AS builder
 
-RUN apk add --update zstd-static zstd-dev make gcc musl-dev git
-RUN go get golang.org/x/lint/golint
-RUN mkdir -p /go/src/github.com/Vertamedia/chproxy
-WORKDIR /go/src/github.com/Vertamedia/chproxy
-COPY . ./
-ARG EXT_BUILD_TAG
-ENV EXT_BUILD_TAG ${EXT_BUILD_TAG}
-RUN make release-build
+RUN apk update && apk add --no-cache git ca-certificates && update-ca-certificates
 
-FROM alpine
-COPY --from=build /go/src/github.com/Vertamedia/chproxy/chproxy /chproxy
-ENTRYPOINT [ "/chproxy" ]
-CMD [ "--help" ]
+FROM scratch
+
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+
+COPY chproxy /
+
+ENTRYPOINT ["/chproxy"]
