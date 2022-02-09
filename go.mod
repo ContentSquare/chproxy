@@ -3,7 +3,7 @@ module github.com/contentsquare/chproxy
 go 1.13
 
 require (
-	github.com/DataDog/zstd v1.4.4
+	github.com/DataDog/zstd v1.5.0
 	github.com/alicebob/miniredis/v2 v2.16.0
 	github.com/frankban/quicktest v1.7.2 // indirect
 	github.com/go-redis/redis/v8 v8.11.4

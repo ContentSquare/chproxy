@@ -2,6 +2,7 @@
 
 /chproxy
 /tags
+/dist
 
 # Documentation dependencies and artefacts
 /docs/dist
