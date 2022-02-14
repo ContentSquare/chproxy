@@ -7,7 +7,7 @@ position: 103
 
 * *Is `chproxy` production ready?*
 
-  Yes, we successfully use it in production for both `INSERT` and `SELECT`
+  Yes, we successfully use it in production for `SELECT` requests. Others found it handy for `INSERT` as well. However, our benchmarks proved that it's better to insert data without proxy with `NATIVE` ClickHouse protocol.
   requests.
 
 * *What about `chproxy` performance?*
