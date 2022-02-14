@@ -1,10 +1,13 @@
-[![Go Report Card](https://goreportcard.com/badge/github.com/Vertamedia/chproxy)](https://goreportcard.com/report/github.com/Vertamedia/chproxy)
-[![Build Status](https://travis-ci.org/Vertamedia/chproxy.svg?branch=master)](https://travis-ci.org/Vertamedia/chproxy?branch=master)
-[![Coverage](https://img.shields.io/badge/gocover.io-75.7%25-green.svg)](http://gocover.io/github.com/Vertamedia/chproxy?version=1.9)
+---
+title: Chproxy
+description: Chproxy is an http proxy and load balancer for ClickHouse
+---
+
+[![Go Report Card](https://goreportcard.com/badge/github.com/ContentSquare/chproxy)](https://goreportcard.com/report/github.com/ContentSquare/chproxy)
+[![Build Status](https://travis-ci.org/ContentSquare/chproxy.svg?branch=master)](https://travis-ci.org/ContentSquare/chproxy?branch=master)
+[![Coverage](https://img.shields.io/badge/gocover.io-75.7%25-green.svg)](http://gocover.io/github.com/ContentSquare/chproxy?version=1.9)
 
 # chproxy
-
-[English](README.md) | [简体中文](README-CN.md)
 
  Chproxy 是一个用于 [ClickHouse](https://clickhouse.tech) 数据库的 http 代理、负载均衡器。具有以下特性：
 
@@ -28,7 +31,7 @@
 * 暴露各种有用的符合 [prometheus](https://prometheus.io/docs/instrumenting/exposition_formats/) 内容格式的[指标（metrics）](#metrics)。
 * 支持配置热更新，配置变更无需重启 —— 只需向 `chproxy`  进程发送一个 `SIGHUP` 信号即可。
 * 易于管理和运行 —— 只需传递一个配置文件路径给 `chproxy` 即可。
-* 易于[配置](https://github.com/Vertamedia/chproxy/blob/master/config/examples/simple.yml):
+* 易于[配置](https://github.com/ContentSquare/chproxy/blob/master/config/examples/simple.yml):
 
 
 ```yml
@@ -53,7 +56,7 @@ clusters:
 
 ### 使用预编译的二进制文件
 
-可以从[此处](https://github.com/Vertamedia/chproxy/releases)下载预编译的 `chproxy` 二进制文件。
+可以从[此处](https://github.com/ContentSquare/chproxy/releases)下载预编译的 `chproxy` 二进制文件。
 
 只需要下载最新的稳定版二进制文件，解压使用所需要的[配置](#configuration)运行。
 
@@ -66,7 +69,7 @@ clusters:
 Chproxy 是基于 [Go](https://golang.org/) 开发的，最简单的方式是如下的源编译安装：
 
 ```
-go get -u github.com/Vertamedia/chproxy
+go get -u github.com/ContentSquare/chproxy
 ```
 
 如果你的系统没有安装 Go，可以参考这个[操作指南](https://golang.org/doc/install)。
@@ -92,7 +95,7 @@ go get -u github.com/Vertamedia/chproxy
 
 所以最好是将 `INSERT` 分散到可用的分片节点上，并将其路由到每个分片表，而不是直接向分布式表进行请求。路由逻辑可以直接嵌入到应用程序生成分散后的 `INSERT` ，或者通过代理请求的方式。代理请求的方式会更好一些，因为它允许在不修改应用程序配置，对 `ClickHouse` 集群进行重新配置，避免应用程序的停机时间。多个相同的代理服务可以在不同的服务器上运行，以达到可拓展、高可用的目的。
 
-以下是[INSERT分散示例](https://github.com/Vertamedia/chproxy/blob/master/config/examples/spread.inserts.yml)的最小 `chproxy` 配置：
+以下是[INSERT分散示例](https://github.com/ContentSquare/chproxy/blob/master/config/examples/spread.inserts.yml)的最小 `chproxy` 配置：
 
 ```yml
 server:
@@ -128,7 +131,7 @@ clusters:
 
 最好是在每个分片节点上创建相同的分布式表，并将 `SELECT` 分散到所有可用的分片节点上。
 
-以下是[SELECT分散示例](https://github.com/Vertamedia/chproxy/blob/master/config/examples/spread.selects.yml)的最小 `chproxy` 配置：
+以下是[SELECT分散示例](https://github.com/ContentSquare/chproxy/blob/master/config/examples/spread.selects.yml)的最小 `chproxy` 配置：
 
 ```yml
 server:
@@ -158,9 +161,9 @@ clusters:
 
 ### 通过 HTTPS 进行用户密码认证
 
-假如你需要设置用户名称/密码用于在任何地方访问 `ClickHouse` 集群，可能用于在 [ClickHouse-grafana](https://github.com/Vertamedia/ClickHouse-grafana) 或 [tabix](https://tabix.io/) 创建图形界面管理。通过不信任的网络传输为加密的密码和数据，是一个坏主意。因此在这种情况下，必须通过 HTTPS 访问集群。
+假如你需要设置用户名称/密码用于在任何地方访问 `ClickHouse` 集群，可能用于在 [ClickHouse-grafana](https://github.com/ContentSquare/ClickHouse-grafana) 或 [tabix](https://tabix.io/) 创建图形界面管理。通过不信任的网络传输为加密的密码和数据，是一个坏主意。因此在这种情况下，必须通过 HTTPS 访问集群。
 
-以下的 `chproxy` 配置示例演示了 [HTTPS 配置](https://github.com/Vertamedia/chproxy/blob/master/config/examples/https.yml)：
+以下的 `chproxy` 配置示例演示了 [HTTPS 配置](https://github.com/ContentSquare/chproxy/blob/master/config/examples/https.yml)：
 
 ```yml
 server:
@@ -216,7 +219,7 @@ caches:
 
 ### 以上配置的组合
 
-以上的配置可以通过一个单独的 `chproxy` [config](https://github.com/Vertamedia/chproxy/blob/master/config/examples/combined.yml) 配置文件进行组合：
+以上的配置可以通过一个单独的 `chproxy` [config](https://github.com/ContentSquare/chproxy/blob/master/config/examples/combined.yml) 配置文件进行组合：
 
 ```yml
 server:
@@ -287,9 +290,9 @@ caches:
 ## 配置
 
 ### 服务配置
-`Chproxy`  可以接收 HTTP 和 HTTPS 协议的请求。其中 [HTTPS](https://github.com/Vertamedia/chproxy/tree/master/config#https_config) 必须使用自定义证书或自动 [Let's Encrypt](https://letsencrypt.org) 证书进行配置。
+`Chproxy`  可以接收 HTTP 和 HTTPS 协议的请求。其中 [HTTPS](https://github.com/ContentSquare/chproxy/tree/master/config#https_config) 必须使用自定义证书或自动 [Let's Encrypt](https://letsencrypt.org) 证书进行配置。
 
-可以通过 IP 列表或 IP 掩码进行限制对  `chproxy`  的访问进行限制。这个选项可以应用于  [HTTP](https://github.com/Vertamedia/chproxy/blob/master/config#http_config), [HTTPS](https://github.com/Vertamedia/chproxy/blob/master/config#https_config), [metrics](https://github.com/Vertamedia/chproxy/blob/master/config#metrics_config), [user](https://github.com/Vertamedia/chproxy/blob/master/config#user_config) 或 [cluster-user](https://github.com/Vertamedia/chproxy/blob/master/config#cluster_user_config) 配置。
+可以通过 IP 列表或 IP 掩码进行限制对  `chproxy`  的访问进行限制。这个选项可以应用于  [HTTP](https://github.com/ContentSquare/chproxy/blob/master/config#http_config), [HTTPS](https://github.com/ContentSquare/chproxy/blob/master/config#https_config), [metrics](https://github.com/ContentSquare/chproxy/blob/master/config#metrics_config), [user](https://github.com/ContentSquare/chproxy/blob/master/config#user_config) 或 [cluster-user](https://github.com/ContentSquare/chproxy/blob/master/config#cluster_user_config) 配置。
 
 ### 用户配置
 有两种类型的用户： `in-users` (在全局部分) 和 `out-users` (在集群部分)。
@@ -300,12 +303,12 @@ caches:
 
 有两个不同的应用程序从 `ClickHouse` 读取，我们可以创建两个不同的 `in-users` ，对应的 `to_user`  为 “web”，同时为每一个都设置 `max_concurrent_queries: 2`，以避免任意一个应用用尽所有 web 用户的 4 并发请求限制。
 
-对 `chproxy`的请求必须通过 [user_config](https://github.com/Vertamedia/chproxy/blob/master/config#user_config) 配置中的用户凭证认证，凭证信息可以通过 [BasicAuth](https://en.wikipedia.org/wiki/Basic_access_authentication) 或用户名/密码的查询字符串参数来传递。
+对 `chproxy`的请求必须通过 [user_config](https://github.com/ContentSquare/chproxy/blob/master/config#user_config) 配置中的用户凭证认证，凭证信息可以通过 [BasicAuth](https://en.wikipedia.org/wiki/Basic_access_authentication) 或用户名/密码的查询字符串参数来传递。
 
 对于  `in-users` 和 `out-users` 的限制是相互独立的。
 
 ### 集群配置
-`Chproxy` 可以配置多个逻辑集群 `cluster`，每个逻辑集群必须包含一个名称和节点列表、或者副本节点列表。请参考 [cluster-config](https://github.com/Vertamedia/chproxy/tree/master/config#cluster_config) 了解更详细的内容。
+`Chproxy` 可以配置多个逻辑集群 `cluster`，每个逻辑集群必须包含一个名称和节点列表、或者副本节点列表。请参考 [cluster-config](https://github.com/ContentSquare/chproxy/tree/master/config#cluster_config) 了解更详细的内容。
 
 对集群节点、副本节点之间的请求采用的是 `round-robin` + `least-loaded` 的均衡方式。
 
@@ -313,13 +316,13 @@ caches:
 
 此外，每个节点都会定期检查可用性。不可用的节点会被自动从逻辑集群中排除，直到它们再次可用为止。这允许在不从实际的 ClickHouse 集群中删除不可用节点的情况下，进行节点维护。
 
-`Chproxy` 会自动杀死超过 `max_execution_time` 限制的查询。默认情况下，`chproxy` 会尝试杀死  `default` 用户下的这些超时查询，可以通过 [kill_query_user](https://github.com/Vertamedia/chproxy/blob/master/config#kill_query_user_config) 来覆盖该用户设置。
+`Chproxy` 会自动杀死超过 `max_execution_time` 限制的查询。默认情况下，`chproxy` 会尝试杀死  `default` 用户下的这些超时查询，可以通过 [kill_query_user](https://github.com/ContentSquare/chproxy/blob/master/config#kill_query_user_config) 来覆盖该用户设置。
 
-如果没有指定逻辑集群的[用户配置](https://github.com/Vertamedia/chproxy/blob/master/config#cluster_user_config)部分，会默认使用 `default` 用户。
+如果没有指定逻辑集群的[用户配置](https://github.com/ContentSquare/chproxy/blob/master/config#cluster_user_config)部分，会默认使用 `default` 用户。
 
 ### 缓存配置
 
-`Chproxy`  支持配置响应缓存。可以创建多个 [cache-configs](https://github.com/Vertamedia/chproxy/blob/master/config/#cache_config) 中的各项细节配置。
+`Chproxy`  支持配置响应缓存。可以创建多个 [cache-configs](https://github.com/ContentSquare/chproxy/blob/master/config/#cache_config) 中的各项细节配置。
 
 通过给用户指定缓存名称，可以启用响应缓存。多个用户可以共享同一个缓存。
 
@@ -331,7 +334,7 @@ caches:
 可以在查询字符串中传递可选的缓存命名空间，如  `cache_namespace=aaaa` 。这允许缓存在不同命名空间下对相同的查询做出不同的响应。此外，可以在缓存空间上建立即时缓存刷新 —— 只需按照顺序切换到新的命名空间，即可刷新缓存。
 
 ### 安全配置
-`Chproxy` 可以在将请求代理到 ClickHouse 集群前，自定义从输入请求中删除查询参数（除了这里列出的[用户参数](https://github.com/Vertamedia/chproxy/blob/master/config#param_groups_config) 和[这些参数](https://github.com/Vertamedia/chproxy/blob/master/scope.go#L292)）。这可以防止请求不安全地覆盖各种 ClickHouse [设置](https://clickhouse.tech/docs/en/interfaces/http/#cli-queries-with-parameters)。
+`Chproxy` 可以在将请求代理到 ClickHouse 集群前，自定义从输入请求中删除查询参数（除了这里列出的[用户参数](https://github.com/ContentSquare/chproxy/blob/master/config#param_groups_config) 和[这些参数](https://github.com/ContentSquare/chproxy/blob/master/scope.go#L292)）。这可以防止请求不安全地覆盖各种 ClickHouse [设置](https://clickhouse.tech/docs/en/interfaces/http/#cli-queries-with-parameters)。
 
 在设置限制时候需要小心，比如允许网络、密码等。
 
@@ -341,7 +344,7 @@ caches:
 
 
 
-#### 完整配置[示例](https://github.com/Vertamedia/chproxy/blob/master/config/testdata/full.yml)
+#### 完整配置[示例](https://github.com/ContentSquare/chproxy/blob/master/config/testdata/full.yml)
 
 ```yml
 # Whether to print debug logs.
@@ -630,7 +633,7 @@ clusters:
         allowed_networks: ["office"]
 ```
 
-#### 完整的配置规范请参考[这里](https://github.com/Vertamedia/chproxy/blob/master/config)
+#### 完整的配置规范请参考[这里](https://github.com/ContentSquare/chproxy/blob/master/config)
 
 ## 指标
 所有的指标都以 prometheus 文本格式暴露在 `/metrics` 路径上。
@@ -663,7 +666,7 @@ clusters:
 | timeout_request_total | Counter | The number of timed out requests | `user`, `cluster`, `cluster_user`, `replica`, `cluster_node` |
 | user_queue_overflow_total | Counter | The number of overflows for per-user request queues | `user`, `cluster`, `cluster_user` |
 
-[这里](https://github.com/Vertamedia/chproxy/blob/master/chproxy_overview.json)与一个 [Grafana](https://grafana.com) 的 chproxy 指标仪表盘例子。
+[这里](https://github.com/ContentSquare/chproxy/blob/master/chproxy_overview.json)与一个 [Grafana](https://grafana.com) 的 chproxy 指标仪表盘例子。
 
 ![dashboard example](https://user-images.githubusercontent.com/2902918/31392734-b2fd4a18-ade2-11e7-84a9-4aaaac4c10d7.png)
 

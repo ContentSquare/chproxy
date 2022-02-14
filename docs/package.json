@@ -1,0 +1,31 @@
+{
+  "name": "chproxy-docs",
+  "version": "0.0.1",
+  "description": "Documentation website for Chproxy",
+  "main": "index.js",
+  "scripts": {
+    "dev": "nuxt",
+    "build": "nuxt build",
+    "start": "nuxt start",
+    "generate": "nuxt generate"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/ContentSquare/chproxy.git"
+  },
+  "keywords": [
+    "ClickHouse",
+    "chproxy",
+    "proxy"
+  ],
+  "author": "Tim Carry <tim@pixelastic.com> (https://www.pixelastic.com/)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/ContentSquare/chproxy/issues"
+  },
+  "homepage": "https://github.com/ContentSquare/chproxy#readme",
+  "dependencies": {
+    "@nuxt/content-theme-docs": "0.11.1",
+    "nuxt": "2.15.8"
+  }
+}
