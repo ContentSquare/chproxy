@@ -1,10 +1,33 @@
 ---
 builds:
-  - binary: chproxy
+  - id: linux-amd64
+    binary: chproxy
+    env:
+      - CGO_ENABLED=1
     goos:
       - linux
     goarch:
       - amd64
+    flags:
+      - "-tags={{ .Env.BUILD_TAG }}"
+    ldflags:
+      - -s
+      - -w
+      - -X main.buildTime={{ .Date }}
+      - -X main.buildRevision={{ .FullCommit }}
+      - -X main.buildTag={{ .Version }}
+    gcflags:
+      - -trimpath={{.Env.GOPATH}}/src
+
+  - id: linux-arm64
+    binary: chproxy-arm64
+    env:
+      - CGO_ENABLED=1
+      - CC=aarch64-linux-gnu-gcc
+    goos:
+      - linux
+    goarch:
+      - arm64
     flags:
       - "-tags={{ .Env.BUILD_TAG }}"
     ldflags:
