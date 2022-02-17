@@ -24,6 +24,11 @@ jobs:
         with:
           go-version: 1.17
 
+      - name: Install cross-compile package
+        run: |
+          sudo apt update
+          sudo apt install -y gcc gcc-aarch64-linux-gnu musl
+
       -
         name: Docker login
         run: |
