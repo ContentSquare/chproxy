@@ -9,10 +9,10 @@ description: Chproxy is an http proxy and load balancer for ClickHouse
 
 # chproxy
 
- Chproxy 是一个用于 [ClickHouse](https://clickhouse.tech) 数据库的 http 代理、负载均衡器。具有以下特性：
+Chproxy 是一个用于 [ClickHouse](https://clickhouse.tech) 数据库的 HTTP 代理、负载均衡器。具有以下特性：
 
 * 支持根据输入用户代理请求到多个 `ClickHouse` 集群。比如，把来自 `appserver` 的用户请求代理到 `stats-raw`  集群，把来自 `reportserver` 用户的请求代理到 `stats-aggregate` 集群。
-* 支持将输入用户映射到每个 ClickHouse 实际用户，这能够防止暴露 ClickHouse 集群的真实用户名称、密码信息。此外，chrpoxy 还允许映射多个输入用户到某一个单一的 ClickHouse 实际用户。
+* 支持将输入用户映射到每个 ClickHouse 实际用户，这能够防止暴露 ClickHouse 集群的真实用户名称、密码信息。此外，chproxy 还允许映射多个输入用户到某一个单一的 ClickHouse 实际用户。
 * 支持接收 HTTP 和 HTTPS 请求。
 * 支持通过 IP 或 IP 掩码列表限制 HTTP、HTTPS 访问。
 * 支持通过 IP 或 IP 掩码列表限制每个用户的访问。
@@ -21,14 +21,14 @@ description: Chproxy is an http proxy and load balancer for ClickHouse
 * 支持限制每个用户的请求并发数。
 * 所有的限制都可以对每个输入用户、每个集群用户进行设置。
 * 支持自动延迟请求，直到满足对用户的限制条件。
-* 支持配置每个用户的[响应缓存](#caching)。
+* 支持配置每个用户的[响应缓存](/configuration/caching)。
 * 响应缓存具有内建保护功能，可以防止 [惊群效应（thundering herd）](https://en.wikipedia.org/wiki/Cache_stampede)，即 dogpile 效应。
 * 通过 `least loaded` 和 `round robin` 技术实现请求在副本和节点间的均衡负载。
 * 支持检查节点健康情况，防止向不健康的节点发送请求。
 * 通过 [Let’s Encrypt](https://letsencrypt.org/) 支持 HTTPS 自动签发和更新。
 * 可以自行指定选用 HTTP 或 HTTPS 向每个配置的集群代理请求。
 * 在将请求代理到 `ClickHouse` 之前，预先将 User-Agent 请求头与远程/本地地址，和输入/输出的用户名进行关联，因此这些信息可以在  [system.query_log.http_user_agent](https://github.com/yandex/ClickHouse/issues/847) 中查询到。
-* 暴露各种有用的符合 [prometheus](https://prometheus.io/docs/instrumenting/exposition_formats/) 内容格式的[指标（metrics）](#metrics)。
+* 暴露各种有用的符合 [Prometheus](https://prometheus.io/docs/instrumenting/exposition_formats/) 内容格式的[指标（metrics）](/configuration/metrics)。
 * 支持配置热更新，配置变更无需重启 —— 只需向 `chproxy`  进程发送一个 `SIGHUP` 信号即可。
 * 易于管理和运行 —— 只需传递一个配置文件路径给 `chproxy` 即可。
 * 易于[配置](https://github.com/ContentSquare/chproxy/blob/master/config/examples/simple.yml):
@@ -58,7 +58,7 @@ clusters:
 
 可以从[此处](https://github.com/ContentSquare/chproxy/releases)下载预编译的 `chproxy` 二进制文件。
 
-只需要下载最新的稳定版二进制文件，解压使用所需要的[配置](#configuration)运行。
+只需要下载最新的稳定版二进制文件，解压使用所需要的[配置](/configuration/default)运行。
 
 ```
 ./chproxy -config=/path/to/config.yml
@@ -161,7 +161,7 @@ clusters:
 
 ### 通过 HTTPS 进行用户密码认证
 
-假如你需要设置用户名称/密码用于在任何地方访问 `ClickHouse` 集群，可能用于在 [ClickHouse-grafana](https://github.com/ContentSquare/ClickHouse-grafana) 或 [tabix](https://tabix.io/) 创建图形界面管理。通过不信任的网络传输为加密的密码和数据，是一个坏主意。因此在这种情况下，必须通过 HTTPS 访问集群。
+假如你需要设置用户名称/密码用于在任何地方访问 `ClickHouse` 集群，可能用于在 [ClickHouse-grafana](https://github.com/ContentSquare/ClickHouse-grafana) 或 [Tabix](https://tabix.io/) 创建图形界面管理。通过不信任的网络传输为加密的密码和数据，是一个坏主意。因此在这种情况下，必须通过 HTTPS 访问集群。
 
 以下的 `chproxy` 配置示例演示了 [HTTPS 配置](https://github.com/ContentSquare/chproxy/blob/master/config/examples/https.yml)：
 
@@ -636,7 +636,7 @@ clusters:
 #### 完整的配置规范请参考[这里](https://github.com/ContentSquare/chproxy/blob/master/config)
 
 ## 指标
-所有的指标都以 prometheus 文本格式暴露在 `/metrics` 路径上。
+所有的指标都以 Prometheus 文本格式暴露在 `/metrics` 路径上。
 
 | Name | Type | Description | Labels |
 | ------------- | ------------- | ------------- | ------------- |
@@ -655,7 +655,7 @@ clusters:
 | host_health | Gauge | Health state of hosts by clusters | `cluster`, `replica`, `cluster_node` |
 | host_penalties_total | Counter | The number of given penalties by host | `cluster`, `replica`, `cluster_node` |
 | killed_request_total | Counter | The number of requests killed by proxy | `user`, `cluster`, `cluster_user`, `replica`, `cluster_node` |
-| proxied_response_duration_seconds | Summary | Duration for responses proxied from clickhouse | `user`, `cluster`, `cluster_user`, `replica`, `cluster_node` |
+| proxied_response_duration_seconds | Summary | Duration for responses proxied from ClickHouse | `user`, `cluster`, `cluster_user`, `replica`, `cluster_node` |
 | request_body_bytes_total | Counter | The amount of bytes read from request bodies | `user`, `cluster`, `cluster_user`, `replica`, `cluster_node` |
 | request_duration_seconds | Summary | Request duration. Includes possible queue wait time | `user`, `cluster`, `cluster_user`, `replica`, `cluster_node` |
 | request_queue_size | Gauge | Request queue size at the moment | `user`, `cluster`, `cluster_user` |
