@@ -4,9 +4,6 @@ import (
 	"errors"
 	"io"
 	"time"
-
-	"github.com/contentsquare/chproxy/config"
-	"github.com/contentsquare/chproxy/log"
 )
 
 // Cache stores results of executed queries identified by Key

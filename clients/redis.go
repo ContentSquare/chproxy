@@ -3,7 +3,7 @@ package clients
 import (
 	"context"
 	"fmt"
-	"github.com/Vertamedia/chproxy/config"
+	"github.com/contentsquare/chproxy/config"
 	"github.com/go-redis/redis/v8"
 )
 
