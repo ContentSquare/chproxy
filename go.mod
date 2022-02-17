@@ -1,6 +1,6 @@
 module github.com/contentsquare/chproxy
 
-go 1.13
+go 1.17
 
 require (
 	github.com/DataDog/zstd v1.5.0
