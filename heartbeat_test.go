@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Vertamedia/chproxy/config"
+	"github.com/contentsquare/chproxy/config"
 )
 
 var (

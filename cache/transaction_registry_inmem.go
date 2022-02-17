@@ -1,7 +1,7 @@
 package cache
 
 import (
-	"github.com/Vertamedia/chproxy/log"
+	"github.com/contentsquare/chproxy/log"
 	"sync"
 	"time"
 )

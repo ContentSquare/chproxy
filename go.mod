@@ -1,4 +1,4 @@
-module github.com/Vertamedia/chproxy
+module github.com/contentsquare/chproxy
 
 go 1.13
 

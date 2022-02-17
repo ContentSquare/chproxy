@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/Vertamedia/chproxy/cache"
+	"github.com/contentsquare/chproxy/cache"
 	"io"
 	"net/http"
 	"sync"

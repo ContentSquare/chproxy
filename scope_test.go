@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Vertamedia/chproxy/config"
+	"github.com/contentsquare/chproxy/config"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

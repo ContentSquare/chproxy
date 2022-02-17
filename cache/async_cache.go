@@ -1,8 +1,8 @@
 package cache
 
 import (
-	"github.com/Vertamedia/chproxy/clients"
-	"github.com/Vertamedia/chproxy/config"
+	"github.com/contentsquare/chproxy/clients"
+	"github.com/contentsquare/chproxy/config"
 	"github.com/go-redis/redis/v8"
 	"time"
 )

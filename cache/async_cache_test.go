@@ -1,7 +1,7 @@
 package cache
 
 import (
-	"github.com/Vertamedia/chproxy/config"
+	"github.com/contentsquare/chproxy/config"
 	"os"
 	"testing"
 	"time"

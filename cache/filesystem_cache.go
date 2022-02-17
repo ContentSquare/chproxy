@@ -3,8 +3,8 @@ package cache
 import (
 	"bytes"
 	"fmt"
-	"github.com/Vertamedia/chproxy/config"
-	"github.com/Vertamedia/chproxy/log"
+	"github.com/contentsquare/chproxy/config"
+	"github.com/contentsquare/chproxy/log"
 	"io"
 	"io/ioutil"
 	"math/rand"

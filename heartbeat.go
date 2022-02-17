@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Vertamedia/chproxy/config"
+	"github.com/contentsquare/chproxy/config"
 )
 
 type heartBeat struct {

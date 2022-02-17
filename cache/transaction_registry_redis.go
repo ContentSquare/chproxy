@@ -2,7 +2,7 @@ package cache
 
 import (
 	"context"
-	"github.com/Vertamedia/chproxy/log"
+	"github.com/contentsquare/chproxy/log"
 	"github.com/go-redis/redis/v8"
 	"time"
 )
