@@ -275,7 +275,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	}
 
 	// Await for potential result from concurrent query
-	if userCache.AwaitForConcurrentTransaction(key) {
+	if transactionResult := userCache.AwaitForConcurrentTransaction(key); transactionResult.Completed {
 		cachedData, err := userCache.Get(key)
 		if err == nil {
 			_ = RespondWithData(srw, cachedData.Data, cachedData.ContentMetadata, cachedData.Ttl, http.StatusOK)
@@ -285,6 +285,18 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		} else {
 			cacheMissFromConcurrentQueries.With(labels).Inc()
 			log.Debugf("%s: cache miss after awaiting concurrent query", s)
+		}
+	} else {
+		err = fmt.Errorf("%s: no result found during grace time period : %s", s)
+		// Request has awaited longer than half of its timeout.
+		// There are following options:
+		// - the identical query failed to register its completion (TransactionRegistry unavailable)
+		// - configured grace time was too short
+		//
+		// Because of those 2 options, we will fail the query if elapsed time is bigger than half of the max request timeout.
+		if transactionResult.ElapsedTime > s.user.maxExecutionTime / 2 {
+			respondWith(srw, err, http.StatusRequestTimeout)
+			return
 		}
 	}
 

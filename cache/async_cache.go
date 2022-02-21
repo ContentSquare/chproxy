@@ -29,19 +29,30 @@ func (c *AsyncCache) Close() error {
 	return nil
 }
 
-func (c *AsyncCache) AwaitForConcurrentTransaction(key *Key) bool {
+type TransactionResult struct {
+	ElapsedTime time.Duration
+	Completed   bool
+}
+
+func (c *AsyncCache) AwaitForConcurrentTransaction(key *Key) TransactionResult {
 	startTime := time.Now()
 
 	for {
-		if time.Since(startTime) > c.graceTime {
+		elapsedTime := time.Since(startTime)
+		if elapsedTime > c.graceTime {
 			// The entry didn't appear during graceTime.
 			// Let the caller creating it.
-			return false
+			return TransactionResult{
+				ElapsedTime: elapsedTime,
+				Completed:   false,
+			}
 		}
 
-		ok := c.TransactionRegistry.IsDone(key)
-		if ok {
-			return ok
+		if c.TransactionRegistry.IsDone(key) {
+			return TransactionResult{
+				ElapsedTime: elapsedTime,
+				Completed:   true,
+			}
 		}
 
 		// Wait for graceTime in the hope the entry will appear
