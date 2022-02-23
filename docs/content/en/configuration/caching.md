@@ -24,11 +24,11 @@ Two types of cache configuration are supported:
 
 #### Local cache
 Local cache is stored on machine's file system. Therefore it is suitable for single replica deployments.
-Configuration template for local cache can be found [here](https://github.com/ContentSquare/chproxy/blob/master/config/#file_system_cache_config)
+Configuration template for local cache can be found [here](https://github.com/ContentSquare/chproxy/blob/master/config/#file_system_cache_config).
 
 #### Distributed cache
 Distributed cache relies on external database to share cache across multiple replicas. Therefore it is suitable for 
-multiple replicas deployments. Currently only [redis](https://redis.io/) key value store is supported. 
-Configuration template for distributed cache can be found [here](https://github.com/ContentSquare/chproxy/blob/master/config/#distributed_cache_config)
+multiple replicas deployments. Currently only [Redis](https://redis.io/) key value store is supported. 
+Configuration template for distributed cache can be found [here](https://github.com/ContentSquare/chproxy/blob/master/config/#distributed_cache_config).
 
 

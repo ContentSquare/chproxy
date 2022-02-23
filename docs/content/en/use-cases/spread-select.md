@@ -1,5 +1,5 @@
 ---
-title: Spread `SELECT`s from reporting apps among cluster nodes
+title: Spread SELECTs from reporting apps among cluster nodes
 menuTitle: Spreading SELECTs
 category: Use Cases
 position: 302

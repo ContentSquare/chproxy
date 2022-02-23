@@ -4,6 +4,6 @@
 
 # chproxy
 
-Chproxy is an http proxy and load balancer for [ClickHouse](https://ClickHouse.yandex) database. 
+Chproxy is an HTTP proxy and load balancer for the [ClickHouse](https://ClickHouse.yandex) database.
 
-Full documentation is available on [the official website](https://www.chproxy.org/)
+Full documentation is available on [the official website](https://www.chproxy.org/).

@@ -4,7 +4,7 @@ category: Configuration
 position: 205
 ---
 
-Metrics are exposed in [prometheus text format](https://prometheus.io/docs/instrumenting/exposition_formats/) at `/metrics` path.
+Metrics are exposed in [Prometheus text format](https://prometheus.io/docs/instrumenting/exposition_formats/) at `/metrics` path.
 
 | Name | Type | Description | Labels |
 | ------------- | ------------- | ------------- | ------------- |
@@ -23,7 +23,7 @@ Metrics are exposed in [prometheus text format](https://prometheus.io/docs/instr
 | host_health | Gauge | Health state of hosts by clusters | `cluster`, `replica`, `cluster_node` |
 | host_penalties_total | Counter | The number of given penalties by host | `cluster`, `replica`, `cluster_node` |
 | killed_request_total | Counter | The number of requests killed by proxy | `user`, `cluster`, `cluster_user`, `replica`, `cluster_node` |
-| proxied_response_duration_seconds | Summary | Duration for responses proxied from clickhouse | `user`, `cluster`, `cluster_user`, `replica`, `cluster_node` |
+| proxied_response_duration_seconds | Summary | Duration for responses proxied from ClickHouse | `user`, `cluster`, `cluster_user`, `replica`, `cluster_node` |
 | request_body_bytes_total | Counter | The amount of bytes read from request bodies | `user`, `cluster`, `cluster_user`, `replica`, `cluster_node` |
 | request_duration_seconds | Summary | Request duration. Includes possible queue wait time | `user`, `cluster`, `cluster_user`, `replica`, `cluster_node` |
 | request_queue_size | Gauge | Request queue size at the moment | `user`, `cluster`, `cluster_user` |
@@ -34,7 +34,7 @@ Metrics are exposed in [prometheus text format](https://prometheus.io/docs/instr
 | timeout_request_total | Counter | The number of timed out requests | `user`, `cluster`, `cluster_user`, `replica`, `cluster_node` |
 | user_queue_overflow_total | Counter | The number of overflows for per-user request queues | `user`, `cluster`, `cluster_user` |
 
-An example of [Grafana's](https://grafana.com) dashboard for `chproxy` metrics is available [here](https://github.com/ContentSquare/chproxy/blob/master/chproxy_overview.json)
+An example of [Grafana's](https://grafana.com) dashboard for `chproxy` metrics is available [here](https://github.com/ContentSquare/chproxy/blob/master/chproxy_overview.json).
 
 ![dashboard example](https://user-images.githubusercontent.com/2902918/31392734-b2fd4a18-ade2-11e7-84a9-4aaaac4c10d7.png)
 

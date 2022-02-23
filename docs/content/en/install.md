@@ -7,7 +7,7 @@ position: 102
 ### Precompiled binaries
 
 Precompiled `chproxy` binaries are available [here](https://github.com/ContentSquare/chproxy/releases).
-Just download the latest stable binary, unpack and run it with the desired [config](#configuration):
+Just download the latest stable binary, unpack and run it with the desired [config](/configuration/default):
 
 ```
 ./chproxy -config=/path/to/config.yml

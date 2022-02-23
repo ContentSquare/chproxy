@@ -1,5 +1,5 @@
 ---
-title: Spread `INSERT`s among cluster shards
+title: Spread INSERTs among cluster shards
 menuTitle: Spreading INSERTs
 category: Use Cases
 position: 301

@@ -1,7 +1,10 @@
+.DS_Store
+
 /chproxy
 /tags
 
 # Documentation dependencies and artefacts
+/docs/dist
 /docs/node_modules
 /docs/.output
 /docs/.nuxt
