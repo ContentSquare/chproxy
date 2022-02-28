@@ -2,6 +2,7 @@ package cache
 
 import (
 	"log"
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -15,83 +16,98 @@ const asyncTestDir = "./async-test-data"
 func TestAsyncCache_Cleanup_Of_Expired_Transactions(t *testing.T) {
 	graceTime := 100 * time.Millisecond
 	asyncCache := newAsyncTestCache(t, graceTime)
+	defer func() {
+		asyncCache.Close()
+		os.RemoveAll(asyncTestDir)
+	}()
 
 	key := &Key{
 		Query: []byte("SELECT async cache"),
 	}
+	_, err := asyncCache.Status(key)
 
-	if done := asyncCache.IsDone(key); !done {
+	if !errors.Is(err, ErrMissingTransaction) {
 		t.Fatalf("unexpected behaviour: transaction isnt done while it wasnt even started")
 	}
 
-	if err := asyncCache.Register(key); err != nil {
+	if err := asyncCache.Create(key); err != nil {
 		t.Fatalf("unexpected error: %s failed to register transaction", err)
 	}
 
-	if done := asyncCache.IsDone(key); done {
+	status, err := asyncCache.Status(key)
+	if err != nil || !status.IsPending() {
 		t.Fatalf("unexpected behaviour: transaction isnt finished")
 	}
 
 	time.Sleep(graceTime * 2)
 
-	if done := asyncCache.IsDone(key); !done {
+	status, err = asyncCache.Status(key)
+	if !errors.Is(err, ErrMissingTransaction) || status.IsPending() {
 		t.Fatalf("unexpected behaviour: transaction grace time elapsed and yet it was still pending")
 	}
-
-	asyncCache.Close()
-	os.RemoveAll(asyncTestDir)
 }
 
 func TestAsyncCache_AwaitForConcurrentTransaction_GraceTimeWithoutTransactionCompletion(t *testing.T) {
 	graceTime := 300 * time.Millisecond
 	asyncCache := newAsyncTestCache(t, graceTime)
 
+	defer func() {
+		asyncCache.Close()
+		os.RemoveAll(asyncTestDir)
+	}()
+
 	key := &Key{
 		Query: []byte("SELECT async cache AwaitForConcurrentTransaction"),
 	}
 
-	if done := asyncCache.IsDone(key); !done {
+	_, err := asyncCache.Status(key)
+	if !errors.Is(err, ErrMissingTransaction) {
 		t.Fatalf("unexpected behaviour: transaction isnt done while it wasnt even started")
 	}
 
-	if err := asyncCache.Register(key); err != nil {
+	if err := asyncCache.Create(key); err != nil {
 		t.Fatalf("unexpected error: %s failed to register transaction", err)
 	}
 
-	if done := asyncCache.IsDone(key); done {
+	status, err := asyncCache.Status(key)
+	if err != nil || !status.IsPending() {
 		t.Fatalf("unexpected behaviour: transaction isnt finished")
 	}
 
 	startTime := time.Now()
-	transactionResult := asyncCache.AwaitForConcurrentTransaction(key)
+	transactionResult, err := asyncCache.AwaitForConcurrentTransaction(key)
+	if err != nil {
+		t.Fatalf("unexpected behaviour while awaiting concurrent transaction: %v", err)
+	}
 	elapsedTime := time.Since(startTime)
 
 	// in order to let the cleaner swipe the transaction
 	time.Sleep(100 * time.Millisecond)
-	if transactionResult.Completed == asyncCache.IsDone(key) && transactionResult.Completed {
+	if !transactionResult.State.IsPending() {
 		t.Fatalf("unexpected behaviour: transaction awaiting time elapsed %s", elapsedTime.String())
 	}
-
-	asyncCache.Close()
-	os.RemoveAll(asyncTestDir)
 }
 
 func TestAsyncCache_AwaitForConcurrentTransaction_TransactionCompletedWhileAwaiting(t *testing.T) {
 	graceTime := 300 * time.Millisecond
 	asyncCache := newAsyncTestCache(t, graceTime)
 
+	defer func() {
+		asyncCache.Close()
+		os.RemoveAll(asyncTestDir)
+	}()
 	key := &Key{
 		Query: []byte("SELECT async cache AwaitForConcurrentTransactionCompleted"),
 	}
 
-	if err := asyncCache.Register(key); err != nil {
+	if err := asyncCache.Create(key); err != nil {
 		t.Fatalf("unexpected error: %s failed to register transaction", err)
 	}
 
 	errs := make(chan error)
 	go func() {
 		time.Sleep(graceTime / 2)
-		if err := asyncCache.Unregister(key); err != nil {
+		if err := asyncCache.Complete(key); err != nil {
 			errs <- err
 		} else {
 			errs <- nil
@@ -99,20 +115,66 @@ func TestAsyncCache_AwaitForConcurrentTransaction_TransactionCompletedWhileAwait
 	}()
 
 	startTime := time.Now()
-	transactionResult := asyncCache.AwaitForConcurrentTransaction(key)
-	elapsedTime := time.Since(startTime)
-
-	err := <-errs
+	transactionResult, err := asyncCache.AwaitForConcurrentTransaction(key)
 	if err != nil {
 		t.Fatalf("unexpected error: %s failed to unregister transaction", err)
 	}
 
-	if transactionResult.Completed != asyncCache.IsDone(key) || !transactionResult.Completed || elapsedTime >= graceTime {
-		t.Fatalf("unexpected behaviour: transaction awaiting time elapsed %s", elapsedTime.String())
+	elapsedTime := time.Since(startTime)
+
+	err = <-errs
+	if err != nil {
+		t.Fatalf("unexpected error: %s failed to unregister transaction", err)
 	}
 
-	asyncCache.Close()
-	os.RemoveAll(asyncTestDir)
+	if !transactionResult.State.IsCompleted() || elapsedTime >= graceTime {
+		t.Fatalf("unexpected behaviour: transaction awaiting time elapsed %s", elapsedTime.String())
+	}
+}
+
+func TestAsyncCache_AwaitForConcurrentTransaction_TransactionFailedWhileAwaiting(t *testing.T) {
+	graceTime := 300 * time.Millisecond
+	asyncCache := newAsyncTestCache(t, graceTime)
+
+	defer func() {
+		asyncCache.Close()
+		os.RemoveAll(asyncTestDir)
+	}()
+
+	key := &Key{
+		Query: []byte("SELECT async cache AwaitForConcurrentTransactionCompleted"),
+	}
+
+	if err := asyncCache.Create(key); err != nil {
+		t.Fatalf("unexpected error: %s failed to register transaction", err)
+	}
+
+	errs := make(chan error)
+	go func() {
+		time.Sleep(graceTime / 2)
+		if err := asyncCache.Fail(key); err != nil {
+			errs <- err
+		} else {
+			errs <- nil
+		}
+	}()
+
+	startTime := time.Now()
+	transactionResult, err := asyncCache.AwaitForConcurrentTransaction(key)
+	if err != nil {
+		t.Fatalf("unexpected error: %s failed to unregister transaction", err)
+	}
+
+	elapsedTime := time.Since(startTime)
+
+	err = <-errs
+	if err != nil {
+		t.Fatalf("unexpected error: %s failed to unregister transaction", err)
+	}
+
+	if !transactionResult.State.IsFailed() || elapsedTime >= graceTime {
+		t.Fatalf("unexpected behaviour: transaction awaiting time elapsed %s", elapsedTime.String())
+	}
 }
 
 func newAsyncTestCache(t *testing.T, graceTime time.Duration) *AsyncCache {

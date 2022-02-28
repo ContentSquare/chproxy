@@ -115,7 +115,7 @@ func (f *fileSystemCache) Get(key *Key) (*CachedData, error) {
 			return nil, ErrMissing
 		}
 		// Serve expired file in the hope it will be substituted
-		// with the fresh file during graceTime.
+		// with the fresh file during deadline.
 	}
 
 	b, err := ioutil.ReadAll(file)
@@ -242,7 +242,7 @@ func (f *fileSystemCache) clean() {
 
 	log.Debugf("cache %q: start cleaning dir %q", f.Name(), f.dir)
 
-	// Remove cached files after a graceTime from their expiration,
+	// Remove cached files after a deadline from their expiration,
 	// so they may be served until they are substituted with fresh files.
 	expire := f.expire + f.grace
 

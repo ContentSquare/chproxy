@@ -5,54 +5,54 @@ import (
 	"errors"
 	"time"
 
+	"fmt"
 	"github.com/contentsquare/chproxy/log"
 	"github.com/go-redis/redis/v8"
 )
 
-// pendingTransactionVal
-// Value set in redis that indicates that a query is being computed
-const pendingTransactionVal = ""
-
 type redisTransactionRegistry struct {
 	redisClient redis.UniversalClient
-	graceTime   time.Duration
+	// deadline specifies TTL of record to be kept, no matter the associated transaction status
+	deadline time.Duration
 }
 
-func newRedisTransactionRegistry(redisClient redis.UniversalClient, graceTime time.Duration) *redisTransactionRegistry {
+func newRedisTransactionRegistry(redisClient redis.UniversalClient, deadline time.Duration) *redisTransactionRegistry {
 	return &redisTransactionRegistry{
 		redisClient: redisClient,
-		graceTime:   graceTime,
+		deadline:    deadline,
 	}
+}
+
+func (r *redisTransactionRegistry) Create(key *Key) error {
+	return r.redisClient.Set(context.Background(), toTransactionKey(key), transactionCreated, r.deadline).Err()
+}
+
+func (r *redisTransactionRegistry) Complete(key *Key) error {
+	return r.redisClient.Set(context.Background(), toTransactionKey(key), transactionCompleted, redis.KeepTTL).Err()
+}
+
+func (r *redisTransactionRegistry) Fail(key *Key) error {
+	return r.redisClient.Set(context.Background(), toTransactionKey(key), transactionFailed, redis.KeepTTL).Err()
+}
+
+func (r *redisTransactionRegistry) Status(key *Key) (TransactionState, error) {
+	state, err := r.redisClient.Get(context.Background(), toTransactionKey(key)).Uint64()
+	if errors.Is(err, redis.Nil) {
+		return transactionCompleted, ErrMissingTransaction
+	}
+
+	if err != nil {
+		log.Errorf("Failed to fetch transaction status from redis for key: %s", key.String())
+		return transactionCompleted, ErrMissingTransaction
+	}
+
+	return TransactionState(state), nil
 }
 
 func (r *redisTransactionRegistry) Close() error {
 	return r.redisClient.Close()
 }
 
-func (r *redisTransactionRegistry) Register(key *Key) error {
-	return r.redisClient.Set(context.Background(), key.String(), pendingTransactionVal, r.graceTime).Err()
-}
-
-func (r *redisTransactionRegistry) Unregister(key *Key) error {
-	isDone := r.IsDone(key)
-	if isDone {
-		return nil
-	} else {
-		return r.redisClient.Del(context.Background(), key.String()).Err()
-	}
-}
-
-func (r *redisTransactionRegistry) IsDone(key *Key) bool {
-	value, err := r.redisClient.Get(context.Background(), key.String()).Result()
-
-	if errors.Is(err, redis.Nil) {
-		return true
-	}
-
-	if err != nil {
-		log.Errorf("Failed to fetch transaction status from redis for key: %s", key.String())
-		return true
-	}
-
-	return value != pendingTransactionVal
+func toTransactionKey(key *Key) string {
+	return fmt.Sprintf("%s-transaction", key.String())
 }
