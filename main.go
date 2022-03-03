@@ -28,7 +28,7 @@ var (
 )
 
 var (
-	proxy = newReverseProxy()
+	proxy *reverseProxy
 
 	// networks allow lists
 	allowedNetworksHTTP    atomic.Value
@@ -229,6 +229,10 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	switch r.URL.Path {
+	case "/health":
+		rw.WriteHeader(http.StatusOK)
+		rw.Write([]byte(http.StatusText(http.StatusOK)))
+		return
 	case "/favicon.ico":
 	case "/metrics":
 		an := allowedNetworksMetrics.Load().(*config.Networks)
@@ -280,6 +284,9 @@ func loadConfig() (*config.Config, error) {
 }
 
 func applyConfig(cfg *config.Config) error {
+	if proxy == nil {
+		proxy = newReverseProxy(cfg.Server.Proxy.SkipTLSVerify)
+	}
 	if err := proxy.applyConfig(cfg); err != nil {
 		return err
 	}

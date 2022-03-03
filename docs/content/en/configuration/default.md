@@ -166,6 +166,8 @@ server:
   proxy:
     enable: true
     header: CF-Connecting-IP
+    # Set this to true to disable TLS validation of backend proxies using https
+    skip_tls_verify: false
 
 # Configs for input users.
 users:

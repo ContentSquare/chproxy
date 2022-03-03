@@ -324,6 +324,10 @@ type Proxy struct {
 	// will be ignored.
 	Header string `yaml:"header,omitempty"`
 
+	// SkipTLSVerify: if true, ignore TLS certificate validation errors when
+	// connecting to backends.  (Default is false.)
+	SkipTLSVerify bool `yaml:"skip_tls_verify"`
+
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
 }

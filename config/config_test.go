@@ -355,6 +355,11 @@ func TestBadConfig(t *testing.T) {
 			"`cluster.scheme` must be `http` or `https`, got \"tcp\" instead for \"second cluster\"",
 		},
 		{
+			"wrong tls verify",
+			"testdata/bad.wrong_tls_verify.yml",
+			"yaml: unmarshal errors:\n  line 5: cannot unmarshal !!str `true` into bool",
+		},
+		{
 			"empty https",
 			"testdata/bad.empty_https.yml",
 			"configuration `https` is missing. Must be specified `https.cache_dir` for autocert OR `https.key_file` and `https.cert_file` for already existing certs",
@@ -735,6 +740,7 @@ func TestConfigString(t *testing.T) {
   proxy:
     enable: true
     header: CF-Connecting-IP
+    skip_tls_verify: false
 clusters:
 - name: first cluster
   scheme: http

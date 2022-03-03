@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -47,11 +48,15 @@ type reverseProxy struct {
 	hasWildcarded bool
 }
 
-func newReverseProxy() *reverseProxy {
+func newReverseProxy(skipTLSVerify bool) *reverseProxy {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	if skipTLSVerify {
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	}
 	return &reverseProxy{
 		rp: &httputil.ReverseProxy{
-			Director: func(*http.Request) {},
-
+			Director:  func(*http.Request) {},
+			Transport: transport,
 			// Suppress error logging in ReverseProxy, since all the errors
 			// are handled and logged in the code below.
 			ErrorLog: log.NilLogger,
