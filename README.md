@@ -6,4 +6,6 @@
 
 Chproxy is an HTTP proxy and load balancer for the [ClickHouse](https://ClickHouse.yandex) database.
 
+It is an open-source community project and not an official ClickHouse project.
+
 Full documentation is available on [the official website](https://www.chproxy.org/).
