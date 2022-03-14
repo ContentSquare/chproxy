@@ -12,21 +12,12 @@ import (
 // Value set in redis that indicates that a query is being computed
 const pendingTransactionVal = ""
 
-// This interface is a subset of all avialalble function from redis clients
-// It contains only the functions we're using and help to mock a client
-type RedisClientLight interface {
-	Set(ctx context.Context, key string, value interface{}, expiration time.Duration) *redis.StatusCmd
-	Del(ctx context.Context, keys ...string) *redis.IntCmd
-	Get(ctx context.Context, key string) *redis.StringCmd
-	Close() error
-}
-
 type redisTransactionRegistry struct {
-	redisClient RedisClientLight
+	redisClient redis.UniversalClient
 	graceTime   time.Duration
 }
 
-func newRedisTransactionRegistry(redisClient RedisClientLight, graceTime time.Duration) *redisTransactionRegistry {
+func newRedisTransactionRegistry(redisClient redis.UniversalClient, graceTime time.Duration) *redisTransactionRegistry {
 	return &redisTransactionRegistry{
 		redisClient: redisClient,
 		graceTime:   graceTime,
