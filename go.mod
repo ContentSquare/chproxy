@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/DataDog/zstd v1.5.0
-	github.com/alicebob/miniredis/v2 v2.16.0
+	github.com/alicebob/miniredis/v2 v2.18.0
 	github.com/go-redis/redis/v8 v8.11.4
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
 	github.com/pierrec/lz4 v2.4.0+incompatible

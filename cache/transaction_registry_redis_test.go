@@ -9,11 +9,7 @@ import (
 )
 
 func TestRedisTransaction(t *testing.T) {
-	s, err := miniredis.Run()
-	if err != nil {
-		panic(err)
-	}
-	defer s.Close()
+	s := miniredis.RunT(t)
 
 	redisClient := redis.NewUniversalClient(&redis.UniversalOptions{
 		Addrs: []string{s.Addr()},

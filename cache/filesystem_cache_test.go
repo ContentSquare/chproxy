@@ -47,9 +47,16 @@ func TestCacheClose(t *testing.T) {
 	}
 }
 
-func TestCacheAddGet(t *testing.T) {
+func TestFilesystemCacheAddGet(t *testing.T) {
 	c := newTestCache(t)
 	defer c.Close()
+	c1 := newTestCache(t)
+	defer c1.Close()
+	cacheAddGetHelper(t, c, c1)
+}
+
+// metatest used for both filesystem and redis Cache
+func cacheAddGetHelper(t *testing.T, c Cache, c1 Cache) {
 
 	for i := 0; i < 10; i++ {
 		key := &Key{
@@ -104,9 +111,6 @@ func TestCacheAddGet(t *testing.T) {
 	}
 
 	// Verify the cache may be re-opened.
-	c1 := newTestCache(t)
-	defer c1.Close()
-
 	for i := 0; i < 10; i++ {
 		key := &Key{
 			Query: []byte(fmt.Sprintf("SELECT %d", i)),
@@ -141,10 +145,14 @@ func TestCacheAddGet(t *testing.T) {
 	}
 }
 
-func TestCacheMiss(t *testing.T) {
+func TestFilesystemCacheMiss(t *testing.T) {
 	c := newTestCache(t)
 	defer c.Close()
+	cacheMissHelper(t, c)
+}
 
+// metatest used for both filesystem and redis Cache
+func cacheMissHelper(t *testing.T, c Cache) {
 	for i := 0; i < 10; i++ {
 		key := &Key{
 			Query: []byte(fmt.Sprintf("SELECT %d cache miss", i)),
