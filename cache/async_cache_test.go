@@ -1,10 +1,13 @@
 package cache
 
 import (
-	"github.com/contentsquare/chproxy/config"
+	"log"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/alicebob/miniredis/v2"
+	"github.com/contentsquare/chproxy/config"
 )
 
 const asyncTestDir = "./async-test-data"
@@ -133,4 +136,42 @@ func newAsyncTestCache(t *testing.T, graceTime time.Duration) *AsyncCache {
 		graceTime:           graceTime,
 	}
 	return asyncC
+}
+
+const testDirAsync = "./test-data-async"
+
+func TestAsyncCache_FilesystemCache_instanciation(t *testing.T) {
+	fileSystemCfg := config.Cache{
+		Name: "test",
+		Mode: "file_system",
+		FileSystem: config.FileSystemCacheConfig{
+			Dir:     testDir,
+			MaxSize: 8192,
+		},
+		Expire: config.Duration(time.Minute),
+	}
+	if err := os.RemoveAll(testDirAsync); err != nil {
+		log.Fatalf("cannot remove %q: %s", testDirAsync, err)
+	}
+	_, err := NewAsyncCache(fileSystemCfg)
+	if err != nil {
+		t.Fatalf("could not instanciate filsystem async cache because of the following error: %s", err)
+	}
+}
+
+func TestAsyncCache_RedisCache_instanciation(t *testing.T) {
+	s := miniredis.RunT(t)
+	var redisCfg = config.Cache{
+		Name: "test",
+		Mode: "redis",
+		Redis: config.RedisCacheConfig{
+			Addresses: []string{s.Addr()},
+		},
+		Expire: config.Duration(cacheTTL),
+	}
+
+	_, err := NewAsyncCache(redisCfg)
+	if err != nil {
+		t.Fatalf("could not instanciate redis async cache because of the following error: %s", err)
+	}
 }
