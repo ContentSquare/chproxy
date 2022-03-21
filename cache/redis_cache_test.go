@@ -31,6 +31,27 @@ func TestCacheSize(t *testing.T) {
 	if cacheSize > 0 {
 		t.Fatalf("the cache should be empty")
 	}
+
+	trw := &testResponseWriter{}
+	crw := NewBufferedResponseWriter(trw)
+	buffer := crw.Reader()
+
+	if _, err := redisCache.Put(buffer, ContentMetadata{}, &Key{Query: []byte("SELECT 1")}); err != nil {
+		t.Fatalf("failed to put it to cache: %s", err)
+	}
+	if _, err := redisCache.Put(buffer, ContentMetadata{}, &Key{Query: []byte("SELECT 2")}); err != nil {
+		t.Fatalf("failed to put it to cache: %s", err)
+	}
+	if _, err := redisCache.Put(buffer, ContentMetadata{}, &Key{Query: []byte("SELECT 2")}); err != nil {
+		t.Fatalf("failed to put it to cache: %s", err)
+	}
+
+	stats := redisCache.Stats()
+	if stats.Items != 2 {
+		t.Fatalf("cache should contain 2 items")
+	}
+	// because of the use of miniredis to simulate a real redis server
+	// we can't check stats.Size because miniredis doesn't handle the memory usage of redis
 }
 
 func generateRedisClientAndServer(t *testing.T) *redisCache {
