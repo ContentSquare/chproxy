@@ -3,6 +3,7 @@ package cache
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"github.com/contentsquare/chproxy/config"
 	"github.com/contentsquare/chproxy/log"
@@ -118,13 +119,17 @@ func (r *redisCache) Get(key *Key) (*CachedData, error) {
 		log.Errorf("Not able to fetch TTL for: %s ", key)
 	}
 
+	decoded, err := base64.StdEncoding.DecodeString(payload.Payload)
+	if err != nil {
+		log.Errorf("Not able to decode for: %s ", payload.Payload)
+	}
 	value := &CachedData{
 		ContentMetadata: ContentMetadata{
 			Length:   payload.Length,
 			Type:     payload.Type,
 			Encoding: payload.Encoding,
 		},
-		Data: bytes.NewReader([]byte(payload.Payload)),
+		Data: bytes.NewReader(decoded),
 		Ttl:  ttl,
 	}
 
@@ -137,8 +142,9 @@ func (r *redisCache) Put(reader io.Reader, contentMetadata ContentMetadata, key 
 		return 0, err
 	}
 
+	encoded := base64.StdEncoding.EncodeToString(data)
 	payload := &redisCachePayload{
-		Length: contentMetadata.Length, Type: contentMetadata.Type, Encoding: contentMetadata.Encoding, Payload: string(data),
+		Length: contentMetadata.Length, Type: contentMetadata.Type, Encoding: contentMetadata.Encoding, Payload: encoded,
 	}
 
 	marshalled, err := json.Marshal(payload)
