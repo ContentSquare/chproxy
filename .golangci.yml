@@ -11,30 +11,19 @@ linters:
     - dupl
     - durationcheck
     - errname
-    - errorlint
-    - exhaustive
     - exportloopref
-    - forcetypeassert
-    - gochecknoinits
     - goconst
-    - gocritic
     - gocyclo
     - gofmt
-    - gofumpt
     - goheader
-    - goimports
     - gomoddirectives
     - gomodguard
     - goprintffuncname
-    - gosec
-    - govet
-    - ifshort
     - importas
     - makezero
     - megacheck
     - misspell
     - nakedret
-    - nilerr
     - predeclared
     - promlinter
     - rowserrcheck
@@ -42,19 +31,33 @@ linters:
     - testpackage
     - thelper
     - tparallel
+  disable:
+    # Should be readded in the future with a dedicated PR to do the fix
+    - cyclop
+    - errcheck
+    - errorlint
+    - exhaustive
+    - forcetypeassert
+    - funlen
+    - gochecknoinits
+    - gocognit
+    - gocritic
+    - gofumpt
+    - goimports
+    - gosec
+    - govet
+    - ifshort
+    - ineffassign
+    - nestif
+    - nilerr
+    - nolintlint
+    - revive
+    - staticcheck
+    - stylecheck
     - unconvert
     - unparam
     - wastedassign
     - whitespace
-  disable:
-    # Should be readded in the future with a dedicated PR to do the fix
-    - cyclop
-    - funlen
-    - gocognit
-    - nolintlint
-    - revive
-    - stylecheck
-    - nestif
 
     # Disabled with a reason
     - gochecknoglobals # incompatible with the way we define our flags currently
