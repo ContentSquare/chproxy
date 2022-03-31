@@ -189,7 +189,7 @@ var (
 	})
 )
 
-func init() {
+func registerMetrics() {
 	prometheus.MustRegister(statusCodes, requestSum, requestSuccess,
 		limitExcess, hostPenalties, hostHealth, concurrentQueries,
 		requestQueueSize, userQueueOverflow, clusterUserQueueOverflow,

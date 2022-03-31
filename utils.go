@@ -97,7 +97,7 @@ func getQuerySnippetFromBody(req *http.Request) string {
 	// 'read' request body, so it traps into to crc.
 	// Ignore any errors, since getQuerySnippet is called only
 	// during error reporting.
-	io.Copy(ioutil.Discard, crc)
+	io.Copy(ioutil.Discard, crc) // nolint
 	data := crc.String()
 
 	u := getDecompressor(req)
@@ -159,7 +159,7 @@ func getFullQueryFromBody(req *http.Request) ([]byte, error) {
 	br := bytes.NewReader(data)
 	b, err := u.decompress(br)
 	if err != nil {
-		return nil, fmt.Errorf("cannot uncompress query: %s", err)
+		return nil, fmt.Errorf("cannot uncompress query: %w", err)
 	}
 
 	return b, nil
@@ -257,7 +257,7 @@ type gzipDecompressor struct{}
 func (dc gzipDecompressor) decompress(r io.Reader) ([]byte, error) {
 	gr, err := gzip.NewReader(r)
 	if err != nil {
-		return nil, fmt.Errorf("cannot ungzip query: %s", err)
+		return nil, fmt.Errorf("cannot ungzip query: %w", err)
 	}
 	return ioutil.ReadAll(gr)
 }

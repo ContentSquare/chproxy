@@ -52,30 +52,30 @@ func Debugf(format string, args ...interface{}) {
 		return
 	}
 	s := fmt.Sprintf(format, args...)
-	debugLogger.Output(outputCallDepth, s)
+	debugLogger.Output(outputCallDepth, s) // nolint
 }
 
 // Infof prints info message according to a format
 func Infof(format string, args ...interface{}) {
 	s := fmt.Sprintf(format, args...)
-	infoLogger.Output(outputCallDepth, s)
+	infoLogger.Output(outputCallDepth, s) // nolint
 }
 
 // Errorf prints warning message according to a format
 func Errorf(format string, args ...interface{}) {
 	s := fmt.Sprintf(format, args...)
-	errorLogger.Output(outputCallDepth, s)
+	errorLogger.Output(outputCallDepth, s) // nolint
 }
 
 // ErrorWithCallDepth prints err into error log using the given callDepth.
 func ErrorWithCallDepth(err error, callDepth int) {
 	s := err.Error()
-	errorLogger.Output(outputCallDepth+callDepth, s)
+	errorLogger.Output(outputCallDepth+callDepth, s) //nolint
 }
 
 // Fatalf prints fatal message according to a format and exits program
 func Fatalf(format string, args ...interface{}) {
 	s := fmt.Sprintf(format, args...)
-	fatalLogger.Output(outputCallDepth, s)
+	fatalLogger.Output(outputCallDepth, s) // nolint
 	os.Exit(1)
 }

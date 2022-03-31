@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -56,7 +57,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	s, status, err := rp.getScope(req)
 	if err != nil {
 		q := getQuerySnippet(req)
-		err = fmt.Errorf("%q: %s; query: %q", req.RemoteAddr, err, q)
+		err = fmt.Errorf("%q: %w; query: %q", req.RemoteAddr, err, q)
 		respondWith(rw, err, status)
 		return
 	}
@@ -66,7 +67,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if err := s.incQueued(); err != nil {
 		limitExcess.With(s.labels).Inc()
 		q := getQuerySnippet(req)
-		err = fmt.Errorf("%s: %s; query: %q", s, err, q)
+		err = fmt.Errorf("%s: %w; query: %q", s, err, q)
 		respondWith(rw, err, http.StatusTooManyRequests)
 		return
 	}
@@ -177,8 +178,7 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, srw *stat
 	rp.rp.ServeHTTP(rw, req)
 
 	err := ctx.Err()
-	switch err {
-	case nil:
+	if err == nil { //nolint: gocritic
 		// The request has been successfully proxied.
 		since := float64(time.Since(startTime).Seconds())
 		proxiedResponseDuration.With(s.labels).Observe(since)
@@ -197,8 +197,7 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, srw *stat
 			err := fmt.Errorf("%s: cannot reach %s; query: %q", s, s.host.addr.Host, q)
 			respondWith(srw, err, srw.statusCode)
 		}
-
-	case context.Canceled:
+	} else if errors.Is(err, context.Canceled) {
 		canceledRequest.With(s.labels).Inc()
 
 		q := getQuerySnippet(req)
@@ -207,8 +206,7 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, srw *stat
 			log.Errorf("%s: cannot kill query: %s; query: %q", s, err, q)
 		}
 		srw.statusCode = 499 // See https://httpstatuses.com/499 .
-
-	case context.DeadlineExceeded:
+	} else if errors.Is(err, context.DeadlineExceeded) {
 		timeoutRequest.With(s.labels).Inc()
 
 		// Penalize host with the timed out query, because it may be overloaded.
@@ -219,11 +217,10 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, srw *stat
 		if err := s.killQuery(); err != nil {
 			log.Errorf("%s: cannot kill query: %s; query: %q", s, err, q)
 		}
-		err = fmt.Errorf("%s: %s; query: %q", s, timeoutErrMsg, q)
+		err = fmt.Errorf("%s: %w; query: %q", s, timeoutErrMsg, q)
 		respondWith(rw, err, http.StatusGatewayTimeout)
 		srw.statusCode = http.StatusGatewayTimeout
-
-	default:
+	} else {
 		panic(fmt.Sprintf("BUG: context.Context.Err() returned unexpected error: %s", err))
 	}
 }
@@ -238,7 +235,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 
 	q, err := getFullQuery(req)
 	if err != nil {
-		err = fmt.Errorf("%s: cannot read query: %s", s, err)
+		err = fmt.Errorf("%s: cannot read query: %w", s, err)
 		respondWith(srw, err, http.StatusBadRequest)
 		return
 	}
@@ -289,7 +286,6 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 			cacheMissFromConcurrentQueries.With(labels).Inc()
 			log.Debugf("%s: cache miss after awaiting concurrent query", s)
 		}
-
 	}
 
 	// The response wasn't found in the cache.
@@ -338,12 +334,11 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		}
 		err = RespondWithData(srw, &buf, contentMetadata, expiration, bufferedRespWriter.StatusCode())
 		if err != nil {
-			err = fmt.Errorf("%s: %s; query: %q", s, err, q)
+			err = fmt.Errorf("%s: %w; query: %q", s, err, q)
 			respondWith(srw, err, http.StatusInternalServerError)
 			return
 		}
 	}
-
 }
 
 // applyConfig applies the given cfg to reverseProxy.
@@ -391,7 +386,7 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 		}
 		params[p.Name], err = newParamsRegistry(p.Params)
 		if err != nil {
-			return fmt.Errorf("cannot initialize params %q: %s", p.Name, err)
+			return fmt.Errorf("cannot initialize params %q: %w", p.Name, err)
 		}
 	}
 

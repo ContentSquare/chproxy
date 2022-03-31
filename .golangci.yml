@@ -5,45 +5,52 @@ run:
 linters:
   enable:
     - asciicheck
+    - bidichk
     - bodyclose
+    - deadcode
     - depguard
     - dogsled
     - dupl
     - durationcheck
+    - errcheck
     - errname
+    - errorlint
     - exportloopref
+    - gochecknoinits
     - goconst
+    - gocritic
     - gocyclo
     - gofmt
     - goheader
+    - goimports
     - gomoddirectives
     - gomodguard
     - goprintffuncname
+    - gosimple
     - importas
     - makezero
-    - megacheck
     - misspell
     - nakedret
     - predeclared
     - promlinter
     - rowserrcheck
     - sqlclosecheck
+    - structcheck
     - testpackage
     - thelper
     - tparallel
+    - typecheck
+    - unused
+    - varcheck
+    - whitespace
   disable:
     # Should be readded in the future with a dedicated PR to do the fix
     - cyclop
-    - errcheck
-    - errorlint
     - exhaustive
     - forcetypeassert
     - funlen
-    - gochecknoinits
     - gocognit
-    - gocritic
     - gofumpt
-    - goimports
     - gosec
     - govet
     - ifshort
@@ -57,7 +64,6 @@ linters:
     - unconvert
     - unparam
     - wastedassign
-    - whitespace
 
     # Disabled with a reason
     - gochecknoglobals # incompatible with the way we define our flags currently

@@ -32,7 +32,7 @@ func (bs *ByteSize) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	value, err := strconv.ParseFloat(parts[1], 64)
 	if err != nil {
-		return fmt.Errorf("cannot parse byte size %q: it must be positive float followed by optional units. For example, 1.5Gb, 3T; err: %s", s, err)
+		return fmt.Errorf("cannot parse byte size %q: it must be positive float followed by optional units. For example, 1.5Gb, 3T; err: %w", s, err)
 	}
 	if value <= 0 {
 		return fmt.Errorf("byte size %q must be positive", s)

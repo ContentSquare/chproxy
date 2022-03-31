@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/contentsquare/chproxy/log"
@@ -44,7 +45,7 @@ func (r *redisTransactionRegistry) Unregister(key *Key) error {
 func (r *redisTransactionRegistry) IsDone(key *Key) bool {
 	value, err := r.redisClient.Get(context.Background(), key.String()).Result()
 
-	if err == redis.Nil {
+	if errors.Is(err, redis.Nil) {
 		return true
 	}
 

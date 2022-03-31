@@ -2,11 +2,12 @@ package main
 
 import (
 	"fmt"
-	"github.com/contentsquare/chproxy/cache"
 	"io"
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/contentsquare/chproxy/cache"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -45,7 +46,7 @@ func RespondWithData(rw http.ResponseWriter, data io.Reader, metadata cache.Cont
 	rw.WriteHeader(statusCode)
 
 	if _, err := io.Copy(rw, data); err != nil {
-		return fmt.Errorf("cannot send response to client: %s", err)
+		return fmt.Errorf("cannot send response to client: %w", err)
 	}
 
 	return nil

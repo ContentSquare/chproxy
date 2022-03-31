@@ -5,13 +5,15 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"github.com/contentsquare/chproxy/config"
-	"github.com/contentsquare/chproxy/log"
-	"github.com/go-redis/redis/v8"
+	"errors"
 	"io"
 	"regexp"
 	"strconv"
 	"time"
+
+	"github.com/contentsquare/chproxy/config"
+	"github.com/contentsquare/chproxy/log"
+	"github.com/go-redis/redis/v8"
 )
 
 type redisCache struct {
@@ -95,7 +97,7 @@ func (r *redisCache) Get(key *Key) (*CachedData, error) {
 	val, err := r.client.Get(ctx, key.String()).Result()
 
 	// if key not found in cache
-	if err == redis.Nil || val == pendingTransactionVal {
+	if errors.Is(err, redis.Nil) || val == pendingTransactionVal {
 		return nil, ErrMissing
 	}
 

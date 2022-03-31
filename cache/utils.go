@@ -13,7 +13,7 @@ func walkDir(dir string, f func(fi os.FileInfo)) error {
 	// See https://golang.org/pkg/path/filepath/#Walk .
 	fd, err := os.Open(dir)
 	if err != nil {
-		return fmt.Errorf("cannot open %q: %s", dir, err)
+		return fmt.Errorf("cannot open %q: %w", dir, err)
 	}
 	defer fd.Close()
 
@@ -23,7 +23,7 @@ func walkDir(dir string, f func(fi os.FileInfo)) error {
 			if err == io.EOF {
 				return nil
 			}
-			return fmt.Errorf("cannot read files in %q: %s", dir, err)
+			return fmt.Errorf("cannot read files in %q: %w", dir, err)
 		}
 		for _, fi := range fis {
 			if fi.IsDir() {
