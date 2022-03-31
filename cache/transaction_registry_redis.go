@@ -28,11 +28,15 @@ func (r *redisTransactionRegistry) Create(key *Key) error {
 }
 
 func (r *redisTransactionRegistry) Complete(key *Key) error {
-	return r.redisClient.Set(context.Background(), toTransactionKey(key), transactionCompleted, redis.KeepTTL).Err()
+	return r.updateTransactionState(key, transactionCompleted)
 }
 
 func (r *redisTransactionRegistry) Fail(key *Key) error {
-	return r.redisClient.Set(context.Background(), toTransactionKey(key), transactionFailed, redis.KeepTTL).Err()
+	return r.updateTransactionState(key, transactionFailed)
+}
+
+func (r *redisTransactionRegistry) updateTransactionState(key *Key, state TransactionState) error {
+	return r.redisClient.Set(context.Background(), toTransactionKey(key), state, redis.KeepTTL).Err()
 }
 
 func (r *redisTransactionRegistry) Status(key *Key) (TransactionState, error) {

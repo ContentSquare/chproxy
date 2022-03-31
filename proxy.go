@@ -292,10 +292,15 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 				log.Debugf("%s: cache miss after awaiting concurrent query", s)
 			}
 		} else {
-			err = fmt.Errorf("%s: no result found during grace time period", s)
-			// We will asses if elapsed time is bigger than half of the max request timeout.
+			if transaction.State.IsFailed() {
+				err = fmt.Errorf("%s: concurrent query failed", s)
+				respondWith(srw, err, http.StatusInternalServerError)
+				return
+			}
+			// We will assess if elapsed time is bigger than half of the max request timeout.
 			// This precondition halts execution
 			if transaction.ElapsedTime > s.user.maxExecutionTime/2 {
+				err = fmt.Errorf("%s: no result found during grace time period", s)
 				respondWith(srw, err, http.StatusRequestTimeout)
 				return
 			}
@@ -311,12 +316,6 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	if err != nil {
 		log.Errorf("%s: %s; query: %q - failed to register transaction", s, err, q)
 	}
-	defer func() {
-		// Eventually unregister ongoing transaction
-		if err = userCache.Fail(key); err != nil {
-			log.Errorf("%s: %s; query: %q", s, err, q)
-		}
-	}()
 
 	// proxy request and capture response along with headers to [[BufferedResponseWriter]]
 	rp.proxyRequest(s, bufferedRespWriter, srw, req)

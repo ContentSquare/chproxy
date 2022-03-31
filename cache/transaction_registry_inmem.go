@@ -14,7 +14,7 @@ type pendingEntry struct {
 
 type inMemoryTransactionRegistry struct {
 	pendingEntriesLock sync.Mutex
-	pendingEntries     map[*Key]pendingEntry
+	pendingEntries     map[string]pendingEntry
 
 	deadline time.Duration
 	stopCh   chan struct{}
@@ -24,9 +24,9 @@ type inMemoryTransactionRegistry struct {
 func newInMemoryTransactionRegistry(deadline time.Duration) *inMemoryTransactionRegistry {
 	transaction := &inMemoryTransactionRegistry{
 		pendingEntriesLock: sync.Mutex{},
-		pendingEntries:     make(map[*Key]pendingEntry),
-		deadline: deadline,
-		stopCh:   make(chan struct{}),
+		pendingEntries:     make(map[string]pendingEntry),
+		deadline:           deadline,
+		stopCh:             make(chan struct{}),
 	}
 
 	transaction.wg.Add(1)
@@ -43,9 +43,10 @@ func newInMemoryTransactionRegistry(deadline time.Duration) *inMemoryTransaction
 func (i *inMemoryTransactionRegistry) Create(key *Key) error {
 	i.pendingEntriesLock.Lock()
 	defer i.pendingEntriesLock.Unlock()
-	_, exists := i.pendingEntries[key]
+	k := key.String()
+	_, exists := i.pendingEntries[k]
 	if !exists {
-		i.pendingEntries[key] = pendingEntry{
+		i.pendingEntries[k] = pendingEntry{
 			deadline: time.Now().Add(i.deadline),
 			state:    transactionCreated,
 		}
@@ -54,35 +55,36 @@ func (i *inMemoryTransactionRegistry) Create(key *Key) error {
 }
 
 func (i *inMemoryTransactionRegistry) Complete(key *Key) error {
-	i.pendingEntriesLock.Lock()
-	defer i.pendingEntriesLock.Unlock()
-	if pendingEntry, ok := i.pendingEntries[key]; ok {
-		pendingEntry.state = transactionCompleted
-		i.pendingEntries[key] = pendingEntry
-	} else {
-		// todo: should we register an entry in that case anyway (I guess)
-		log.Errorf("attempt to complete transaction failed, because entry not found for key: %s", key.String())
-	}
+	i.updateTransactionState(key, transactionCompleted)
 	return nil
 }
 
 func (i *inMemoryTransactionRegistry) Fail(key *Key) error {
+	i.updateTransactionState(key, transactionFailed)
+	return nil
+}
+
+func (i *inMemoryTransactionRegistry) updateTransactionState(key *Key, state TransactionState) {
 	i.pendingEntriesLock.Lock()
 	defer i.pendingEntriesLock.Unlock()
-	if pendingEntry, ok := i.pendingEntries[key]; ok {
-		pendingEntry.state = transactionFailed
-		i.pendingEntries[key] = pendingEntry
+	k := key.String()
+	if entry, ok := i.pendingEntries[k]; ok {
+		entry.state = state
+		i.pendingEntries[k] = entry
 	} else {
-		// todo: should we register an entry in that case anyway (I guess)
-		log.Errorf("attempt to complete transaction failed, because entry not found for key: %s", key.String())
+		log.Errorf("[attempt to complete transaction] entry not found for key: %s, registering new entry with %v status", key.String(), state)
+		i.pendingEntries[k] = pendingEntry{
+			deadline: time.Now().Add(i.deadline),
+			state:    state,
+		}
 	}
-	return nil
 }
 
 func (i *inMemoryTransactionRegistry) Status(key *Key) (TransactionState, error) {
 	i.pendingEntriesLock.Lock()
 	defer i.pendingEntriesLock.Unlock()
-	if entry, ok := i.pendingEntries[key]; ok {
+	k := key.String()
+	if entry, ok := i.pendingEntries[k]; ok {
 		return entry.state, nil
 	}
 	return transactionCompleted, ErrMissingTransaction
