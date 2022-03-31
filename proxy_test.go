@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	okResponse = "1\n"
+	okResponse = "1"
 )
 
 var goodCfg = &config.Config{
