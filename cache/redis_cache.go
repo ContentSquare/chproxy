@@ -24,7 +24,7 @@ const getTimeout = 1 * time.Second
 const putTimeout = 2 * time.Second
 const statsTimeout = 500 * time.Millisecond
 
-type redisCachePayload struct {
+type RedisCachePayload struct {
 	Length   int64  `json:"l"`
 	Type     string `json:"t"`
 	Encoding string `json:"enc"`
@@ -105,7 +105,7 @@ func (r *redisCache) Get(key *Key) (*CachedData, error) {
 		return nil, ErrMissing
 	}
 
-	var payload redisCachePayload
+	var payload RedisCachePayload
 	err = json.Unmarshal([]byte(val), &payload)
 
 	if err != nil {
@@ -121,7 +121,8 @@ func (r *redisCache) Get(key *Key) (*CachedData, error) {
 
 	decoded, err := base64.StdEncoding.DecodeString(payload.Payload)
 	if err != nil {
-		log.Errorf("Not able to decode for: %s ", payload.Payload)
+		log.Errorf("failed to decode payload: %s , due to: %v ", payload.Payload, err)
+		return nil, ErrMissing
 	}
 	value := &CachedData{
 		ContentMetadata: ContentMetadata{
@@ -143,7 +144,7 @@ func (r *redisCache) Put(reader io.Reader, contentMetadata ContentMetadata, key 
 	}
 
 	encoded := base64.StdEncoding.EncodeToString(data)
-	payload := &redisCachePayload{
+	payload := &RedisCachePayload{
 		Length: contentMetadata.Length, Type: contentMetadata.Type, Encoding: contentMetadata.Encoding, Payload: encoded,
 	}
 
