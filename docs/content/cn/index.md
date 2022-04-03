@@ -77,7 +77,7 @@ go get -u github.com/ContentSquare/chproxy
 
 ## 为什么开发了Chproxy
 
-由于各种原因，ClickHouse 的最大执行时间、最大并发语句可能会超过 [max_execution_time](http://clickhouse-docs.readthedocs.io/en/latest/settings/query_complexity.html#max-execution-time) 和[max_concurrent_queries](https://github.com/yandex/ClickHouse/blob/add13f233eb6d30da4c75c4309542047a1dde033/dbms/src/Server/config.xml#L75) 的限制：
+由于各种原因，ClickHouse 的最大执行时间、最大并发语句可能会超过 [max_execution_time](https://clickhouse.com/docs/en/operations/settings/query-complexity/#max-execution-time) 和[max_concurrent_queries](https://clickhouse.com/docs/en/operations/server-configuration-parameters/settings/#max-concurrent-queries) 的限制：
 
 * `max_execution_time`  可能会因为当前实现的缺陷而被超过。
 * `max_concurrent_queries`  只针对每个节点的限制。如果是在集群节点上，是没法限制集群整体的并发查询数量。
