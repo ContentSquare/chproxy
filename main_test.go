@@ -5,6 +5,8 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/tls"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"github.com/contentsquare/chproxy/cache"
 	"io"
@@ -19,9 +21,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/contentsquare/chproxy/config"
 	"github.com/contentsquare/chproxy/log"
-	"github.com/alicebob/miniredis/v2"
 )
 
 var testDir = "./temp-test-data"
@@ -365,7 +367,7 @@ func TestServe(t *testing.T) {
 				str, err := redisClient.Get(key.String())
 				checkErr(t, err)
 
-				if !strings.Contains(str, "Ok") || !strings.Contains(str, "text/plain") || !strings.Contains(str, "charset=utf-8") {
+				if !strings.Contains(str, base64.StdEncoding.EncodeToString([]byte("Ok."))) || !strings.Contains(str, "text/plain") || !strings.Contains(str, "charset=utf-8") {
 					t.Fatalf("result from cache query is wrong: %s", str)
 				}
 
@@ -376,6 +378,57 @@ func TestServe(t *testing.T) {
 			},
 			startHTTP,
 		},
+		{
+			"http requests with caching in redis (testcase for base64 encoding/decoding)",
+			"testdata/http.cache.redis.yml",
+			func(t *testing.T) {
+				redisClient.FlushAll()
+				q := "SELECT 1 FORMAT TabSeparatedWithNamesAndTypes"
+				req, err := http.NewRequest("GET", "http://127.0.0.1:9090?query="+url.QueryEscape(q), nil)
+				checkErr(t, err)
+
+				resp := httpRequest(t, req, http.StatusOK)
+				checkHttpResponse(t, resp, string(bytesWithInvalidUTFPairs))
+				resp2 := httpRequest(t, req, http.StatusOK)
+				// if we do not use base64 to encode/decode the cached payload, EOF error will be thrown here.
+				checkHttpResponse(t, resp2, string(bytesWithInvalidUTFPairs))
+				keys := redisClient.Keys()
+				if len(keys) != 1 {
+					t.Fatalf("unexpected amount of keys in redis: %v", len(keys))
+				}
+
+				// check cached response
+				key := &cache.Key{
+					Query:          []byte(q),
+					AcceptEncoding: "gzip",
+					Version:        cache.Version,
+				}
+				str, err := redisClient.Get(key.String())
+				checkErr(t, err)
+
+				type redisCachePayload struct {
+					Length   int64  `json:"l"`
+					Type     string `json:"t"`
+					Encoding string `json:"enc"`
+					Payload  string `json:"payload"`
+				}
+
+				var unMarshaledPayload redisCachePayload
+				err = json.Unmarshal([]byte(str), &unMarshaledPayload)
+				checkErr(t, err)
+				if unMarshaledPayload.Payload != base64.StdEncoding.EncodeToString(bytesWithInvalidUTFPairs) {
+					t.Fatalf("result from cache query is wrong: %s", str)
+				}
+				decoded, err := base64.StdEncoding.DecodeString(unMarshaledPayload.Payload)
+				checkErr(t, err)
+
+				if unMarshaledPayload.Length != int64(len(decoded)) {
+					t.Fatalf("the declared length %d and actual length %d is not same", unMarshaledPayload.Length, len(decoded))
+				}
+			},
+			startHTTP,
+		},
+
 		{
 			"http gzipped POST request",
 			"testdata/http.cache.yml",
@@ -706,6 +759,9 @@ func fakeCHHandler(w http.ResponseWriter, r *http.Request) {
 		fakeCHState.sleep()
 
 		fmt.Fprint(w, "bar")
+	case "SELECT 1 FORMAT TabSeparatedWithNamesAndTypes":
+		w.WriteHeader(http.StatusOK)
+		w.Write(bytesWithInvalidUTFPairs)
 	default:
 		if strings.Contains(string(query), killQueryPattern) {
 			fakeCHState.kill()
@@ -714,6 +770,8 @@ func fakeCHHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, "Ok.\n")
 	}
 }
+
+var bytesWithInvalidUTFPairs = []byte{239, 191, 189, 1, 32, 50, 239, 191}
 
 var fakeCHState = &stateCH{
 	syncCH: make(chan struct{}),
