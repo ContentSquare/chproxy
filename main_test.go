@@ -406,7 +406,14 @@ func TestServe(t *testing.T) {
 				str, err := redisClient.Get(key.String())
 				checkErr(t, err)
 
-				var unMarshaledPayload cache.RedisCachePayload
+				type redisCachePayload struct {
+					Length   int64  `json:"l"`
+					Type     string `json:"t"`
+					Encoding string `json:"enc"`
+					Payload  string `json:"payload"`
+				}
+
+				var unMarshaledPayload redisCachePayload
 				err = json.Unmarshal([]byte(str), &unMarshaledPayload)
 				checkErr(t, err)
 				if unMarshaledPayload.Payload != base64.StdEncoding.EncodeToString(bytesWithInvalidUTFPairs) {

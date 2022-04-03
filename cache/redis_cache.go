@@ -24,7 +24,7 @@ const getTimeout = 1 * time.Second
 const putTimeout = 2 * time.Second
 const statsTimeout = 500 * time.Millisecond
 
-type RedisCachePayload struct {
+type redisCachePayload struct {
 	Length   int64  `json:"l"`
 	Type     string `json:"t"`
 	Encoding string `json:"enc"`
@@ -105,7 +105,7 @@ func (r *redisCache) Get(key *Key) (*CachedData, error) {
 		return nil, ErrMissing
 	}
 
-	var payload RedisCachePayload
+	var payload redisCachePayload
 	err = json.Unmarshal([]byte(val), &payload)
 
 	if err != nil {
@@ -144,7 +144,7 @@ func (r *redisCache) Put(reader io.Reader, contentMetadata ContentMetadata, key 
 	}
 
 	encoded := base64.StdEncoding.EncodeToString(data)
-	payload := &RedisCachePayload{
+	payload := &redisCachePayload{
 		Length: contentMetadata.Length, Type: contentMetadata.Type, Encoding: contentMetadata.Encoding, Payload: encoded,
 	}
 
