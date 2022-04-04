@@ -2,9 +2,10 @@ package cache
 
 import (
 	"context"
+	"time"
+
 	"github.com/contentsquare/chproxy/log"
 	"github.com/go-redis/redis/v8"
-	"time"
 )
 
 // pendingTransactionVal

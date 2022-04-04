@@ -1,10 +1,12 @@
 package cache
 
 import (
+	"fmt"
+	"time"
+
 	"github.com/contentsquare/chproxy/clients"
 	"github.com/contentsquare/chproxy/config"
 	"github.com/go-redis/redis/v8"
-	"time"
 )
 
 // AsyncCache is a transactional cache allowing the results from concurrent queries.
@@ -79,6 +81,8 @@ func NewAsyncCache(cfg config.Cache) (*AsyncCache, error) {
 		redisClient, err = clients.NewRedisClient(cfg.Redis)
 		cache = newRedisCache(redisClient, cfg)
 		transaction = newRedisTransactionRegistry(redisClient, time.Duration(cfg.GraceTime))
+	default:
+		return nil, fmt.Errorf("unknown config mode")
 	}
 
 	if err != nil {
