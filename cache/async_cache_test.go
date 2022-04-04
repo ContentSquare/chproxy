@@ -163,6 +163,7 @@ func TestAsyncCache_FilesystemCache_wrong_instantiation(t *testing.T) {
 		Name: "test",
 		Mode: "file_system",
 		FileSystem: config.FileSystemCacheConfig{
+			Dir:     "",
 			MaxSize: 8192,
 		},
 		Expire: config.Duration(time.Minute),
@@ -192,14 +193,17 @@ func TestAsyncCache_RedisCache_instantiation(t *testing.T) {
 
 func TestAsyncCache_RedisCache_wrong_instantiation(t *testing.T) {
 	var redisCfg = config.Cache{
-		Name:   "test",
-		Mode:   "redis",
-		Expire: config.Duration(cacheTTL),
+		Name: "test",
+		Mode: "redis",
+		Redis: config.RedisCacheConfig{
+			// fake address
+			Addresses: []string{"127.12.0.10:1024"},
+		},
 	}
 
 	_, err := NewAsyncCache(redisCfg)
 	if err == nil {
-		t.Fatalf("the redis instanciation should have created")
+		t.Fatalf("the redis instanciation should have crashed")
 	}
 }
 
