@@ -138,9 +138,8 @@ func newAsyncTestCache(t *testing.T, graceTime time.Duration) *AsyncCache {
 	return asyncC
 }
 
-const testDirAsync = "./test-data-async"
-
-func TestAsyncCache_FilesystemCache_instanciation(t *testing.T) {
+func TestAsyncCache_FilesystemCache_instantiation(t *testing.T) {
+	const testDirAsync = "./test-data-async"
 	fileSystemCfg := config.Cache{
 		Name: "test",
 		Mode: "file_system",
@@ -159,7 +158,7 @@ func TestAsyncCache_FilesystemCache_instanciation(t *testing.T) {
 	}
 }
 
-func TestAsyncCache_RedisCache_instanciation(t *testing.T) {
+func TestAsyncCache_RedisCache_instantiation(t *testing.T) {
 	s := miniredis.RunT(t)
 	var redisCfg = config.Cache{
 		Name: "test",

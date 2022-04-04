@@ -66,7 +66,10 @@ func generateRedisClientAndServer(t *testing.T) *redisCache {
 func TestRedisCacheAddGet(t *testing.T) {
 	c := generateRedisClientAndServer(t)
 	c1 := generateRedisClientAndServer(t)
-	defer c1.Close()
+	defer func() {
+		c1.Close()
+		c.Close()
+	}()
 	cacheAddGetHelper(t, c, c1)
 }
 
