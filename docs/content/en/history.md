@@ -6,7 +6,7 @@ position: 401
 
 ## Why it was created
 
-`ClickHouse` may exceed [max_execution_time](http://clickhouse-docs.readthedocs.io/en/latest/settings/query_complexity.html#max-execution-time) and [max_concurrent_queries](https://github.com/yandex/ClickHouse/blob/add13f233eb6d30da4c75c4309542047a1dde033/dbms/src/Server/config.xml#L75) limits due to various reasons:
+`ClickHouse` may exceed [max_execution_time](https://clickhouse.com/docs/en/operations/settings/query-complexity/#max-execution-time) and [max_concurrent_queries](https://clickhouse.com/docs/en/operations/server-configuration-parameters/settings/#max-concurrent-queries) limits due to various reasons:
 - `max_execution_time` may be exceeded due to the current [implementation deficiencies](https://github.com/yandex/ClickHouse/issues/217).
 - `max_concurrent_queries` works only on a per-node basis. There is no way to limit the number of concurrent queries on a cluster if queries are spread across cluster nodes.
 

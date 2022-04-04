@@ -7,7 +7,7 @@ position: 301
 
 Usually `INSERT`s are sent from app servers located in a limited number of subnetworks. `INSERT`s from other subnetworks must be denied.
 
-All the `INSERT`s may be routed to a [distributed table](http://clickhouse-docs.readthedocs.io/en/latest/table_engines/distributed.html) on a single node. But this increases resource usage (CPU and network) on the node comparing to other nodes, since it must parse each row to be inserted and route it to the corresponding node (shard).
+All the `INSERT`s may be routed to a [distributed table](https://clickhouse.com/docs/en/engines/table-engines/special/distributed/) on a single node. But this increases resource usage (CPU and network) on the node comparing to other nodes, since it must parse each row to be inserted and route it to the corresponding node (shard).
 
 It would be better to spread `INSERT`s among available shards and to route them directly to per-shard tables instead of distributed tables. The routing logic may be embedded either directly into applications generating `INSERT`s or may be moved to a proxy. Proxy approach is better since it allows re-configuring `ClickHouse` cluster without modification of application configs and without application downtime. Multiple identical proxies may be started on distinct servers for scalability and availability purposes.
 

@@ -6,7 +6,7 @@ position: 303
 ---
 
 Suppose you need to access `ClickHouse` cluster from anywhere by username/password.
-This may be used for building graphs from [ClickHouse-grafana](https://github.com/ContentSquare/ClickHouse-grafana) or [Tabix](https://tabix.io/).
+This may be used for building graphs from [ClickHouse-grafana](https://github.com/Altinity/clickhouse-grafana) or [Tabix](https://tabix.io/).
 It is bad idea to transfer unencrypted password and data over untrusted networks.
 So HTTPS must be used for accessing the cluster in such cases.
 The following `chproxy` config may be used for [this use case](https://github.com/ContentSquare/chproxy/blob/master/config/examples/https.yml):
