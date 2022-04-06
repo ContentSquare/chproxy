@@ -46,7 +46,7 @@ func (hb *heartBeat) isHealthy(addr string) error {
 	startTime := time.Now()
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("cannot send request in %s: %s", time.Since(startTime), err)
+		return fmt.Errorf("cannot send request in %s: %w", time.Since(startTime), err)
 	}
 	defer resp.Body.Close()
 
@@ -55,7 +55,7 @@ func (hb *heartBeat) isHealthy(addr string) error {
 	}
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return fmt.Errorf("cannot read response in %s: %s", time.Since(startTime), err)
+		return fmt.Errorf("cannot read response in %s: %w", time.Since(startTime), err)
 	}
 	r := string(body)
 	if r != hb.response {

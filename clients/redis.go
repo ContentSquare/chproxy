@@ -3,6 +3,7 @@ package clients
 import (
 	"context"
 	"fmt"
+
 	"github.com/contentsquare/chproxy/config"
 	"github.com/go-redis/redis/v8"
 )
@@ -22,5 +23,4 @@ func NewRedisClient(cfg config.RedisCacheConfig) (redis.UniversalClient, error) 
 	}
 
 	return r, nil
-
 }

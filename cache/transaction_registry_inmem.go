@@ -1,9 +1,10 @@
 package cache
 
 import (
-	"github.com/contentsquare/chproxy/log"
 	"sync"
 	"time"
+
+	"github.com/contentsquare/chproxy/log"
 )
 
 type pendingEntry struct {

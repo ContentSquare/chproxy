@@ -8,7 +8,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/contentsquare/chproxy/cache"
 	"io"
 	"io/ioutil"
 	"net"
@@ -20,6 +19,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/contentsquare/chproxy/cache"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/contentsquare/chproxy/config"

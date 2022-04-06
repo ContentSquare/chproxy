@@ -94,5 +94,4 @@ func NewAsyncCache(cfg config.Cache) (*AsyncCache, error) {
 		TransactionRegistry: transaction,
 		graceTime:           graceTime,
 	}, nil
-
 }

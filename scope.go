@@ -257,7 +257,7 @@ func (s *scope) killQuery() error {
 	addr := s.host.addr.String()
 	req, err := http.NewRequest("POST", addr, r)
 	if err != nil {
-		return fmt.Errorf("error while creating kill query request to %s: %s", addr, err)
+		return fmt.Errorf("error while creating kill query request to %s: %w", addr, err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), killQueryTimeout)
 	defer cancel()
@@ -273,7 +273,7 @@ func (s *scope) killQuery() error {
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("error while executing clickhouse query %q at %q: %s", query, addr, err)
+		return fmt.Errorf("error while executing clickhouse query %q at %q: %w", query, addr, err)
 	}
 	defer resp.Body.Close()
 
@@ -285,7 +285,7 @@ func (s *scope) killQuery() error {
 
 	respBody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return fmt.Errorf("cannot read response body for the query %q: %s", query, err)
+		return fmt.Errorf("cannot read response body for the query %q: %w", query, err)
 	}
 
 	log.Debugf("killed the query with query_id=%s; respBody: %q", s.id, respBody)
@@ -480,7 +480,7 @@ func (up usersProfile) newUsers() (map[string]*user, error) {
 		}
 		tmpU, err := up.newUser(u)
 		if err != nil {
-			return nil, fmt.Errorf("cannot initialize user %q: %s", u.Name, err)
+			return nil, fmt.Errorf("cannot initialize user %q: %w", u.Name, err)
 		}
 		users[u.Name] = tmpU
 	}
@@ -619,7 +619,7 @@ func newReplicas(replicasCfg []config.Replica, nodes []string, scheme string, c 
 		}
 		hosts, err := newNodes(rCfg.Nodes, scheme, r)
 		if err != nil {
-			return nil, fmt.Errorf("cannot initialize replica %q: %s", rCfg.Name, err)
+			return nil, fmt.Errorf("cannot initialize replica %q: %w", rCfg.Name, err)
 		}
 		r.hosts = hosts
 		replicas[i] = r
@@ -632,7 +632,7 @@ func newNodes(nodes []string, scheme string, r *replica) ([]*host, error) {
 	for i, node := range nodes {
 		addr, err := url.Parse(fmt.Sprintf("%s://%s", scheme, node))
 		if err != nil {
-			return nil, fmt.Errorf("cannot parse `node` %q with `scheme` %q: %s", node, scheme, err)
+			return nil, fmt.Errorf("cannot parse `node` %q with `scheme` %q: %w", node, scheme, err)
 		}
 		hosts[i] = &host{
 			replica: r,
@@ -756,7 +756,7 @@ func newCluster(c config.Cluster) (*cluster, error) {
 
 	replicas, err := newReplicas(c.Replicas, c.Nodes, c.Scheme, newC)
 	if err != nil {
-		return nil, fmt.Errorf("cannot initialize replicas: %s", err)
+		return nil, fmt.Errorf("cannot initialize replicas: %w", err)
 	}
 	newC.replicas = replicas
 
@@ -771,7 +771,7 @@ func newClusters(cfg []config.Cluster) (map[string]*cluster, error) {
 		}
 		tmpC, err := newCluster(c)
 		if err != nil {
-			return nil, fmt.Errorf("cannot initialize cluster %q: %s", c.Name, err)
+			return nil, fmt.Errorf("cannot initialize cluster %q: %w", c.Name, err)
 		}
 		clusters[c.Name] = tmpC
 	}

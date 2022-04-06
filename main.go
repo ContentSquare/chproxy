@@ -54,12 +54,13 @@ func main() {
 	}
 	log.Infof("Loading config %q: successful", *configFile)
 
+	registerMetrics()
+
 	c := make(chan os.Signal)
 	signal.Notify(c, syscall.SIGHUP)
 	go func() {
 		for {
-			switch <-c {
-			case syscall.SIGHUP:
+			if <-c == syscall.SIGHUP {
 				log.Infof("SIGHUP received. Going to reload config %s ...", *configFile)
 				if err := reloadConfig(); err != nil {
 					log.Errorf("error while reloading config: %s", err)
@@ -261,7 +262,7 @@ func loadConfig() (*config.Config, error) {
 	cfg, err := config.LoadFile(*configFile)
 	if err != nil {
 		configSuccess.Set(0)
-		return nil, fmt.Errorf("can't load config %q: %s", *configFile, err)
+		return nil, fmt.Errorf("can't load config %q: %w", *configFile, err)
 	}
 	configSuccess.Set(1)
 	configSuccessTime.Set(float64(time.Now().Unix()))

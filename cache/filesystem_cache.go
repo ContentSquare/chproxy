@@ -3,8 +3,6 @@ package cache
 import (
 	"bytes"
 	"fmt"
-	"github.com/contentsquare/chproxy/config"
-	"github.com/contentsquare/chproxy/log"
 	"io"
 	"io/ioutil"
 	"math/rand"
@@ -15,6 +13,9 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/contentsquare/chproxy/config"
+	"github.com/contentsquare/chproxy/log"
 )
 
 // Version must be increased with each backward-incompatible change
@@ -61,7 +62,7 @@ func newFilesSystemCache(cfg config.Cache, graceTime time.Duration) (*fileSystem
 	}
 
 	if err := os.MkdirAll(c.dir, 0700); err != nil {
-		return nil, fmt.Errorf("cannot create %q: %s", c.dir, err)
+		return nil, fmt.Errorf("cannot create %q: %w", c.dir, err)
 	}
 
 	c.wg.Add(1)
@@ -104,7 +105,7 @@ func (f *fileSystemCache) Get(key *Key) (*CachedData, error) {
 	defer file.Close()
 	fi, err := file.Stat()
 	if err != nil {
-		return nil, fmt.Errorf("cache %q: cannot stat %q: %s", f.Name(), fp, err)
+		return nil, fmt.Errorf("cache %q: cannot stat %q: %w", f.Name(), fp, err)
 	}
 	mt := fi.ModTime()
 	age := time.Since(mt)
@@ -120,7 +121,7 @@ func (f *fileSystemCache) Get(key *Key) (*CachedData, error) {
 	b, err := ioutil.ReadAll(file)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to read file content from %q: %s", f.Name(), err)
+		return nil, fmt.Errorf("failed to read file content from %q: %w", f.Name(), err)
 	}
 
 	reader := bytes.NewReader(b)
@@ -144,17 +145,17 @@ func (f *fileSystemCache) Get(key *Key) (*CachedData, error) {
 func decodeHeader(reader *bytes.Reader) (*ContentMetadata, error) {
 	contentType, err := readHeader(reader)
 	if err != nil {
-		return nil, fmt.Errorf("cannot read Content-Type from provided reader: %s", err)
+		return nil, fmt.Errorf("cannot read Content-Type from provided reader: %w", err)
 	}
 
 	contentEncoding, err := readHeader(reader)
 	if err != nil {
-		return nil, fmt.Errorf("cannot read Content-Encoding from provided reader: %s", err)
+		return nil, fmt.Errorf("cannot read Content-Encoding from provided reader: %w", err)
 	}
 
 	contentLengthStr, err := readHeader(reader)
 	if err != nil {
-		return nil, fmt.Errorf("cannot read Content-Encoding from provided reader: %s", err)
+		return nil, fmt.Errorf("cannot read Content-Encoding from provided reader: %w", err)
 	}
 
 	contentLength, err := strconv.Atoi(contentLengthStr)
@@ -175,27 +176,27 @@ func (f *fileSystemCache) Put(r io.Reader, contentMetadata ContentMetadata, key 
 	file, err := os.Create(fp)
 
 	if err != nil {
-		return 0, fmt.Errorf("cache %q: cannot create file: %s : %s", f.Name(), key, err)
+		return 0, fmt.Errorf("cache %q: cannot create file: %s : %w", f.Name(), key, err)
 	}
 
 	if err := writeHeader(file, contentMetadata.Type); err != nil {
 		fn := file.Name()
-		return 0, fmt.Errorf("cannot write Content-Type to %q: %s", fn, err)
+		return 0, fmt.Errorf("cannot write Content-Type to %q: %w", fn, err)
 	}
 
 	if err := writeHeader(file, contentMetadata.Encoding); err != nil {
 		fn := file.Name()
-		return 0, fmt.Errorf("cannot write Content-Encoding to %q: %s", fn, err)
+		return 0, fmt.Errorf("cannot write Content-Encoding to %q: %w", fn, err)
 	}
 
 	if err := writeHeader(file, fmt.Sprintf("%d", contentMetadata.Length)); err != nil {
 		fn := file.Name()
-		return 0, fmt.Errorf("cannot write Content-Encoding to %q: %s", fn, err)
+		return 0, fmt.Errorf("cannot write Content-Encoding to %q: %w", fn, err)
 	}
 
 	cnt, err := io.Copy(file, r)
 	if err != nil {
-		return 0, fmt.Errorf("cache %q: cannot write results to file: %s : %s", f.Name(), key, err)
+		return 0, fmt.Errorf("cache %q: cannot write results to file: %s : %w", f.Name(), key, err)
 	}
 
 	atomic.AddUint64(&f.stats.Size, uint64(cnt))
@@ -336,12 +337,12 @@ func writeHeader(w io.Writer, s string) error {
 func readHeader(r io.Reader) (string, error) {
 	b := make([]byte, 4)
 	if _, err := io.ReadFull(r, b); err != nil {
-		return "", fmt.Errorf("cannot read header length: %s", err)
+		return "", fmt.Errorf("cannot read header length: %w", err)
 	}
 	n := uint32(b[3]) | (uint32(b[2]) << 8) | (uint32(b[1]) << 16) | (uint32(b[0]) << 24)
 	s := make([]byte, n)
 	if _, err := io.ReadFull(r, s); err != nil {
-		return "", fmt.Errorf("cannot read header value with length %d: %s", n, err)
+		return "", fmt.Errorf("cannot read header value with length %d: %w", n, err)
 	}
 	return string(s), nil
 }
