@@ -357,7 +357,7 @@ func TestServe(t *testing.T) {
 				resp2 := httpRequest(t, req, http.StatusOK)
 				checkResponse(t, resp2.Body, expectedOkResp)
 				keys := redisClient.Keys()
-				if len(keys) != 1 {
+				if len(keys) != 2 { // 2 because there is a record stored for transaction and a cache item
 					t.Fatalf("unexpected amount of keys in redis: %v", len(keys))
 				}
 
@@ -396,7 +396,7 @@ func TestServe(t *testing.T) {
 				// if we do not use base64 to encode/decode the cached payload, EOF error will be thrown here.
 				checkResponse(t, resp2.Body, string(bytesWithInvalidUTFPairs))
 				keys := redisClient.Keys()
-				if len(keys) != 1 {
+				if len(keys) != 2 { // 2 because there is a record stored for transaction, and a cache item
 					t.Fatalf("unexpected amount of keys in redis: %v", len(keys))
 				}
 

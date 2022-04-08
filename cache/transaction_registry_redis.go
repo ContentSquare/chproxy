@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"fmt"
+
 	"github.com/contentsquare/chproxy/log"
 	"github.com/go-redis/redis/v8"
 )
@@ -24,7 +25,7 @@ func newRedisTransactionRegistry(redisClient redis.UniversalClient, deadline tim
 }
 
 func (r *redisTransactionRegistry) Create(key *Key) error {
-	return r.redisClient.Set(context.Background(), toTransactionKey(key), transactionCreated, r.deadline).Err()
+	return r.redisClient.Set(context.Background(), toTransactionKey(key), uint64(transactionCreated), r.deadline).Err()
 }
 
 func (r *redisTransactionRegistry) Complete(key *Key) error {
@@ -36,7 +37,7 @@ func (r *redisTransactionRegistry) Fail(key *Key) error {
 }
 
 func (r *redisTransactionRegistry) updateTransactionState(key *Key, state TransactionState) error {
-	return r.redisClient.Set(context.Background(), toTransactionKey(key), state, redis.KeepTTL).Err()
+	return r.redisClient.Set(context.Background(), toTransactionKey(key), uint64(state), redis.KeepTTL).Err()
 }
 
 func (r *redisTransactionRegistry) Status(key *Key) (TransactionState, error) {

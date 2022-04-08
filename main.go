@@ -56,7 +56,7 @@ func main() {
 
 	registerMetrics()
 
-	c := make(chan os.Signal)
+	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGHUP)
 	go func() {
 		for {

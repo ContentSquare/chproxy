@@ -6,7 +6,7 @@ require (
 	github.com/DataDog/zstd v1.5.0
 	github.com/alicebob/miniredis/v2 v2.18.0
 	github.com/go-redis/redis/v8 v8.11.4
-	github.com/google/go-cmp v0.5.7 // indirect
+	github.com/google/go-cmp v0.5.7
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
 	github.com/pierrec/lz4 v2.4.0+incompatible
 	github.com/prometheus/client_golang v1.3.0
@@ -29,5 +29,6 @@ require (
 	golang.org/x/net v0.0.0-20210428140749-89ef3d95e781 // indirect
 	golang.org/x/sys v0.0.0-20210423082822-04245dca01da // indirect
 	golang.org/x/text v0.3.6 // indirect
+	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	google.golang.org/protobuf v1.26.0 // indirect
 )
