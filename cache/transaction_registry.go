@@ -30,7 +30,15 @@ const (
 	transactionCreated   TransactionState = 0
 	transactionCompleted TransactionState = 1
 	transactionFailed    TransactionState = 2
+	transactionAbsent    TransactionState = 3
 )
+
+func (t *TransactionState) IsAbsent() bool {
+	if t != nil {
+		return *t == transactionAbsent
+	}
+	return false
+}
 
 func (t *TransactionState) IsFailed() bool {
 	if t != nil {

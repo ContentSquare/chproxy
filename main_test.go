@@ -605,18 +605,6 @@ func TestServe(t *testing.T) {
 			startHTTP,
 		},
 		{
-			"http concurrent transaction fails after grace time",
-			"testdata/http.concurrent.transaction.yml",
-			func(t *testing.T) {
-				// max_exec_time = 300 ms, grace_time = 160 ms (> max_exec_time/2)
-				// scenario: 2 concurrent queries. First one hits clickhouse, second one awaits concurrent query.
-				// First query takes more than grace time to compute, hence the second query fails with timeout status.
-				q := "SELECT SLEEP200"
-				executeTwoConcurrentRequests(t, q, 200, 408, "", "no result found during grace time period")
-			},
-			startHTTP,
-		},
-		{
 			"http concurrent transaction from cache",
 			"testdata/http.concurrent.transaction.yml",
 			func(t *testing.T) {

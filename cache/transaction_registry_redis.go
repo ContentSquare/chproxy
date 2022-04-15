@@ -43,12 +43,12 @@ func (r *redisTransactionRegistry) updateTransactionState(key *Key, state Transa
 func (r *redisTransactionRegistry) Status(key *Key) (TransactionState, error) {
 	state, err := r.redisClient.Get(context.Background(), toTransactionKey(key)).Uint64()
 	if errors.Is(err, redis.Nil) {
-		return transactionCompleted, ErrMissingTransaction
+		return transactionAbsent, nil
 	}
 
 	if err != nil {
 		log.Errorf("Failed to fetch transaction status from redis for key: %s", key.String())
-		return transactionCompleted, ErrMissingTransaction
+		return transactionAbsent, err
 	}
 
 	return TransactionState(state), nil

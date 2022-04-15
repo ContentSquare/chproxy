@@ -297,13 +297,6 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 				respondWith(srw, err, http.StatusInternalServerError)
 				return
 			}
-			// We will assess if elapsed time is bigger than half of the max request timeout.
-			// This precondition halts execution
-			if transaction.ElapsedTime > s.user.maxExecutionTime/2 {
-				err = fmt.Errorf("%s: no result found during grace time period", s)
-				respondWith(srw, err, http.StatusRequestTimeout)
-				return
-			}
 		}
 	}
 

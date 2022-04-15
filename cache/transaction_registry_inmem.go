@@ -87,7 +87,7 @@ func (i *inMemoryTransactionRegistry) Status(key *Key) (TransactionState, error)
 	if entry, ok := i.pendingEntries[k]; ok {
 		return entry.state, nil
 	}
-	return transactionCompleted, ErrMissingTransaction
+	return transactionAbsent, nil
 }
 
 func (i *inMemoryTransactionRegistry) Close() error {

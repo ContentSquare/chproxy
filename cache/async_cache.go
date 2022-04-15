@@ -1,7 +1,6 @@
 package cache
 
 import (
-	"errors"
 	"fmt"
 	"time"
 
@@ -38,7 +37,7 @@ type TransactionResult struct {
 
 func (c *AsyncCache) AwaitForConcurrentTransaction(key *Key) (TransactionResult, error) {
 	startTime := time.Now()
-	var seenState TransactionState
+	seenState := transactionAbsent
 	for {
 		elapsedTime := time.Since(startTime)
 		if elapsedTime > c.graceTime {
@@ -51,12 +50,6 @@ func (c *AsyncCache) AwaitForConcurrentTransaction(key *Key) (TransactionResult,
 		}
 
 		state, err := c.TransactionRegistry.Status(key)
-		if errors.Is(err, ErrMissingTransaction) {
-			return TransactionResult{
-				ElapsedTime: elapsedTime,
-				State:       state,
-			}, nil
-		}
 
 		if err != nil {
 			return TransactionResult{}, err
