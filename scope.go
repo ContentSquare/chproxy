@@ -317,6 +317,8 @@ var allowedParams = []string{
 	"session_id",
 	// session timeout
 	"session_timeout",
+	// mgid specific
+	"mgid_process_name",
 }
 
 // This regexp must match params needed to describe a way to use external data
