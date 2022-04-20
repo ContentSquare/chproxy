@@ -291,12 +291,10 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 				cacheMissFromConcurrentQueries.With(labels).Inc()
 				log.Debugf("%s: cache miss after awaiting concurrent query", s)
 			}
-		} else {
-			if transaction.State.IsFailed() {
-				err = fmt.Errorf("%s: concurrent query failed", s)
-				respondWith(srw, err, http.StatusInternalServerError)
-				return
-			}
+		} else if transaction.State.IsFailed() {
+			err = fmt.Errorf("%s: concurrent query failed", s)
+			respondWith(srw, err, http.StatusInternalServerError)
+			return
 		}
 	}
 
@@ -391,7 +389,15 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 		if _, ok := caches[cc.Name]; ok {
 			return fmt.Errorf("duplicate config for cache %q", cc.Name)
 		}
-		tmpCache, err := cache.NewAsyncCache(cc)
+		var maxExecutionTime config.Duration
+		for _, user := range cfg.Users {
+			if user.Name == cc.Name {
+				maxExecutionTime = user.MaxExecutionTime
+				break
+			}
+		}
+
+		tmpCache, err := cache.NewAsyncCache(cc, time.Duration(maxExecutionTime))
 		if err != nil {
 			return err
 		}

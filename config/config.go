@@ -30,6 +30,8 @@ var (
 		Request:  "/?query=SELECT%201",
 		Response: "1\n",
 	}
+
+	defaultExecutionTime = Duration(30 * time.Second)
 )
 
 // Config describes server configuration, access and proxy rules
@@ -596,7 +598,9 @@ type Cache struct {
 	// on new request and re-cached
 	Expire Duration `yaml:"expire,omitempty"`
 
-	// Grace duration before the expired entry is deleted from the cache.
+	// Deprecated: GraceTime duration before the expired entry is deleted from the cache.
+	// It's deprecated and in future versions it'll be replaced by user's MaxExecutionTime.
+	// It's already the case today if value of GraceTime is omitted.
 	GraceTime Duration `yaml:"grace_time,omitempty"`
 
 	FileSystem FileSystemCacheConfig `yaml:"file_system,omitempty"`
@@ -803,6 +807,10 @@ func LoadFile(filename string) (*Config, error) {
 	}
 	for i := range cfg.Users {
 		u := &cfg.Users[i]
+		if u.MaxExecutionTime == 0 {
+			u.MaxExecutionTime = defaultExecutionTime
+		}
+
 		ud := time.Duration(u.MaxExecutionTime + u.MaxQueueTime)
 		if ud > maxResponseTime {
 			maxResponseTime = ud

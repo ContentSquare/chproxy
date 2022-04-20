@@ -218,7 +218,7 @@ func TestAsyncCache_FilesystemCache_instantiation(t *testing.T) {
 	if err := os.RemoveAll(testDirAsync); err != nil {
 		log.Fatalf("cannot remove %q: %s", testDirAsync, err)
 	}
-	_, err := NewAsyncCache(fileSystemCfg)
+	_, err := NewAsyncCache(fileSystemCfg, 1*time.Second)
 	if err != nil {
 		t.Fatalf("could not instanciate filsystem async cache because of the following error: %s", err)
 	}
@@ -234,7 +234,7 @@ func TestAsyncCache_FilesystemCache_wrong_instantiation(t *testing.T) {
 		},
 		Expire: config.Duration(time.Minute),
 	}
-	_, err := NewAsyncCache(fileSystemCfg)
+	_, err := NewAsyncCache(fileSystemCfg, 1*time.Second)
 	if err == nil {
 		t.Fatalf("the instanciate of filsystem async cache should have crashed")
 	}
@@ -251,7 +251,7 @@ func TestAsyncCache_RedisCache_instantiation(t *testing.T) {
 		Expire: config.Duration(cacheTTL),
 	}
 
-	_, err := NewAsyncCache(redisCfg)
+	_, err := NewAsyncCache(redisCfg, 1*time.Second)
 	if err != nil {
 		t.Fatalf("could not instanciate redis async cache because of the following error: %s", err)
 	}
@@ -267,13 +267,13 @@ func TestAsyncCache_RedisCache_wrong_instantiation(t *testing.T) {
 		},
 	}
 
-	_, err := NewAsyncCache(redisCfg)
+	_, err := NewAsyncCache(redisCfg, 1*time.Second)
 	if err == nil {
 		t.Fatalf("the redis instanciation should have crashed")
 	}
 }
 
-func TestAsyncCache_Unkown_instantiation(t *testing.T) {
+func TestAsyncCache_Unknown_instantiation(t *testing.T) {
 	var redisCfg = config.Cache{
 		Name:   "test",
 		Mode:   "Unkown Mode",
@@ -281,7 +281,7 @@ func TestAsyncCache_Unkown_instantiation(t *testing.T) {
 		Expire: config.Duration(cacheTTL),
 	}
 
-	_, err := NewAsyncCache(redisCfg)
+	_, err := NewAsyncCache(redisCfg, 1*time.Second)
 	if err == nil {
 		t.Fatalf("The instanciation should have crash")
 	}

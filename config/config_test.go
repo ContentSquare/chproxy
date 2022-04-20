@@ -187,6 +187,7 @@ var fullConfig = Config{
 			ReqPerMin:    4,
 			MaxQueueSize: 100,
 			MaxQueueTime: Duration(35 * time.Second),
+			MaxExecutionTime: Duration(30 * time.Second),
 			Cache:        "longterm",
 			Params:       "web",
 		},
@@ -249,7 +250,7 @@ func TestLoadConfig(t *testing.T) {
 						NetworksOrGroups: []string{"127.0.0.1"},
 						TimeoutCfg: TimeoutCfg{
 							ReadTimeout:  Duration(time.Minute),
-							WriteTimeout: Duration(time.Minute),
+							WriteTimeout: Duration(90 * time.Second),
 							IdleTimeout:  Duration(10 * time.Minute),
 						},
 					},
@@ -277,6 +278,7 @@ func TestLoadConfig(t *testing.T) {
 						Name:      "default",
 						ToCluster: "cluster",
 						ToUser:    "default",
+						MaxExecutionTime: Duration(30 * time.Second),
 					},
 				},
 			},
@@ -606,7 +608,7 @@ func TestConfigTimeouts(t *testing.T) {
 			"testdata/default_values.yml",
 			TimeoutCfg{
 				ReadTimeout:  Duration(time.Minute),
-				WriteTimeout: Duration(time.Minute),
+				WriteTimeout: Duration(90 * time.Second), // defaultExecutionTime + 1 min
 				IdleTimeout:  Duration(10 * time.Minute),
 			},
 		},
@@ -789,6 +791,7 @@ users:
   password: XXX
   to_cluster: first cluster
   to_user: web
+  max_execution_time: 30s
   requests_per_minute: 4
   max_queue_size: 100
   max_queue_time: 35s
