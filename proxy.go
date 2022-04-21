@@ -183,7 +183,7 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, srw *stat
 		since := float64(time.Since(startTime).Seconds())
 		proxiedResponseDuration.With(s.labels).Observe(since)
 
-		// cache.FSResponseWriter pushes status code to srw on Finalize/Unregister actions
+		// cache.FSResponseWriter pushes status code to srw on Finalize/Fail actions
 		// but they didn't happen yet, so manually propagate the status code from crw to srw.
 		if crw, ok := rw.(*cache.BufferedResponseWriter); ok {
 			srw.statusCode = crw.StatusCode()
@@ -275,16 +275,26 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	}
 
 	// Await for potential result from concurrent query
-	if userCache.AwaitForConcurrentTransaction(key) {
-		cachedData, err := userCache.Get(key)
-		if err == nil {
-			_ = RespondWithData(srw, cachedData.Data, cachedData.ContentMetadata, cachedData.Ttl, http.StatusOK)
-			cacheHitFromConcurrentQueries.With(labels).Inc()
-			log.Debugf("%s: cache hit after awaiting concurrent query", s)
+	transactionState, err := userCache.AwaitForConcurrentTransaction(key)
+	if err != nil {
+		// log and continue processing
+		log.Errorf("failed to await for concurrent transaction due to: %v", err)
+	} else {
+		if transactionState.IsCompleted() {
+			cachedData, err := userCache.Get(key)
+			if err == nil {
+				_ = RespondWithData(srw, cachedData.Data, cachedData.ContentMetadata, cachedData.Ttl, http.StatusOK)
+				cacheHitFromConcurrentQueries.With(labels).Inc()
+				log.Debugf("%s: cache hit after awaiting concurrent query", s)
+				return
+			} else {
+				cacheMissFromConcurrentQueries.With(labels).Inc()
+				log.Debugf("%s: cache miss after awaiting concurrent query", s)
+			}
+		} else if transactionState.IsFailed() {
+			err = fmt.Errorf("%s: concurrent query failed", s)
+			respondWith(srw, err, http.StatusInternalServerError)
 			return
-		} else {
-			cacheMissFromConcurrentQueries.With(labels).Inc()
-			log.Debugf("%s: cache miss after awaiting concurrent query", s)
 		}
 	}
 
@@ -293,16 +303,10 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	bufferedRespWriter := cache.NewBufferedResponseWriter(srw)
 
 	// Initialise transaction
-	err = userCache.Register(key)
+	err = userCache.Create(key)
 	if err != nil {
 		log.Errorf("%s: %s; query: %q - failed to register transaction", s, err, q)
 	}
-	defer func() {
-		// Eventually unregister ongoing transaction
-		if err = userCache.Unregister(key); err != nil {
-			log.Errorf("%s: %s; query: %q", s, err, q)
-		}
-	}()
 
 	// proxy request and capture response along with headers to [[BufferedResponseWriter]]
 	rp.proxyRequest(s, bufferedRespWriter, srw, req)
@@ -311,6 +315,13 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		// Restore the original status code by proxyRequest if it was set.
 		if srw.statusCode != 0 {
 			bufferedRespWriter.WriteHeader(srw.statusCode)
+		}
+
+		// mark transaction as failed
+		// todo: discuss if we should mark it as failed upon timeout. The rational against it would be to hope that
+		// 		 partial results of the query are cached and therefore subsequent execution can succeed
+		if err = userCache.Fail(key); err != nil {
+			log.Errorf("%s: %s; query: %q", s, err, q)
 		}
 		err = RespondWithoutData(srw)
 		if err != nil {
@@ -332,6 +343,12 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		if err != nil {
 			log.Errorf("%s: %s; query: %q - failed to put response in the cache", s, err, q)
 		}
+
+		// mark transaction as completed
+		if err = userCache.Complete(key); err != nil {
+			log.Errorf("%s: %s; query: %q", s, err, q)
+		}
+
 		err = RespondWithData(srw, &buf, contentMetadata, expiration, bufferedRespWriter.StatusCode())
 		if err != nil {
 			err = fmt.Errorf("%s: %w; query: %q", s, err, q)
@@ -372,7 +389,15 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 		if _, ok := caches[cc.Name]; ok {
 			return fmt.Errorf("duplicate config for cache %q", cc.Name)
 		}
-		tmpCache, err := cache.NewAsyncCache(cc)
+		var maxExecutionTime config.Duration
+		for _, user := range cfg.Users {
+			if user.Name == cc.Name {
+				maxExecutionTime = user.MaxExecutionTime
+				break
+			}
+		}
+
+		tmpCache, err := cache.NewAsyncCache(cc, time.Duration(maxExecutionTime))
 		if err != nil {
 			return err
 		}

@@ -22,22 +22,21 @@ func TestRedisTransaction(t *testing.T) {
 
 	redisTransaction := newRedisTransactionRegistry(redisClient, graceTime)
 
-	if err := redisTransaction.Register(key); err != nil {
+	if err := redisTransaction.Create(key); err != nil {
 		t.Fatalf("unexpected error: %s while registering new transaction", err)
 	}
 
-	isDone := redisTransaction.IsDone(key)
-	if isDone {
+	status, err := redisTransaction.Status(key)
+	if err != nil || !status.IsPending() {
 		t.Fatalf("unexpected: transaction should be pending")
 	}
 
-	if err := redisTransaction.Unregister(key); err != nil {
+	if err := redisTransaction.Complete(key); err != nil {
 		t.Fatalf("unexpected error: %s while unregistering transaction", err)
 	}
 
-	isDone = redisTransaction.IsDone(key)
-	if !isDone {
+	status, err = redisTransaction.Status(key)
+	if err != nil || !status.IsCompleted() {
 		t.Fatalf("unexpected: transaction should be done")
 	}
-
 }
