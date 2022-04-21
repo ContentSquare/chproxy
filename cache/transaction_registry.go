@@ -1,7 +1,6 @@
 package cache
 
 import (
-	"errors"
 	"io"
 )
 
@@ -21,8 +20,6 @@ type TransactionRegistry interface {
 	// Status checks the status of the transaction
 	Status(key *Key) (TransactionState, error)
 }
-
-var ErrMissingTransaction = errors.New("missing entry in transaction registry")
 
 type TransactionState uint64
 

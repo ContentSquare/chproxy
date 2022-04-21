@@ -275,12 +275,12 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	}
 
 	// Await for potential result from concurrent query
-	transaction, err := userCache.AwaitForConcurrentTransaction(key)
+	transactionState, err := userCache.AwaitForConcurrentTransaction(key)
 	if err != nil {
 		// log and continue processing
 		log.Errorf("failed to await for concurrent transaction due to: %v", err)
 	} else {
-		if transaction.State.IsCompleted() {
+		if transactionState.IsCompleted() {
 			cachedData, err := userCache.Get(key)
 			if err == nil {
 				_ = RespondWithData(srw, cachedData.Data, cachedData.ContentMetadata, cachedData.Ttl, http.StatusOK)
@@ -291,7 +291,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 				cacheMissFromConcurrentQueries.With(labels).Inc()
 				log.Debugf("%s: cache miss after awaiting concurrent query", s)
 			}
-		} else if transaction.State.IsFailed() {
+		} else if transactionState.IsFailed() {
 			err = fmt.Errorf("%s: concurrent query failed", s)
 			respondWith(srw, err, http.StatusInternalServerError)
 			return

@@ -44,6 +44,8 @@ caches:
     # Expiration time for cached responses.
     expire: 1h
 
+    # DEPRECATED: default value equal to `max_execution_time` should be used. 
+    #             New configuration parameter will be provided to disable the protection at will. 
     # When multiple requests with identical query simultaneously hit `chproxy`
     # and there is no cached response for the query, then only a single
     # request will be proxied to clickhouse. Other requests will wait
