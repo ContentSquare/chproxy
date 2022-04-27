@@ -279,6 +279,24 @@ func TestDecompression(t *testing.T) {
 	}
 }
 
+func TestGetSessionTimeout(t *testing.T) {
+	req, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:9090", nil)
+	if err != nil {
+		panic(err)
+	}
+	params := make(url.Values)
+	params.Add("query", "SELECT 1")
+	params.Set("session_timeout", "888")
+	req.URL.RawQuery = params.Encode()
+	trueSessionTimeout := getSessionTimeout(req)
+	t.Logf("user set session_timeout true , return is %d",  trueSessionTimeout)
+	params.Set("session_timeout", "600s")
+	req.URL.RawQuery = params.Encode()
+	wrongSessionTimeout := getSessionTimeout(req)
+	t.Logf("user set session_timeout wrong, return is %d", wrongSessionTimeout)
+
+}
+
 func makeQuery(n int) []byte {
 	q1 := "SELECT column "
 	q2 := "WHERE Date=today()"
