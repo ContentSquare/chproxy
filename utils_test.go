@@ -285,18 +285,28 @@ func TestGetSessionTimeout(t *testing.T) {
 		panic(err)
 	}
 	params := make(url.Values)
+	// uint str return self
+	firstSessionTimeout := "888"
+	// invalid str return 60
+	secondSessionTimeout := "600s"
+	thirdSessionTimeout := "aaa"
 	params.Add("query", "SELECT 1")
-	params.Set("session_timeout", "888")
+	params.Set("session_timeout", firstSessionTimeout)
 	req.URL.RawQuery = params.Encode()
-	trueSessionTimeout := getSessionTimeout(req)
-	t.Logf("user set session_timeout true , return is %d",  trueSessionTimeout)
-	params.Set("session_timeout", "600s")
+	if getSessionTimeout(req) != 888 {
+		t.Fatalf("user set session_timeout %q; get %q , expected %q ", firstSessionTimeout, getSessionTimeout(req), 888)
+	}
+	params.Set("session_timeout", secondSessionTimeout)
 	req.URL.RawQuery = params.Encode()
-	wrongSessionTimeout := getSessionTimeout(req)
-	t.Logf("user set session_timeout wrong, return is %d", wrongSessionTimeout)
-
+	if getSessionTimeout(req) != 60 {
+		t.Fatalf("user set session_timeout %q; get %q , expected %q", secondSessionTimeout, getSessionTimeout(req), 60)
+	}
+	params.Set("session_timeout", thirdSessionTimeout)
+	req.URL.RawQuery = params.Encode()
+	if getSessionTimeout(req) != 60 {
+		t.Fatalf("user set session_timeout %q; get %q , expected %q", thirdSessionTimeout, getSessionTimeout(req), 60)
+	}
 }
-
 
 func makeQuery(n int) []byte {
 	q1 := "SELECT column "
