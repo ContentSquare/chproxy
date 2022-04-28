@@ -306,6 +306,11 @@ func TestGetSessionTimeout(t *testing.T) {
 	if getSessionTimeout(req) != 60 {
 		t.Fatalf("user set session_timeout %q; get %q , expected %q", thirdSessionTimeout, getSessionTimeout(req), 60)
 	}
+	params.Del("session_timeout")
+	req.URL.RawQuery = params.Encode()
+	if getSessionTimeout(req) != 60 {
+		t.Fatalf("user not set session_timeout ,get %q , expected %q", getSessionTimeout(req), 60)
+	}
 }
 
 func makeQuery(n int) []byte {
