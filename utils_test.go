@@ -279,6 +279,40 @@ func TestDecompression(t *testing.T) {
 	}
 }
 
+func TestGetSessionTimeout(t *testing.T) {
+	req, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:9090", nil)
+	if err != nil {
+		panic(err)
+	}
+	params := make(url.Values)
+	// uint str return self
+	firstSessionTimeout := "888"
+	// invalid str return 60
+	secondSessionTimeout := "600s"
+	thirdSessionTimeout := "aaa"
+	params.Add("query", "SELECT 1")
+	params.Set("session_timeout", firstSessionTimeout)
+	req.URL.RawQuery = params.Encode()
+	if getSessionTimeout(req) != 888 {
+		t.Fatalf("user set session_timeout %q; get %q , expected %q ", firstSessionTimeout, getSessionTimeout(req), 888)
+	}
+	params.Set("session_timeout", secondSessionTimeout)
+	req.URL.RawQuery = params.Encode()
+	if getSessionTimeout(req) != 60 {
+		t.Fatalf("user set session_timeout %q; get %q , expected %q", secondSessionTimeout, getSessionTimeout(req), 60)
+	}
+	params.Set("session_timeout", thirdSessionTimeout)
+	req.URL.RawQuery = params.Encode()
+	if getSessionTimeout(req) != 60 {
+		t.Fatalf("user set session_timeout %q; get %q , expected %q", thirdSessionTimeout, getSessionTimeout(req), 60)
+	}
+	params.Del("session_timeout")
+	req.URL.RawQuery = params.Encode()
+	if getSessionTimeout(req) != 60 {
+		t.Fatalf("user not set session_timeout ,get %q , expected %q", getSessionTimeout(req), 60)
+	}
+}
+
 func makeQuery(n int) []byte {
 	q1 := "SELECT column "
 	q2 := "WHERE Date=today()"
