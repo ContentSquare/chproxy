@@ -744,7 +744,11 @@ func newCluster(c config.Cluster) (*cluster, error) {
 		clusterUsers[cu.Name] = newClusterUser(cu)
 	}
 
-	heartBeat := newHeartBeat(c.HeartBeat, c.ClusterUsers[0])
+	heartBeatClusterUser := c.ClusterUsers[0]
+	if heartBeatClusterUser.Name == config.TransparentUser {
+		heartBeatClusterUser = config.DefaultClusterUser
+	}
+	heartBeat := newHeartBeat(c.HeartBeat, heartBeatClusterUser)
 
 	newC := &cluster{
 		name:                  c.Name,

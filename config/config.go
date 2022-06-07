@@ -16,11 +16,11 @@ var (
 
 	defaultCluster = Cluster{
 		Scheme:       "http",
-		ClusterUsers: []ClusterUser{defaultClusterUser},
+		ClusterUsers: []ClusterUser{DefaultClusterUser},
 		HeartBeat:    defaultHeartBeat,
 	}
 
-	defaultClusterUser = ClusterUser{
+	DefaultClusterUser = ClusterUser{
 		Name: "default",
 	}
 
@@ -32,6 +32,10 @@ var (
 	}
 
 	defaultExecutionTime = Duration(30 * time.Second)
+)
+
+const (
+	TransparentUser = "transparent_user"
 )
 
 // Config describes server configuration, access and proxy rules
@@ -514,6 +518,9 @@ type User struct {
 	// Name of Cache configuration to use for responses of this user
 	Cache string `yaml:"cache,omitempty"`
 
+	// Whether to allow cache for transparent_user
+	AllowTransparentCache bool `yaml:"allow_transparent_cache,omitempty"`
+
 	// Name of ParamGroup to use
 	Params string `yaml:"params,omitempty"`
 
@@ -546,6 +553,10 @@ func (u *User) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	if u.MaxQueueTime > 0 && u.MaxQueueSize == 0 {
 		return fmt.Errorf("`max_queue_size` must be set if `max_queue_time` is set for %q", u.Name)
+	}
+
+	if len(u.Cache) > 0 && u.Name == TransparentUser && !u.AllowTransparentCache {
+		return fmt.Errorf("`allow_transparent_cache` must be set if `cache` is set for %q", u.Name)
 	}
 
 	return checkOverflow(u.XXX, fmt.Sprintf("user %q", u.Name))

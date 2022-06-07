@@ -518,12 +518,30 @@ func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 		c = rp.clusters[u.toCluster]
 		cu = c.users[u.toUser]
 	}
+
+	isTransparent := false
+	if u == nil {
+		u = rp.users[config.TransparentUser]
+		if u != nil {
+			c = rp.clusters[u.toCluster]
+			if c != nil {
+				transparent_cu := *c.users[u.toUser]
+				transparent_cu.name = name
+				transparent_cu.password = password
+				cu = &transparent_cu
+			}
+			if c == nil || cu == nil {
+				return nil, http.StatusUnauthorized, fmt.Errorf("%q misconfigured", config.TransparentUser)
+			}
+			isTransparent = true
+		}
+	}
 	rp.lock.RUnlock()
 
 	if u == nil {
 		return nil, http.StatusUnauthorized, fmt.Errorf("invalid username or password for user %q", name)
 	}
-	if u.password != password {
+	if !isTransparent && u.password != password {
 		return nil, http.StatusUnauthorized, fmt.Errorf("invalid username or password for user %q", name)
 	}
 	if u.denyHTTP && req.TLS == nil {

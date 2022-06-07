@@ -70,7 +70,11 @@ func TestNewHeartBeat(t *testing.T) {
 	}
 	testCompareNum(t, "cluster.heartbeat.interval", int64(c.heartBeat.interval/time.Microsecond), int64(time.Duration(5*time.Second)/time.Microsecond))
 
-	hb := newHeartBeat(heartBeatFullCfg, clusterCfg.ClusterUsers[0])
+	heartBeatClusterUser := clusterCfg.ClusterUsers[0]
+	if heartBeatClusterUser.Name == config.TransparentUser {
+		heartBeatClusterUser = config.DefaultClusterUser
+	}
+	hb := newHeartBeat(heartBeatFullCfg, heartBeatClusterUser)
 	testCompareNum(t, "heartbeat.interval", int64(hb.interval/time.Microsecond), int64(time.Duration(20*time.Second)/time.Microsecond))
 	testCompareNum(t, "heartbeat.timeout", int64(hb.timeout/time.Microsecond), int64(time.Duration(30*time.Second)/time.Microsecond))
 	testCompareStr(t, "heartbeat.request", hb.request, "/?query=SELECT%201")

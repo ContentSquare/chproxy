@@ -178,18 +178,18 @@ var fullConfig = Config{
 
 	Users: []User{
 		{
-			Name:         "web",
-			Password:     "****",
-			ToCluster:    "first cluster",
-			ToUser:       "web",
-			DenyHTTP:     true,
-			AllowCORS:    true,
-			ReqPerMin:    4,
-			MaxQueueSize: 100,
-			MaxQueueTime: Duration(35 * time.Second),
+			Name:             "web",
+			Password:         "****",
+			ToCluster:        "first cluster",
+			ToUser:           "web",
+			DenyHTTP:         true,
+			AllowCORS:        true,
+			ReqPerMin:        4,
+			MaxQueueSize:     100,
+			MaxQueueTime:     Duration(35 * time.Second),
 			MaxExecutionTime: Duration(30 * time.Second),
-			Cache:        "longterm",
-			Params:       "web",
+			Cache:            "longterm",
+			Params:           "web",
 		},
 		{
 			Name:                 "default",
@@ -275,9 +275,9 @@ func TestLoadConfig(t *testing.T) {
 				},
 				Users: []User{
 					{
-						Name:      "default",
-						ToCluster: "cluster",
-						ToUser:    "default",
+						Name:             "default",
+						ToCluster:        "cluster",
+						ToUser:           "default",
 						MaxExecutionTime: Duration(30 * time.Second),
 					},
 				},
@@ -452,6 +452,11 @@ func TestBadConfig(t *testing.T) {
 			"testdata/bad.heartbeat_section.empty2.yml",
 			"cannot be use `heartbeat_interval` with `heartbeat` section",
 		},
+		{
+			"cache for transparent user",
+			"testdata/bad.transparent_user_with_cache.yml",
+			"`allow_transparent_cache` must be set if `cache` is set for \"transparent_user\"",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -491,6 +496,10 @@ func TestExamples(t *testing.T) {
 		{
 			"combined",
 			"examples/combined.yml",
+		},
+		{
+			"transparent",
+			"examples/transparent.yml",
 		},
 	}
 
