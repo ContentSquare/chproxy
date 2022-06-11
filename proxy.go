@@ -132,7 +132,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			"code":         strconv.Itoa(srw.statusCode),
 		},
 	).Inc()
-	since := float64(time.Since(startTime).Seconds())
+	since := time.Since(startTime).Seconds()
 	requestDuration.With(s.labels).Observe(since)
 }
 
@@ -180,7 +180,7 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, srw *stat
 	err := ctx.Err()
 	if err == nil { //nolint: gocritic
 		// The request has been successfully proxied.
-		since := float64(time.Since(startTime).Seconds())
+		since := time.Since(startTime).Seconds()
 		proxiedResponseDuration.With(s.labels).Observe(since)
 
 		// cache.FSResponseWriter pushes status code to srw on Finalize/Fail actions
@@ -267,7 +267,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	if err == nil {
 		// The response has been successfully served from cache.
 		cacheHit.With(labels).Inc()
-		since := float64(time.Since(startTime).Seconds())
+		since := time.Since(startTime).Seconds()
 		cachedResponseDuration.With(labels).Observe(since)
 		log.Debugf("%s: cache hit", s)
 		_ = RespondWithData(srw, cachedData.Data, cachedData.ContentMetadata, cachedData.Ttl, http.StatusOK)
