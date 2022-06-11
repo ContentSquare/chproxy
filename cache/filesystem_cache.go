@@ -22,7 +22,7 @@ import (
 // in the cache storage.
 const Version = 3
 
-var cachefileRegexp = regexp.MustCompile(`^[0-9a-f]{32}$`)
+var cachefileRegexp = regexp.MustCompile(`^[\da-f]{32}$`)
 
 // fileSystemCache represents a file cache.
 type fileSystemCache struct {
