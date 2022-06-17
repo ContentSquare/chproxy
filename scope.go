@@ -182,10 +182,15 @@ func (s *scope) incQueued() error {
 		// Choose new host, since the previous one may become obsolete
 		// after sleeping.
 		h := s.cluster.getHost()
+		// if request has session_id, set same host
+		if s.sessionId != "" {
+			h = s.cluster.getHostSticky(s.sessionId)
+		}
 		s.host = h
 		s.labels["replica"] = h.replica.name
 		s.labels["cluster_node"] = h.addr.Host
 	}
+
 }
 
 func (s *scope) inc() error {
@@ -828,7 +833,36 @@ func (c *cluster) getReplica() *replica {
 			reqs = tmpReqs
 		}
 	}
+	// The returned replica may be inactive. This is OK,
+	// since this means all the replicas are inactive,
+	// so let's try proxying the request to any replica.
+	return r
+}
 
+func (c *cluster) getReplicaSticky(sessionId string) *replica {
+	idx := atomic.AddUint32(&c.nextReplicaIdx, 1)
+	n := uint32(len(c.replicas))
+	if n == 1 {
+		return c.replicas[0]
+	}
+
+	idx %= n
+	r := c.replicas[idx]
+
+	for i := uint32(1); i < n; i++ {
+		tmpIdx := (idx + i) % n
+		//handling sticky session
+		sessionId := hash(sessionId)
+		tmpIdx = (sessionId) % n
+		tmpRSticky := c.replicas[tmpIdx]
+		log.Debugf("Sticky replica candidate is: %s", tmpRSticky.name)
+		if !tmpRSticky.isActive() {
+			log.Debugf("Sticky session replica has been picked up, but it is not available")
+			continue
+		}
+		log.Debugf("Sticky session replica is: %s, session_id: %d, replica_idx: %d, max replicas in pool: %d", tmpRSticky.name, sessionId, tmpIdx, n)
+		return tmpRSticky
+	}
 	// The returned replica may be inactive. This is OK,
 	// since this means all the replicas are inactive,
 	// so let's try proxying the request to any replica.
@@ -921,7 +955,7 @@ func (r *replica) getHost() *host {
 //
 // Always returns non-nil.
 func (c *cluster) getHostSticky(sessionId string) *host {
-	r := c.getReplica()
+	r := c.getReplicaSticky(sessionId)
 	return r.getHostSticky(sessionId)
 }
 
