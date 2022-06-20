@@ -115,6 +115,13 @@ var (
 		},
 		[]string{"cache"},
 	)
+	cacheSkipped = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "cache_payloadsize_too_big_total",
+			Help: "The amount of too big payloads to be cached",
+		},
+		[]string{"cache"},
+	)
 	requestDuration = prometheus.NewSummaryVec(
 		prometheus.SummaryOpts{
 			Name:       "request_duration_seconds",
@@ -194,7 +201,7 @@ func registerMetrics() {
 		limitExcess, hostPenalties, hostHealth, concurrentQueries,
 		requestQueueSize, userQueueOverflow, clusterUserQueueOverflow,
 		requestBodyBytes, responseBodyBytes,
-		cacheHit, cacheMiss, cacheSize, cacheItems,
+		cacheHit, cacheMiss, cacheSize, cacheItems, cacheSkipped,
 		requestDuration, proxiedResponseDuration, cachedResponseDuration,
 		canceledRequest, timeoutRequest,
 		configSuccess, configSuccessTime, badRequest)

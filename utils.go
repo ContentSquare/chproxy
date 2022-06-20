@@ -287,3 +287,8 @@ func calcMapHash(m map[string]string) (uint32, error) {
 	}
 	return h.Sum32(), nil
 }
+
+func isToCache(length int64, s *scope) bool {
+	maxPayloadSize := s.user.cache.MaxPayloadSize
+	return length <= maxPayloadSize
+}
