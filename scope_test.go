@@ -438,10 +438,75 @@ func TestDecorateRequest(t *testing.T) {
 }
 
 func TestGetHostSticky(t *testing.T) {
+	exceptedSessionHostMap := map[string]string{
+		"0": "127.0.0.22",
+		"1": "127.0.0.33",
+		"2": "127.0.0.44",
+		"3": "127.0.0.55",
+	}
+	c := testGetCluster()
+	for i := 0; i < 10000; i++ {
+		sessionId := strconv.Itoa(i % 4)
+		if exceptedSessionHostMap[sessionId] != c.getHostSticky(sessionId).addr.Host {
+			t.Fatalf("getHostSticky use sessionId: %s,expected host: %s, get: %s", sessionId, exceptedSessionHostMap[sessionId], c.getHostSticky(sessionId).addr.Host)
+		}
+	}
+}
+
+func TestIncQueued(t *testing.T) {
+	u := testGetUser()
+	cu := testGetClusterUser()
+	c := testGetCluster()
+	expectedSessionHostMap := map[string]string{
+		"0": "127.0.0.22",
+		"1": "127.0.0.33",
+		"2": "127.0.0.44",
+		"3": "127.0.0.55",
+	}
+	if err := testConcurrentQuery(c, u, cu, 10000, expectedSessionHostMap); err != nil {
+		t.Fatalf("incQueue test err: %s", err)
+	}
+}
+
+func testConcurrentQuery(c *cluster, u *user, cu *clusterUser, concurrency int, expectedSessionHostMap map[string]string) error {
+	ch := make(chan map[string]string, 10000)
+
+	f := func(sessionId string) map[string]string {
+		s := testGetScope(c, u, cu, sessionId)
+		// user set sessionId
+		s.sessionId = sessionId
+		// concurrent task wait
+		s.incQueued()
+		time.Sleep(50 * time.Millisecond)
+		s.dec()
+		// return wake task's new host
+		// same sessionId should get same host addr
+		return map[string]string{sessionId: s.host.addr.Host}
+	}
+
+	for i := 0; i < concurrency; i++ {
+		sessionId := strconv.Itoa(i % 4)
+		go func() {
+			ch <- f(sessionId)
+		}()
+	}
+	for i := 0; i < concurrency; i++ {
+		sessionHost := <-ch
+		for sessionId, host := range sessionHost {
+			if expectedSessionHostMap[sessionId] != host {
+				return fmt.Errorf("incQueue waked task sessionId: %s,expected host: %v, get: %v", sessionId, expectedSessionHostMap[sessionId], host)
+			}
+		}
+	}
+	return nil
+}
+
+func testGetCluster() *cluster {
 	c := &cluster{
 		name:     "default",
 		replicas: []*replica{{}, {}, {}},
 	}
+
 	r1 := c.replicas[0]
 	r1.cluster = c
 	r1.hosts = []*host{
@@ -488,111 +553,23 @@ func TestGetHostSticky(t *testing.T) {
 		},
 	}
 	r3.name = "replica3"
-	exceptedSessionHostMap := map[string]string{
-		"0": c.getHostSticky("0").addr.Host,
-		"1": c.getHostSticky("1").addr.Host,
-		"2": c.getHostSticky("2").addr.Host,
-		"3": c.getHostSticky("3").addr.Host,
-	}
-
-	for i := 0; i < 10000; i++ {
-		sessionId := strconv.Itoa(i % 4)
-		if exceptedSessionHostMap[sessionId] != c.getHostSticky(sessionId).addr.Host {
-			t.Fatalf("getHostSticky use sessionId: %s,expected host: %s, get: %s", sessionId, exceptedSessionHostMap[sessionId], c.getHostSticky(sessionId).addr.Host)
-		}
-	}
-
+	return c
 }
 
-func TestIncQueued(t *testing.T) {
-
+func testGetClusterUser() *clusterUser {
 	cu = &clusterUser{
 		maxConcurrentQueries: 1,
 		queueCh:              make(chan struct{}, 10000),
 	}
-	u := &user{
-		maxConcurrentQueries: 1,
-		//maxExecutionTime:     999,
-		queueCh: make(chan struct{}, 10000),
-	}
-
-	c := &cluster{
-		name:     "default",
-		replicas: []*replica{{}, {}},
-	}
-	r1 := c.replicas[0]
-	r1.cluster = c
-	r1.hosts = []*host{
-		{
-
-			addr:    &url.URL{Host: "127.0.0.11"},
-			active:  1,
-			replica: r1,
-		},
-		{
-			addr:    &url.URL{Host: "127.0.0.22"},
-			active:  1,
-			replica: r1,
-		},
-	}
-	r1.name = "replica1"
-	r2 := c.replicas[1]
-	r2.cluster = c
-	r2.hosts = []*host{
-		{
-			addr:    &url.URL{Host: "127.0.0.33"},
-			active:  1,
-			replica: r2,
-		},
-		{
-			addr:    &url.URL{Host: "127.0.0.44"},
-			active:  1,
-			replica: r2,
-		},
-	}
-	r2.name = "replica2"
-
-	expectedSessionHostMap := map[string]string{}
-	for _, sessionId := range []string{"0", "1", "2", "3", "4", "5"} {
-		expectedSessionHostMap[sessionId] = testGetScope(c, u, cu, sessionId).host.addr.Host
-	}
-
-	if err := testConcurrentQuery(c, u, cu, 10000, expectedSessionHostMap); err != nil {
-		t.Fatalf("incQueue test err: %s", err)
-	}
+	return cu
 }
 
-func testConcurrentQuery(c *cluster, u *user, cu *clusterUser, concurrency int, expectedSessionHostMap map[string]string) error {
-	ch := make(chan map[string]string, 10000)
-
-	f := func(sessionId string) map[string]string {
-		s := testGetScope(c, u, cu, sessionId)
-		// user set sessionId
-		s.sessionId = sessionId
-		// concurrent task wait
-		s.incQueued()
-		time.Sleep(50 * time.Millisecond)
-		s.dec()
-		// return wake task's new host
-		// same sessionId should get same host addr
-		return map[string]string{sessionId: s.host.addr.Host}
+func testGetUser() *user {
+	u := &user{
+		maxConcurrentQueries: 1,
+		queueCh:              make(chan struct{}, 10000),
 	}
-
-	for i := 0; i < concurrency; i++ {
-		sessionId := strconv.Itoa(i % 4)
-		go func() {
-			ch <- f(sessionId)
-		}()
-	}
-	for i := 0; i < concurrency; i++ {
-		sessionHost := <-ch
-		for sessionId, host := range sessionHost {
-			if expectedSessionHostMap[sessionId] != host {
-				return fmt.Errorf("incQueue waked task sessionId: %s,expected host: %v, get: %v", sessionId, expectedSessionHostMap[sessionId], host)
-			}
-		}
-	}
-	return nil
+	return u
 }
 
 func testGetScope(c *cluster, u *user, cu *clusterUser, sessionId string) *scope {

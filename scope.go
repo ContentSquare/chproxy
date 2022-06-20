@@ -178,14 +178,16 @@ func (s *scope) incQueued() error {
 		} else {
 			time.Sleep(dSleep)
 		}
-
+		var h *host
 		// Choose new host, since the previous one may become obsolete
 		// after sleeping.
-		h := s.cluster.getHost()
-		// if request has session_id, set same host
-		if s.sessionId != "" {
+		if s.sessionId == "" {
+			h = s.cluster.getHost()
+		} else {
+			// if request has session_id, set same host
 			h = s.cluster.getHostSticky(s.sessionId)
 		}
+
 		s.host = h
 		s.labels["replica"] = h.replica.name
 		s.labels["cluster_node"] = h.addr.Host
