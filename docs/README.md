@@ -1,4 +1,4 @@
-# Chproxy documentation 
+# Chproxy documentation
 
 The documentation website is build with Nuxt and the official docs theme.
 
