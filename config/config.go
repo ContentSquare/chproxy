@@ -32,6 +32,8 @@ var (
 	}
 
 	defaultExecutionTime = Duration(120 * time.Second)
+
+	defaultMaxPayloadSize = ByteSize(100000000)
 )
 
 // Config describes server configuration, access and proxy rules
@@ -609,6 +611,9 @@ type Cache struct {
 
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
+
+	// Maximum total size of request payload for caching
+	MaxPayloadSize ByteSize `yaml:"max_payload_size,omitempty"`
 }
 
 type FileSystemCacheConfig struct {
@@ -817,6 +822,13 @@ func LoadFile(filename string) (*Config, error) {
 		}
 		if u.AllowedNetworks, err = cfg.groupToNetwork(u.NetworksOrGroups); err != nil {
 			return nil, err
+		}
+	}
+
+	for i := range cfg.Caches {
+		c := &cfg.Caches[i]
+		if c.MaxPayloadSize <= 0 {
+			c.MaxPayloadSize = defaultMaxPayloadSize
 		}
 	}
 

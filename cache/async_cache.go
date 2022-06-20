@@ -20,6 +20,8 @@ type AsyncCache struct {
 	TransactionRegistry
 
 	graceTime time.Duration
+
+	MaxPayloadSize int64
 }
 
 func (c *AsyncCache) Close() error {
@@ -103,9 +105,12 @@ func NewAsyncCache(cfg config.Cache, maxExecutionTime time.Duration) (*AsyncCach
 		return nil, err
 	}
 
+	maxPayloadSize := int64(cfg.MaxPayloadSize)
+
 	return &AsyncCache{
 		Cache:               cache,
 		TransactionRegistry: transaction,
 		graceTime:           graceTime,
+		MaxPayloadSize:      maxPayloadSize,
 	}, nil
 }

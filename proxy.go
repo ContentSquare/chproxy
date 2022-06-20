@@ -321,48 +321,56 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	reader := bufferedRespWriter.Reader()
 	contentMetadata := cache.ContentMetadata{Length: contentLength, Encoding: contentEncoding, Type: contentType}
 
-	if bufferedRespWriter.StatusCode() != http.StatusOK || s.canceled {
-		// Do not cache non-200 or cancelled responses.
-		// Restore the original status code by proxyRequest if it was set.
-		if srw.statusCode != 0 {
-			bufferedRespWriter.WriteHeader(srw.statusCode)
-		}
+	if isToCache(contentLength, s) {
+		if bufferedRespWriter.StatusCode() != http.StatusOK || s.canceled {
+			// Do not cache non-200 or cancelled responses.
+			// Restore the original status code by proxyRequest if it was set.
+			if srw.statusCode != 0 {
+				bufferedRespWriter.WriteHeader(srw.statusCode)
+			}
 
-		// mark transaction as failed
-		// todo: discuss if we should mark it as failed upon timeout. The rational against it would be to hope that
-		// 		 partial results of the query are cached and therefore subsequent execution can succeed
-		if err = userCache.Fail(key); err != nil {
-			log.Errorf("%s: %s; query: %q", s, err, q)
-		}
+			// mark transaction as failed
+			// todo: discuss if we should mark it as failed upon timeout. The rational against it would be to hope that
+			// 		 partial results of the query are cached and therefore subsequent execution can succeed
+			if err = userCache.Fail(key); err != nil {
+				log.Errorf("%s: %s; query: %q", s, err, q)
+			}
 
+			err = RespondWithData(srw, reader, contentMetadata, 0*time.Second, bufferedRespWriter.StatusCode())
+			if err != nil {
+				err = fmt.Errorf("%s: %w; query: %q", s, err, q)
+				respondWith(srw, err, http.StatusInternalServerError)
+				return
+			}
+		} else {
+			cacheMiss.With(labels).Inc()
+			log.Debugf("%s: cache miss", s)
+
+			// we create this buffer to be able to stream data both to cache as well as to an end user
+			var buf bytes.Buffer
+			tee := io.TeeReader(reader, &buf)
+			expiration, err := userCache.Put(tee, contentMetadata, key)
+			if err != nil {
+				log.Errorf("%s: %s; query: %q - failed to put response in the cache", s, err, q)
+			}
+
+			// mark transaction as completed
+			if err = userCache.Complete(key); err != nil {
+				log.Errorf("%s: %s; query: %q", s, err, q)
+			}
+
+			err = RespondWithData(srw, &buf, contentMetadata, expiration, bufferedRespWriter.StatusCode())
+			if err != nil {
+				err = fmt.Errorf("%s: %w; query: %q", s, err, q)
+				respondWith(srw, err, http.StatusInternalServerError)
+				return
+			}
+		}
+	} else {
 		err = RespondWithData(srw, reader, contentMetadata, 0*time.Second, bufferedRespWriter.StatusCode())
 		if err != nil {
 			err = fmt.Errorf("%s: %w; query: %q", s, err, q)
 			respondWith(srw, err, http.StatusInternalServerError)
-			return
-		}
-	} else {
-		cacheMiss.With(labels).Inc()
-		log.Debugf("%s: cache miss", s)
-
-		// we create this buffer to be able to stream data both to cache as well as to an end user
-		var buf bytes.Buffer
-		tee := io.TeeReader(reader, &buf)
-		expiration, err := userCache.Put(tee, contentMetadata, key)
-		if err != nil {
-			log.Errorf("%s: %s; query: %q - failed to put response in the cache", s, err, q)
-		}
-
-		// mark transaction as completed
-		if err = userCache.Complete(key); err != nil {
-			log.Errorf("%s: %s; query: %q", s, err, q)
-		}
-
-		err = RespondWithData(srw, &buf, contentMetadata, expiration, bufferedRespWriter.StatusCode())
-		if err != nil {
-			err = fmt.Errorf("%s: %w; query: %q", s, err, q)
-			respondWith(srw, err, http.StatusInternalServerError)
-			return
 		}
 	}
 }
