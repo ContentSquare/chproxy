@@ -1,17 +1,12 @@
 ---
 title: Pass user names and passwords as is
-menuTitle: Transpaent users
+menuTitle: Transparent users
 category: Use Cases
 position: 305
 ---
 
 Suppose you need to use `ClickHouse` LDAP facilities. It is more secure and more flexible than having credentials hardcoded in ClickHouse or a `chproxy` configuration files.
 The following `chproxy` config may be used for [this use case](https://github.com/ContentSquare/chproxy/blob/master/config/examples/transparent.yml):
-
-
-
-All the above cases may be combined in a single `chproxy` [config](https://github.com/ContentSquare/chproxy/blob/master/config/examples/combined.yml):
-
 ```yml
 log_debug: true
 
@@ -33,3 +28,5 @@ clusters:
     users:
     - name: "transparent_user"
 ```
+
+If `chproxy` cache is used together with `transparent_user` it is required to set `allow_transparent_cache` parameter to confirm awareness of security risks: different `ClickHouse` users share the same cache.

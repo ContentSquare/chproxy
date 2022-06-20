@@ -499,6 +499,42 @@ func (rp *reverseProxy) refreshCacheMetrics() {
 	}
 }
 
+func (rp *reverseProxy) getUser(u **user, c **cluster, cu **clusterUser, name string) bool {
+	rp.lock.RLock()
+	defer rp.lock.RUnlock()
+
+	*u = rp.users[name]
+	if *u != nil {
+		// c and cu for toCluster and toUser must exist if applyConfig
+		// is correct.
+		// Fix applyConfig if c or cu equal to nil.
+		*c = rp.clusters[(*u).toCluster]
+		*cu = (*c).users[(*u).toUser]
+		return true
+	}
+	return false
+}
+
+func (rp *reverseProxy) getTransparentUser(u **user, c **cluster, cu **clusterUser, name string, password string) bool {
+	rp.lock.RLock()
+	defer rp.lock.RUnlock()
+
+	*u = rp.users[config.TransparentUser]
+	if *u != nil {
+		*c = rp.clusters[(*u).toCluster]
+		if *c != nil {
+			transparentCu := (*c).users[(*u).toUser]
+			if transparentCu != nil {
+				*cu = transparentCu
+				(*cu).name = name
+				(*cu).password = password
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 	name, password := getAuth(req)
 	sessionId := getSessionId(req)
@@ -509,38 +545,17 @@ func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 		cu *clusterUser
 	)
 
-	rp.lock.RLock()
-	u = rp.users[name]
-	if u != nil {
-		// c and cu for toCluster and toUser must exist if applyConfig
-		// is correct.
-		// Fix applyConfig if c or cu equal to nil.
-		c = rp.clusters[u.toCluster]
-		cu = c.users[u.toUser]
-	}
-
 	isTransparent := false
-	if u == nil {
-		u = rp.users[config.TransparentUser]
-		if u != nil {
-			c = rp.clusters[u.toCluster]
-			if c != nil {
-				transparent_cu := *c.users[u.toUser]
-				transparent_cu.name = name
-				transparent_cu.password = password
-				cu = &transparent_cu
-			}
-			if c == nil || cu == nil {
-				return nil, http.StatusUnauthorized, fmt.Errorf("%q misconfigured", config.TransparentUser)
-			}
-			isTransparent = true
+
+	if !rp.getUser(&u, &c, &cu, name) {
+		// trying to use transparent user if failed to find known one
+		isTransparent = rp.getTransparentUser(&u, &c, &cu, name, password)
+		if !isTransparent {
+			// neither known nor transparent user
+			return nil, http.StatusUnauthorized, fmt.Errorf("invalid username or password for user %q", name)
 		}
 	}
-	rp.lock.RUnlock()
 
-	if u == nil {
-		return nil, http.StatusUnauthorized, fmt.Errorf("invalid username or password for user %q", name)
-	}
 	if !isTransparent && u.password != password {
 		return nil, http.StatusUnauthorized, fmt.Errorf("invalid username or password for user %q", name)
 	}
