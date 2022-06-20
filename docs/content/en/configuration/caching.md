@@ -31,4 +31,7 @@ Distributed cache relies on external database to share cache across multiple rep
 multiple replicas deployments. Currently only [Redis](https://redis.io/) key value store is supported. 
 Configuration template for distributed cache can be found [here](https://github.com/ContentSquare/chproxy/blob/master/config/#distributed_cache_config).
 
-
+#### Response limitations for caching
+Before caching Clickhouse response, chproxy verifies that the response size 
+is not greater than configured max size. This setting can be specified in config section of the cache `max_payload_size`. The default value
+is set to 1 Petabyte. Therefore, by default this security mechanism is disabled.

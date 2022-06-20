@@ -21,8 +21,9 @@ var fullConfig = Config{
 				Dir:     "/path/to/longterm/cachedir",
 				MaxSize: ByteSize(100 << 30),
 			},
-			Expire:    Duration(time.Hour),
-			GraceTime: Duration(20 * time.Second),
+			Expire:         Duration(time.Hour),
+			GraceTime:      Duration(20 * time.Second),
+			MaxPayloadSize: ByteSize(100 << 30),
 		},
 		{
 			Name: "shortterm",
@@ -31,7 +32,8 @@ var fullConfig = Config{
 				Dir:     "/path/to/shortterm/cachedir",
 				MaxSize: ByteSize(100 << 20),
 			},
-			Expire: Duration(10 * time.Second),
+			Expire:         Duration(10 * time.Second),
+			MaxPayloadSize: ByteSize(100 << 20),
 		},
 	},
 	HackMePlease: true,
@@ -441,6 +443,11 @@ func TestBadConfig(t *testing.T) {
 			"testdata/bad.heartbeat_section.empty.yml",
 			"`cluster.heartbeat` cannot be unset for \"cluster\"",
 		},
+		{
+			"max payload size to cache",
+			"testdata/bad.max_payload_size.yml",
+			"cannot parse byte size \"-10B\": it must be positive float followed by optional units. For example, 1.5Gb, 3T",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -815,12 +822,14 @@ caches:
   file_system:
     dir: /path/to/longterm/cachedir
     max_size: 107374182400
+  max_payload_size: 107374182400
 - mode: file_system
   name: shortterm
   expire: 10s
   file_system:
     dir: /path/to/shortterm/cachedir
     max_size: 104857600
+  max_payload_size: 104857600
 param_groups:
 - name: cron-job
   params:
