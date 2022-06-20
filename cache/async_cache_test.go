@@ -214,6 +214,7 @@ func TestAsyncCache_FilesystemCache_instantiation(t *testing.T) {
 			MaxSize: 8192,
 		},
 		Expire: config.Duration(time.Minute),
+		MaxPayloadSize: config.ByteSize(100000000),
 	}
 	if err := os.RemoveAll(testDirAsync); err != nil {
 		log.Fatalf("cannot remove %q: %s", testDirAsync, err)
@@ -249,6 +250,7 @@ func TestAsyncCache_RedisCache_instantiation(t *testing.T) {
 			Addresses: []string{s.Addr()},
 		},
 		Expire: config.Duration(cacheTTL),
+		MaxPayloadSize: config.ByteSize(100000000),
 	}
 
 	_, err := NewAsyncCache(redisCfg, 1*time.Second)

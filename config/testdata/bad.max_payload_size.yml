@@ -1,0 +1,21 @@
+caches:
+  - name: "longterm"
+    mode: "file_system"
+    max_payload_size: "-10B"
+    file_system:
+      dir: "cache_dir"
+      max_size: 100Gb
+
+server:
+  http:
+    listen_addr: ":8080"
+
+users:
+  - name: "dummy"
+    allowed_networks: ["1.2.3.4"]
+    to_cluster: "cluster"
+    to_user: "default"
+
+clusters:
+  - name: "cluster"
+    nodes: ["127.0.1.1:8123"]
