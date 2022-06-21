@@ -343,6 +343,13 @@ func (s *scope) decorateRequest(req *http.Request) (*http.Request, url.Values) {
 		}
 	}
 
+	// Keep parametrized queries params
+	for param := range origParams {
+		if strings.HasPrefix(param, "param_") {
+			params.Set(param, origParams.Get(param))
+		}
+	}
+
 	// Keep external_data params
 	if req.Method == "POST" {
 		ct := req.Header.Get("Content-Type")
