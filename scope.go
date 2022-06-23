@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"hash/fnv"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -433,13 +432,18 @@ func newParamsRegistry(params []config.Param) (*paramsRegistry, error) {
 	if len(params) == 0 {
 		return nil, fmt.Errorf("params can't be empty")
 	}
-	h := fnv.New32a()
-	for _, p := range params {
-		str := fmt.Sprintf("%s=%s&", p.Key, p.Value)
-		h.Write([]byte(str))
+
+	var paramsMap map[string]string
+	for _, k := range params {
+		paramsMap[k.Key] = k.Value
 	}
+	key, err := calcMapHash(paramsMap)
+	if err != nil {
+		return nil, err
+	}
+
 	return &paramsRegistry{
-		key:    h.Sum32(),
+		key:    key,
 		params: params,
 	}, nil
 }
