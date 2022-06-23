@@ -193,7 +193,6 @@ func (s *scope) incQueued() error {
 		s.labels["replica"] = h.replica.name
 		s.labels["cluster_node"] = h.addr.Host
 	}
-
 }
 
 func (s *scope) inc() error {
@@ -842,7 +841,7 @@ func (c *cluster) getReplicaSticky(sessionId string) *replica {
 
 	for i := uint32(1); i < n; i++ {
 		tmpIdx := (idx + i) % n
-		//handling sticky session
+		// handling sticky session
 		sessionId := hash(sessionId)
 		tmpIdx = (sessionId) % n
 		tmpRSticky := c.replicas[tmpIdx]
