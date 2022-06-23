@@ -363,7 +363,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 }
 
 func calcQueryParamsHash(origParams url.Values) uint32 {
-	var queryParams map[string]string
+	queryParams := make(map[string]string)
 	for param := range origParams {
 		if strings.HasPrefix(param, "param_") {
 			queryParams[param] = origParams.Get(param)
