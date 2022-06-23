@@ -337,13 +337,13 @@ func TestCalcMapHash(t *testing.T) {
 		{
 			"nil map",
 			nil,
-			0x811c9dc5,
+			0,
 			nil,
 		},
 		{
 			"empty map",
 			map[string]string{},
-			0x811c9dc5,
+			0,
 			nil,
 		},
 		{
