@@ -268,3 +268,15 @@ func (dc chDecompressor) decompress(r io.Reader) ([]byte, error) {
 	lr := chdecompressor.NewReader(r)
 	return ioutil.ReadAll(lr)
 }
+
+func calcMapHash(m map[string]string) (uint32, error) {
+	h := fnv.New32a()
+	for k, v := range m {
+		str := fmt.Sprintf("%s=%s&", k, v)
+		_, err := h.Write([]byte(str))
+		if err != nil {
+			return 0, err
+		}
+	}
+	return h.Sum32(), nil
+}
