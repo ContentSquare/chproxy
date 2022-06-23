@@ -270,7 +270,7 @@ func (dc chDecompressor) decompress(r io.Reader) ([]byte, error) {
 }
 
 func calcMapHash(m map[string]string) (uint32, error) {
-	if m == nil || len(m) == 0 {
+	if len(m) == 0 {
 		return 0, nil
 	}
 	h := fnv.New32a()
