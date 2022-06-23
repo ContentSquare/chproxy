@@ -438,7 +438,7 @@ func TestDecorateRequest(t *testing.T) {
 }
 
 func TestGetHostSticky(t *testing.T) {
-	expectedSessionHostMap := map[string]string{
+	exceptedSessionHostMap := map[string]string{
 		"0": "127.0.0.22",
 		"1": "127.0.0.33",
 		"2": "127.0.0.44",
