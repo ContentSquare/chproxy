@@ -178,18 +178,18 @@ var fullConfig = Config{
 
 	Users: []User{
 		{
-			Name:         "web",
-			Password:     "****",
-			ToCluster:    "first cluster",
-			ToUser:       "web",
-			DenyHTTP:     true,
-			AllowCORS:    true,
-			ReqPerMin:    4,
-			MaxQueueSize: 100,
-			MaxQueueTime: Duration(35 * time.Second),
+			Name:             "web",
+			Password:         "****",
+			ToCluster:        "first cluster",
+			ToUser:           "web",
+			DenyHTTP:         true,
+			AllowCORS:        true,
+			ReqPerMin:        4,
+			MaxQueueSize:     100,
+			MaxQueueTime:     Duration(35 * time.Second),
 			MaxExecutionTime: Duration(30 * time.Second),
-			Cache:        "longterm",
-			Params:       "web",
+			Cache:            "longterm",
+			Params:           "web",
 		},
 		{
 			Name:                 "default",
@@ -275,9 +275,9 @@ func TestLoadConfig(t *testing.T) {
 				},
 				Users: []User{
 					{
-						Name:      "default",
-						ToCluster: "cluster",
-						ToUser:    "default",
+						Name:             "default",
+						ToCluster:        "cluster",
+						ToUser:           "default",
 						MaxExecutionTime: Duration(30 * time.Second),
 					},
 				},

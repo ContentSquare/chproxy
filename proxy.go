@@ -10,6 +10,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -254,11 +255,14 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		"cluster_user": s.labels["cluster_user"],
 	}
 
-	var paramsHash uint32
+	var userParamsHash uint32
 	if s.user.params != nil {
-		paramsHash = s.user.params.key
+		userParamsHash = s.user.params.key
 	}
-	key := cache.NewKey(skipLeadingComments(q), origParams, sortHeader(req.Header.Get("Accept-Encoding")), paramsHash)
+
+	queryParamsHash := calcQueryParamsHash(origParams)
+
+	key := cache.NewKey(skipLeadingComments(q), origParams, sortHeader(req.Header.Get("Accept-Encoding")), userParamsHash, queryParamsHash)
 
 	startTime := time.Now()
 	userCache := s.user.cache
@@ -356,6 +360,21 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 			return
 		}
 	}
+}
+
+func calcQueryParamsHash(origParams url.Values) uint32 {
+	queryParams := make(map[string]string)
+	for param := range origParams {
+		if strings.HasPrefix(param, "param_") {
+			queryParams[param] = origParams.Get(param)
+		}
+	}
+	var queryParamsHash, err = calcMapHash(queryParams)
+	if err != nil {
+		log.Errorf("fail to calc hash for params %s; %s", origParams, err)
+		return 0
+	}
+	return queryParamsHash
 }
 
 // applyConfig applies the given cfg to reverseProxy.
