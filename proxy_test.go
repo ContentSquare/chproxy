@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"io"
 	"io/ioutil"
 	"math/rand"
@@ -167,7 +168,7 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 			expStatusCode: http.StatusTooManyRequests,
 			f: func(p *reverseProxy) *http.Response {
 				p.clusters["cluster"].users["web"].maxConcurrentQueries = 1
-				go makeHeavyRequest(p, time.Millisecond*100)
+				go makeHeavyRequest(p, time.Millisecond*20)
 				time.Sleep(time.Millisecond * 10)
 				return makeRequest(p)
 			},
@@ -760,4 +761,60 @@ func (r *requestRegistry) get(key string) (bool, error) {
 		return false, fmt.Errorf("no such key")
 	}
 	return v, nil
+}
+
+func TestCalcQueryParamsHash(t *testing.T) {
+	testCases := []struct {
+		name           string
+		input          url.Values
+		expectedResult uint32
+	}{
+		{
+			"nil Value",
+			nil,
+			0,
+		},
+		{
+			"empty calcQueryParamsHash",
+			url.Values{},
+			0,
+		},
+		{
+			"map with non param_ value",
+			url.Values{"session_id": {"foo", "bar"}},
+			0,
+		},
+		{
+			"map with only param_ value",
+			url.Values{"param_limit": {"1"}},
+			0x94a386,
+		},
+		{
+			"map with only param_ value. value affects result",
+			url.Values{"param_limit": {"2"}},
+			0x329bae01,
+		},
+		{
+			"map with mix of param_ and non-param_ value",
+			url.Values{"param_limit": {"1"}, "session_id": {"foo", "bar"}},
+			0x94a386,
+		},
+		{
+			"map with multiple param_ values",
+			url.Values{"param_limit": {"1", "2"}, "param_table": {"foo"}},
+			0x3a8a5c31,
+		},
+		{
+			"map with multiple param_ values and only first value in array affects result",
+			url.Values{"param_limit": {"1"}, "param_table": {"foo", "bar"}},
+			0x3a8a5c31,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := calcQueryParamsHash(tc.input)
+			assert.Equal(t, r, tc.expectedResult)
+		})
+	}
 }

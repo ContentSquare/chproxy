@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/url"
 	"testing"
@@ -324,4 +325,40 @@ func makeQuery(n int) []byte {
 	}
 	b = append(b, q2...)
 	return b
+}
+
+func TestCalcMapHash(t *testing.T) {
+	testCases := []struct {
+		name           string
+		input          map[string]string
+		expectedResult uint32
+		expectedError  error
+	}{
+		{
+			"nil map",
+			nil,
+			0,
+			nil,
+		},
+		{
+			"empty map",
+			map[string]string{},
+			0,
+			nil,
+		},
+		{
+			"map with value",
+			map[string]string{"param_table_name": "clients"},
+			0x40802c7a, // write whatever to buf to make the data partially invalid
+			nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			r, err := calcMapHash(tc.input)
+			assert.Equal(t, r, tc.expectedResult)
+			assert.Equal(t, err, tc.expectedError)
+		})
+	}
 }
