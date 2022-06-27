@@ -168,7 +168,7 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 			expStatusCode: http.StatusTooManyRequests,
 			f: func(p *reverseProxy) *http.Response {
 				p.clusters["cluster"].users["web"].maxConcurrentQueries = 1
-				go makeHeavyRequest(p, time.Millisecond*20)
+				go makeHeavyRequest(p, time.Millisecond*100)
 				time.Sleep(time.Millisecond * 10)
 				return makeRequest(p)
 			},
@@ -212,7 +212,7 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 			expStatusCode: http.StatusTooManyRequests,
 			f: func(p *reverseProxy) *http.Response {
 				p.users["default"].maxConcurrentQueries = 1
-				go makeHeavyRequest(p, time.Millisecond*20)
+				go makeHeavyRequest(p, time.Millisecond*100)
 				time.Sleep(time.Millisecond * 10)
 				return makeRequest(p)
 			},
