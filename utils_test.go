@@ -352,6 +352,18 @@ func TestCalcMapHash(t *testing.T) {
 			0x40802c7a, // write whatever to buf to make the data partially invalid
 			nil,
 		},
+		{
+			"map with multiple value",
+			map[string]string{"param_table_name": "clients","param_database":"default"},
+			0x6fddf04d,
+			nil,
+		},
+		{
+			"map with exchange value",
+			map[string]string{"param_database":"default","param_table_name":"clients"},
+			0x6fddf04d,
+			nil,
+		},
 	}
 
 	for _, tc := range testCases {

@@ -273,9 +273,14 @@ func calcMapHash(m map[string]string) (uint32, error) {
 	if len(m) == 0 {
 		return 0, nil
 	}
+	var keys []string
+	for key := range m {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
 	h := fnv.New32a()
-	for k, v := range m {
-		str := fmt.Sprintf("%s=%s&", k, v)
+	for _ , k := range keys {
+		str := fmt.Sprintf("%s=%s&", k, m[k])
 		_, err := h.Write([]byte(str))
 		if err != nil {
 			return 0, err
