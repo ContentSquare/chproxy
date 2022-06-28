@@ -279,7 +279,7 @@ func calcMapHash(m map[string]string) (uint32, error) {
 	}
 	sort.Strings(keys)
 	h := fnv.New32a()
-	for _ , k := range keys {
+	for _, k := range keys {
 		str := fmt.Sprintf("%s=%s&", k, m[k])
 		_, err := h.Write([]byte(str))
 		if err != nil {
