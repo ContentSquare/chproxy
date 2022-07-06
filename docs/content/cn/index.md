@@ -569,11 +569,6 @@ clusters:
     # Requests are evenly distributed among them.
     nodes: ["127.0.0.1:8123", "shard2:8123"]
 
-    # DEPRECATED: Each cluster node is checked for availability using this interval.
-    # By default each node is checked for every 5 seconds.
-    # Use `heartbeat.interval`.
-    heartbeat_interval: 1m
-
     # User configuration for heart beat requests.
     # Credentials of the first user in clusters.users will be used for heart beat requests to clickhouse.
     heartbeat:

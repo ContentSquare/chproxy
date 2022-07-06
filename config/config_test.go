@@ -81,12 +81,11 @@ var fullConfig = Config{
 					MaxExecutionTime:     Duration(time.Minute),
 				},
 			},
-			HeartBeatInterval: Duration(time.Minute),
 			HeartBeat: HeartBeat{
-				Interval: Duration(time.Minute),
+				Interval: Duration(5 * time.Second),
 				Timeout:  Duration(3 * time.Second),
-				Request:  "/?query=SELECT%201",
-				Response: "1\n",
+				Request:  "/ping",
+				Response: "Ok.\n",
 			},
 		},
 		{
@@ -121,8 +120,8 @@ var fullConfig = Config{
 			HeartBeat: HeartBeat{
 				Interval: Duration(5 * time.Second),
 				Timeout:  Duration(3 * time.Second),
-				Request:  "/?query=SELECT%201",
-				Response: "1\n",
+				Request:  "/ping",
+				Response: "Ok.\n",
 			},
 		},
 		{
@@ -268,8 +267,8 @@ func TestLoadConfig(t *testing.T) {
 						HeartBeat: HeartBeat{
 							Interval: Duration(5 * time.Second),
 							Timeout:  Duration(3 * time.Second),
-							Request:  "/?query=SELECT%201",
-							Response: "1\n",
+							Request:  "/ping",
+							Response: "Ok.\n",
 						},
 					},
 				},
@@ -300,7 +299,7 @@ func TestLoadConfig(t *testing.T) {
 				t.Fatalf("%s", err)
 			}
 			if !bytes.Equal(got, exp) {
-				t.Fatalf("unexpected config result: \ngot\n\n%s\n expected\n\n%s", got, exp)
+				t.Fatalf("unexpected config result. Diff: %s", cmp.Diff(got, exp))
 			}
 		})
 	}
@@ -438,19 +437,9 @@ func TestBadConfig(t *testing.T) {
 			"`param_group.params` must contain at least one param",
 		},
 		{
-			"duplicate heartbeat interval",
-			"testdata/bad.heartbeat_interval.duplicate.yml",
-			"cannot be use `heartbeat_interval` with `heartbeat` section",
-		},
-		{
 			"empty heartbeat section",
-			"testdata/bad.heartbeat_section.empty1.yml",
+			"testdata/bad.heartbeat_section.empty.yml",
 			"`cluster.heartbeat` cannot be unset for \"cluster\"",
-		},
-		{
-			"empty heartbeat section with heartbeat_interval",
-			"testdata/bad.heartbeat_section.empty2.yml",
-			"cannot be use `heartbeat_interval` with `heartbeat` section",
 		},
 	}
 
@@ -734,13 +723,12 @@ clusters:
   kill_query_user:
     name: default
     password: XXX
-  heartbeat_interval: 1m
   heartbeat:
-    interval: 1m
+    interval: 5s
     timeout: 3s
-    request: /?query=SELECT%201
+    request: /ping
     response: |
-      1
+      Ok.
 - name: second cluster
   scheme: https
   replicas:
@@ -769,9 +757,9 @@ clusters:
   heartbeat:
     interval: 5s
     timeout: 3s
-    request: /?query=SELECT%201
+    request: /ping
     response: |
-      1
+      Ok.
 - name: thrid cluster
   scheme: http
   nodes:

@@ -51,8 +51,8 @@ var (
 	heartBeatFullCfg = config.HeartBeat{
 		Interval: config.Duration(20 * time.Second),
 		Timeout:  config.Duration(30 * time.Second),
-		Request:  "/?query=SELECT%201",
-		Response: "1\n",
+		Request:  "/ping",
+		Response: "Ok.\n",
 	}
 
 	heartBeatWrongResponseCfg = config.HeartBeat{
@@ -73,8 +73,8 @@ func TestNewHeartBeat(t *testing.T) {
 	hb := newHeartBeat(heartBeatFullCfg, clusterCfg.ClusterUsers[0])
 	testCompareNum(t, "heartbeat.interval", int64(hb.interval/time.Microsecond), int64(time.Duration(20*time.Second)/time.Microsecond))
 	testCompareNum(t, "heartbeat.timeout", int64(hb.timeout/time.Microsecond), int64(time.Duration(30*time.Second)/time.Microsecond))
-	testCompareStr(t, "heartbeat.request", hb.request, "/?query=SELECT%201")
-	testCompareStr(t, "heartbeat.response", hb.response, "1\n")
+	testCompareStr(t, "heartbeat.request", hb.request, "/ping")
+	testCompareStr(t, "heartbeat.response", hb.response, "Ok.\n")
 	testCompareStr(t, "heartbeat.user", hb.user, "web")
 	testCompareStr(t, "heartbeat.password", hb.password, "123")
 	if check := c.heartBeat.isHealthy(fakeHBServer.URL); check != nil {
