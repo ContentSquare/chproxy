@@ -467,14 +467,14 @@ func TestKillQuery(t *testing.T) {
 			name: "timeout user",
 			f: func(p *reverseProxy) *http.Response {
 				p.users["default"].maxExecutionTime = time.Millisecond * 10
-				return makeHeavyRequest(p, time.Millisecond*20)
+				return makeHeavyRequest(p, time.Millisecond*40)
 			},
 		},
 		{
 			name: "timeout cluster user",
 			f: func(p *reverseProxy) *http.Response {
 				p.clusters["cluster"].users["web"].maxExecutionTime = time.Millisecond * 10
-				return makeHeavyRequest(p, time.Millisecond*20)
+				return makeHeavyRequest(p, time.Millisecond*40)
 			},
 		},
 	}
@@ -492,7 +492,7 @@ func TestKillQuery(t *testing.T) {
 				t.Fatalf("expected Id to be extracted from %q", b)
 			}
 
-			time.Sleep(time.Millisecond * 30)
+			time.Sleep(time.Millisecond * 50)
 			state, err := registry.get(id)
 			if err != nil {
 				t.Fatalf("unexpected requestRegistry err for key %q: %s", id, err)

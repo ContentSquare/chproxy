@@ -37,7 +37,7 @@ func (r *redisTransactionRegistry) Fail(key *Key) error {
 }
 
 func (r *redisTransactionRegistry) updateTransactionState(key *Key, state TransactionState) error {
-	return r.redisClient.Set(context.Background(), toTransactionKey(key), uint64(state), redis.KeepTTL).Err()
+	return r.redisClient.Set(context.Background(), toTransactionKey(key), uint64(state), r.deadline).Err()
 }
 
 func (r *redisTransactionRegistry) Status(key *Key) (TransactionState, error) {
