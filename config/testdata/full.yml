@@ -77,7 +77,7 @@ param_groups:
         value: "30"
 
       - key: "max_execution_time"
-        value: "30"
+        value: "0"
 
 # Settings for `chproxy` input interfaces.
 server:
@@ -204,7 +204,7 @@ users:
     # The maximum query duration for the user.
     # Timed out queries are forcibly killed via `KILL QUERY`.
     #
-    # By default set to 30s.
+    # By default there is no limit on the query duration.
     max_execution_time: 1m
 
     # Whether to deny input requests over HTTPS.

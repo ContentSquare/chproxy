@@ -30,8 +30,6 @@ var (
 		Request:  "/?query=SELECT%201",
 		Response: "1\n",
 	}
-
-	defaultExecutionTime = Duration(30 * time.Second)
 )
 
 // Config describes server configuration, access and proxy rules
@@ -479,7 +477,7 @@ type User struct {
 	MaxConcurrentQueries uint32 `yaml:"max_concurrent_queries,omitempty"`
 
 	// Maximum duration of query execution for user
-	// if omitted or zero - limit is set to 30 seconds
+	// if omitted or zero - no limits would be applied
 	MaxExecutionTime Duration `yaml:"max_execution_time,omitempty"`
 
 	// Maximum number of requests per minute for user
@@ -720,7 +718,7 @@ type ClusterUser struct {
 	MaxConcurrentQueries uint32 `yaml:"max_concurrent_queries,omitempty"`
 
 	// Maximum duration of query execution for user
-	// if omitted or zero - limit is set to 30 seconds
+	// if omitted or zero - no limits would be applied
 	MaxExecutionTime Duration `yaml:"max_execution_time,omitempty"`
 
 	// Maximum number of requests per minute for user
@@ -807,9 +805,6 @@ func LoadFile(filename string) (*Config, error) {
 	}
 	for i := range cfg.Users {
 		u := &cfg.Users[i]
-		if u.MaxExecutionTime == 0 {
-			u.MaxExecutionTime = defaultExecutionTime
-		}
 
 		ud := time.Duration(u.MaxExecutionTime + u.MaxQueueTime)
 		if ud > maxResponseTime {

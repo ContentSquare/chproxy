@@ -170,7 +170,7 @@ var fullConfig = Config{
 				},
 				{
 					Key:   "max_execution_time",
-					Value: "30",
+					Value: "0",
 				},
 			},
 		},
@@ -187,7 +187,7 @@ var fullConfig = Config{
 			ReqPerMin:        4,
 			MaxQueueSize:     100,
 			MaxQueueTime:     Duration(35 * time.Second),
-			MaxExecutionTime: Duration(30 * time.Second),
+			MaxExecutionTime: 0,
 			Cache:            "longterm",
 			Params:           "web",
 		},
@@ -250,7 +250,7 @@ func TestLoadConfig(t *testing.T) {
 						NetworksOrGroups: []string{"127.0.0.1"},
 						TimeoutCfg: TimeoutCfg{
 							ReadTimeout:  Duration(time.Minute),
-							WriteTimeout: Duration(90 * time.Second),
+                            WriteTimeout: Duration(time.Minute),
 							IdleTimeout:  Duration(10 * time.Minute),
 						},
 					},
@@ -278,7 +278,7 @@ func TestLoadConfig(t *testing.T) {
 						Name:             "default",
 						ToCluster:        "cluster",
 						ToUser:           "default",
-						MaxExecutionTime: Duration(30 * time.Second),
+						MaxExecutionTime: 0,
 					},
 				},
 			},
@@ -608,7 +608,7 @@ func TestConfigTimeouts(t *testing.T) {
 			"testdata/default_values.yml",
 			TimeoutCfg{
 				ReadTimeout:  Duration(time.Minute),
-				WriteTimeout: Duration(90 * time.Second), // defaultExecutionTime + 1 min
+				WriteTimeout: Duration(time.Minute),
 				IdleTimeout:  Duration(10 * time.Minute),
 			},
 		},
@@ -791,7 +791,6 @@ users:
   password: XXX
   to_cluster: first cluster
   to_user: web
-  max_execution_time: 30s
   requests_per_minute: 4
   max_queue_size: 100
   max_queue_time: 35s
@@ -847,7 +846,7 @@ param_groups:
   - key: max_columns_to_read
     value: "30"
   - key: max_execution_time
-    value: "30"
+    value: "0"
 `
 	tested := fullConfig.String()
 	if tested != expected {
