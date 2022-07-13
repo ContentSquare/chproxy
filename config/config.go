@@ -479,7 +479,7 @@ type User struct {
 	MaxConcurrentQueries uint32 `yaml:"max_concurrent_queries,omitempty"`
 
 	// Maximum duration of query execution for user
-	// if omitted or zero - no limits would be applied
+	// if omitted or zero - limit is set to 30 seconds
 	MaxExecutionTime Duration `yaml:"max_execution_time,omitempty"`
 
 	// Maximum number of requests per minute for user
@@ -720,7 +720,7 @@ type ClusterUser struct {
 	MaxConcurrentQueries uint32 `yaml:"max_concurrent_queries,omitempty"`
 
 	// Maximum duration of query execution for user
-	// if omitted or zero - no limits would be applied
+	// if omitted or zero - limit is set to 30 seconds
 	MaxExecutionTime Duration `yaml:"max_execution_time,omitempty"`
 
 	// Maximum number of requests per minute for user
