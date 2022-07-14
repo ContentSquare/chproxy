@@ -51,6 +51,9 @@ var goodCfg = &config.Config{
 			ToUser:    "web",
 		},
 	},
+	ParamGroups: []config.ParamGroup{
+		{Name: "param_test", Params: []config.Param{{Key: "param_key", Value: "param_value"}}},
+	},
 }
 
 func newConfiguredProxy(cfg *config.Config) (*reverseProxy, error) {
