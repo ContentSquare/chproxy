@@ -439,7 +439,7 @@ func newParamsRegistry(params []config.Param) (*paramsRegistry, error) {
 		return nil, fmt.Errorf("params can't be empty")
 	}
 
-	var paramsMap map[string]string
+	paramsMap := make(map[string]string, len(params))
 	for _, k := range params {
 		paramsMap[k.Key] = k.Value
 	}
