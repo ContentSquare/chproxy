@@ -415,7 +415,7 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 		}
 		var maxExecutionTime config.Duration
 		for _, user := range cfg.Users {
-			if user.Name == cc.Name {
+			if user.Cache == cc.Name {
 				maxExecutionTime = user.MaxExecutionTime
 				break
 			}
