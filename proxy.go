@@ -314,6 +314,13 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 
 	// proxy request and capture response along with headers to [[BufferedResponseWriter]]
 	rp.proxyRequest(s, bufferedRespWriter, srw, req)
+
+	contentEncoding := bufferedRespWriter.GetCapturedContentEncoding()
+	contentType := bufferedRespWriter.GetCapturedContentType()
+	contentLength := bufferedRespWriter.GetCapturedContentLength()
+	reader := bufferedRespWriter.Reader()
+	contentMetadata := cache.ContentMetadata{Length: contentLength, Encoding: contentEncoding, Type: contentType}
+
 	if bufferedRespWriter.StatusCode() != http.StatusOK || s.canceled {
 		// Do not cache non-200 or cancelled responses.
 		// Restore the original status code by proxyRequest if it was set.
@@ -327,22 +334,20 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		if err = userCache.Fail(key); err != nil {
 			log.Errorf("%s: %s; query: %q", s, err, q)
 		}
-		err = RespondWithoutData(srw)
+
+		err = RespondWithData(srw, reader, contentMetadata, 0*time.Second, bufferedRespWriter.StatusCode())
 		if err != nil {
-			log.Errorf("%s: %s; query: %q - failed to put response in the cache", s, err, q)
+			err = fmt.Errorf("%s: %w; query: %q", s, err, q)
+			respondWith(srw, err, http.StatusInternalServerError)
+			return
 		}
 	} else {
 		cacheMiss.With(labels).Inc()
 		log.Debugf("%s: cache miss", s)
-		contentEncoding := bufferedRespWriter.GetCapturedContentEncoding()
-		contentType := bufferedRespWriter.GetCapturedContentType()
-		contentLength := bufferedRespWriter.GetCapturedContentLength()
-		reader := bufferedRespWriter.Reader()
 
 		// we create this buffer to be able to stream data both to cache as well as to an end user
 		var buf bytes.Buffer
 		tee := io.TeeReader(reader, &buf)
-		contentMetadata := cache.ContentMetadata{Length: contentLength, Encoding: contentEncoding, Type: contentType}
 		expiration, err := userCache.Put(tee, contentMetadata, key)
 		if err != nil {
 			log.Errorf("%s: %s; query: %q - failed to put response in the cache", s, err, q)
