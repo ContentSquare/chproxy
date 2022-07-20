@@ -52,11 +52,6 @@ func RespondWithData(rw http.ResponseWriter, data io.Reader, metadata cache.Cont
 	return nil
 }
 
-func RespondWithoutData(rw http.ResponseWriter) error {
-	_, err := rw.Write([]byte{})
-	return err
-}
-
 func (rw *statResponseWriter) Write(b []byte) (int, error) {
 	if rw.statusCode == 0 {
 		rw.statusCode = http.StatusOK
