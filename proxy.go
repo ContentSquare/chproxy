@@ -346,6 +346,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		if srw.statusCode != 0 {
 			tmpFileRespWriter.WriteHeader(srw.statusCode)
 		}
+		rp.completeTransaction(s, statusCode, userCache, key, q)
 
 		// mark transaction as failed
 		// todo: discuss if we should mark it as failed upon timeout. The rational against it would be to hope that
@@ -367,10 +368,8 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		if err != nil {
 			log.Errorf("%s: %s; query: %q - failed to put response in the cache", s, err, q)
 		}
-		// mark transaction as completed
-		if err = userCache.Complete(key); err != nil {
-			log.Errorf("%s: %s; query: %q", s, err, q)
-		}
+		rp.completeTransaction(s, statusCode, userCache, key, q)
+
 		// we need to reset the offset since the reader of tmpFileRespWriter was already
 		// consumed in RespondWithData(...)
 		err = tmpFileRespWriter.ResetFileOffset()
@@ -387,6 +386,20 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		}
 	}
 }
+
+func (rp *reverseProxy) completeTransaction(s *scope, statusCode int, userCache *cache.AsyncCache, key *cache.Key, q []byte) {
+	if _, ok := clickhouseNonRecoverableStatusCodes[statusCode]; ok {
+		if err := userCache.Fail(key); err != nil {
+			log.Errorf("%s: %s; query: %q", s, err, q)
+		}
+	} else {
+		if err := userCache.Complete(key); err != nil {
+			log.Errorf("%s: %s; query: %q", s, err, q)
+		}
+	}
+}
+
+var clickhouseNonRecoverableStatusCodes = map[int]struct{}{400: {}, 404: {}, 500: {}}
 
 func calcQueryParamsHash(origParams url.Values) uint32 {
 	queryParams := make(map[string]string)

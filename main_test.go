@@ -176,8 +176,8 @@ func TestServe(t *testing.T) {
 				req.SetBasicAuth("default", "qwerty")
 				resp, err := tlsClient.Do(req)
 				checkErr(t, err)
-				if resp.StatusCode != http.StatusTeapot {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusTeapot)
+				if resp.StatusCode != http.StatusInternalServerError {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusInternalServerError)
 				}
 				resp.Body.Close()
 
@@ -597,7 +597,19 @@ func TestServe(t *testing.T) {
 				// scenario: 1st query fails before grace_time elapsed. 2nd query fails as well.
 
 				q := "SELECT ERROR"
-				executeTwoConcurrentRequests(t, q, http.StatusTeapot, http.StatusInternalServerError, "DB::Exception\n", "concurrent query failed")
+				executeTwoConcurrentRequests(t, q, http.StatusInternalServerError, http.StatusInternalServerError, "DB::Exception\n", "concurrent query failed")
+			},
+			startHTTP,
+		},
+		{
+			"http concurrent transaction failure scenario - transaction completed, not failed - query is recoverable",
+			"testdata/http.concurrent.transaction.yml",
+			func(t *testing.T) {
+				// max_exec_time = 300 ms, grace_time = 160 ms (> max_exec_time/2)
+				// scenario: 1st query fails before grace_time elapsed. 2nd query fails as well.
+
+				q := "SELECT RECOVERABLE-ERROR"
+				executeTwoConcurrentRequests(t, q, http.StatusTeapot, http.StatusTeapot, "DB::Exception\n", "DB::Exception\n")
 			},
 			startHTTP,
 		},
@@ -746,6 +758,9 @@ func fakeCHHandler(w http.ResponseWriter, r *http.Request) {
 	q := string(query)
 	switch {
 	case q == "SELECT ERROR":
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprint(w, "DB::Exception\n")
+	case q == "SELECT RECOVERABLE-ERROR":
 		w.WriteHeader(http.StatusTeapot)
 		fmt.Fprint(w, "DB::Exception\n")
 	case q == "SELECT SLEEP":
