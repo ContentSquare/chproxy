@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/tls"
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"io"
 	"io/ioutil"
 	"math/rand"
@@ -20,6 +19,7 @@ import (
 	"net/url"
 
 	"github.com/contentsquare/chproxy/config"
+	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -469,14 +469,14 @@ func TestKillQuery(t *testing.T) {
 		{
 			name: "timeout user",
 			f: func(p *reverseProxy) *http.Response {
-				p.users["default"].maxExecutionTime = time.Millisecond * 10
+				p.users["default"].maxExecutionTime = time.Millisecond * 5
 				return makeHeavyRequest(p, time.Millisecond*40)
 			},
 		},
 		{
 			name: "timeout cluster user",
 			f: func(p *reverseProxy) *http.Response {
-				p.clusters["cluster"].users["web"].maxExecutionTime = time.Millisecond * 10
+				p.clusters["cluster"].users["web"].maxExecutionTime = time.Millisecond * 5
 				return makeHeavyRequest(p, time.Millisecond*40)
 			},
 		},
@@ -494,8 +494,21 @@ func TestKillQuery(t *testing.T) {
 			if len(id) == 0 {
 				t.Fatalf("expected Id to be extracted from %q", b)
 			}
+			// waiting btw 5 and 200 msec to get the answer from CHProxy
+			// because this code on github is unstable due to the poor performances
+			// of the server running the CI.
+			loop := true
+			counter := 0
+			for loop {
+				time.Sleep(time.Millisecond * 5)
+				counter++
 
-			time.Sleep(time.Millisecond * 50)
+				_, err := registry.get(id)
+				if err == nil || counter > 40 {
+					loop = false
+				}
+			}
+
 			state, err := registry.get(id)
 			if err != nil {
 				t.Fatalf("unexpected requestRegistry err for key %q: %s", id, err)
