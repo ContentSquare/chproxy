@@ -54,7 +54,7 @@ var fullConfig = Config{
 			},
 			TimeoutCfg: TimeoutCfg{
 				ReadTimeout:  Duration(time.Minute),
-				WriteTimeout: Duration(140 * time.Second),
+				WriteTimeout: Duration(215 * time.Second),
 				IdleTimeout:  Duration(10 * time.Minute),
 			},
 		},
@@ -187,7 +187,7 @@ var fullConfig = Config{
 			ReqPerMin:        4,
 			MaxQueueSize:     100,
 			MaxQueueTime:     Duration(35 * time.Second),
-			MaxExecutionTime: Duration(30 * time.Second),
+			MaxExecutionTime: Duration(2 * time.Minute),
 			Cache:            "longterm",
 			Params:           "web",
 		},
@@ -250,7 +250,7 @@ func TestLoadConfig(t *testing.T) {
 						NetworksOrGroups: []string{"127.0.0.1"},
 						TimeoutCfg: TimeoutCfg{
 							ReadTimeout:  Duration(time.Minute),
-							WriteTimeout: Duration(90 * time.Second),
+							WriteTimeout: Duration(3 * time.Minute),
 							IdleTimeout:  Duration(10 * time.Minute),
 						},
 					},
@@ -278,7 +278,7 @@ func TestLoadConfig(t *testing.T) {
 						Name:             "default",
 						ToCluster:        "cluster",
 						ToUser:           "default",
-						MaxExecutionTime: Duration(30 * time.Second),
+						MaxExecutionTime: Duration(120 * time.Second),
 					},
 				},
 			},
@@ -608,7 +608,7 @@ func TestConfigTimeouts(t *testing.T) {
 			"testdata/default_values.yml",
 			TimeoutCfg{
 				ReadTimeout:  Duration(time.Minute),
-				WriteTimeout: Duration(90 * time.Second), // defaultExecutionTime + 1 min
+				WriteTimeout: Duration(3 * time.Minute), // defaultExecutionTime + 1 min
 				IdleTimeout:  Duration(10 * time.Minute),
 			},
 		},
@@ -715,7 +715,7 @@ func TestConfigString(t *testing.T) {
       allowed_hosts:
       - example.com
     read_timeout: 1m
-    write_timeout: 140s
+    write_timeout: 215s
     idle_timeout: 10m
   metrics:
     allowed_networks:
@@ -791,7 +791,7 @@ users:
   password: XXX
   to_cluster: first cluster
   to_user: web
-  max_execution_time: 30s
+  max_execution_time: 2m
   requests_per_minute: 4
   max_queue_size: 100
   max_queue_time: 35s
