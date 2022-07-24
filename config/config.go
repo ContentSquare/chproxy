@@ -33,7 +33,7 @@ var (
 
 	defaultExecutionTime = Duration(120 * time.Second)
 
-	defaultMaxPayloadSize = ByteSize(100000000)
+	defaultMaxPayloadSize = ByteSize(1<<50)
 )
 
 // Config describes server configuration, access and proxy rules

@@ -367,7 +367,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 			}
 		}
 	} else {
-		err = RespondWithData(srw, reader, contentMetadata, 0*time.Second, http.StatusAccepted)
+		err = RespondWithData(srw, reader, contentMetadata, 0*time.Second, bufferedRespWriter.StatusCode())
 		if err != nil {
 			err = fmt.Errorf("%s: %w; query: %q", s, err, q)
 			respondWith(srw, err, http.StatusInternalServerError)
