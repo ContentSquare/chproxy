@@ -321,7 +321,15 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	reader := bufferedRespWriter.Reader()
 	contentMetadata := cache.ContentMetadata{Length: contentLength, Encoding: contentEncoding, Type: contentType}
 
-	if isToCache(contentLength, s) {
+	toCache := isToCache(contentLength, s)
+	if !toCache {
+		log.Debugf("Request will not cached. Content length (%d) greater than max payload size", contentLength)
+		err = RespondWithData(srw, reader, contentMetadata, 0*time.Second, bufferedRespWriter.StatusCode())
+		if err != nil {
+			err = fmt.Errorf("%s: %w; query: %q", s, err, q)
+			respondWith(srw, err, http.StatusInternalServerError)
+		}
+	} else {
 		if bufferedRespWriter.StatusCode() != http.StatusOK || s.canceled {
 			// Do not cache non-200 or cancelled responses.
 			// Restore the original status code by proxyRequest if it was set.
@@ -365,12 +373,6 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 				respondWith(srw, err, http.StatusInternalServerError)
 				return
 			}
-		}
-	} else {
-		err = RespondWithData(srw, reader, contentMetadata, 0*time.Second, bufferedRespWriter.StatusCode())
-		if err != nil {
-			err = fmt.Errorf("%s: %w; query: %q", s, err, q)
-			respondWith(srw, err, http.StatusInternalServerError)
 		}
 	}
 }

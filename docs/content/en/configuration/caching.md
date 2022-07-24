@@ -31,4 +31,7 @@ Distributed cache relies on external database to share cache across multiple rep
 multiple replicas deployments. Currently only [Redis](https://redis.io/) key value store is supported. 
 Configuration template for distributed cache can be found [here](https://github.com/ContentSquare/chproxy/blob/master/config/#distributed_cache_config).
 
-
+#### Response limitations for caching
+Before storing the request response to a local or distributed cache, a validation verifies that the response length 
+is not greater than the max payload size configured by default or overridden in configuration. The default value of `defaultMaxPayloadSize` 
+is Petabyte and configured in `config/config.go` (`defaultMaxPayloadSize = ByteSize(1 << 50)`).
