@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"hash/fnv"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"sort"
 	"strconv"
@@ -97,7 +96,7 @@ func getQuerySnippetFromBody(req *http.Request) string {
 	// 'read' request body, so it traps into to crc.
 	// Ignore any errors, since getQuerySnippet is called only
 	// during error reporting.
-	io.Copy(ioutil.Discard, crc) // nolint
+	io.Copy(io.Discard, crc) // nolint
 	data := crc.String()
 
 	u := getDecompressor(req)
@@ -146,12 +145,12 @@ func getFullQueryFromBody(req *http.Request) ([]byte, error) {
 		return nil, nil
 	}
 
-	data, err := ioutil.ReadAll(req.Body)
+	data, err := io.ReadAll(req.Body)
 	if err != nil {
 		return nil, err
 	}
 	// restore body for further reading
-	req.Body = ioutil.NopCloser(bytes.NewBuffer(data))
+	req.Body = io.NopCloser(bytes.NewBuffer(data))
 	u := getDecompressor(req)
 	if u == nil {
 		return data, nil
@@ -259,14 +258,14 @@ func (dc gzipDecompressor) decompress(r io.Reader) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot ungzip query: %w", err)
 	}
-	return ioutil.ReadAll(gr)
+	return io.ReadAll(gr)
 }
 
 type chDecompressor struct{}
 
 func (dc chDecompressor) decompress(r io.Reader) ([]byte, error) {
 	lr := chdecompressor.NewReader(r)
-	return ioutil.ReadAll(lr)
+	return io.ReadAll(lr)
 }
 
 func calcMapHash(m map[string]string) (uint32, error) {

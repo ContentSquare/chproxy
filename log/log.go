@@ -2,7 +2,7 @@ package log
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 	"sync/atomic"
@@ -18,16 +18,16 @@ var (
 	fatalLogger = log.New(os.Stderr, "FATAL: ", stdLogFlags)
 
 	// NilLogger suppresses all the log messages.
-	NilLogger = log.New(ioutil.Discard, "", stdLogFlags)
+	NilLogger = log.New(io.Discard, "", stdLogFlags)
 )
 
 // SuppressOutput suppresses all output from logs if `suppress` is true
 // used while testing
 func SuppressOutput(suppress bool) {
 	if suppress {
-		debugLogger.SetOutput(ioutil.Discard)
-		infoLogger.SetOutput(ioutil.Discard)
-		errorLogger.SetOutput(ioutil.Discard)
+		debugLogger.SetOutput(io.Discard)
+		infoLogger.SetOutput(io.Discard)
+		errorLogger.SetOutput(io.Discard)
 	} else {
 		debugLogger.SetOutput(os.Stderr)
 		infoLogger.SetOutput(os.Stderr)

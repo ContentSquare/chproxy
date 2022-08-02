@@ -2,7 +2,7 @@ package chdecompressor
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"testing"
 )
 
@@ -43,7 +43,7 @@ func TestRead(t *testing.T) {
 func testDecompress(t *testing.T, str, expected string) {
 	bb := bytes.NewBufferString(str)
 	r := NewReader(bb)
-	b, err := ioutil.ReadAll(r)
+	b, err := io.ReadAll(r)
 	if err != nil {
 		t.Fatalf("cannot decompress %q: %s", expected, err)
 	}

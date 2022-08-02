@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -118,7 +117,7 @@ func (f *fileSystemCache) Get(key *Key) (*CachedData, error) {
 		// with the fresh file during deadline.
 	}
 
-	b, err := ioutil.ReadAll(file)
+	b, err := io.ReadAll(file)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file content from %q: %w", f.Name(), err)
