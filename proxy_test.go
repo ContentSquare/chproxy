@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net"
 	"regexp"
@@ -644,7 +643,7 @@ var (
 			return
 		}
 
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			panic(err)
 		}
@@ -731,7 +730,7 @@ func newConfig() *config.Config {
 }
 
 func bbToString(t *testing.T, r io.Reader) string {
-	response, err := ioutil.ReadAll(r)
+	response, err := io.ReadAll(r)
 	if err != nil {
 		t.Fatalf("unexpected err while reading: %s", err)
 	}

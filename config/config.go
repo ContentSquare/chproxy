@@ -2,7 +2,7 @@ package config
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"time"
 
 	"github.com/mohae/deepcopy"
@@ -767,7 +767,7 @@ func (cu *ClusterUser) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // LoadFile loads and validates configuration from provided .yml file
 func LoadFile(filename string) (*Config, error) {
-	content, err := ioutil.ReadFile(filename)
+	content, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, err
 	}

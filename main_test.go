@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -22,9 +21,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/contentsquare/chproxy/cache"
-
 	"github.com/alicebob/miniredis/v2"
+	"github.com/contentsquare/chproxy/cache"
 	"github.com/contentsquare/chproxy/config"
 	"github.com/contentsquare/chproxy/log"
 )
@@ -446,7 +444,7 @@ func TestServe(t *testing.T) {
 				req.Header.Set("Content-Encoding", "gzip")
 				resp, err := http.DefaultClient.Do(req)
 				checkErr(t, err)
-				body, _ := ioutil.ReadAll(resp.Body)
+				body, _ := io.ReadAll(resp.Body)
 				if resp.StatusCode != http.StatusOK {
 					t.Fatalf("unexpected status code: %d; expected: %d; body: %s", resp.StatusCode, http.StatusOK, string(body))
 				}
@@ -681,7 +679,7 @@ func TestServe(t *testing.T) {
 }
 
 func checkFilesCount(t *testing.T, dir string, expectedLen int) {
-	files, err := ioutil.ReadDir(dir)
+	files, err := os.ReadDir(dir)
 	if err != nil {
 		t.Fatalf("error while reading dir %q: %s", dir, err)
 	}
@@ -924,7 +922,7 @@ func checkResponse(t *testing.T, r io.Reader, expected string) {
 	if r == nil {
 		t.Fatal("unexpected nil reader")
 	}
-	response, err := ioutil.ReadAll(r)
+	response, err := io.ReadAll(r)
 	if err != nil {
 		t.Fatalf("unexpected err while reading: %s", err)
 	}

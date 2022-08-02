@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -283,12 +283,12 @@ func (s *scope) killQuery() error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		responseBody, _ := ioutil.ReadAll(resp.Body)
+		responseBody, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("unexpected status code returned from query %q at %q: %d. Response body: %q",
 			query, addr, resp.StatusCode, responseBody)
 	}
 
-	respBody, err := ioutil.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return fmt.Errorf("cannot read response body for the query %q: %w", query, err)
 	}

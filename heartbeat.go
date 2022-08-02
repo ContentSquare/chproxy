@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"time"
 
@@ -53,7 +53,7 @@ func (hb *heartBeat) isHealthy(addr string) error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("non-200 status code: %s", resp.Status)
 	}
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return fmt.Errorf("cannot read response in %s: %w", time.Since(startTime), err)
 	}
