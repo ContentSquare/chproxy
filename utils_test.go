@@ -354,13 +354,13 @@ func TestCalcMapHash(t *testing.T) {
 		},
 		{
 			"map with multiple value",
-			map[string]string{"param_table_name": "clients","param_database":"default"},
+			map[string]string{"param_table_name": "clients", "param_database": "default"},
 			0x6fddf04d,
 			nil,
 		},
 		{
 			"map with exchange value",
-			map[string]string{"param_database":"default","param_table_name":"clients"},
+			map[string]string{"param_database": "default", "param_table_name": "clients"},
 			0x6fddf04d,
 			nil,
 		},
