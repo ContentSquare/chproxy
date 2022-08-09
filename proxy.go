@@ -323,6 +323,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 
 	toCache := isToCache(contentLength, s)
 	if !toCache {
+		cacheSkipped.With(labels).Inc()
 		log.Debugf("Request will not cached. Content length (%d) greater than max payload size", contentLength)
 		err = RespondWithData(srw, reader, contentMetadata, 0*time.Second, bufferedRespWriter.StatusCode())
 		if err != nil {

@@ -303,8 +303,9 @@ func (c *Metrics) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // Cluster describes CH cluster configuration
 // The simplest configuration consists of:
-// 	 cluster description - see <remote_servers> section in CH config.xml
-// 	 and users - see <users> section in CH users.xml
+//
+//	cluster description - see <remote_servers> section in CH config.xml
+//	and users - see <users> section in CH users.xml
 type Cluster struct {
 	// Name of ClickHouse cluster
 	Name string `yaml:"name"`
