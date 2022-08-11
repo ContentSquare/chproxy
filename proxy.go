@@ -409,19 +409,23 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 			go tmpCache.Close()
 		}
 	}()
+
+	// transactionsTimeout used for creation of transactions registry inside async cache.
+	// It is set to the highest configured execution time of all users to avoid setups were users use the same cache and have configured different maxExecutionTime.
+	// This would provoke undesired behaviour of `dogpile effect`
+	transactionsTimeout := config.Duration(0)
+	for _, user := range cfg.Users {
+		if user.MaxExecutionTime > transactionsTimeout {
+			transactionsTimeout = user.MaxExecutionTime
+		}
+	}
+
 	for _, cc := range cfg.Caches {
 		if _, ok := caches[cc.Name]; ok {
 			return fmt.Errorf("duplicate config for cache %q", cc.Name)
 		}
-		var maxExecutionTime config.Duration
-		for _, user := range cfg.Users {
-			if user.Cache == cc.Name {
-				maxExecutionTime = user.MaxExecutionTime
-				break
-			}
-		}
 
-		tmpCache, err := cache.NewAsyncCache(cc, time.Duration(maxExecutionTime))
+		tmpCache, err := cache.NewAsyncCache(cc, time.Duration(transactionsTimeout))
 		if err != nil {
 			return err
 		}
