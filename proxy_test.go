@@ -8,8 +8,10 @@ import (
 	"math/rand"
 	"net"
 	"regexp"
+	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -20,6 +22,10 @@ import (
 	"github.com/contentsquare/chproxy/config"
 	"github.com/stretchr/testify/assert"
 )
+
+var nbHeavyRequestsInflight int64 = 0
+
+const heavyRequestDuration = time.Millisecond * 251
 
 const (
 	okResponse = "1"
@@ -170,8 +176,7 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 			expStatusCode: http.StatusTooManyRequests,
 			f: func(p *reverseProxy) *http.Response {
 				p.clusters["cluster"].users["web"].maxConcurrentQueries = 1
-				go makeHeavyRequest(p, time.Millisecond*100)
-				time.Sleep(time.Millisecond * 10)
+				runHeavyRequestInGoroutine(p, 1)
 				return makeRequest(p)
 			},
 		},
@@ -214,8 +219,7 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 			expStatusCode: http.StatusTooManyRequests,
 			f: func(p *reverseProxy) *http.Response {
 				p.users["default"].maxConcurrentQueries = 1
-				go makeHeavyRequest(p, time.Millisecond*100)
-				time.Sleep(time.Millisecond * 10)
+				runHeavyRequestInGoroutine(p, 1)
 				return makeRequest(p)
 			},
 		},
@@ -227,9 +231,8 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 			f: func(p *reverseProxy) *http.Response {
 				p.users["default"].maxConcurrentQueries = 1
 				p.users["default"].queueCh = make(chan struct{}, 2)
-				go makeHeavyRequest(p, time.Millisecond*20)
-				time.Sleep(time.Millisecond * 10)
-				return makeHeavyRequest(p, time.Millisecond*20)
+				runHeavyRequestInGoroutine(p, 1)
+				return makeRequest(p)
 			},
 		},
 		{
@@ -240,9 +243,8 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 			f: func(p *reverseProxy) *http.Response {
 				p.users["default"].maxConcurrentQueries = 1
 				p.clusters["cluster"].users["web"].queueCh = make(chan struct{}, 2)
-				go makeHeavyRequest(p, time.Millisecond*20)
-				time.Sleep(time.Millisecond * 10)
-				return makeHeavyRequest(p, time.Millisecond*20)
+				runHeavyRequestInGoroutine(p, 1)
+				return makeRequest(p)
 			},
 		},
 		{
@@ -253,11 +255,8 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 			f: func(p *reverseProxy) *http.Response {
 				p.users["default"].maxConcurrentQueries = 1
 				p.users["default"].queueCh = make(chan struct{}, 1)
-				go makeHeavyRequest(p, time.Millisecond*100)
-				time.Sleep(time.Millisecond * 5)
-				go makeHeavyRequest(p, time.Millisecond*100)
-				time.Sleep(time.Millisecond * 5)
-				return makeHeavyRequest(p, time.Millisecond*20)
+				runHeavyRequestInGoroutine(p, 2)
+				return makeRequest(p)
 			},
 		},
 		{
@@ -636,6 +635,14 @@ func getNetwork(s string) *net.IPNet {
 const killQueryPattern = "KILL QUERY WHERE query_id"
 
 var (
+	// quick fix until the test file is refactored.
+	// Many tests rely on concurrency of goroutines.
+	// But, because of the use of sleep, only a few goroutine can run in concurrence and the other are blocked
+	// cf: https://stackoverflow.com/questions/62527705/will-time-sleep-block-goroutine
+	// Because of that, on most tests the goroutines are running sequencially
+	// This id why we increase the number concurrent goroutines (the default number is the number of cpu of the computer running the tests, which is quite low on github actions)
+	// we must increase this number before the instanciation of the fakeServer, otherwise it's not taken into account during the tests
+	_        = increaseMaxConccurentGoroutine()
 	registry = newRequestRegistry()
 	handler  = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/fast" {
@@ -665,6 +672,12 @@ var (
 				d, err := time.ParseDuration(b)
 				if err != nil {
 					panic(fmt.Sprintf("error while imitating delay at fakeServer handler: %s", err))
+				}
+
+				// at this step the query is really processed by the server
+				// we're only interested by long queries, i.e the one taking more than 0 msec
+				if d == heavyRequestDuration {
+					atomic.AddInt64(&nbHeavyRequestsInflight, 1)
 				}
 				time.Sleep(d)
 			}
@@ -757,6 +770,10 @@ type requestRegistry struct {
 	r map[string]bool
 }
 
+func increaseMaxConccurentGoroutine() int {
+	nb := runtime.GOMAXPROCS(256)
+	return nb
+}
 func newRequestRegistry() *requestRegistry {
 	return &requestRegistry{
 		r: make(map[string]bool),
@@ -832,4 +849,21 @@ func TestCalcQueryParamsHash(t *testing.T) {
 			assert.Equal(t, r, tc.expectedResult)
 		})
 	}
+}
+
+// this function runs an number of heavyRequests using goroutines
+// then waits that all the requests are currently handled by the fakeServer
+func runHeavyRequestInGoroutine(p *reverseProxy, nbHeavyRequest int64) {
+	atomic.StoreInt64(&nbHeavyRequestsInflight, 0)
+	for i := 0; i < int(nbHeavyRequest); i++ {
+		go makeHeavyRequest(p, heavyRequestDuration)
+	}
+	counter := 0
+	//we wait up to 100 msec for the requests to be handled by the fakeServer because
+	// the code on github actions can be very slow
+	for atomic.LoadInt64(&nbHeavyRequestsInflight) < nbHeavyRequest && counter < 100 {
+		time.Sleep(time.Millisecond)
+		counter++
+	}
+
 }
