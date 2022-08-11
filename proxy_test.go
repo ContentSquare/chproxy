@@ -258,14 +258,15 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 			f: func(p *reverseProxy) *http.Response {
 				p.users["default"].maxConcurrentQueries = 1
 				p.users["default"].queueCh = make(chan struct{}, 1)
-				// we don't wait the requests to be handled because one of them will be enqueued and not handled
+				// we don't wait the requests to be handled by the fakeServer because one of them will be enqueued and not handled
 				// this is why we handle this part manually
 				nbRequest := atomic.LoadUint64(&totalNbOfRequests)
 				runHeavyRequestInGoroutine(p, 2, false)
-				for atomic.LoadUint64(&totalNbOfRequests) < nbRequest+2 {
-					time.Sleep(5 * time.Millisecond)
+				counter := 0
+				for atomic.LoadUint64(&totalNbOfRequests) < nbRequest+2 && counter < 200 {
+					time.Sleep(1 * time.Millisecond)
+					counter++
 				}
-
 				return makeRequest(p)
 			},
 		},
