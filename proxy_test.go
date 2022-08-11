@@ -746,8 +746,6 @@ func getProxy(c *config.Config) (*reverseProxy, error) {
 		return nil, err
 	}
 
-	// wait till all hosts will do health-checking
-	time.Sleep(time.Millisecond * 50)
 	return proxy, nil
 }
 
