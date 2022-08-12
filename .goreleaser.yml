@@ -44,6 +44,11 @@ dockers:
     goarch: amd64
     image_templates:
       - "contentsquareplatform/chproxy:{{ .Version }}"
+      - "contentsquareplatform/chproxy:{{ .Version }}-amd64"
+  - goos: linux
+    goarch: arm64
+    image_templates:
+      - "contentsquareplatform/chproxy:{{ .Version }}-arm64"
 
 snapshot:
   name_template: "{{ .FullCommit }}-SNAPSHOT"
