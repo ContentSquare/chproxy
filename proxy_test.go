@@ -28,6 +28,8 @@ var nbRequestsInflight int64 = 0
 var totalNbOfRequests uint64 = 0
 var shouldStop uint64 = 0
 
+const max_concurrent_goroutines = 256
+
 const heavyRequestDuration = time.Millisecond * 512
 
 const (
@@ -790,7 +792,7 @@ type requestRegistry struct {
 }
 
 func increaseMaxConccurentGoroutine() int {
-	nb := runtime.GOMAXPROCS(256)
+	nb := runtime.GOMAXPROCS(max_concurrent_goroutines)
 	return nb
 }
 func newRequestRegistry() *requestRegistry {
