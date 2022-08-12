@@ -53,6 +53,7 @@ dockers:
       - "contentsquareplatform/chproxy:{{ .Version }}-arm64"
     build_flag_templates:
       - "--build-arg=BINARY=chproxy-arm64"
+      - "--platform=linux/arm64"
 
 snapshot:
   name_template: "{{ .FullCommit }}-SNAPSHOT"
