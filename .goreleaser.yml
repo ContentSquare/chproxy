@@ -45,10 +45,14 @@ dockers:
     image_templates:
       - "contentsquareplatform/chproxy:{{ .Version }}"
       - "contentsquareplatform/chproxy:{{ .Version }}-amd64"
+    build_flag_templates:
+      - "--build-arg=BINARY=chproxy"
   - goos: linux
     goarch: arm64
     image_templates:
       - "contentsquareplatform/chproxy:{{ .Version }}-arm64"
+    build_flag_templates:
+      - "--build-arg=BINARY=chproxy-arm64"
 
 snapshot:
   name_template: "{{ .FullCommit }}-SNAPSHOT"
