@@ -1,6 +1,8 @@
 FROM debian
 
-COPY chproxy /
+ARG BINARY
+
+COPY ${BINARY} /
 
 EXPOSE 9090
 
