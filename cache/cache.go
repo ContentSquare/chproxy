@@ -24,7 +24,7 @@ type ContentMetadata struct {
 
 type CachedData struct {
 	ContentMetadata
-	Data io.Reader
+	Data io.ReadCloser
 	Ttl  time.Duration
 }
 

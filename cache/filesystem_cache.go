@@ -1,7 +1,6 @@
 package cache
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"math/rand"
@@ -97,51 +96,47 @@ func (f *fileSystemCache) Stats() Stats {
 func (f *fileSystemCache) Get(key *Key) (*CachedData, error) {
 	fp := key.filePath(f.dir)
 	file, err := os.Open(fp)
-	if err != nil {
-		return nil, ErrMissing
+	value := &CachedData{
+		Data: file,
 	}
 
-	defer file.Close()
+	if err != nil {
+		return value, ErrMissing
+	}
+
 	fi, err := file.Stat()
 	if err != nil {
-		return nil, fmt.Errorf("cache %q: cannot stat %q: %w", f.Name(), fp, err)
+		return value, fmt.Errorf("cache %q: cannot stat %q: %w", f.Name(), fp, err)
 	}
 	mt := fi.ModTime()
 	age := time.Since(mt)
 	if age > f.expire {
 		// check if file exceeded expiration time + grace time
 		if age > f.expire+f.grace {
-			return nil, ErrMissing
+			return value, ErrMissing
 		}
 		// Serve expired file in the hope it will be substituted
 		// with the fresh file during deadline.
 	}
 
-	b, err := io.ReadAll(file)
-
 	if err != nil {
-		return nil, fmt.Errorf("failed to read file content from %q: %w", f.Name(), err)
+		return value, fmt.Errorf("failed to read file content from %q: %w", f.Name(), err)
 	}
 
-	reader := bytes.NewReader(b)
-
-	metadata, err := decodeHeader(reader)
+	metadata, err := decodeHeader(file)
 	if err != nil {
-		return nil, err
+		return value, err
 	}
 
-	value := &CachedData{
-		ContentMetadata: *metadata,
-		Data:            reader,
-		Ttl:             f.expire - age,
-	}
+	value.ContentMetadata = *metadata
+	value.Ttl = f.expire - age
 
 	return value, nil
 }
 
 // decodeHeader decodes header from raw byte stream. Data is encoded as follows:
 // length(contentType)|contentType|length(contentEncoding)|contentEncoding|length(contentLength)|contentLength|cachedData
-func decodeHeader(reader *bytes.Reader) (*ContentMetadata, error) {
+func decodeHeader(reader io.Reader) (*ContentMetadata, error) {
 	contentType, err := readHeader(reader)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read Content-Type from provided reader: %w", err)

@@ -132,7 +132,7 @@ func (r *redisCache) Get(key *Key) (*CachedData, error) {
 			Type:     payload.Type,
 			Encoding: payload.Encoding,
 		},
-		Data: bytes.NewReader(decoded),
+		Data: io.NopCloser(bytes.NewReader(decoded)),
 		Ttl:  ttl,
 	}
 

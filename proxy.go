@@ -268,6 +268,12 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	userCache := s.user.cache
 	// Try to serve from cache
 	cachedData, err := userCache.Get(key)
+	defer func() {
+		if cachedData != nil && cachedData.Data != nil {
+			cachedData.Data.Close()
+		}
+	}()
+
 	if err == nil {
 		// The response has been successfully served from cache.
 		cacheHit.With(labels).Inc()
