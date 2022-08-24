@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -32,9 +33,7 @@ func TestCacheSize(t *testing.T) {
 		t.Fatalf("the cache should be empty")
 	}
 
-	trw := &testResponseWriter{}
-	crw := NewBufferedResponseWriter(trw)
-	buffer := crw.Reader()
+	buffer := strings.NewReader("an object")
 
 	if _, err := redisCache.Put(buffer, ContentMetadata{}, &Key{Query: []byte("SELECT 1")}); err != nil {
 		t.Fatalf("failed to put it to cache: %s", err)
@@ -65,12 +64,10 @@ func generateRedisClientAndServer(t *testing.T) *redisCache {
 
 func TestRedisCacheAddGet(t *testing.T) {
 	c := generateRedisClientAndServer(t)
-	c1 := generateRedisClientAndServer(t)
 	defer func() {
-		c1.Close()
 		c.Close()
 	}()
-	cacheAddGetHelper(t, c, c1)
+	cacheAddGetHelper(t, c)
 }
 
 func TestRedisCacheMiss(t *testing.T) {

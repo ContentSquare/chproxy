@@ -1,11 +1,9 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -19,6 +17,9 @@ import (
 	"github.com/contentsquare/chproxy/log"
 	"github.com/prometheus/client_golang/prometheus"
 )
+
+// tmpDir temporary path to store ongoing queries results
+const tmpDir = "/tmp"
 
 type reverseProxy struct {
 	rp *httputil.ReverseProxy
@@ -186,7 +187,7 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, srw *stat
 
 		// cache.FSResponseWriter pushes status code to srw on Finalize/Fail actions
 		// but they didn't happen yet, so manually propagate the status code from crw to srw.
-		if crw, ok := rw.(*cache.BufferedResponseWriter); ok {
+		if crw, ok := rw.(*cache.TmpFileResponseWriter); ok {
 			srw.statusCode = crw.StatusCode()
 		}
 
@@ -304,7 +305,13 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 
 	// The response wasn't found in the cache.
 	// Request it from clickhouse.
-	bufferedRespWriter := cache.NewBufferedResponseWriter(srw)
+	tmpFileRespWriter, err := cache.NewTmpFileResponseWriter(srw, tmpDir)
+	if err != nil {
+		err = fmt.Errorf("%s: %s; query: %q", s, err, q)
+		respondWith(srw, err, http.StatusInternalServerError)
+		return
+	}
+	defer tmpFileRespWriter.Close()
 
 	// Initialise transaction
 	err = userCache.Create(key)
@@ -312,20 +319,30 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		log.Errorf("%s: %s; query: %q - failed to register transaction", s, err, q)
 	}
 
-	// proxy request and capture response along with headers to [[BufferedResponseWriter]]
-	rp.proxyRequest(s, bufferedRespWriter, srw, req)
+	// proxy request and capture response along with headers to [[TmpFileResponseWriter]]
+	rp.proxyRequest(s, tmpFileRespWriter, srw, req)
 
-	contentEncoding := bufferedRespWriter.GetCapturedContentEncoding()
-	contentType := bufferedRespWriter.GetCapturedContentType()
-	contentLength := bufferedRespWriter.GetCapturedContentLength()
-	reader := bufferedRespWriter.Reader()
+	contentEncoding := tmpFileRespWriter.GetCapturedContentEncoding()
+	contentType := tmpFileRespWriter.GetCapturedContentType()
+	contentLength, err := tmpFileRespWriter.GetCapturedContentLength()
+	if err != nil {
+		log.Errorf("%s: %s; query: %q - failed to get contentLength of query", s, err, q)
+		respondWith(srw, err, http.StatusInternalServerError)
+		return
+	}
+	reader, err := tmpFileRespWriter.Reader()
+	if err != nil {
+		log.Errorf("%s: %s; query: %q - failed to get Reader from tmp file", s, err, q)
+		respondWith(srw, err, http.StatusInternalServerError)
+		return
+	}
 	contentMetadata := cache.ContentMetadata{Length: contentLength, Encoding: contentEncoding, Type: contentType}
 
-	if bufferedRespWriter.StatusCode() != http.StatusOK || s.canceled {
+	if tmpFileRespWriter.StatusCode() != http.StatusOK || s.canceled {
 		// Do not cache non-200 or cancelled responses.
 		// Restore the original status code by proxyRequest if it was set.
 		if srw.statusCode != 0 {
-			bufferedRespWriter.WriteHeader(srw.statusCode)
+			tmpFileRespWriter.WriteHeader(srw.statusCode)
 		}
 
 		// mark transaction as failed
@@ -335,7 +352,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 			log.Errorf("%s: %s; query: %q", s, err, q)
 		}
 
-		err = RespondWithData(srw, reader, contentMetadata, 0*time.Second, bufferedRespWriter.StatusCode())
+		err = RespondWithData(srw, reader, contentMetadata, 0*time.Second, tmpFileRespWriter.StatusCode())
 		if err != nil {
 			err = fmt.Errorf("%s: %w; query: %q", s, err, q)
 			respondWith(srw, err, http.StatusInternalServerError)
@@ -344,21 +361,24 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	} else {
 		cacheMiss.With(labels).Inc()
 		log.Debugf("%s: cache miss", s)
-
-		// we create this buffer to be able to stream data both to cache as well as to an end user
-		var buf bytes.Buffer
-		tee := io.TeeReader(reader, &buf)
-		expiration, err := userCache.Put(tee, contentMetadata, key)
+		//var expiration = 10 * time.Second
+		expiration, err := userCache.Put(reader, contentMetadata, key)
 		if err != nil {
 			log.Errorf("%s: %s; query: %q - failed to put response in the cache", s, err, q)
 		}
-
 		// mark transaction as completed
 		if err = userCache.Complete(key); err != nil {
 			log.Errorf("%s: %s; query: %q", s, err, q)
 		}
-
-		err = RespondWithData(srw, &buf, contentMetadata, expiration, bufferedRespWriter.StatusCode())
+		//we need to reset the offset since the reader of tmpFileRespWriter was already
+		// consumed in RespondWithData(...)
+		err = tmpFileRespWriter.ResetFileOffset()
+		if err != nil {
+			err = fmt.Errorf("%s: %w; query: %q", s, err, q)
+			respondWith(srw, err, http.StatusInternalServerError)
+			return
+		}
+		err = RespondWithData(srw, reader, contentMetadata, expiration, tmpFileRespWriter.StatusCode())
 		if err != nil {
 			err = fmt.Errorf("%s: %w; query: %q", s, err, q)
 			respondWith(srw, err, http.StatusInternalServerError)

@@ -50,35 +50,24 @@ func TestCacheClose(t *testing.T) {
 func TestFilesystemCacheAddGet(t *testing.T) {
 	c := newTestCache(t)
 	defer c.Close()
-	c1 := newTestCache(t)
-	defer c1.Close()
-	cacheAddGetHelper(t, c, c1)
+	cacheAddGetHelper(t, c)
 }
 
 // metatest used for both filesystem and redis Cache
-func cacheAddGetHelper(t *testing.T, c Cache, c1 Cache) {
+func cacheAddGetHelper(t *testing.T, c Cache) {
 
 	for i := 0; i < 10; i++ {
 		key := &Key{
 			Query: []byte(fmt.Sprintf("SELECT %d", i)),
 		}
 		trw := &testResponseWriter{}
-		crw := NewBufferedResponseWriter(trw)
 
 		ct := fmt.Sprintf("text/html; %d", i)
-		crw.Header().Set("Content-Type", ct)
 		ce := fmt.Sprintf("gzip; %d", i)
-		crw.Header().Set("Content-Encoding", ce)
-
 		value := fmt.Sprintf("value %d", i)
-		bs := bytes.NewBufferString(value)
-		if _, err := io.Copy(crw, bs); err != nil {
-			t.Fatalf("cannot send response to cache: %s", err)
-		}
-
-		buffer := crw.Reader()
 
 		length := int64(len(value))
+		buffer := strings.NewReader(value)
 		if _, err := c.Put(buffer, ContentMetadata{Encoding: ce, Type: ct, Length: length}, key); err != nil {
 			t.Fatalf("failed to put it to cache: %s", err)
 		}
@@ -187,7 +176,10 @@ func TestCacheClean(t *testing.T) {
 			Query: []byte(fmt.Sprintf("SELECT %d cache clean", i)),
 		}
 		trw := &testResponseWriter{}
-		crw := NewBufferedResponseWriter(trw)
+		crw, err := NewTmpFileResponseWriter(trw, testTmpWriterDir)
+		if err != nil {
+			t.Fatalf("create tmp cache: %s", err)
+		}
 
 		value := fmt.Sprintf("very big value %d", i)
 		bs := bytes.NewBufferString(value)
@@ -195,7 +187,10 @@ func TestCacheClean(t *testing.T) {
 			t.Fatalf("cannot send response to cache: %s", err)
 		}
 
-		reader := crw.Reader()
+		reader, err := crw.Reader()
+		if err != nil {
+			t.Fatalf("failed to put it to cache: %s", err)
+		}
 		if _, err := c.Put(reader, ContentMetadata{}, key); err != nil {
 			t.Fatalf("failed to put it to cache: %s", err)
 		}
