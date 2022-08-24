@@ -126,17 +126,28 @@ func (r *redisCache) Get(key *Key) (*CachedData, error) {
 		log.Errorf("failed to decode payload: %s , due to: %v ", payload.Payload, err)
 		return nil, ErrMissing
 	}
+	reader := &io_reader_decorator{Reader: bytes.NewReader(decoded)}
 	value := &CachedData{
 		ContentMetadata: ContentMetadata{
 			Length:   payload.Length,
 			Type:     payload.Type,
 			Encoding: payload.Encoding,
 		},
-		Data: bytes.NewReader(decoded),
+		Data: reader,
 		Ttl:  ttl,
 	}
 
 	return value, nil
+}
+
+// this struct is here because CachedData requires an io.ReadCloser
+// but logic in the the Get function generates only an io.Reader
+type io_reader_decorator struct {
+	io.Reader
+}
+
+func (m io_reader_decorator) Close() error {
+	return nil
 }
 
 func (r *redisCache) Put(reader io.Reader, contentMetadata ContentMetadata, key *Key) (time.Duration, error) {

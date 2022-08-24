@@ -271,6 +271,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	cachedData, err := userCache.Get(key)
 	if err == nil {
 		// The response has been successfully served from cache.
+		defer cachedData.Data.Close()
 		cacheHit.With(labels).Inc()
 		since := time.Since(startTime).Seconds()
 		cachedResponseDuration.With(labels).Observe(since)
@@ -287,6 +288,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	} else {
 		if transactionState.IsCompleted() {
 			cachedData, err := userCache.Get(key)
+			defer cachedData.Data.Close()
 			if err == nil {
 				_ = RespondWithData(srw, cachedData.Data, cachedData.ContentMetadata, cachedData.Ttl, http.StatusOK)
 				cacheHitFromConcurrentQueries.With(labels).Inc()
