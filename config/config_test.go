@@ -88,6 +88,11 @@ var fullConfig = Config{
 				Request:  "/?query=SELECT%201",
 				Response: "1\n",
 			},
+			HearbeatUser: ClusterUser{
+				Name:                 "heartbeat",
+				Password:             "password",
+				MaxConcurrentQueries: 1,
+				MaxExecutionTime:     Duration(time.Minute)},
 		},
 		{
 			Name:   "second cluster",
@@ -685,6 +690,7 @@ func TestRemovalSensitiveData(t *testing.T) {
 	conf.Users[1].Password = "XXX"
 	conf.Clusters[0].ClusterUsers[0].Password = "XXX"
 	conf.Clusters[0].KillQueryUser.Password = "XXX"
+	conf.Clusters[0].HearbeatUser.Password = "XXX"
 	conf.Clusters[1].ClusterUsers[0].Password = "XXX"
 	conf.Clusters[1].ClusterUsers[1].Password = "XXX"
 	conf.Clusters[2].ClusterUsers[0].Password = "XXX"
@@ -741,6 +747,11 @@ clusters:
     request: /?query=SELECT%201
     response: |
       1
+  heartbeat_user:
+    name: heartbeat
+    password: XXX
+    max_concurrent_queries: 1
+    max_execution_time: 1m
 - name: second cluster
   scheme: https
   replicas:

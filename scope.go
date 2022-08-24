@@ -761,7 +761,15 @@ func newCluster(c config.Cluster) (*cluster, error) {
 		clusterUsers[cu.Name] = newClusterUser(cu)
 	}
 
-	heartBeat := newHeartBeat(c.HeartBeat, c.ClusterUsers[0])
+	var hearbeatUser config.ClusterUser
+	if c.HearbeatUser.Name != "" {
+		hearbeatUser = c.HearbeatUser
+	} else {
+		hearbeatUser = c.ClusterUsers[0]
+	}
+
+	log.Infof("Heartbeat user: %s for cluster: %s", hearbeatUser.Name, c.Name)
+	heartBeat := newHeartBeat(c.HeartBeat, hearbeatUser)
 
 	newC := &cluster{
 		name:                  c.Name,

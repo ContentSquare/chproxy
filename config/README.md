@@ -297,6 +297,10 @@ heartbeat_interval: <duration> | optional | default = 5s
 
 # HeartBeat - user configuration for heart beat requests.
 heartbeat: <heartbeat_config> | optional
+
+# ClickHouse user for sending heartbeats
+# If not specified, the first user from cluster users' list is selected
+heartbeat_user: <cluster_user_config> | optional
 ```
 
 ### <replica_config>

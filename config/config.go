@@ -82,6 +82,9 @@ func withoutSensitiveInfo(config *Config) *Config {
 		for j := range c.Clusters[i].ClusterUsers {
 			c.Clusters[i].ClusterUsers[j].Password = pswPlaceHolder
 		}
+		if c.Clusters[i].HearbeatUser.Password != "" {
+			c.Clusters[i].HearbeatUser.Password = pswPlaceHolder
+		}
 	}
 	return c
 }
@@ -336,6 +339,10 @@ type Cluster struct {
 
 	// HeartBeat - user configuration for heart beat requests
 	HeartBeat HeartBeat `yaml:"heartbeat,omitempty"`
+
+	// HearbeatUser - ClickHouse user used for sending heartbeats.
+	// If not specified, the first user from ClusterUsers lists is selected
+	HearbeatUser ClusterUser `yaml:"heartbeat_user,omitempty"`
 
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`

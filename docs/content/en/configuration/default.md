@@ -271,9 +271,17 @@ clusters:
 
     # Timed out queries are killed using this user.
     # By default `default` user is used.
+    heartbeat_user:
+      name: "default"
+      password: "***"
+      
+    # Timed out queries are killed using this user.
+    # By default `default` user is used.
     kill_query_user:
       name: "default"
       password: "***"
+      max_concurrent_queries: 1
+      max_execution_time: 1m
 
     # Configuration for cluster users.
     users:
