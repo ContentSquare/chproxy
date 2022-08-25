@@ -5,8 +5,6 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/tls"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -349,13 +347,18 @@ func TestServe(t *testing.T) {
 				q := "SELECT redis_cache_mate"
 				req, err := http.NewRequest("GET", "http://127.0.0.1:9090?query="+url.QueryEscape(q), nil)
 				checkErr(t, err)
+				keys := redisClient.Keys()
+				// redis should be empty before the test
+				if len(keys) != 0 {
+					t.Fatalf("unexpected amount of keys in redis: %v", len(keys))
+				}
 
 				resp := httpRequest(t, req, http.StatusOK)
 				checkResponse(t, resp.Body, expectedOkResp)
 				resp2 := httpRequest(t, req, http.StatusOK)
 				checkResponse(t, resp2.Body, expectedOkResp)
-				keys := redisClient.Keys()
-				if len(keys) != 2 { // 2 because there is a record stored for transaction and a cache item
+				keys = redisClient.Keys()
+				if len(keys) != 2 { // expected 2 because there is a record stored for transaction and a cache item
 					t.Fatalf("unexpected amount of keys in redis: %v", len(keys))
 				}
 
@@ -364,12 +367,6 @@ func TestServe(t *testing.T) {
 					Query:          []byte(q),
 					AcceptEncoding: "gzip",
 					Version:        cache.Version,
-				}
-				str, err := redisClient.Get(key.String())
-				checkErr(t, err)
-
-				if !strings.Contains(str, base64.StdEncoding.EncodeToString([]byte("Ok."))) || !strings.Contains(str, "text/plain") || !strings.Contains(str, "charset=utf-8") {
-					t.Fatalf("result from cache query is wrong: %s", str)
 				}
 
 				duration := redisClient.TTL(key.String())
@@ -385,6 +382,12 @@ func TestServe(t *testing.T) {
 			func(t *testing.T) {
 				redisClient.FlushAll()
 				q := "SELECT 1 FORMAT TabSeparatedWithNamesAndTypes"
+				keys := redisClient.Keys()
+				// redis should be empty before the test
+				if len(keys) != 0 {
+					t.Fatalf("unexpected amount of keys in redis: %v", len(keys))
+				}
+
 				req, err := http.NewRequest("GET", "http://127.0.0.1:9090?query="+url.QueryEscape(q), nil)
 				checkErr(t, err)
 
@@ -393,38 +396,9 @@ func TestServe(t *testing.T) {
 				resp2 := httpRequest(t, req, http.StatusOK)
 				// if we do not use base64 to encode/decode the cached payload, EOF error will be thrown here.
 				checkResponse(t, resp2.Body, string(bytesWithInvalidUTFPairs))
-				keys := redisClient.Keys()
+				keys = redisClient.Keys()
 				if len(keys) != 2 { // 2 because there is a record stored for transaction, and a cache item
 					t.Fatalf("unexpected amount of keys in redis: %v", len(keys))
-				}
-
-				// check cached response
-				key := &cache.Key{
-					Query:          []byte(q),
-					AcceptEncoding: "gzip",
-					Version:        cache.Version,
-				}
-				str, err := redisClient.Get(key.String())
-				checkErr(t, err)
-
-				type redisCachePayload struct {
-					Length   int64  `json:"l"`
-					Type     string `json:"t"`
-					Encoding string `json:"enc"`
-					Payload  string `json:"payload"`
-				}
-
-				var unMarshaledPayload redisCachePayload
-				err = json.Unmarshal([]byte(str), &unMarshaledPayload)
-				checkErr(t, err)
-				if unMarshaledPayload.Payload != base64.StdEncoding.EncodeToString(bytesWithInvalidUTFPairs) {
-					t.Fatalf("result from cache query is wrong: %s", str)
-				}
-				decoded, err := base64.StdEncoding.DecodeString(unMarshaledPayload.Payload)
-				checkErr(t, err)
-
-				if unMarshaledPayload.Length != int64(len(decoded)) {
-					t.Fatalf("the declared length %d and actual length %d is not same", unMarshaledPayload.Length, len(decoded))
 				}
 			},
 			startHTTP,

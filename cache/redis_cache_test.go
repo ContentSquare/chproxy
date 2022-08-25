@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -73,4 +74,47 @@ func TestRedisCacheAddGet(t *testing.T) {
 func TestRedisCacheMiss(t *testing.T) {
 	c := generateRedisClientAndServer(t)
 	cacheMissHelper(t, c)
+}
+func TestStringFromToByte(t *testing.T) {
+	c := generateRedisClientAndServer(t)
+	b := c.stringToBytes("test")
+	s, size := c.stringFromBytes(b)
+	if s != "test" {
+		t.Fatalf("got: %s, expected %s", s, "test")
+	}
+	if size != 8 {
+		t.Fatalf("got: %d, expected %d", size, 8)
+	}
+}
+func TestPayloadFromToByte(t *testing.T) {
+	c := generateRedisClientAndServer(t)
+
+	expectedMetadata := &ContentMetadata{
+		Length:   12,
+		Type:     "json",
+		Encoding: "gzip",
+	}
+	expectedContent := "abcdef"
+	r := strings.NewReader(expectedContent)
+
+	b, err := c.toByte(expectedMetadata, r)
+
+	if err != nil {
+		t.Fatalf("error during serialization %s", err)
+	}
+	metadata, reader := c.fromByte(b)
+	if metadata.Encoding != expectedMetadata.Encoding {
+		t.Fatalf("got: %s, expected %s", metadata.Encoding, expectedMetadata.Encoding)
+	}
+	if metadata.Type != expectedMetadata.Type {
+		t.Fatalf("got: %s, expected %s", metadata.Type, expectedMetadata.Type)
+	}
+	if metadata.Length != expectedMetadata.Length {
+		t.Fatalf("got: %d, expected %d", metadata.Length, expectedMetadata.Length)
+	}
+	content, _ := io.ReadAll(reader)
+	if string(content) != expectedContent {
+		t.Fatalf("got: %s, expected %s", string(content), expectedContent)
+	}
+
 }
