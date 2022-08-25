@@ -22,7 +22,7 @@ type redisCache struct {
 }
 
 const getTimeout = 1 * time.Second
-const putTimeout = 5 * time.Second // the put is long engouh for very large cached result (+200MB) because it's also linked to the spead of the reader
+const putTimeout = 10 * time.Second // the put is long enough for very large cached result (+200MB) because it's also linked to the speed of the reader
 const statsTimeout = 500 * time.Millisecond
 
 func newRedisCache(client redis.UniversalClient, cfg config.Cache) *redisCache {
@@ -83,6 +83,7 @@ func (r *redisCache) nbOfBytes() uint64 {
 	return uint64(cacheSize)
 }
 
+/*
 func (r *redisCache) Get(key *Key) (*CachedData, error) {
 	ctx, cancelFunc := context.WithTimeout(context.Background(), getTimeout)
 	defer cancelFunc()
@@ -107,6 +108,56 @@ func (r *redisCache) Get(key *Key) (*CachedData, error) {
 	value := &CachedData{
 		ContentMetadata: *content,
 		Data:            reader2,
+		Ttl:             ttl,
+	}
+
+	return value, nil
+}
+*/
+
+func (r *redisCache) Get(key *Key) (*CachedData, error) {
+	ctx, cancelFunc := context.WithTimeout(context.Background(), getTimeout)
+	defer cancelFunc()
+	nbBytesToFetch := int64(100 * 1024)
+	// fetching 100kBytes from redis to be sure to have the full metadata and,
+	//  for most of the queries that fetch a few data, the cached results
+	val, err := r.client.GetRange(ctx, key.String(), 0, nbBytesToFetch).Result()
+	// if key not found in cache
+	if errors.Is(err, redis.Nil) || len(val) == 0 {
+		return nil, ErrMissing
+	}
+
+	// others errors, such as timeouts
+	if err != nil {
+		log.Errorf("failed to get key %s with error: %s", key.String(), err)
+		return nil, ErrMissing
+	}
+	stringKey := key.String()
+	ttl, err := r.client.TTL(ctx, stringKey).Result()
+	if err != nil {
+		return nil, fmt.Errorf("failed to ttl of key %s with error: %w", key.String(), err)
+	}
+	b := []byte(val)
+	metadata, offset := r.metadataFromByte(b)
+	if (int64(offset) + metadata.Length) < nbBytesToFetch {
+		// the condition is true ony if the bytes fetched contain the metadata + the cached results
+		// so we extract from the remaining bytes the cached results
+		payload := b[offset:]
+		reader := &io_reader_decorator{Reader: bytes.NewReader(payload)}
+		value := &CachedData{
+			ContentMetadata: *metadata,
+			Data:            reader,
+			Ttl:             ttl,
+		}
+
+		return value, nil
+	}
+	// since the cached results in redis are too big, we can't fetch all of them because of the memory overhead.
+	// we will create an io.reader that will fetch redis bulk by bulk to reduce the memory usage
+	reader := NewRedisStreamReader(uint64(offset), r.client, stringKey)
+	value := &CachedData{
+		ContentMetadata: *metadata,
+		Data:            &io_reader_decorator{Reader: reader},
 		Ttl:             ttl,
 	}
 
@@ -164,12 +215,6 @@ func (r *redisCache) metadataFromByte(b []byte) (*ContentMetadata, int) {
 	return metadata, offset
 }
 
-func (r *redisCache) fromByte(b []byte) (*ContentMetadata, io.Reader) {
-	metadata, offset := r.metadataFromByte(b)
-	payload := b[offset:]
-	return metadata, bytes.NewReader(payload)
-}
-
 func (r *redisCache) Put(reader io.Reader, contentMetadata ContentMetadata, key *Key) (time.Duration, error) {
 	medatadata := r.metadataToByte(&contentMetadata)
 	ctx, cancelFunc := context.WithTimeout(context.Background(), putTimeout)
@@ -207,4 +252,68 @@ func (r *redisCache) Put(reader io.Reader, contentMetadata ContentMetadata, key 
 
 func (r *redisCache) Name() string {
 	return r.name
+}
+
+type RedisStreamReader struct {
+	isRedisEOF   bool
+	redisOffset  uint64                // the redisOffset that gives the beginning of the next bulk to fetch
+	key          string                // the key of the value we want to stream from redis
+	buffer       []byte                // internal buffer to store the bulks fetched from redis
+	bufferOffset int                   // the offset of the buffer that keep were the read() need to start copying data
+	client       redis.UniversalClient // the redis client
+}
+
+func NewRedisStreamReader(offset uint64, client redis.UniversalClient, key string) *RedisStreamReader {
+	bufferSize := uint64(2 * 1024 * 1024)
+	return &RedisStreamReader{
+		isRedisEOF:   false,
+		redisOffset:  offset,
+		key:          key,
+		bufferOffset: int(bufferSize),
+		buffer:       make([]byte, bufferSize),
+		client:       client,
+	}
+}
+
+func (r *RedisStreamReader) Read(destBuf []byte) (n int, err error) {
+	// the logic is simple:
+	// 1) if the buffer still has data to write, it writes it into destBuf with overflowing destBuf
+	// 2) if the buffer only has already written data, the StreamRedis refresh the buffer with new data from redis
+	// 3) if the buffer only has already written data & redis has no more data to read then StreamRedis sends an EOF err
+	bufSize := len(r.buffer)
+	bytesWritten := 0
+	// case 3) both the buffer & redis were fully consumed, we can tell the reader to stop reading
+	if r.bufferOffset >= bufSize && r.isRedisEOF {
+		return 0, io.EOF
+	}
+
+	// case 2) the buffer only has already written data, we need to refresh it with redis datas
+	if r.bufferOffset >= bufSize {
+		ctx, cancelFunc := context.WithTimeout(context.Background(), getTimeout)
+		defer cancelFunc()
+		newBuf, err := r.client.GetRange(ctx, r.key, int64(r.redisOffset), int64(r.redisOffset+uint64(bufSize))).Result()
+		r.redisOffset += uint64(len(newBuf))
+		if errors.Is(err, redis.Nil) || len(newBuf) == 0 {
+			r.isRedisEOF = true
+		}
+		// if redis gave less data than asked it means that it reached the end of the value
+		if len(newBuf) < bufSize {
+			r.isRedisEOF = true
+		}
+
+		// others errors, such as timeouts
+		if err != nil && !errors.Is(err, redis.Nil) {
+			log.Errorf("failed to get key %s with error: %s", r.key, err)
+			return bytesWritten, err
+		}
+		r.bufferOffset = 0
+		r.buffer = []byte(newBuf)
+	}
+
+	// case 1) the buffer contains data to write into destBuf
+	if r.bufferOffset < bufSize {
+		bytesWritten = copy(destBuf, r.buffer[r.bufferOffset:])
+		r.bufferOffset += bytesWritten
+	}
+	return bytesWritten, nil
 }

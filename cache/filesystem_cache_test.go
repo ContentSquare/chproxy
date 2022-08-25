@@ -65,6 +65,11 @@ func cacheAddGetHelper(t *testing.T, c Cache) {
 		ct := fmt.Sprintf("text/html; %d", i)
 		ce := fmt.Sprintf("gzip; %d", i)
 		value := fmt.Sprintf("value %d", i)
+		//we want to test what happen we the cache handle a big value
+		if i == 0 {
+			// 4MB string
+			value = strings.Repeat("a", 4*1024*1024)
+		}
 
 		length := int64(len(value))
 		buffer := strings.NewReader(value)
@@ -79,14 +84,14 @@ func cacheAddGetHelper(t *testing.T, c Cache) {
 
 		// Verify trw contains valid headers.
 		if cachedData.Type != ct {
-			t.Fatalf("unexpected Content-Type: %q; expecting %q", cachedData.Type, ct)
+			t.Fatalf("unexpected Content-Type: %s; expecting %s", cachedData.Type, ct)
 		}
 		if cachedData.Encoding != ce {
-			t.Fatalf("unexpected Content-Encoding: %q; expecting %q", cachedData.Encoding, ce)
+			t.Fatalf("unexpected Content-Encoding: %s; expecting %s", cachedData.Encoding, ce)
 		}
 		cl := length
 		if cachedData.Length != cl {
-			t.Fatalf("unexpected Content-Length: %q; expecting %q", cachedData.Length, cl)
+			t.Fatalf("unexpected Content-Length: %d; expecting %d", cachedData.Length, cl)
 		}
 		buf := new(strings.Builder)
 		_, err = io.Copy(buf, cachedData.Data)
@@ -95,7 +100,11 @@ func cacheAddGetHelper(t *testing.T, c Cache) {
 		}
 		// Verify trw contains the response.
 		if buf.String() != value {
-			t.Fatalf("unexpected response sent to client: %q; expecting %q", trw.b, value)
+			conditionalStr := ""
+			if len(value) > 30 {
+				conditionalStr = "..."
+			}
+			t.Fatalf("unexpected response sent to client: %q; expecting %q%s", trw.b, value[:30], conditionalStr)
 		}
 	}
 
@@ -109,18 +118,23 @@ func cacheAddGetHelper(t *testing.T, c Cache) {
 			t.Fatalf("failed to get data from filesystem cache: %s", err)
 		}
 		value := fmt.Sprintf("value %d", i)
+		//we want to test what happen we the cache handle a big value
+		if i == 0 {
+			// 4MB string
+			value = strings.Repeat("a", 4*1024*1024)
+		}
 		ct := fmt.Sprintf("text/html; %d", i)
 		ce := fmt.Sprintf("gzip; %d", i)
 		// Verify trw contains valid headers.
 		if cachedData.Type != ct {
-			t.Fatalf("unexpected Content-Type: %q; expecting %q", cachedData.Type, ct)
+			t.Fatalf("unexpected Content-Type: %s; expecting %s", cachedData.Type, ct)
 		}
 		if cachedData.Encoding != ce {
-			t.Fatalf("unexpected Content-Encoding: %q; expecting %q", cachedData.Encoding, ce)
+			t.Fatalf("unexpected Content-Encoding: %s; expecting %s", cachedData.Encoding, ce)
 		}
 		cl := int64(len(value))
 		if cachedData.Length != cl {
-			t.Fatalf("unexpected Content-Length: %q; expecting %q", cachedData.Length, cl)
+			t.Fatalf("unexpected Content-Length: %d; expecting %d", cachedData.Length, cl)
 		}
 		buf := new(strings.Builder)
 		_, err = io.Copy(buf, cachedData.Data)
