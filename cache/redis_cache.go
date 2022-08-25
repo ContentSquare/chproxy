@@ -22,7 +22,7 @@ type redisCache struct {
 }
 
 const getTimeout = 1 * time.Second
-const putTimeout = 2 * time.Second
+const putTimeout = 5 * time.Second //the put is long engouh for very large cached result (+200MB) because it's also linked to the spead of the reader
 const statsTimeout = 500 * time.Millisecond
 
 func newRedisCache(client redis.UniversalClient, cfg config.Cache) *redisCache {
@@ -138,49 +138,72 @@ func (r *redisCache) stringFromBytes(bytes []byte) (string, int) {
 	return string(s), int(4 + n)
 }
 
-func (r *redisCache) toByte(contentMetadata *ContentMetadata, reader io.Reader) ([]byte, error) {
-	data, err := toBytes(reader)
-	if err != nil {
-		return nil, err
-	}
+func (r *redisCache) metadataToByte(contentMetadata *ContentMetadata) []byte {
+
 	cLength := contentMetadata.Length
 	cType := r.stringToBytes(contentMetadata.Type)
 	cEncoding := r.stringToBytes(contentMetadata.Encoding)
-	b := make([]byte, 0, len(data)+len(cEncoding)+len(cType)+8)
+	b := make([]byte, 0, len(cEncoding)+len(cType)+8)
 	b = append(b, byte(cLength>>56), byte(cLength>>48), byte(cLength>>40), byte(cLength>>32), byte(cLength>>24), byte(cLength>>16), byte(cLength>>8), byte(cLength))
 	b = append(b, cType...)
 	b = append(b, cEncoding...)
-	b = append(b, data...)
-	return b, nil
+	return b
 }
-
-func (r *redisCache) fromByte(b []byte) (*ContentMetadata, io.Reader) {
+func (r *redisCache) metadataFromByte(b []byte) (*ContentMetadata, int) {
 	cLength := uint64(b[7]) | (uint64(b[6]) << 8) | (uint64(b[5]) << 16) | (uint64(b[4]) << 24) | uint64(b[3])<<32 | (uint64(b[2]) << 40) | (uint64(b[1]) << 48) | (uint64(b[0]) << 56)
 	offset := 8
 	cType, sizeCType := r.stringFromBytes(b[offset:])
 	offset += sizeCType
 	cEncoding, sizeCEncoding := r.stringFromBytes(b[offset:])
 	offset += sizeCEncoding
-	payload := b[offset:]
 	metadata := &ContentMetadata{
 		Length:   int64(cLength),
 		Type:     cType,
 		Encoding: cEncoding,
 	}
+	return metadata, offset
+}
+
+func (r *redisCache) fromByte(b []byte) (*ContentMetadata, io.Reader) {
+	metadata, offset := r.metadataFromByte(b)
+	payload := b[offset:]
 	return metadata, bytes.NewReader(payload)
 }
 
 func (r *redisCache) Put(reader io.Reader, contentMetadata ContentMetadata, key *Key) (time.Duration, error) {
 
-	payload, err := r.toByte(&contentMetadata, reader)
+	medatadata := r.metadataToByte(&contentMetadata)
+
+	ctx, cancelFunc := context.WithTimeout(context.Background(), putTimeout)
+	defer cancelFunc()
+	stringKey := key.String()
+	err := r.client.Set(ctx, stringKey, medatadata, r.expire).Err()
 	if err != nil {
 		return 0, err
 	}
-	ctx, cancelFunc := context.WithTimeout(context.Background(), putTimeout)
-	defer cancelFunc()
-	err = r.client.Set(ctx, key.String(), payload, r.expire).Err()
-	if err != nil {
-		return 0, err
+	//we don't read all the reader content then send it in one call to redis to avoid memory issue
+	//if the content is big (which is the case when chproxy users are fetching a lot of data)
+	buffer := make([]byte, 2*1024*1024)
+	for {
+		n, err := reader.Read(buffer)
+		// the reader should return an err = io.EOF once it has nothing to read or at the last read call with content.
+		// But this is not the case with this reader so we check the condition n == 0 to exit the read loop.
+		// We kept the err == io.EOF in the loop in case the behavior of the reader changes
+
+		if n == 0 {
+			break
+		}
+		if err != nil && err != io.EOF {
+			return 0, err
+		}
+		err = r.client.Append(ctx, stringKey, string(buffer[:n])).Err()
+		if err != nil {
+			return 0, err
+		}
+		if err == io.EOF {
+			break
+		}
+
 	}
 
 	return r.expire, nil
@@ -196,12 +219,4 @@ func toBytes(stream io.Reader) ([]byte, error) {
 		return nil, err
 	}
 	return b, nil
-
-	/*buf := new(bytes.Buffer)
-
-	_, err := buf.ReadFrom(stream)
-	if err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil*/
 }
