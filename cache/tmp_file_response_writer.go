@@ -27,7 +27,7 @@ type TmpFileResponseWriter struct {
 func NewTmpFileResponseWriter(rw http.ResponseWriter, dir string) (*TmpFileResponseWriter, error) {
 	f, err := ioutil.TempFile(dir, "tmp")
 	if err != nil {
-		return nil, fmt.Errorf("cannot create temporary file in %q: %s", dir, err)
+		return nil, fmt.Errorf("cannot create temporary file in %q: %w", dir, err)
 	}
 	return &TmpFileResponseWriter{
 		ResponseWriter: rw,
@@ -47,7 +47,7 @@ func (rw *TmpFileResponseWriter) GetFile() (*os.File, error) {
 		fn := rw.tmpFile.Name()
 		err = rw.tmpFile.Close()
 		err = os.Remove(fn)
-		return nil, fmt.Errorf("cannot flush data into %q: %s", fn, err)
+		return nil, fmt.Errorf("cannot flush data into %q: %w", fn, err)
 	}
 
 	return rw.tmpFile, nil
@@ -56,7 +56,7 @@ func (rw *TmpFileResponseWriter) GetFile() (*os.File, error) {
 func (rw *TmpFileResponseWriter) Reader() (io.Reader, error) {
 	f, err := rw.GetFile()
 	if err != nil {
-		return nil, fmt.Errorf("cannot open tmp file: %s", err)
+		return nil, fmt.Errorf("cannot open tmp file: %w", err)
 	}
 	return f, nil
 }
@@ -67,7 +67,7 @@ func (rw *TmpFileResponseWriter) ResetFileOffset() error {
 		return err
 	}
 	if _, err := data.Seek(0, io.SeekStart); err != nil {
-		return fmt.Errorf("cannot reset offset in: %s", err)
+		return fmt.Errorf("cannot reset offset in: %w", err)
 	}
 	return nil
 }
@@ -86,7 +86,7 @@ func (rw *TmpFileResponseWriter) captureHeaders() error {
 
 	rw.contentEncoding = ce
 	rw.contentType = ct
-	//nb the Content-Lenght http header is not set by CH so we can't get it
+	// nb: the Content-Length http header is not set by CH so we can't get it
 	return nil
 }
 
@@ -99,13 +99,12 @@ func (rw *TmpFileResponseWriter) GetCapturedContentLength() (int64, error) {
 		// Determine Content-Length looking at the file
 		data, err := rw.GetFile()
 		if err != nil {
-			return 0, fmt.Errorf("GetCapturedContentLength: cannot open tmp file: %s", err)
+			return 0, fmt.Errorf("GetCapturedContentLength: cannot open tmp file: %w", err)
 		}
 
 		end, err := data.Seek(0, io.SeekEnd)
 		if err != nil {
-			return 0, fmt.Errorf("GetCapturedContentLength: cannot determine the last position in: %s", err)
-
+			return 0, fmt.Errorf("GetCapturedContentLength: cannot determine the last position in: %w", err)
 		}
 		if err := rw.ResetFileOffset(); err != nil {
 			return 0, err

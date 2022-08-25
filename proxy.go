@@ -309,7 +309,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	// Request it from clickhouse.
 	tmpFileRespWriter, err := cache.NewTmpFileResponseWriter(srw, tmpDir)
 	if err != nil {
-		err = fmt.Errorf("%s: %s; query: %q", s, err, q)
+		err = fmt.Errorf("%s: %w; query: %q", s, err, q)
 		respondWith(srw, err, http.StatusInternalServerError)
 		return
 	}
@@ -363,7 +363,6 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	} else {
 		cacheMiss.With(labels).Inc()
 		log.Debugf("%s: cache miss", s)
-		//var expiration = 10 * time.Second
 		expiration, err := userCache.Put(reader, contentMetadata, key)
 		if err != nil {
 			log.Errorf("%s: %s; query: %q - failed to put response in the cache", s, err, q)
@@ -372,7 +371,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		if err = userCache.Complete(key); err != nil {
 			log.Errorf("%s: %s; query: %q", s, err, q)
 		}
-		//we need to reset the offset since the reader of tmpFileRespWriter was already
+		// we need to reset the offset since the reader of tmpFileRespWriter was already
 		// consumed in RespondWithData(...)
 		err = tmpFileRespWriter.ResetFileOffset()
 		if err != nil {
