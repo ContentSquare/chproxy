@@ -121,8 +121,15 @@ func (r *redisCache) Get(key *Key) (*CachedData, error) {
 		return value, nil
 	}
 	// since the cached results in redis are too big, we can't fetch all of them because of the memory overhead.
-	// we will create an io.reader that will fetch redis bulk by bulk to reduce the memory usage
-	reader := NewRedisStreamReader(uint64(offset), r.client, stringKey)
+	// We will create an io.reader that will fetch redis bulk by bulk to reduce the memory usage.
+	// But before that, since the usage of the reader could take time and the object in redis could disappear btw 2 fetchs
+	// we need to make sure the TTL will be long enough to avoid nasty side effects
+	// nb: it would be better to retry the flow if such a failure happened but this require a huge refactoring of proxy.go
+	if ttl <= 5*time.Second {
+		return nil, ErrMissing
+	}
+
+	reader := NewRedisStreamReader(uint64(offset), r.client, stringKey, metadata.Length)
 	value := &CachedData{
 		ContentMetadata: *metadata,
 		Data:            &ioReaderDecorator{Reader: reader},
@@ -223,23 +230,26 @@ func (r *redisCache) Name() string {
 }
 
 type redisStreamReader struct {
-	isRedisEOF   bool
-	redisOffset  uint64                // the redisOffset that gives the beginning of the next bulk to fetch
-	key          string                // the key of the value we want to stream from redis
-	buffer       []byte                // internal buffer to store the bulks fetched from redis
-	bufferOffset int                   // the offset of the buffer that keep were the read() need to start copying data
-	client       redis.UniversalClient // the redis client
+	isRedisEOF          bool
+	redisOffset         uint64                // the redisOffset that gives the beginning of the next bulk to fetch
+	key                 string                // the key of the value we want to stream from redis
+	buffer              []byte                // internal buffer to store the bulks fetched from redis
+	bufferOffset        int                   // the offset of the buffer that keep were the read() need to start copying data
+	client              redis.UniversalClient // the redis client
+	expectedPayloadSize int                   // the size of the object the streamer is supposed to read.
+	readPayloadSize     int                   // the size of the object currently written by the reader
 }
 
-func NewRedisStreamReader(offset uint64, client redis.UniversalClient, key string) *redisStreamReader {
+func NewRedisStreamReader(offset uint64, client redis.UniversalClient, key string, payloadSize int64) *redisStreamReader {
 	bufferSize := uint64(2 * 1024 * 1024)
 	return &redisStreamReader{
-		isRedisEOF:   false,
-		redisOffset:  offset,
-		key:          key,
-		bufferOffset: int(bufferSize),
-		buffer:       make([]byte, bufferSize),
-		client:       client,
+		isRedisEOF:          false,
+		redisOffset:         offset,
+		key:                 key,
+		bufferOffset:        int(bufferSize),
+		buffer:              make([]byte, bufferSize),
+		client:              client,
+		expectedPayloadSize: int(payloadSize),
 	}
 }
 
@@ -252,6 +262,11 @@ func (r *redisStreamReader) Read(destBuf []byte) (n int, err error) {
 	bytesWritten := 0
 	// case 3) both the buffer & redis were fully consumed, we can tell the reader to stop reading
 	if r.bufferOffset >= bufSize && r.isRedisEOF {
+		// Because of the way we fetch from redis, we need to do an extra check because we have no way
+		// to know if redis is really EOF or if the value was expired from cache while reading it
+		if r.readPayloadSize != r.expectedPayloadSize {
+			return 0, &RedisCacheError{readPayloadSize: r.readPayloadSize, expectedPayloadSize: r.expectedPayloadSize}
+		}
 		return 0, io.EOF
 	}
 
@@ -282,6 +297,16 @@ func (r *redisStreamReader) Read(destBuf []byte) (n int, err error) {
 	if r.bufferOffset < bufSize {
 		bytesWritten = copy(destBuf, r.buffer[r.bufferOffset:])
 		r.bufferOffset += bytesWritten
+		r.readPayloadSize += bytesWritten
 	}
 	return bytesWritten, nil
+}
+
+type RedisCacheError struct {
+	readPayloadSize     int
+	expectedPayloadSize int
+}
+
+func (e *RedisCacheError) Error() string {
+	return fmt.Sprintf("error while reading cached result in redis, only %d bytes of %d were fetched", e.readPayloadSize, e.expectedPayloadSize)
 }
