@@ -1261,9 +1261,9 @@
     std-env "^2.3.0"
     ufo "^0.7.4"
 
-"@nuxt/content-theme-docs@0.11.1":
+"@nuxt/content-theme-docs@^0.11.1":
   version "0.11.1"
-  resolved "https://registry.npmjs.org/@nuxt/content-theme-docs/-/content-theme-docs-0.11.1.tgz#99b2e2c9739c379842f83267441c616b2d33dc2e"
+  resolved "https://registry.yarnpkg.com/@nuxt/content-theme-docs/-/content-theme-docs-0.11.1.tgz#99b2e2c9739c379842f83267441c616b2d33dc2e"
   integrity sha512-JQNeWqa5mNtVtnf/n3RGsKr9EoZ6Nw8zcCn232jMNmVqrkbNGAB6dOjCAh26NGlxNgLwcZ0DxsPSXbTTCTeEXw==
   dependencies:
     "@docsearch/css" "^1.0.0-alpha.28"
@@ -6782,9 +6782,9 @@ nuxt-i18n@^6.20.4:
     ufo "^0.7.7"
     vue-i18n "^8.25.0"
 
-nuxt@2.15.8:
+nuxt@^2.15.8:
   version "2.15.8"
-  resolved "https://registry.npmjs.org/nuxt/-/nuxt-2.15.8.tgz#946cba46bdaaf0e3918aa27fd9ea0fed8ed303b0"
+  resolved "https://registry.yarnpkg.com/nuxt/-/nuxt-2.15.8.tgz#946cba46bdaaf0e3918aa27fd9ea0fed8ed303b0"
   integrity sha512-ceK3qLg/Baj7J8mK9bIxqw9AavrF+LXqwYEreBdY/a4Sj8YV4mIvhqea/6E7VTCNNGvKT2sJ/TTJjtfQ597lTA==
   dependencies:
     "@nuxt/babel-preset-app" "2.15.8"

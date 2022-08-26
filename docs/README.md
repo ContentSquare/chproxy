@@ -29,7 +29,6 @@ should be `101`, `102`, etc and links in the third category should be `301`,
 - Configure Render for Pull Requests
   - Can we make it smart and only re-render if changes in the docs, not if
     changes in the code?
-- Configure chproxy.org
 - Configure Algolia DocSearch
 - Need to add a logo
 - Replace the manual copy/paste of files with dynamic links
