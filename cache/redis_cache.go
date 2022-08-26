@@ -83,45 +83,14 @@ func (r *redisCache) nbOfBytes() uint64 {
 	return uint64(cacheSize)
 }
 
-/*
-func (r *redisCache) Get(key *Key) (*CachedData, error) {
-	ctx, cancelFunc := context.WithTimeout(context.Background(), getTimeout)
-	defer cancelFunc()
-	val, err := r.client.Get(ctx, key.String()).Result()
-	// if key not found in cache
-	if errors.Is(err, redis.Nil) {
-		return nil, ErrMissing
-	}
-
-	// others errors, such as timeouts
-	if err != nil {
-		log.Errorf("failed to get key %s with error: %s", key.String(), err)
-		return nil, ErrMissing
-	}
-	ttl, err := r.client.TTL(ctx, key.String()).Result()
-	if err != nil {
-		return nil, fmt.Errorf("failed to ttl of key %s with error: %w", key.String(), err)
-	}
-	content, reader := r.fromByte([]byte(val))
-
-	reader2 := &io_reader_decorator{Reader: reader}
-	value := &CachedData{
-		ContentMetadata: *content,
-		Data:            reader2,
-		Ttl:             ttl,
-	}
-
-	return value, nil
-}
-*/
-
 func (r *redisCache) Get(key *Key) (*CachedData, error) {
 	ctx, cancelFunc := context.WithTimeout(context.Background(), getTimeout)
 	defer cancelFunc()
 	nbBytesToFetch := int64(100 * 1024)
+	stringKey := key.String()
 	// fetching 100kBytes from redis to be sure to have the full metadata and,
 	//  for most of the queries that fetch a few data, the cached results
-	val, err := r.client.GetRange(ctx, key.String(), 0, nbBytesToFetch).Result()
+	val, err := r.client.GetRange(ctx, stringKey, 0, nbBytesToFetch).Result()
 	// if key not found in cache
 	if errors.Is(err, redis.Nil) || len(val) == 0 {
 		return nil, ErrMissing
@@ -129,21 +98,20 @@ func (r *redisCache) Get(key *Key) (*CachedData, error) {
 
 	// others errors, such as timeouts
 	if err != nil {
-		log.Errorf("failed to get key %s with error: %s", key.String(), err)
+		log.Errorf("failed to get key %s with error: %s", stringKey, err)
 		return nil, ErrMissing
 	}
-	stringKey := key.String()
 	ttl, err := r.client.TTL(ctx, stringKey).Result()
 	if err != nil {
-		return nil, fmt.Errorf("failed to ttl of key %s with error: %w", key.String(), err)
+		return nil, fmt.Errorf("failed to ttl of key %s with error: %w", stringKey, err)
 	}
 	b := []byte(val)
-	metadata, offset := r.metadataFromByte(b)
+	metadata, offset := r.decodeMetadata(b)
 	if (int64(offset) + metadata.Length) < nbBytesToFetch {
 		// the condition is true ony if the bytes fetched contain the metadata + the cached results
 		// so we extract from the remaining bytes the cached results
 		payload := b[offset:]
-		reader := &io_reader_decorator{Reader: bytes.NewReader(payload)}
+		reader := &ioReaderDecorator{Reader: bytes.NewReader(payload)}
 		value := &CachedData{
 			ContentMetadata: *metadata,
 			Data:            reader,
@@ -157,7 +125,7 @@ func (r *redisCache) Get(key *Key) (*CachedData, error) {
 	reader := NewRedisStreamReader(uint64(offset), r.client, stringKey)
 	value := &CachedData{
 		ContentMetadata: *metadata,
-		Data:            &io_reader_decorator{Reader: reader},
+		Data:            &ioReaderDecorator{Reader: reader},
 		Ttl:             ttl,
 	}
 
@@ -166,14 +134,14 @@ func (r *redisCache) Get(key *Key) (*CachedData, error) {
 
 // this struct is here because CachedData requires an io.ReadCloser
 // but logic in the the Get function generates only an io.Reader
-type io_reader_decorator struct {
+type ioReaderDecorator struct {
 	io.Reader
 }
 
-func (m io_reader_decorator) Close() error {
+func (m ioReaderDecorator) Close() error {
 	return nil
 }
-func (r *redisCache) stringToBytes(s string) []byte {
+func (r *redisCache) encodeString(s string) []byte {
 	n := uint32(len(s))
 
 	b := make([]byte, 0, n+4)
@@ -182,17 +150,17 @@ func (r *redisCache) stringToBytes(s string) []byte {
 	return b
 }
 
-func (r *redisCache) stringFromBytes(bytes []byte) (string, int) {
+func (r *redisCache) decodeString(bytes []byte) (string, int) {
 	b := bytes[:4]
 	n := uint32(b[3]) | (uint32(b[2]) << 8) | (uint32(b[1]) << 16) | (uint32(b[0]) << 24)
 	s := bytes[4 : 4+n]
 	return string(s), int(4 + n)
 }
 
-func (r *redisCache) metadataToByte(contentMetadata *ContentMetadata) []byte {
+func (r *redisCache) encodeMetadata(contentMetadata *ContentMetadata) []byte {
 	cLength := contentMetadata.Length
-	cType := r.stringToBytes(contentMetadata.Type)
-	cEncoding := r.stringToBytes(contentMetadata.Encoding)
+	cType := r.encodeString(contentMetadata.Type)
+	cEncoding := r.encodeString(contentMetadata.Encoding)
 	b := make([]byte, 0, len(cEncoding)+len(cType)+8)
 	b = append(b, byte(cLength>>56), byte(cLength>>48), byte(cLength>>40), byte(cLength>>32), byte(cLength>>24), byte(cLength>>16), byte(cLength>>8), byte(cLength))
 	b = append(b, cType...)
@@ -200,12 +168,12 @@ func (r *redisCache) metadataToByte(contentMetadata *ContentMetadata) []byte {
 	return b
 }
 
-func (r *redisCache) metadataFromByte(b []byte) (*ContentMetadata, int) {
+func (r *redisCache) decodeMetadata(b []byte) (*ContentMetadata, int) {
 	cLength := uint64(b[7]) | (uint64(b[6]) << 8) | (uint64(b[5]) << 16) | (uint64(b[4]) << 24) | uint64(b[3])<<32 | (uint64(b[2]) << 40) | (uint64(b[1]) << 48) | (uint64(b[0]) << 56)
 	offset := 8
-	cType, sizeCType := r.stringFromBytes(b[offset:])
+	cType, sizeCType := r.decodeString(b[offset:])
 	offset += sizeCType
-	cEncoding, sizeCEncoding := r.stringFromBytes(b[offset:])
+	cEncoding, sizeCEncoding := r.decodeString(b[offset:])
 	offset += sizeCEncoding
 	metadata := &ContentMetadata{
 		Length:   int64(cLength),
@@ -216,7 +184,7 @@ func (r *redisCache) metadataFromByte(b []byte) (*ContentMetadata, int) {
 }
 
 func (r *redisCache) Put(reader io.Reader, contentMetadata ContentMetadata, key *Key) (time.Duration, error) {
-	medatadata := r.metadataToByte(&contentMetadata)
+	medatadata := r.encodeMetadata(&contentMetadata)
 	ctx, cancelFunc := context.WithTimeout(context.Background(), putTimeout)
 	defer cancelFunc()
 	stringKey := key.String()
@@ -254,7 +222,7 @@ func (r *redisCache) Name() string {
 	return r.name
 }
 
-type RedisStreamReader struct {
+type redisStreamReader struct {
 	isRedisEOF   bool
 	redisOffset  uint64                // the redisOffset that gives the beginning of the next bulk to fetch
 	key          string                // the key of the value we want to stream from redis
@@ -263,9 +231,9 @@ type RedisStreamReader struct {
 	client       redis.UniversalClient // the redis client
 }
 
-func NewRedisStreamReader(offset uint64, client redis.UniversalClient, key string) *RedisStreamReader {
+func NewRedisStreamReader(offset uint64, client redis.UniversalClient, key string) *redisStreamReader {
 	bufferSize := uint64(2 * 1024 * 1024)
-	return &RedisStreamReader{
+	return &redisStreamReader{
 		isRedisEOF:   false,
 		redisOffset:  offset,
 		key:          key,
@@ -275,7 +243,7 @@ func NewRedisStreamReader(offset uint64, client redis.UniversalClient, key strin
 	}
 }
 
-func (r *RedisStreamReader) Read(destBuf []byte) (n int, err error) {
+func (r *redisStreamReader) Read(destBuf []byte) (n int, err error) {
 	// the logic is simple:
 	// 1) if the buffer still has data to write, it writes it into destBuf with overflowing destBuf
 	// 2) if the buffer only has already written data, the StreamRedis refresh the buffer with new data from redis

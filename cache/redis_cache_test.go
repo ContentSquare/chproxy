@@ -76,8 +76,8 @@ func TestRedisCacheMiss(t *testing.T) {
 }
 func TestStringFromToByte(t *testing.T) {
 	c := generateRedisClientAndServer(t)
-	b := c.stringToBytes("test")
-	s, size := c.stringFromBytes(b)
+	b := c.encodeString("test")
+	s, size := c.decodeString(b)
 	if s != "test" {
 		t.Fatalf("got: %s, expected %s", s, "test")
 	}
@@ -94,9 +94,9 @@ func TestMetadataFromToByte(t *testing.T) {
 		Encoding: "gzip",
 	}
 
-	b := c.metadataToByte(expectedMetadata)
+	b := c.encodeMetadata(expectedMetadata)
 
-	metadata, size := c.metadataFromByte(b)
+	metadata, size := c.decodeMetadata(b)
 	if metadata.Encoding != expectedMetadata.Encoding {
 		t.Fatalf("got: %s, expected %s", metadata.Encoding, expectedMetadata.Encoding)
 	}

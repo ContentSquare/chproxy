@@ -53,6 +53,8 @@ func TestFilesystemCacheAddGet(t *testing.T) {
 	cacheAddGetHelper(t, c)
 }
 
+const maxStringSizeToLog = 30
+
 // metatest used for both filesystem and redis Cache
 func cacheAddGetHelper(t *testing.T, c Cache) {
 
@@ -100,11 +102,11 @@ func cacheAddGetHelper(t *testing.T, c Cache) {
 		}
 		// Verify trw contains the response.
 		if buf.String() != value {
-			conditionalStr := ""
-			if len(value) > 30 {
-				conditionalStr = "..."
+			logSuffx := ""
+			if len(value) > maxStringSizeToLog {
+				logSuffx = "..."
 			}
-			t.Fatalf("unexpected response sent to client: %q; expecting %q%s", trw.b, value[:30], conditionalStr)
+			t.Fatalf("unexpected response sent to client: %q; expecting %q%s", trw.b, value[:maxStringSizeToLog], logSuffx)
 		}
 	}
 
