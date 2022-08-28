@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -169,16 +170,15 @@ func TestKeyExpirationWhileFetchtingRedis(t *testing.T) {
 		t.Fatalf("expecting an error of type RedisCacheError, err=%s", err)
 	}
 }
-func TestSmallTTLOnBigPayload(t *testing.T) {
+func TestSmallTTLOnBigPayloadAreCacheWithFile(t *testing.T) {
 	cache, redis := getRedisCacheAndServer(t)
 	defer cache.Close()
-
 	key := &Key{
 		Query: []byte(fmt.Sprintf("SELECT test")),
 	}
 	payloadSize := 4 * 1024 * 1024
-	exepctedValue := strings.Repeat("a", payloadSize)
-	reader := strings.NewReader(exepctedValue)
+	expectedValue := strings.Repeat("a", payloadSize)
+	reader := strings.NewReader(expectedValue)
 
 	if _, err := cache.Put(reader, ContentMetadata{Encoding: "ce", Type: "ct", Length: int64(payloadSize)}, key); err != nil {
 		t.Fatalf("failed to put it to cache: %s", err)
@@ -186,9 +186,51 @@ func TestSmallTTLOnBigPayload(t *testing.T) {
 
 	//simulate a value almost expired
 	redis.SetTTL(key.String(), 2*time.Second)
-
-	_, err := cache.Get(key)
-	if err == nil || !errors.Is(err, ErrMissing) {
-		t.Fatalf("expecting an error of type ErrMissing, err=%s", err)
+	nbFileCacheBeforeGet, err := countFilesWithPrefix(tmpDir, redisTmpFilePrefix)
+	if err != nil {
+		t.Fatalf("could not read directory %s", err)
 	}
+
+	cachedData, err := cache.Get(key)
+	if err != nil {
+		t.Fatalf("expected cached to have the value")
+	}
+	nbFileCacheAfterGet, err := countFilesWithPrefix(tmpDir, redisTmpFilePrefix)
+	if err != nil {
+		t.Fatalf("could not read directory %s", err)
+	}
+	if nbFileCacheBeforeGet+1 != nbFileCacheAfterGet {
+		t.Fatalf("expected a file to be stored by redisFileCache ")
+	}
+
+	cachedValue, err := io.ReadAll(cachedData.Data)
+	if err != nil {
+		t.Fatalf("could not read data from redisFileCache, err=%s", err)
+	}
+	if string(cachedValue) != expectedValue {
+		t.Fatalf("got a value different than the expected one len(value)=%d vs len(expectedValue)=%d", len(string(cachedValue)), len(expectedValue))
+	}
+	cachedData.Data.Close()
+	nbFileCacheAfterClose, err := countFilesWithPrefix(tmpDir, redisTmpFilePrefix)
+	if err != nil {
+		t.Fatalf("could not read directory %s", err)
+	}
+
+	if nbFileCacheBeforeGet != nbFileCacheAfterClose {
+		t.Fatalf("expected the file stored by redisFileCache to be removed: nbFileCacheBeforeGet=%d | nbFileCacheAfterClose=%d", nbFileCacheBeforeGet, nbFileCacheAfterClose)
+	}
+}
+
+func countFilesWithPrefix(dir, prefix string) (int, error) {
+	count := 0
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		return 0, err
+	}
+	for _, file := range files {
+		if strings.HasPrefix(file.Name(), prefix) {
+			count++
+		}
+	}
+	return count, nil
 }

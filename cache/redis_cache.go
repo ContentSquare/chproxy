@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"os"
 	"regexp"
 	"strconv"
 	"time"
@@ -24,7 +26,11 @@ type redisCache struct {
 const getTimeout = 1 * time.Second
 const putTimeout = 10 * time.Second // the put is long enough for very large cached result (+200MB) because it's also linked to the speed of the reader
 const statsTimeout = 500 * time.Millisecond
-const minTTLForStreamingReader = 5 * time.Second
+const minTTLForRedisStreamingReader = 5 * time.Second
+
+// tmpDir temporary path to store ongoing queries results
+const tmpDir = "/tmp"
+const redisTmpFilePrefix = "chproxyRedisTmp"
 
 func newRedisCache(client redis.UniversalClient, cfg config.Cache) *redisCache {
 	redisCache := &redisCache{
@@ -92,16 +98,17 @@ func (r *redisCache) Get(key *Key) (*CachedData, error) {
 	// fetching 100kBytes from redis to be sure to have the full metadata and,
 	//  for most of the queries that fetch a few data, the cached results
 	val, err := r.client.GetRange(ctx, stringKey, 0, nbBytesToFetch).Result()
-	// if key not found in cache
-	if errors.Is(err, redis.Nil) {
-		return nil, ErrMissing
-	}
 
-	// others errors, such as timeouts
-	if err != nil || len(val) == 0 {
+	// errors, such as timeouts
+	if err != nil {
 		log.Errorf("failed to get key %s with error: %s", stringKey, err)
 		return nil, ErrMissing
 	}
+	// if key not found in cache
+	if len(val) == 0 {
+		return nil, ErrMissing
+	}
+
 	ttl, err := r.client.TTL(ctx, stringKey).Result()
 	if err != nil {
 		return nil, fmt.Errorf("failed to ttl of key %s with error: %w", stringKey, err)
@@ -126,17 +133,37 @@ func (r *redisCache) Get(key *Key) (*CachedData, error) {
 	}
 	// since the cached results in redis are too big, we can't fetch all of them because of the memory overhead.
 	// We will create an io.reader that will fetch redis bulk by bulk to reduce the memory usage.
+	redisStreamreader := newRedisStreamReader(uint64(offset), r.client, stringKey, metadata.Length)
+
 	// But before that, since the usage of the reader could take time and the object in redis could disappear btw 2 fetchs
 	// we need to make sure the TTL will be long enough to avoid nasty side effects
+	// if the TTL is too short we will put all the data into a file and use it as a streamer
 	// nb: it would be better to retry the flow if such a failure happened but this require a huge refactoring of proxy.go
-	if ttl <= minTTLForStreamingReader {
-		return nil, ErrMissing
+
+	if ttl <= minTTLForRedisStreamingReader {
+		fileStream, err := newFileWriterReader(tmpDir)
+		if err != nil {
+			return nil, err
+		}
+		_, err = io.Copy(fileStream, redisStreamreader)
+		if err != nil {
+			return nil, err
+		}
+		err = fileStream.reseOffset()
+		if err != nil {
+			return nil, err
+		}
+		value := &CachedData{
+			ContentMetadata: *metadata,
+			Data:            fileStream,
+			Ttl:             ttl,
+		}
+		return value, nil
 	}
 
-	reader := NewRedisStreamReader(uint64(offset), r.client, stringKey, metadata.Length)
 	value := &CachedData{
 		ContentMetadata: *metadata,
-		Data:            &ioReaderDecorator{Reader: reader},
+		Data:            &ioReaderDecorator{Reader: redisStreamreader},
 		Ttl:             ttl,
 	}
 
@@ -259,7 +286,7 @@ type redisStreamReader struct {
 	readPayloadSize     int                   // the size of the object currently written by the reader
 }
 
-func NewRedisStreamReader(offset uint64, client redis.UniversalClient, key string, payloadSize int64) *redisStreamReader {
+func newRedisStreamReader(offset uint64, client redis.UniversalClient, key string, payloadSize int64) *redisStreamReader {
 	bufferSize := uint64(2 * 1024 * 1024)
 	return &redisStreamReader{
 		isRedisEOF:          false,
@@ -319,6 +346,43 @@ func (r *redisStreamReader) Read(destBuf []byte) (n int, err error) {
 		r.readPayloadSize += bytesWritten
 	}
 	return bytesWritten, nil
+}
+
+type fileWriterReader struct {
+	f *os.File
+}
+
+func newFileWriterReader(dir string) (*fileWriterReader, error) {
+	f, err := ioutil.TempFile(dir, redisTmpFilePrefix)
+	if err != nil {
+		return nil, fmt.Errorf("cannot create temporary file in %q: %w", dir, err)
+	}
+	return &fileWriterReader{
+		f: f,
+	}, nil
+}
+
+func (f *fileWriterReader) Close() error {
+	err := f.f.Close()
+	if err != nil {
+		return err
+	}
+	return os.Remove(f.f.Name())
+}
+
+func (r *fileWriterReader) Read(destBuf []byte) (n int, err error) {
+	return r.f.Read(destBuf)
+}
+
+func (w *fileWriterReader) Write(p []byte) (n int, err error) {
+	return w.f.Write(p)
+}
+
+func (f *fileWriterReader) reseOffset() error {
+	if _, err := f.f.Seek(0, io.SeekStart); err != nil {
+		return fmt.Errorf("cannot reset offset in: %w", err)
+	}
+	return nil
 }
 
 type RedisCacheError struct {
