@@ -84,7 +84,7 @@ func TestRedisCacheMiss(t *testing.T) {
 func TestStringFromToByte(t *testing.T) {
 	c := getRedisCache(t)
 	b := c.encodeString("test")
-	s, size := c.decodeString(b)
+	s, size, _ := c.decodeString(b)
 	if s != "test" {
 		t.Fatalf("got: %s, expected %s", s, "test")
 	}
@@ -103,7 +103,7 @@ func TestMetadataFromToByte(t *testing.T) {
 
 	b := c.encodeMetadata(expectedMetadata)
 
-	metadata, size := c.decodeMetadata(b)
+	metadata, size, _ := c.decodeMetadata(b)
 	if metadata.Encoding != expectedMetadata.Encoding {
 		t.Fatalf("got: %s, expected %s", metadata.Encoding, expectedMetadata.Encoding)
 	}
@@ -115,6 +115,27 @@ func TestMetadataFromToByte(t *testing.T) {
 	}
 	if size != 24 {
 		t.Fatalf("got: %d, expected %d", size, 24)
+	}
+
+}
+func TestDecodingCorruptedMetadata(t *testing.T) {
+	c := getRedisCache(t)
+
+	// this test will make fetching the length of a payload fail
+	_, _, err := c.decodeMetadata([]byte{})
+	if (err == nil || !errors.Is(err, &RedisCacheCorruptionError{})) {
+		t.Fatalf("expected a corruption error, err=%s", err)
+	}
+
+	// this test will make fetching a string in the metadata fail because it can't read the length of a metadata string
+	_, _, err = c.decodeMetadata([]byte{0, 0, 0, 0, 1, 1, 1, 1})
+	if (err == nil || !errors.Is(err, &RedisCacheCorruptionError{})) {
+		t.Fatalf("expected a corruption error, err=%s", err)
+	}
+	// this test will make fetching a string in the metadata fail because the length of a metadata string doesn't match it's size
+	_, _, err = c.decodeMetadata([]byte{0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1})
+	if (err == nil || !errors.Is(err, &RedisCacheCorruptionError{})) {
+		t.Fatalf("expected a corruption error, err=%s", err)
 	}
 
 }

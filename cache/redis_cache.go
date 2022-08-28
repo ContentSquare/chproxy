@@ -24,6 +24,7 @@ type redisCache struct {
 const getTimeout = 1 * time.Second
 const putTimeout = 10 * time.Second // the put is long enough for very large cached result (+200MB) because it's also linked to the speed of the reader
 const statsTimeout = 500 * time.Millisecond
+const minTTLForStreamingReader = 5 * time.Second
 
 func newRedisCache(client redis.UniversalClient, cfg config.Cache) *redisCache {
 	redisCache := &redisCache{
@@ -92,12 +93,12 @@ func (r *redisCache) Get(key *Key) (*CachedData, error) {
 	//  for most of the queries that fetch a few data, the cached results
 	val, err := r.client.GetRange(ctx, stringKey, 0, nbBytesToFetch).Result()
 	// if key not found in cache
-	if errors.Is(err, redis.Nil) || len(val) == 0 {
+	if errors.Is(err, redis.Nil) {
 		return nil, ErrMissing
 	}
 
 	// others errors, such as timeouts
-	if err != nil {
+	if err != nil || len(val) == 0 {
 		log.Errorf("failed to get key %s with error: %s", stringKey, err)
 		return nil, ErrMissing
 	}
@@ -106,7 +107,10 @@ func (r *redisCache) Get(key *Key) (*CachedData, error) {
 		return nil, fmt.Errorf("failed to ttl of key %s with error: %w", stringKey, err)
 	}
 	b := []byte(val)
-	metadata, offset := r.decodeMetadata(b)
+	metadata, offset, err := r.decodeMetadata(b)
+	if err != nil {
+		return nil, err
+	}
 	if (int64(offset) + metadata.Length) < nbBytesToFetch {
 		// the condition is true ony if the bytes fetched contain the metadata + the cached results
 		// so we extract from the remaining bytes the cached results
@@ -125,7 +129,7 @@ func (r *redisCache) Get(key *Key) (*CachedData, error) {
 	// But before that, since the usage of the reader could take time and the object in redis could disappear btw 2 fetchs
 	// we need to make sure the TTL will be long enough to avoid nasty side effects
 	// nb: it would be better to retry the flow if such a failure happened but this require a huge refactoring of proxy.go
-	if ttl <= 5*time.Second {
+	if ttl <= minTTLForStreamingReader {
 		return nil, ErrMissing
 	}
 
@@ -157,11 +161,17 @@ func (r *redisCache) encodeString(s string) []byte {
 	return b
 }
 
-func (r *redisCache) decodeString(bytes []byte) (string, int) {
+func (r *redisCache) decodeString(bytes []byte) (string, int, error) {
+	if len(bytes) < 4 {
+		return "", 0, &RedisCacheCorruptionError{}
+	}
 	b := bytes[:4]
 	n := uint32(b[3]) | (uint32(b[2]) << 8) | (uint32(b[1]) << 16) | (uint32(b[0]) << 24)
+	if len(bytes) < int(4+n) {
+		return "", 0, &RedisCacheCorruptionError{}
+	}
 	s := bytes[4 : 4+n]
-	return string(s), int(4 + n)
+	return string(s), int(4 + n), nil
 }
 
 func (r *redisCache) encodeMetadata(contentMetadata *ContentMetadata) []byte {
@@ -175,19 +185,28 @@ func (r *redisCache) encodeMetadata(contentMetadata *ContentMetadata) []byte {
 	return b
 }
 
-func (r *redisCache) decodeMetadata(b []byte) (*ContentMetadata, int) {
+func (r *redisCache) decodeMetadata(b []byte) (*ContentMetadata, int, error) {
+	if len(b) < 8 {
+		return nil, 0, &RedisCacheCorruptionError{}
+	}
 	cLength := uint64(b[7]) | (uint64(b[6]) << 8) | (uint64(b[5]) << 16) | (uint64(b[4]) << 24) | uint64(b[3])<<32 | (uint64(b[2]) << 40) | (uint64(b[1]) << 48) | (uint64(b[0]) << 56)
 	offset := 8
-	cType, sizeCType := r.decodeString(b[offset:])
+	cType, sizeCType, err := r.decodeString(b[offset:])
+	if err != nil {
+		return nil, 0, err
+	}
 	offset += sizeCType
-	cEncoding, sizeCEncoding := r.decodeString(b[offset:])
+	cEncoding, sizeCEncoding, err := r.decodeString(b[offset:])
+	if err != nil {
+		return nil, 0, err
+	}
 	offset += sizeCEncoding
 	metadata := &ContentMetadata{
 		Length:   int64(cLength),
 		Type:     cType,
 		Encoding: cEncoding,
 	}
-	return metadata, offset
+	return metadata, offset, nil
 }
 
 func (r *redisCache) Put(reader io.Reader, contentMetadata ContentMetadata, key *Key) (time.Duration, error) {
@@ -309,4 +328,11 @@ type RedisCacheError struct {
 
 func (e *RedisCacheError) Error() string {
 	return fmt.Sprintf("error while reading cached result in redis, only %d bytes of %d were fetched", e.readPayloadSize, e.expectedPayloadSize)
+}
+
+type RedisCacheCorruptionError struct {
+}
+
+func (e *RedisCacheCorruptionError) Error() string {
+	return "chproxy can't decode the cached result from redis, it seems to have been corrupted"
 }
