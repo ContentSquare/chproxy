@@ -178,6 +178,8 @@ write_timeout: <duration> | optional
 idle_timeout: <duration> | optional | default = 10m
 
 # Certificate and key files for client cert authentication to the server
+# If you change the cert & key files while chproxy is running, you have to restart chproxy so that it loads them.
+# Triggering a SIGHUP signal won't work as for the rest of the configuration.
 cert_file: <string> | optional
 key_file: <string> | optional
 
