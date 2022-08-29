@@ -27,8 +27,8 @@ var (
 	defaultHeartBeat = HeartBeat{
 		Interval: Duration(time.Second * 5),
 		Timeout:  Duration(time.Second * 3),
-		Request:  "/?query=SELECT%201",
-		Response: "1\n",
+		Request:  "/ping",
+		Response: "Ok.\n",
 	}
 
 	defaultExecutionTime = Duration(120 * time.Second)
@@ -329,11 +329,6 @@ type Cluster struct {
 	// By default timed out queries are killed under `default` user.
 	KillQueryUser KillQueryUser `yaml:"kill_query_user,omitempty"`
 
-	// Deprecated: HeartBeatInterval is an interval of checking
-	// all cluster nodes for availability
-	// if omitted or zero - interval will be set to 5s
-	HeartBeatInterval Duration `yaml:"heartbeat_interval,omitempty"`
-
 	// HeartBeat - user configuration for heart beat requests
 	HeartBeat HeartBeat `yaml:"heartbeat,omitempty"`
 
@@ -363,15 +358,11 @@ func (c *Cluster) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if c.Scheme != "http" && c.Scheme != "https" {
 		return fmt.Errorf("`cluster.scheme` must be `http` or `https`, got %q instead for %q", c.Scheme, c.Name)
 	}
-	if c.HeartBeatInterval != 0 && c.HeartBeat.Interval != defaultHeartBeat.Interval {
-		return fmt.Errorf("cannot be use `heartbeat_interval` with `heartbeat` section")
-	}
+
 	if c.HeartBeat.Interval == 0 && c.HeartBeat.Timeout == 0 && c.HeartBeat.Response == "" {
 		return fmt.Errorf("`cluster.heartbeat` cannot be unset for %q", c.Name)
 	}
-	if c.HeartBeatInterval != 0 && c.HeartBeat.Interval == defaultHeartBeat.Interval {
-		c.HeartBeat.Interval = c.HeartBeatInterval
-	}
+
 	return checkOverflow(c.XXX, fmt.Sprintf("cluster %q", c.Name))
 }
 
@@ -773,7 +764,7 @@ func LoadFile(filename string) (*Config, error) {
 		return nil, err
 	}
 	cfg := &Config{}
-	if err := yaml.Unmarshal([]byte(content), cfg); err != nil {
+	if err := yaml.Unmarshal(content, cfg); err != nil {
 		return nil, err
 	}
 	cfg.networkReg = make(map[string]Networks, len(cfg.NetworkGroups))

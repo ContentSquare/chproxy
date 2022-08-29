@@ -51,7 +51,6 @@ var goodCfg = &config.Config{
 					Name: "web",
 				},
 			},
-			HeartBeatInterval: config.Duration(time.Second * 5),
 		},
 	},
 	Users: []config.User{
@@ -109,7 +108,6 @@ var badCfg = &config.Config{
 					Name: "default",
 				},
 			},
-			HeartBeatInterval: config.Duration(time.Second * 5),
 		},
 	},
 	Users: []config.User{
@@ -146,7 +144,6 @@ var authCfg = &config.Config{
 					Password: "webpass",
 				},
 			},
-			HeartBeatInterval: config.Duration(time.Second * 5),
 		},
 	},
 	Users: []config.User{

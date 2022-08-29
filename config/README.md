@@ -291,10 +291,6 @@ users:
 # By default timed out queries are killed from `default` user.
 kill_query_user: <kill_query_user_config> | optional
 
-# DEPRECATED: An interval for checking all cluster nodes for availability
-# Use `heartbeat.interval`.
-heartbeat_interval: <duration> | optional | default = 5s
-
 # HeartBeat - user configuration for heart beat requests.
 heartbeat: <heartbeat_config> | optional
 ```

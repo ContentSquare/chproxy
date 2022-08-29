@@ -224,11 +224,6 @@ clusters:
     # Requests are evenly distributed among them.
     nodes: ["127.0.0.1:8123", "shard2:8123"]
 
-    # DEPRECATED: Each cluster node is checked for availability using this interval.
-    # By default each node is checked for every 5 seconds.
-    # Use `heartbeat.interval`.
-    heartbeat_interval: 1m
-
     # Timed out queries are killed using this user.
     # By default `default` user is used.
     kill_query_user:
@@ -283,9 +278,9 @@ clusters:
       timeout: 10s
 
       # The parameter to set the URI to request in a health check
-      # By default "/?query=SELECT%201"
+      # By default "/ping"
       request: "/ping"
 
       # Reference response from clickhouse on health check request
-      # By default "1\n"
+      # By default "Ok.\n"
       response: "Ok.\n"
