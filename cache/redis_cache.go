@@ -116,6 +116,9 @@ func (r *redisCache) Get(key *Key) (*CachedData, error) {
 	b := []byte(val)
 	metadata, offset, err := r.decodeMetadata(b)
 	if err != nil {
+		if (errors.Is(err, &RedisCacheCorruptionError{})) {
+			log.Errorf("an error happened while handling redis key =%s, err=%s", stringKey, err)
+		}
 		return nil, err
 	}
 	if (int64(offset) + metadata.Length) < nbBytesToFetch {
