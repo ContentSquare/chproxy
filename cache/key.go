@@ -8,6 +8,10 @@ import (
 	"path/filepath"
 )
 
+// Version must be increased with each backward-incompatible change
+// in the cache storage.
+const Version = 4
+
 // Key is the key for use in the cache.
 type Key struct {
 	// Query must contain full request query.

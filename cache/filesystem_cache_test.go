@@ -50,35 +50,31 @@ func TestCacheClose(t *testing.T) {
 func TestFilesystemCacheAddGet(t *testing.T) {
 	c := newTestCache(t)
 	defer c.Close()
-	c1 := newTestCache(t)
-	defer c1.Close()
-	cacheAddGetHelper(t, c, c1)
+	cacheAddGetHelper(t, c)
 }
 
+const maxStringSizeToLog = 30
+
 // metatest used for both filesystem and redis Cache
-func cacheAddGetHelper(t *testing.T, c Cache, c1 Cache) {
+func cacheAddGetHelper(t *testing.T, c Cache) {
 
 	for i := 0; i < 10; i++ {
 		key := &Key{
 			Query: []byte(fmt.Sprintf("SELECT %d", i)),
 		}
 		trw := &testResponseWriter{}
-		crw := NewBufferedResponseWriter(trw)
 
 		ct := fmt.Sprintf("text/html; %d", i)
-		crw.Header().Set("Content-Type", ct)
 		ce := fmt.Sprintf("gzip; %d", i)
-		crw.Header().Set("Content-Encoding", ce)
-
 		value := fmt.Sprintf("value %d", i)
-		bs := bytes.NewBufferString(value)
-		if _, err := io.Copy(crw, bs); err != nil {
-			t.Fatalf("cannot send response to cache: %s", err)
+		//we want to test what happen we the cache handle a big value
+		if i == 0 {
+			// 4MB string
+			value = strings.Repeat("a", 4*1024*1024)
 		}
 
-		buffer := crw.Reader()
-
 		length := int64(len(value))
+		buffer := strings.NewReader(value)
 		if _, err := c.Put(buffer, ContentMetadata{Encoding: ce, Type: ct, Length: length}, key); err != nil {
 			t.Fatalf("failed to put it to cache: %s", err)
 		}
@@ -90,14 +86,14 @@ func cacheAddGetHelper(t *testing.T, c Cache, c1 Cache) {
 
 		// Verify trw contains valid headers.
 		if cachedData.Type != ct {
-			t.Fatalf("unexpected Content-Type: %q; expecting %q", cachedData.Type, ct)
+			t.Fatalf("unexpected Content-Type: %s; expecting %s", cachedData.Type, ct)
 		}
 		if cachedData.Encoding != ce {
-			t.Fatalf("unexpected Content-Encoding: %q; expecting %q", cachedData.Encoding, ce)
+			t.Fatalf("unexpected Content-Encoding: %s; expecting %s", cachedData.Encoding, ce)
 		}
 		cl := length
 		if cachedData.Length != cl {
-			t.Fatalf("unexpected Content-Length: %q; expecting %q", cachedData.Length, cl)
+			t.Fatalf("unexpected Content-Length: %d; expecting %d", cachedData.Length, cl)
 		}
 		buf := new(strings.Builder)
 		_, err = io.Copy(buf, cachedData.Data)
@@ -106,7 +102,11 @@ func cacheAddGetHelper(t *testing.T, c Cache, c1 Cache) {
 		}
 		// Verify trw contains the response.
 		if buf.String() != value {
-			t.Fatalf("unexpected response sent to client: %q; expecting %q", trw.b, value)
+			logSuffx := ""
+			if len(value) > maxStringSizeToLog {
+				logSuffx = "..."
+			}
+			t.Fatalf("unexpected response sent to client: %q; expecting %q%s", trw.b, value[:maxStringSizeToLog], logSuffx)
 		}
 	}
 
@@ -120,18 +120,23 @@ func cacheAddGetHelper(t *testing.T, c Cache, c1 Cache) {
 			t.Fatalf("failed to get data from filesystem cache: %s", err)
 		}
 		value := fmt.Sprintf("value %d", i)
+		//we want to test what happen we the cache handle a big value
+		if i == 0 {
+			// 4MB string
+			value = strings.Repeat("a", 4*1024*1024)
+		}
 		ct := fmt.Sprintf("text/html; %d", i)
 		ce := fmt.Sprintf("gzip; %d", i)
 		// Verify trw contains valid headers.
 		if cachedData.Type != ct {
-			t.Fatalf("unexpected Content-Type: %q; expecting %q", cachedData.Type, ct)
+			t.Fatalf("unexpected Content-Type: %s; expecting %s", cachedData.Type, ct)
 		}
 		if cachedData.Encoding != ce {
-			t.Fatalf("unexpected Content-Encoding: %q; expecting %q", cachedData.Encoding, ce)
+			t.Fatalf("unexpected Content-Encoding: %s; expecting %s", cachedData.Encoding, ce)
 		}
 		cl := int64(len(value))
 		if cachedData.Length != cl {
-			t.Fatalf("unexpected Content-Length: %q; expecting %q", cachedData.Length, cl)
+			t.Fatalf("unexpected Content-Length: %d; expecting %d", cachedData.Length, cl)
 		}
 		buf := new(strings.Builder)
 		_, err = io.Copy(buf, cachedData.Data)
@@ -187,7 +192,10 @@ func TestCacheClean(t *testing.T) {
 			Query: []byte(fmt.Sprintf("SELECT %d cache clean", i)),
 		}
 		trw := &testResponseWriter{}
-		crw := NewBufferedResponseWriter(trw)
+		crw, err := NewTmpFileResponseWriter(trw, testTmpWriterDir)
+		if err != nil {
+			t.Fatalf("create tmp cache: %s", err)
+		}
 
 		value := fmt.Sprintf("very big value %d", i)
 		bs := bytes.NewBufferString(value)
@@ -195,7 +203,10 @@ func TestCacheClean(t *testing.T) {
 			t.Fatalf("cannot send response to cache: %s", err)
 		}
 
-		reader := crw.Reader()
+		reader, err := crw.Reader()
+		if err != nil {
+			t.Fatalf("failed to put it to cache: %s", err)
+		}
 		if _, err := c.Put(reader, ContentMetadata{}, key); err != nil {
 			t.Fatalf("failed to put it to cache: %s", err)
 		}

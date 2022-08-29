@@ -24,7 +24,7 @@ type ContentMetadata struct {
 
 type CachedData struct {
 	ContentMetadata
-	Data io.Reader
+	Data io.ReadCloser // we need a ReadCloser because the reader is used oustide the scope where it was created and need to be closed by the function using it.
 	Ttl  time.Duration
 }
 
