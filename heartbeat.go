@@ -36,7 +36,8 @@ func (hb *heartBeat) isHealthy(addr string) error {
 	if err != nil {
 		return err
 	}
-	if hb.user != "" {
+
+	if hb.request != "/ping" && hb.user != "" {
 		req.SetBasicAuth(hb.user, hb.password)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), hb.timeout)
