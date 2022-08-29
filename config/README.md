@@ -93,6 +93,7 @@ mode: "redis"
 # Applicable for cache mode: redis
 redis:
   # list of addresses to redis nodes 
+  # you should use multiple addresses only if they all belong to the same redis cluster.
   addresses:
     - <string> # example "localhost:6379"
   username: <string>

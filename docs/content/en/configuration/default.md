@@ -60,6 +60,7 @@ caches:
     mode: "redis"
     
     # Applicable for cache mode: redis
+    # You should use multiple addresses only if they all belong to the same redis cluster.
     redis:
       addresses:
         - "localhost:6379"
