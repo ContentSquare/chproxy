@@ -205,6 +205,9 @@ func listenAndServe(ln net.Listener, h http.Handler, cfg config.TimeoutCfg) erro
 var promHandler = promhttp.Handler()
 
 func serveHTTP(rw http.ResponseWriter, r *http.Request) {
+	if r.Header.Get("CF-Connecting-IP") != "" {
+		r.RemoteAddr = net.JoinHostPort(r.Header.Get("CF-Connecting-IP"), strings.Split(r.RemoteAddr, ":")[1])
+	}
 	switch r.Method {
 	case http.MethodGet, http.MethodPost:
 		// Only GET and POST methods are supported.

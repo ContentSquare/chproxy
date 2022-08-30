@@ -53,6 +53,9 @@ type scope struct {
 }
 
 func newScope(req *http.Request, u *user, c *cluster, cu *clusterUser, sessionId string, sessionTimeout int) *scope {
+	if req.Header.Get("CF-Connecting-IP") != "" {
+		req.RemoteAddr = net.JoinHostPort(req.Header.Get("CF-Connecting-IP"), strings.Split(req.RemoteAddr, ":")[1])
+	}
 	h := c.getHost()
 	if sessionId != "" {
 		h = c.getHostSticky(sessionId)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -55,6 +56,9 @@ func newReverseProxy() *reverseProxy {
 }
 
 func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	if req.Header.Get("CF-Connecting-IP") != "" {
+		req.RemoteAddr = net.JoinHostPort(req.Header.Get("CF-Connecting-IP"), strings.Split(req.RemoteAddr, ":")[1])
+	}
 	startTime := time.Now()
 	s, status, err := rp.getScope(req)
 	if err != nil {
@@ -549,6 +553,9 @@ func (rp *reverseProxy) refreshCacheMetrics() {
 }
 
 func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
+	if req.Header.Get("CF-Connecting-IP") != "" {
+		req.RemoteAddr = net.JoinHostPort(req.Header.Get("CF-Connecting-IP"), strings.Split(req.RemoteAddr, ":")[1])
+	}
 	name, password := getAuth(req)
 	sessionId := getSessionId(req)
 	sessionTimeout := getSessionTimeout(req)
