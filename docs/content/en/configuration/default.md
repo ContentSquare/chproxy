@@ -60,6 +60,7 @@ caches:
     mode: "redis"
     
     # Applicable for cache mode: redis
+    # You should use multiple addresses only if they all belong to the same redis cluster.
     redis:
       addresses:
         - "localhost:6379"
@@ -135,6 +136,8 @@ server:
     listen_addr: ":443"
 
     # Paths to TLS cert and key files.
+    # If you change the cert & key files while chproxy is running, you have to restart chproxy so that it loads them.
+    # Triggering a SIGHUP signal won't work as for the rest of the configuration.
     # cert_file: "cert_file"
     # key_file: "key_file"
 

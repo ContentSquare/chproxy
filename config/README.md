@@ -93,6 +93,7 @@ mode: "redis"
 # Applicable for cache mode: redis
 redis:
   # list of addresses to redis nodes 
+  # you should use multiple addresses only if they all belong to the same redis cluster.
   addresses:
     - <string> # example "localhost:6379"
   username: <string>
@@ -178,6 +179,8 @@ write_timeout: <duration> | optional
 idle_timeout: <duration> | optional | default = 10m
 
 # Certificate and key files for client cert authentication to the server
+# If you change the cert & key files while chproxy is running, you have to restart chproxy so that it loads them.
+# Triggering a SIGHUP signal won't work as for the rest of the configuration.
 cert_file: <string> | optional
 key_file: <string> | optional
 
