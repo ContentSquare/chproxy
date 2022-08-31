@@ -576,6 +576,39 @@ func (rp *reverseProxy) refreshCacheMetrics() {
 	}
 }
 
+func (rp *reverseProxy) getUser(name string, password string) (found bool, u *user, c *cluster, cu *clusterUser) {
+	rp.lock.RLock()
+	defer rp.lock.RUnlock()
+	found = false
+	u = rp.users[name]
+	if u != nil {
+		// c and cu for toCluster and toUser must exist if applyConfig
+		// is correct.
+		// Fix applyConfig if c or cu equal to nil.
+
+		found = (u.password == password)
+		c = rp.clusters[u.toCluster]
+		cu = c.users[u.toUser]
+	} else {
+		s := strings.Split(name, "_")
+		numParts := len(s)
+		if numParts == 2 {
+			u = rp.users[s[0]+"_*"]
+			if u != nil {
+				c = rp.clusters[u.toCluster]
+				wildcardedCu := c.users[u.toUser]
+				if wildcardedCu != nil {
+					found = true
+					cu = wildcardedCu
+					cu.name = name
+					cu.password = password
+				}
+			}
+		}
+	}
+	return
+}
+
 func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 	name, password := getAuth(req)
 	sessionId := getSessionId(req)
@@ -586,21 +619,8 @@ func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 		cu *clusterUser
 	)
 
-	rp.lock.RLock()
-	u = rp.users[name]
-	if u != nil {
-		// c and cu for toCluster and toUser must exist if applyConfig
-		// is correct.
-		// Fix applyConfig if c or cu equal to nil.
-		c = rp.clusters[u.toCluster]
-		cu = c.users[u.toUser]
-	}
-	rp.lock.RUnlock()
-
-	if u == nil {
-		return nil, http.StatusUnauthorized, fmt.Errorf("invalid username or password for user %q", name)
-	}
-	if u.password != password {
+	found, u, c, cu := rp.getUser(name, password)
+	if !found {
 		return nil, http.StatusUnauthorized, fmt.Errorf("invalid username or password for user %q", name)
 	}
 	if u.denyHTTP && req.TLS == nil {

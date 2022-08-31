@@ -140,6 +140,8 @@ var fullConfig = Config{
 				Timeout:  Duration(10 * time.Second),
 				Request:  "/ping",
 				Response: "Ok.\n",
+				Name:     "hbuser",
+				Password: "hbpassword",
 			},
 		},
 	},
@@ -447,6 +449,11 @@ func TestBadConfig(t *testing.T) {
 			"max payload size to cache",
 			"testdata/bad.max_payload_size.yml",
 			"cannot parse byte size \"-10B\": it must be positive float followed by optional units. For example, 1.5Gb, 3T",
+		},
+		{
+			"no heartbeat user if first cluster user is wildcarded",
+			"testdata/bad.wildcarded_users.no.config.yml",
+			"`cluster.heartbeat.user ` cannot be unset for \"default\" because a wildcarded user cannot send heartbeat",
 		},
 	}
 
@@ -781,6 +788,8 @@ clusters:
     request: /ping
     response: |
       Ok.
+    name: hbuser
+    password: hbpassword
 users:
 - name: web
   password: XXX

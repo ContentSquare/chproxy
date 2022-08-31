@@ -287,3 +287,14 @@ clusters:
       # Reference response from clickhouse on health check request
       # By default "Ok.\n"
       response: "Ok.\n"
+
+      # Username for heartbeats
+      # No default value
+      # If ommited (by default),
+      # credentials of the first user in clusters.users will be used for heart beat requests to clickhouse.
+      # Note, that credentials of a wildcarded user cannot be used for heat beat
+      name: "hbuser"
+
+      # Password for heartbeats
+      # No default value
+      password: "hbpassword"

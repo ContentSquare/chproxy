@@ -61,6 +61,15 @@ var (
 		Request:  "/wrongQuery",
 		Response: "Ok.\n",
 	}
+
+	heartBeatWrongNamedCfg = config.HeartBeat{
+		Interval: config.Duration(20 * time.Second),
+		Timeout:  config.Duration(30 * time.Second),
+		Request:  "/ping",
+		Response: "Ok.\n",
+		Name:     "hbuser",
+		Password: "hbpassword",
+	}
 )
 
 func TestNewHeartBeat(t *testing.T) {
@@ -90,6 +99,10 @@ func TestNewHeartBeat(t *testing.T) {
 		t.Fatalf("heartbeat error expected")
 	}
 	testCompareStr(t, "heartbeat error", check.Error(), "unexpected response: wrong\n")
+
+	hbNameWrong := newHeartBeat(heartBeatWrongNamedCfg, clusterCfg.ClusterUsers[0])
+	testCompareStr(t, "heartbeat.user", hbNameWrong.user, "hbuser")
+	testCompareStr(t, "heartbeat.password", hbNameWrong.password, "hbpassword")
 }
 
 func testCompareNum(t *testing.T, name string, value int64, expected int64) {

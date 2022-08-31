@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/mohae/deepcopy"
@@ -29,6 +30,8 @@ var (
 		Timeout:  Duration(time.Second * 3),
 		Request:  "/ping",
 		Response: "Ok.\n",
+		Name:     "",
+		Password: "",
 	}
 
 	defaultExecutionTime = Duration(120 * time.Second)
@@ -365,6 +368,10 @@ func (c *Cluster) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("`cluster.heartbeat` cannot be unset for %q", c.Name)
 	}
 
+	if strings.HasSuffix(c.ClusterUsers[0].Name, "_*") && len(c.HeartBeat.Name) == 0 {
+		return fmt.Errorf("`cluster.heartbeat.user ` cannot be unset for %q because a wildcarded user cannot send heartbeat", c.Name)
+	}
+
 	return checkOverflow(c.XXX, fmt.Sprintf("cluster %q", c.Name))
 }
 
@@ -437,6 +444,10 @@ type HeartBeat struct {
 	// Reference response from clickhouse on health check request
 	// default value is `Ok.\n`
 	Response string `yaml:"response,omitempty"`
+
+	Name string `yaml:"name,omitempty"`
+
+	Password string `yaml:"password,omitempty"`
 
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
