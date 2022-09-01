@@ -582,11 +582,8 @@ func (rp *reverseProxy) getUser(name string, password string) (found bool, u *us
 	found = false
 	u = rp.users[name]
 	if u != nil {
-		// c and cu for toCluster and toUser must exist if applyConfig
-		// is correct.
-		// Fix applyConfig if c or cu equal to nil.
-
 		found = (u.password == password)
+		// existence of c and cu for toCluster is guaranteed by applyConfig
 		c = rp.clusters[u.toCluster]
 		cu = c.users[u.toUser]
 	} else {
