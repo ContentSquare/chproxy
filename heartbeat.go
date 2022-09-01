@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/contentsquare/chproxy/config"
-	"github.com/contentsquare/chproxy/log"
 )
 
 type heartBeat struct {
@@ -38,13 +37,11 @@ func newHeartBeat(c config.HeartBeat, firstClusterUser config.ClusterUser) *hear
 }
 
 func (hb *heartBeat) isHealthy(addr string) error {
-	log.Debugf("User %s used for heartbeat", hb.user)
 	req, err := http.NewRequest("GET", addr+hb.request, nil)
 	if err != nil {
 		return err
 	}
 	if hb.request != "/ping" && hb.user != "" {
-		log.Debugf("basic auth")
 		req.SetBasicAuth(hb.user, hb.password)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), hb.timeout)
