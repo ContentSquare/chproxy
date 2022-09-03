@@ -4,10 +4,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/contentsquare/chproxy/log"
-
 	"github.com/contentsquare/chproxy/clients"
 	"github.com/contentsquare/chproxy/config"
+	"github.com/contentsquare/chproxy/log"
 	"github.com/go-redis/redis/v8"
 )
 
@@ -71,7 +70,8 @@ func (c *AsyncCache) AwaitForConcurrentTransaction(key *Key) (TransactionStatus,
 func NewAsyncCache(cfg config.Cache, maxExecutionTime time.Duration) (*AsyncCache, error) {
 	graceTime := time.Duration(cfg.GraceTime)
 	if graceTime > 0 {
-		log.Errorf("[DEPRECATED] detected grace time configuration %s. It will be removed in the new version", graceTime)
+		log.Errorf("[DEPRECATED] detected grace time configuration %s. It will be removed in the new version",
+			graceTime)
 	}
 	if graceTime == 0 {
 		// Default grace time.

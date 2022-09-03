@@ -10,9 +10,8 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
-	"github.com/go-redis/redis/v8"
-
 	"github.com/contentsquare/chproxy/config"
+	"github.com/go-redis/redis/v8"
 )
 
 const cacheTTL = time.Duration(10 * time.Second)
@@ -152,7 +151,8 @@ func TestKeyExpirationWhileFetchtingRedis(t *testing.T) {
 	exepctedValue := strings.Repeat("a", payloadSize)
 	reader := strings.NewReader(exepctedValue)
 
-	if _, err := cache.Put(reader, ContentMetadata{Encoding: "ce", Type: "ct", Length: int64(payloadSize)}, key); err != nil {
+	if _, err := cache.Put(reader, ContentMetadata{Encoding: "ce", Type: "ct", Length: int64(payloadSize)},
+		key); err != nil {
 		t.Fatalf("failed to put it to cache: %s", err)
 	}
 	cachedData, err := cache.Get(key)
@@ -180,7 +180,8 @@ func TestSmallTTLOnBigPayloadAreCacheWithFile(t *testing.T) {
 	expectedValue := strings.Repeat("a", payloadSize)
 	reader := strings.NewReader(expectedValue)
 
-	if _, err := cache.Put(reader, ContentMetadata{Encoding: "ce", Type: "ct", Length: int64(payloadSize)}, key); err != nil {
+	if _, err := cache.Put(reader, ContentMetadata{Encoding: "ce", Type: "ct", Length: int64(payloadSize)},
+		key); err != nil {
 		t.Fatalf("failed to put it to cache: %s", err)
 	}
 
@@ -208,7 +209,8 @@ func TestSmallTTLOnBigPayloadAreCacheWithFile(t *testing.T) {
 		t.Fatalf("could not read data from redisFileCache, err=%s", err)
 	}
 	if string(cachedValue) != expectedValue {
-		t.Fatalf("got a value different than the expected one len(value)=%d vs len(expectedValue)=%d", len(string(cachedValue)), len(expectedValue))
+		t.Fatalf("got a value different than the expected one len(value)=%d vs len(expectedValue)=%d",
+			len(string(cachedValue)), len(expectedValue))
 	}
 	cachedData.Data.Close()
 	nbFileCacheAfterClose, err := countFilesWithPrefix(tmpDir, redisTmpFilePrefix)
@@ -217,7 +219,8 @@ func TestSmallTTLOnBigPayloadAreCacheWithFile(t *testing.T) {
 	}
 
 	if nbFileCacheBeforeGet != nbFileCacheAfterClose {
-		t.Fatalf("expected the file stored by redisFileCache to be removed: nbFileCacheBeforeGet=%d | nbFileCacheAfterClose=%d", nbFileCacheBeforeGet, nbFileCacheAfterClose)
+		t.Fatalf("expected the file stored by redisFileCache to be removed: nbFileCacheBeforeGet=%d | nbFileCacheAfterClose=%d",
+			nbFileCacheBeforeGet, nbFileCacheAfterClose)
 	}
 }
 

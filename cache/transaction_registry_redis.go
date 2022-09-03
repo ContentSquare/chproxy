@@ -3,9 +3,8 @@ package cache
 import (
 	"context"
 	"errors"
-	"time"
-
 	"fmt"
+	"time"
 
 	"github.com/contentsquare/chproxy/log"
 	"github.com/go-redis/redis/v8"
