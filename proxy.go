@@ -340,7 +340,8 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	}
 	contentMetadata := cache.ContentMetadata{Length: contentLength, Encoding: contentEncoding, Type: contentType}
 
-	if tmpFileRespWriter.StatusCode() != http.StatusOK || s.canceled {
+	statusCode := tmpFileRespWriter.StatusCode()
+	if statusCode != http.StatusOK || s.canceled {
 		// Do not cache non-200 or cancelled responses.
 		// Restore the original status code by proxyRequest if it was set.
 		if srw.statusCode != 0 {
@@ -355,7 +356,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 			log.Errorf("%s: %s; query: %q", s, err, q)
 		}
 
-		err = RespondWithData(srw, reader, contentMetadata, 0*time.Second, tmpFileRespWriter.StatusCode())
+		err = RespondWithData(srw, reader, contentMetadata, 0*time.Second, statusCode)
 		if err != nil {
 			err = fmt.Errorf("%s: %w; query: %q", s, err, q)
 			respondWith(srw, err, http.StatusInternalServerError)
@@ -378,7 +379,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 			respondWith(srw, err, http.StatusInternalServerError)
 			return
 		}
-		err = RespondWithData(srw, reader, contentMetadata, expiration, tmpFileRespWriter.StatusCode())
+		err = RespondWithData(srw, reader, contentMetadata, expiration, statusCode)
 		if err != nil {
 			err = fmt.Errorf("%s: %w; query: %q", s, err, q)
 			respondWith(srw, err, http.StatusInternalServerError)
@@ -387,19 +388,28 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	}
 }
 
+// clickhouseRecoverableStatusCodes set of recoverable http responses' status codes from Clickhouse.
+// When such happens we mark transaction as completed and let concurrent query to hit another Clickhouse shard.
+var clickhouseRecoverableStatusCodes = map[int]struct{}{503: {}}
+
 func (rp *reverseProxy) completeTransaction(s *scope, statusCode int, userCache *cache.AsyncCache, key *cache.Key, q []byte) {
-	if _, ok := clickhouseNonRecoverableStatusCodes[statusCode]; ok {
-		if err := userCache.Fail(key); err != nil {
+	if statusCode < 300 {
+		if err := userCache.Complete(key); err != nil {
+			log.Errorf("%s: %s; query: %q", s, err, q)
+		}
+		return
+	}
+
+	if _, ok := clickhouseRecoverableStatusCodes[statusCode]; ok {
+		if err := userCache.Complete(key); err != nil {
 			log.Errorf("%s: %s; query: %q", s, err, q)
 		}
 	} else {
-		if err := userCache.Complete(key); err != nil {
+		if err := userCache.Fail(key); err != nil {
 			log.Errorf("%s: %s; query: %q", s, err, q)
 		}
 	}
 }
-
-var clickhouseNonRecoverableStatusCodes = map[int]struct{}{400: {}, 404: {}, 500: {}}
 
 func calcQueryParamsHash(origParams url.Values) uint32 {
 	queryParams := make(map[string]string)

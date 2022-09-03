@@ -609,7 +609,7 @@ func TestServe(t *testing.T) {
 				// scenario: 1st query fails before grace_time elapsed. 2nd query fails as well.
 
 				q := "SELECT RECOVERABLE-ERROR"
-				executeTwoConcurrentRequests(t, q, http.StatusTeapot, http.StatusTeapot, "DB::Exception\n", "DB::Exception\n")
+				executeTwoConcurrentRequests(t, q, http.StatusServiceUnavailable, http.StatusServiceUnavailable, "DB::Exception\n", "DB::Exception\n")
 			},
 			startHTTP,
 		},
@@ -761,7 +761,7 @@ func fakeCHHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprint(w, "DB::Exception\n")
 	case q == "SELECT RECOVERABLE-ERROR":
-		w.WriteHeader(http.StatusTeapot)
+		w.WriteHeader(http.StatusServiceUnavailable)
 		fmt.Fprint(w, "DB::Exception\n")
 	case q == "SELECT SLEEP":
 		w.WriteHeader(http.StatusOK)
