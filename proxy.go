@@ -349,13 +349,6 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		}
 		rp.completeTransaction(s, statusCode, userCache, key, q)
 
-		// mark transaction as failed
-		// todo: discuss if we should mark it as failed upon timeout. The rational against it would be to hope that
-		// 		 partial results of the query are cached and therefore subsequent execution can succeed
-		if err = userCache.Fail(key); err != nil {
-			log.Errorf("%s: %s; query: %q", s, err, q)
-		}
-
 		err = RespondWithData(srw, reader, contentMetadata, 0*time.Second, statusCode)
 		if err != nil {
 			err = fmt.Errorf("%s: %w; query: %q", s, err, q)
