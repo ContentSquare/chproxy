@@ -83,6 +83,7 @@ func cacheAddGetHelper(t *testing.T, c Cache) {
 		if err != nil {
 			t.Fatalf("failed to get data from filesystem cache: %s", err)
 		}
+		defer cachedData.Data.Close()
 
 		// Verify trw contains valid headers.
 		if cachedData.Type != ct {
@@ -119,6 +120,7 @@ func cacheAddGetHelper(t *testing.T, c Cache) {
 		if err != nil {
 			t.Fatalf("failed to get data from filesystem cache: %s", err)
 		}
+		defer cachedData.Data.Close()
 		value := fmt.Sprintf("value %d", i)
 		//we want to test what happen we the cache handle a big value
 		if i == 0 {
@@ -196,6 +198,7 @@ func TestCacheClean(t *testing.T) {
 		if err != nil {
 			t.Fatalf("create tmp cache: %s", err)
 		}
+		defer crw.Close()
 
 		value := fmt.Sprintf("very big value %d", i)
 		bs := bytes.NewBufferString(value)
