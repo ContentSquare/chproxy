@@ -353,9 +353,11 @@ func TestServe(t *testing.T) {
 					t.Fatalf("unexpected amount of keys in redis: %v", len(keys))
 				}
 
-				resp := httpRequest(t, req, http.StatusOK)
+				resp, err := httpRequest(t, req, http.StatusOK)
+				checkErr(t, err)
 				checkResponse(t, resp.Body, expectedOkResp)
-				resp2 := httpRequest(t, req, http.StatusOK)
+				resp2, err := httpRequest(t, req, http.StatusOK)
+				checkErr(t, err)
 				checkResponse(t, resp2.Body, expectedOkResp)
 				keys = redisClient.Keys()
 				if len(keys) != 2 { // expected 2 because there is a record stored for transaction and a cache item
@@ -391,9 +393,11 @@ func TestServe(t *testing.T) {
 				req, err := http.NewRequest("GET", "http://127.0.0.1:9090?query="+url.QueryEscape(q), nil)
 				checkErr(t, err)
 
-				resp := httpRequest(t, req, http.StatusOK)
+				resp, err := httpRequest(t, req, http.StatusOK)
+				checkErr(t, err)
 				checkResponse(t, resp.Body, string(bytesWithInvalidUTFPairs))
-				resp2 := httpRequest(t, req, http.StatusOK)
+				resp2, err := httpRequest(t, req, http.StatusOK)
+				checkErr(t, err)
 				// if we do not use base64 to encode/decode the cached payload, EOF error will be thrown here.
 				checkResponse(t, resp2.Body, string(bytesWithInvalidUTFPairs))
 				keys = redisClient.Keys()
@@ -609,7 +613,7 @@ func TestServe(t *testing.T) {
 				// scenario: 1st query fails before grace_time elapsed. 2nd query fails as well.
 
 				q := "SELECT RECOVERABLE-ERROR"
-				executeTwoConcurrentRequests(t, q, http.StatusServiceUnavailable, http.StatusServiceUnavailable, "DB::Exception\n", "DB::Exception\n")
+				executeTwoConcurrentRequests(t, q, http.StatusServiceUnavailable, http.StatusServiceUnavailable, "DB::Unavailable\n", "DB::Unavailable\n")
 			},
 			startHTTP,
 		},
@@ -761,8 +765,9 @@ func fakeCHHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprint(w, "DB::Exception\n")
 	case q == "SELECT RECOVERABLE-ERROR":
+		println("called clickhouse recoverable")
 		w.WriteHeader(http.StatusServiceUnavailable)
-		fmt.Fprint(w, "DB::Exception\n")
+		fmt.Fprint(w, "DB::Unavailable\n")
 	case q == "SELECT SLEEP":
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprint(w, "foo")
@@ -802,26 +807,48 @@ func fakeCHHandler(w http.ResponseWriter, r *http.Request) {
 // Results are asserted according to the specified input parameters.
 func executeTwoConcurrentRequests(t *testing.T, query string, firstStatusCode, secondStatusCode int, firstBody, secondBody string) {
 	u := fmt.Sprintf("http://127.0.0.1:9090?query=%s&user=concurrent_user", url.QueryEscape(query))
-	req, err := http.NewRequest("GET", u, nil)
-	checkErr(t, err)
 
 	var wg sync.WaitGroup
 	wg.Add(2)
 	var resp1 string
 	var resp2 string
+	errs := make(chan error, 0)
+	defer close(errs)
+	errors := make([]error, 0)
 	go func() {
-		resp := httpRequest(t, req, firstStatusCode)
+		for err := range errs {
+			errors = append(errors, err)
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		req, err := http.NewRequest("GET", u, nil)
+		checkErr(t, err)
+		resp, err := httpRequest(t, req, firstStatusCode)
+		if err != nil {
+			errs <- err
+			return
+		}
 		resp1 = bbToString(t, resp.Body)
-		wg.Done()
 	}()
 
 	go func() {
+		defer wg.Done()
 		time.Sleep(20 * time.Millisecond)
-		resp := httpRequest(t, req, secondStatusCode)
+		req, err := http.NewRequest("GET", u, nil)
+		checkErr(t, err)
+		resp, err := httpRequest(t, req, secondStatusCode)
+		if err != nil {
+			errs <- err
+			return
+		}
 		resp2 = bbToString(t, resp.Body)
-		wg.Done()
 	}()
 	wg.Wait()
+
+	if len(errors) != 0 {
+		t.Fatalf("concurrent test scenario failed due to: %v", errors)
+	}
 
 	if !strings.Contains(resp1, firstBody) {
 		t.Fatalf("concurrent test scenario: unexpected resp body: %s, expected : %s", resp1, firstBody)
@@ -932,15 +959,15 @@ func httpGet(t *testing.T, url string, statusCode int) *http.Response {
 	return resp
 }
 
-func httpRequest(t *testing.T, request *http.Request, statusCode int) *http.Response {
+func httpRequest(t *testing.T, request *http.Request, statusCode int) (*http.Response, error) {
 	t.Helper()
 	client := http.Client{}
 	resp, err := client.Do(request)
 	if err != nil {
-		t.Fatalf("unexpected erorr while doing GET request: %s", err)
+		return resp, fmt.Errorf("unexpected erorr while doing GET request: %s", err)
 	}
 	if resp.StatusCode != statusCode {
-		t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, statusCode)
+		return resp, fmt.Errorf("unexpected status code: %d; expected: %d", resp.StatusCode, statusCode)
 	}
-	return resp
+	return resp, nil
 }

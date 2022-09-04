@@ -279,7 +279,6 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		_ = RespondWithData(srw, cachedData.Data, cachedData.ContentMetadata, cachedData.Ttl, http.StatusOK)
 		return
 	}
-
 	// Await for potential result from concurrent query
 	transactionState, err := userCache.AwaitForConcurrentTransaction(key)
 	if err != nil {
@@ -288,8 +287,8 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	} else {
 		if transactionState.IsCompleted() {
 			cachedData, err := userCache.Get(key)
-			defer cachedData.Data.Close()
 			if err == nil {
+				defer cachedData.Data.Close()
 				_ = RespondWithData(srw, cachedData.Data, cachedData.ContentMetadata, cachedData.Ttl, http.StatusOK)
 				cacheHitFromConcurrentQueries.With(labels).Inc()
 				log.Debugf("%s: cache hit after awaiting concurrent query", s)
@@ -348,7 +347,6 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 			tmpFileRespWriter.WriteHeader(srw.statusCode)
 		}
 		rp.completeTransaction(s, statusCode, userCache, key, q)
-
 		err = RespondWithData(srw, reader, contentMetadata, 0*time.Second, statusCode)
 		if err != nil {
 			err = fmt.Errorf("%s: %w; query: %q", s, err, q)
