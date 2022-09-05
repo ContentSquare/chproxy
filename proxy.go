@@ -279,7 +279,6 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		_ = RespondWithData(srw, cachedData.Data, cachedData.ContentMetadata, cachedData.Ttl, http.StatusOK)
 		return
 	}
-
 	// Await for potential result from concurrent query
 	transactionState, err := userCache.AwaitForConcurrentTransaction(key)
 	if err != nil {
@@ -288,8 +287,8 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	} else {
 		if transactionState.IsCompleted() {
 			cachedData, err := userCache.Get(key)
-			defer cachedData.Data.Close()
 			if err == nil {
+				defer cachedData.Data.Close()
 				_ = RespondWithData(srw, cachedData.Data, cachedData.ContentMetadata, cachedData.Ttl, http.StatusOK)
 				cacheHitFromConcurrentQueries.With(labels).Inc()
 				log.Debugf("%s: cache hit after awaiting concurrent query", s)
@@ -340,21 +339,15 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	}
 	contentMetadata := cache.ContentMetadata{Length: contentLength, Encoding: contentEncoding, Type: contentType}
 
-	if tmpFileRespWriter.StatusCode() != http.StatusOK || s.canceled {
+	statusCode := tmpFileRespWriter.StatusCode()
+	if statusCode != http.StatusOK || s.canceled {
 		// Do not cache non-200 or cancelled responses.
 		// Restore the original status code by proxyRequest if it was set.
 		if srw.statusCode != 0 {
 			tmpFileRespWriter.WriteHeader(srw.statusCode)
 		}
-
-		// mark transaction as failed
-		// todo: discuss if we should mark it as failed upon timeout. The rational against it would be to hope that
-		// 		 partial results of the query are cached and therefore subsequent execution can succeed
-		if err = userCache.Fail(key); err != nil {
-			log.Errorf("%s: %s; query: %q", s, err, q)
-		}
-
-		err = RespondWithData(srw, reader, contentMetadata, 0*time.Second, tmpFileRespWriter.StatusCode())
+		rp.completeTransaction(s, statusCode, userCache, key, q)
+		err = RespondWithData(srw, reader, contentMetadata, 0*time.Second, statusCode)
 		if err != nil {
 			err = fmt.Errorf("%s: %w; query: %q", s, err, q)
 			respondWith(srw, err, http.StatusInternalServerError)
@@ -367,10 +360,8 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		if err != nil {
 			log.Errorf("%s: %s; query: %q - failed to put response in the cache", s, err, q)
 		}
-		// mark transaction as completed
-		if err = userCache.Complete(key); err != nil {
-			log.Errorf("%s: %s; query: %q", s, err, q)
-		}
+		rp.completeTransaction(s, statusCode, userCache, key, q)
+
 		// we need to reset the offset since the reader of tmpFileRespWriter was already
 		// consumed in RespondWithData(...)
 		err = tmpFileRespWriter.ResetFileOffset()
@@ -379,11 +370,35 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 			respondWith(srw, err, http.StatusInternalServerError)
 			return
 		}
-		err = RespondWithData(srw, reader, contentMetadata, expiration, tmpFileRespWriter.StatusCode())
+		err = RespondWithData(srw, reader, contentMetadata, expiration, statusCode)
 		if err != nil {
 			err = fmt.Errorf("%s: %w; query: %q", s, err, q)
 			respondWith(srw, err, http.StatusInternalServerError)
 			return
+		}
+	}
+}
+
+// clickhouseRecoverableStatusCodes set of recoverable http responses' status codes from Clickhouse.
+// When such happens we mark transaction as completed and let concurrent query to hit another Clickhouse shard.
+// possible http error codes in clickhouse (i.e: https://github.com/ClickHouse/ClickHouse/blob/master/src/Server/HTTPHandler.cpp)
+var clickhouseRecoverableStatusCodes = map[int]struct{}{http.StatusServiceUnavailable: {}}
+
+func (rp *reverseProxy) completeTransaction(s *scope, statusCode int, userCache *cache.AsyncCache, key *cache.Key, q []byte) {
+	if statusCode < 300 {
+		if err := userCache.Complete(key); err != nil {
+			log.Errorf("%s: %s; query: %q", s, err, q)
+		}
+		return
+	}
+
+	if _, ok := clickhouseRecoverableStatusCodes[statusCode]; ok {
+		if err := userCache.Complete(key); err != nil {
+			log.Errorf("%s: %s; query: %q", s, err, q)
+		}
+	} else {
+		if err := userCache.Fail(key); err != nil {
+			log.Errorf("%s: %s; query: %q", s, err, q)
 		}
 	}
 }
