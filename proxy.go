@@ -381,7 +381,8 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 
 // clickhouseRecoverableStatusCodes set of recoverable http responses' status codes from Clickhouse.
 // When such happens we mark transaction as completed and let concurrent query to hit another Clickhouse shard.
-var clickhouseRecoverableStatusCodes = map[int]struct{}{503: {}}
+// possible http error codes in clickhouse (i.e: https://github.com/ClickHouse/ClickHouse/blob/master/src/Server/HTTPHandler.cpp)
+var clickhouseRecoverableStatusCodes = map[int]struct{}{http.StatusServiceUnavailable: {}}
 
 func (rp *reverseProxy) completeTransaction(s *scope, statusCode int, userCache *cache.AsyncCache, key *cache.Key, q []byte) {
 	if statusCode < 300 {
