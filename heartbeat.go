@@ -26,12 +26,14 @@ func newHeartBeat(c config.HeartBeat, firstClusterUser config.ClusterUser) *hear
 		request:  c.Request,
 		response: c.Response,
 	}
-	if len(c.Name) > 0 {
-		newHB.user = c.Name
-		newHB.password = c.Password
-	} else {
-		newHB.user = firstClusterUser.Name
-		newHB.password = firstClusterUser.Password
+	if c.UserNeeded {
+		if len(c.User) > 0 {
+			newHB.user = c.User
+			newHB.password = c.Password
+		} else {
+			newHB.user = firstClusterUser.Name
+			newHB.password = firstClusterUser.Password
+		}
 	}
 	return newHB
 }

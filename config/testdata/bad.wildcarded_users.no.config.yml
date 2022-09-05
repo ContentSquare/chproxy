@@ -24,3 +24,5 @@ clusters:
     - name: "analyst_*"
     - name: "dba"
       password: "dba_egress_pass"
+    heartbeat:
+      request:  "/?query=SELECT%201"

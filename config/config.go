@@ -30,7 +30,7 @@ var (
 		Timeout:  Duration(time.Second * 3),
 		Request:  "/ping",
 		Response: "Ok.\n",
-		Name:     "",
+		User:     "",
 		Password: "",
 	}
 
@@ -63,6 +63,9 @@ type Config struct {
 	XXX map[string]interface{} `yaml:",inline"`
 
 	networkReg map[string]Networks
+
+	// A wildcared user is found in config
+	HasWildcarded bool
 }
 
 // String implements the Stringer interface
@@ -368,7 +371,7 @@ func (c *Cluster) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("`cluster.heartbeat` cannot be unset for %q", c.Name)
 	}
 
-	if strings.HasSuffix(c.ClusterUsers[0].Name, "_*") && len(c.HeartBeat.Name) == 0 {
+	if c.HeartBeat.UserNeeded && strings.HasSuffix(c.ClusterUsers[0].Name, "_*") && len(c.HeartBeat.User) == 0 {
 		return fmt.Errorf("`cluster.heartbeat.user ` cannot be unset for %q because a wildcarded user cannot send heartbeat", c.Name)
 	}
 
@@ -445,9 +448,14 @@ type HeartBeat struct {
 	// default value is `Ok.\n`
 	Response string `yaml:"response,omitempty"`
 
-	Name string `yaml:"name,omitempty"`
-
+	// Credentials to send heartbeat requests
+	// for anything except '/ping'.
+	// If not specified, the first cluster user' creadentials are used
+	User     string `yaml:"user,omitempty"`
 	Password string `yaml:"password,omitempty"`
+
+	// True if not '/ping'
+	UserNeeded bool
 
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
@@ -459,6 +467,10 @@ func (h *HeartBeat) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal((*plain)(h)); err != nil {
 		return err
 	}
+	if h.Request != "/ping" {
+		h.UserNeeded = true
+	}
+
 	return checkOverflow(h.XXX, "heartbeat")
 }
 

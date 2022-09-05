@@ -266,8 +266,20 @@ clusters:
         max_queue_time: 70s
         allowed_networks: ["office"]
 
-  - name: "thrid cluster"
-    nodes: ["thrid1:8123", "thrid2:8123"]
+    heartbeat:
+      # Username for heartbeats
+      # No default value
+      # If ommited (by default),
+      # credentials of the first user in clusters.users will be used for heart beat requests to clickhouse.
+      # Note, that credentials of a wildcarded user cannot be used for heat beat
+      user: "hbuser"
+
+      # Password for heartbeats
+      # No default value
+      password: "hbpassword"
+
+  - name: "third cluster"
+    nodes: ["third1:8123", "third2:8123"]
 
     # User configuration for heart beat requests.
     # Credentials of the first user in clusters.users will be used for heart beat requests to clickhouse.
@@ -282,19 +294,8 @@ clusters:
 
       # The parameter to set the URI to request in a health check
       # By default "/ping"
-      request: "/ping"
+      request: "/?query=SELECT%201"
 
       # Reference response from clickhouse on health check request
       # By default "Ok.\n"
       response: "Ok.\n"
-
-      # Username for heartbeats
-      # No default value
-      # If ommited (by default),
-      # credentials of the first user in clusters.users will be used for heart beat requests to clickhouse.
-      # Note, that credentials of a wildcarded user cannot be used for heat beat
-      name: "hbuser"
-
-      # Password for heartbeats
-      # No default value
-      password: "hbpassword"

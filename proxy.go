@@ -35,9 +35,10 @@ type reverseProxy struct {
 	// RWMutex enables concurrent access to getScope.
 	lock sync.RWMutex
 
-	users    map[string]*user
-	clusters map[string]*cluster
-	caches   map[string]*cache.AsyncCache
+	users         map[string]*user
+	clusters      map[string]*cluster
+	caches        map[string]*cache.AsyncCache
+	hasWildcarded bool
 }
 
 func newReverseProxy() *reverseProxy {
@@ -467,6 +468,9 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 		if user.MaxExecutionTime > transactionsTimeout {
 			transactionsTimeout = user.MaxExecutionTime
 		}
+		if s := strings.Split(user.Name, "_"); len(s) == 2 && s[1] == "*" {
+			cfg.HasWildcarded = true
+		}
 	}
 
 	for _, cc := range cfg.Caches {
@@ -553,6 +557,7 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 	rp.lock.Lock()
 	rp.clusters = clusters
 	rp.users = users
+	rp.hasWildcarded = cfg.HasWildcarded
 	// Swap is needed for deferred closing of old caches.
 	// See the code above where new caches are created.
 	caches, rp.caches = rp.caches, caches
@@ -586,10 +591,8 @@ func (rp *reverseProxy) getUser(name string, password string) (found bool, u *us
 		// existence of c and cu for toCluster is guaranteed by applyConfig
 		c = rp.clusters[u.toCluster]
 		cu = c.users[u.toUser]
-	} else {
-		s := strings.Split(name, "_")
-		numParts := len(s)
-		if numParts == 2 {
+	} else if rp.hasWildcarded {
+		if s := strings.Split(name, "_"); len(s) == 2 {
 			u = rp.users[s[0]+"_*"]
 			if u != nil {
 				c = rp.clusters[u.toCluster]

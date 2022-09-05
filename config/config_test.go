@@ -124,24 +124,25 @@ var fullConfig = Config{
 				Timeout:  Duration(3 * time.Second),
 				Request:  "/ping",
 				Response: "Ok.\n",
+				User:     "hbuser",
+				Password: "hbpassword",
 			},
 		},
 		{
-			Name:   "thrid cluster",
+			Name:   "third cluster",
 			Scheme: "http",
-			Nodes:  []string{"thrid1:8123", "thrid2:8123"},
+			Nodes:  []string{"third1:8123", "third2:8123"},
 			ClusterUsers: []ClusterUser{
 				{
 					Name: "default",
 				},
 			},
 			HeartBeat: HeartBeat{
-				Interval: Duration(2 * time.Minute),
-				Timeout:  Duration(10 * time.Second),
-				Request:  "/ping",
-				Response: "Ok.\n",
-				Name:     "hbuser",
-				Password: "hbpassword",
+				Interval:   Duration(2 * time.Minute),
+				Timeout:    Duration(10 * time.Second),
+				Request:    "/?query=SELECT%201",
+				Response:   "Ok.\n",
+				UserNeeded: true,
 			},
 		},
 	},
@@ -451,7 +452,7 @@ func TestBadConfig(t *testing.T) {
 			"cannot parse byte size \"-10B\": it must be positive float followed by optional units. For example, 1.5Gb, 3T",
 		},
 		{
-			"no heartbeat user if first cluster user is wildcarded",
+			"no heartbeat user, first cluster user is wildcarded, request is not /ping",
 			"testdata/bad.wildcarded_users.no.config.yml",
 			"`cluster.heartbeat.user ` cannot be unset for \"default\" because a wildcarded user cannot send heartbeat",
 		},
@@ -743,6 +744,7 @@ clusters:
     request: /ping
     response: |
       Ok.
+    userneeded: false
 - name: second cluster
   scheme: https
   replicas:
@@ -774,22 +776,24 @@ clusters:
     request: /ping
     response: |
       Ok.
-- name: thrid cluster
+    user: hbuser
+    password: hbpassword
+    userneeded: false
+- name: third cluster
   scheme: http
   nodes:
-  - thrid1:8123
-  - thrid2:8123
+  - third1:8123
+  - third2:8123
   users:
   - name: default
     password: XXX
   heartbeat:
     interval: 2m
     timeout: 10s
-    request: /ping
+    request: /?query=SELECT%201
     response: |
       Ok.
-    name: hbuser
-    password: hbpassword
+    userneeded: true
 users:
 - name: web
   password: XXX
@@ -854,6 +858,7 @@ param_groups:
     value: "30"
   - key: max_execution_time
     value: "30"
+haswildcarded: false
 `
 	tested := fullConfig.String()
 	if tested != expected {
