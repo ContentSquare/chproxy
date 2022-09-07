@@ -145,7 +145,7 @@ func TestServe(t *testing.T) {
 				cachedData, err := cc.Get(key)
 
 				if cachedData != nil || err == nil {
-					t.Fatal("skipped response from cache is expected")
+					t.Fatal("response bigger than maxPayloadSize should not be cached")
 				}
 
 				resp.Body.Close()
@@ -174,11 +174,6 @@ func TestServe(t *testing.T) {
 					Query:          []byte(q),
 					AcceptEncoding: "gzip",
 					Version:        cache.Version,
-				}
-
-				path := fmt.Sprintf("%s/cache/%s", testDir, key.String())
-				if _, err := os.Stat(path); err != nil {
-					t.Fatalf("err while getting file %q info: %s", path, err)
 				}
 
 				rw := httptest.NewRecorder()
@@ -420,82 +415,6 @@ func TestServe(t *testing.T) {
 			func(t *testing.T) {
 				httpGet(t, "http://127.0.0.1:9090?query=asd", http.StatusOK)
 				httpGet(t, "http://127.0.0.1:9090/metrics", http.StatusOK)
-			},
-			startHTTP,
-		},
-		{
-			"http cache max payload size",
-			"testdata/http.cache.max-payload-size.yml",
-			func(t *testing.T) {
-				q := "SELECT MaxPayloadSize"
-				req, err := http.NewRequest("GET", "http://127.0.0.1:9090?query="+url.QueryEscape(q), nil)
-				checkErr(t, err)
-				req.SetBasicAuth("default", "qwerty")
-				req.Close = true
-
-				resp, err := httpRequest(t, req, http.StatusOK)
-				checkResponse(t, resp.Body, expectedOkResp)
-				if resp.StatusCode != http.StatusOK {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
-				}
-
-				key := &cache.Key{
-					Query:          []byte(q),
-					AcceptEncoding: "gzip",
-					Version:        cache.Version,
-				}
-
-				cc := proxy.caches["http_cache_max_payload_size"]
-				cachedData, err := cc.Get(key)
-
-				if cachedData != nil || err == nil {
-					t.Fatal("skipped response from cache is expected")
-				}
-
-				resp.Body.Close()
-			},
-			startHTTP,
-		},
-		{
-			"http cache max payload size not reached",
-			"testdata/http.cache.max-payload-size-not-reached.yml",
-			func(t *testing.T) {
-				q := "SELECT MaxPayloadSize"
-				req, err := http.NewRequest("GET", "http://127.0.0.1:9090?query="+url.QueryEscape(q), nil)
-				checkErr(t, err)
-				req.SetBasicAuth("default", "qwerty")
-				req.Close = true
-
-				resp, err := httpRequest(t, req, http.StatusOK)
-				checkResponse(t, resp.Body, expectedOkResp)
-				if resp.StatusCode != http.StatusOK {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
-				}
-
-				key := &cache.Key{
-					Query:          []byte(q),
-					AcceptEncoding: "gzip",
-					Version:        cache.Version,
-				}
-
-				cc := proxy.caches["http_cache_max_payload_size"]
-				cachedData, err := cc.Get(key)
-
-				if err != nil {
-					t.Fatalf("unexpected error while getting response from cache: %s", err)
-				}
-
-				rw := httptest.NewRecorder()
-
-				err = RespondWithData(rw, cachedData.Data, cachedData.ContentMetadata, cachedData.Ttl, 200)
-				if err != nil {
-					t.Fatalf("unexpected error while getting response from cache: %s", err)
-				}
-				checkResponse(t, rw.Body, expectedOkResp)
-
-				cachedData.Data.Close()
-
-				resp.Body.Close()
 			},
 			startHTTP,
 		},

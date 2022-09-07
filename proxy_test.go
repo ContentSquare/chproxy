@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"fmt"
+	"github.com/contentsquare/chproxy/cache"
 	"io"
 	"math/rand"
 	"net"
@@ -251,6 +252,19 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 		},
 		{
 			cfg:           goodCfg,
+			name:          "max payload size limit",
+			expResponse:   okResponse,
+			expStatusCode: http.StatusOK,
+			f: func(p *reverseProxy) *http.Response {
+				p.caches["max_payload_size"] = &cache.AsyncCache{
+					MaxPayloadSize: 8 * 1024 * 1024,
+				}
+				p.users["default"].cache = p.caches["max_payload_size"]
+				return makeRequest(p)
+			},
+		},
+		{
+			cfg:           goodCfg,
 			name:          "queue overflow for user",
 			expResponse:   "limits for user \"default\" are exceeded: max_concurrent_queries limit: 1",
 			expStatusCode: http.StatusTooManyRequests,
@@ -394,6 +408,21 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 				req := httptest.NewRequest("POST", fakeServer.URL, nil)
 				req.Header.Set("X-ClickHouse-User", "foo")
 				req.Header.Set("X-ClickHouse-Key", "baar")
+				return makeCustomRequest(p, req)
+			},
+		},
+		{
+			cfg:           authCfg,
+			name:          "post request max payload size",
+			expResponse:   okResponse,
+			expStatusCode: http.StatusOK,
+			f: func(p *reverseProxy) *http.Response {
+				uri := fmt.Sprintf("%s?user=foo&password=bar", fakeServer.URL)
+				req := httptest.NewRequest("POST", uri, nil)
+				p.caches["max_payload_size"] = &cache.AsyncCache{
+					MaxPayloadSize: 8 * 1024 * 1024,
+				}
+				p.users["foo"].cache = p.caches["max_payload_size"]
 				return makeCustomRequest(p, req)
 			},
 		},
