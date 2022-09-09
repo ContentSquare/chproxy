@@ -2,8 +2,8 @@ name: goreleaser
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - "chore/darwin-builds"
 
 permissions:
   contents: write
@@ -27,7 +27,7 @@ jobs:
       - name: Install cross-compile package
         run: |
           sudo apt update
-          sudo apt install -y gcc gcc-aarch64-linux-gnu musl build-essential
+          sudo apt install -y gcc gcc-aarch64-linux-gnu musl
 
       -
         name: Docker login
@@ -43,7 +43,7 @@ jobs:
         with:
           distribution: goreleaser
           version: latest
-          args: release --debug
+          args: release --skip-publish --debug
         env:
           BUILD_TAG: "latest"
           GOPATH: ${{ env.GOPATH }}
