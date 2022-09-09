@@ -1,4 +1,9 @@
 ---
+before:
+  hooks:
+    - go mod tidy
+    - go mod download
+
 builds:
   - id: linux-amd64
     binary: chproxy
@@ -39,18 +44,56 @@ builds:
     gcflags:
       - -trimpath={{.Env.GOPATH}}/src
 
+  - id: darwin-amd64
+    binary: darwin-amd64
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+    goarch:
+      - amd64
+    flags:
+      - "-tags={{ .Env.BUILD_TAG }}"
+    ldflags:
+      - -s
+      - -w
+      - -X main.buildTime={{ .Date }}
+      - -X main.buildRevision={{ .FullCommit }}
+      - -X main.buildTag={{ .Version }}
+    gcflags:
+      - -trimpath={{.Env.GOPATH}}/src
+
+#  - id: darwin-arm64
+#    binary: darwin-arm64
+#    env:
+#      - CGO_ENABLED=0
+#    goos:
+#      - darwin
+#    goarch:
+#      - arm64
+#    flags:
+#      - "-tags={{ .Env.BUILD_TAG }}"
+#    ldflags:
+#      - -s
+#      - -w
+#      - -X main.buildTime={{ .Date }}
+#      - -X main.buildRevision={{ .FullCommit }}
+#      - -X main.buildTag={{ .Version }}
+#    gcflags:
+#      - -trimpath={{.Env.GOPATH}}/src
+
 dockers:
   - goos: linux
     goarch: amd64
     image_templates:
-      - "contentsquareplatform/chproxy:{{ .Version }}"
-      - "contentsquareplatform/chproxy:{{ .Version }}-amd64"
+      - "contentsquareplatform/chproxy:{{ .Version }}-test"
+      - "contentsquareplatform/chproxy:{{ .Version }}-amd64-test"
     build_flag_templates:
       - "--build-arg=BINARY=chproxy"
   - goos: linux
     goarch: arm64
     image_templates:
-      - "contentsquareplatform/chproxy:{{ .Version }}-arm64"
+      - "contentsquareplatform/chproxy:{{ .Version }}-arm64-test"
     build_flag_templates:
       - "--build-arg=BINARY=chproxy-arm64"
       - "--platform=linux/arm64"
