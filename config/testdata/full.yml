@@ -26,6 +26,8 @@ caches:
       # Path to directory where cached responses will be stored.
       dir: "/path/to/longterm/cachedir"
 
+    max_payload_size: 100Gb
+
     # Expiration time for cached responses.
     expire: 1h
 
@@ -44,6 +46,7 @@ caches:
     file_system:
       max_size: 100Mb
       dir: "/path/to/shortterm/cachedir"
+    max_payload_size: 100Mb
     expire: 10s
 
 # Optional network lists, might be used as values for `allowed_networks`.

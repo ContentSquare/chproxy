@@ -118,6 +118,85 @@ func TestServe(t *testing.T) {
 			startTLS,
 		},
 		{
+			"https cache max payload size",
+			"testdata/https.cache.max-payload-size.yml",
+			func(t *testing.T) {
+				q := "SELECT MaxPayloadSize"
+				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query="+url.QueryEscape(q), nil)
+				checkErr(t, err)
+				req.SetBasicAuth("default", "qwerty")
+				req.Close = true
+
+				resp, err := tlsClient.Do(req)
+				checkErr(t, err)
+				if resp.StatusCode != http.StatusOK {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
+				}
+
+				checkResponse(t, resp.Body, expectedOkResp)
+
+				key := &cache.Key{
+					Query:          []byte(q),
+					AcceptEncoding: "gzip",
+					Version:        cache.Version,
+				}
+
+				cc := proxy.caches["https_cache_max_payload_size"]
+				cachedData, err := cc.Get(key)
+
+				if cachedData != nil || err == nil {
+					t.Fatal("response bigger than maxPayloadSize should not be cached")
+				}
+
+				resp.Body.Close()
+			},
+			startTLS,
+		},
+		{
+			"https cache max payload size not reached",
+			"testdata/https.cache.max-payload-size-not-reached.yml",
+			func(t *testing.T) {
+				q := "SELECT MaxPayloadSize"
+				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query="+url.QueryEscape(q), nil)
+				checkErr(t, err)
+				req.SetBasicAuth("default", "qwerty")
+				req.Close = true
+
+				resp, err := tlsClient.Do(req)
+				checkErr(t, err)
+				if resp.StatusCode != http.StatusOK {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
+				}
+
+				checkResponse(t, resp.Body, expectedOkResp)
+
+				key := &cache.Key{
+					Query:          []byte(q),
+					AcceptEncoding: "gzip",
+					Version:        cache.Version,
+				}
+
+				rw := httptest.NewRecorder()
+
+				cc := proxy.caches["https_cache_max_payload_size"]
+				cachedData, err := cc.Get(key)
+
+				if err != nil {
+					t.Fatalf("unexpected error while getting response from cache: %s", err)
+				}
+
+				err = RespondWithData(rw, cachedData.Data, cachedData.ContentMetadata, cachedData.Ttl, 200)
+				if err != nil {
+					t.Fatalf("unexpected error while getting response from cache: %s", err)
+				}
+				checkResponse(t, rw.Body, expectedOkResp)
+
+				cachedData.Data.Close()
+				resp.Body.Close()
+			},
+			startTLS,
+		},
+		{
 			"https cache with mix query source",
 			"testdata/https.cache.yml",
 			func(t *testing.T) {
@@ -794,6 +873,14 @@ func fakeCHHandler(w http.ResponseWriter, r *http.Request) {
 	case q == "SELECT 1 FORMAT TabSeparatedWithNamesAndTypes":
 		w.WriteHeader(http.StatusOK)
 		w.Write(bytesWithInvalidUTFPairs)
+	case q == "SELECT MaxPayloadSize":
+		w.WriteHeader(http.StatusOK)
+
+		// generate 10M payload size
+		b := make([]byte, 10485760)
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		fmt.Fprint(w, b)
+		fmt.Fprint(w, "Ok.\n")
 	default:
 		if strings.Contains(string(query), killQueryPattern) {
 			fakeCHState.kill()

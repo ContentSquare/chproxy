@@ -79,6 +79,10 @@ expire: <duration>
 # By default `grace_time` is 5s. Negative value disables the protection
 # from `thundering herd` problem.
 grace_time: <duration>
+
+# Maximum total size of request payload for caching. The default value 
+# is set to 1 Petabyte.
+max_payload_size: <byte_size>
 ```
 
 ### <distributed_cache_config>
@@ -113,6 +117,11 @@ expire: <duration>
 # By default `grace_time` is 5s. Negative value disables the protection
 # from `thundering herd` problem.
 grace_time: <duration>
+
+# Maximum total size of request payload for caching. The default value
+# is set to 1 Petabyte.
+# The default value set so high is to allow users who do not use response size limitations virtually unlimited cache.
+max_payload_size: <byte_size>
 ```
 
 ### <param_groups_config>

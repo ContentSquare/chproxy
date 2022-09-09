@@ -351,9 +351,22 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		if err != nil {
 			err = fmt.Errorf("%s: %w; query: %q", s, err, q)
 			respondWith(srw, err, http.StatusInternalServerError)
-			return
 		}
 	} else {
+		// Do not cache responses greater than max payload size.
+		if contentLength > int64(s.user.cache.MaxPayloadSize) {
+			cacheSkipped.With(labels).Inc()
+			log.Infof("%s: Request will not be cached. Content length (%d) is greater than max payload size (%d)", s, contentLength, s.user.cache.MaxPayloadSize)
+
+			rp.completeTransaction(s, statusCode, userCache, key, q)
+
+			err = RespondWithData(srw, reader, contentMetadata, 0*time.Second, tmpFileRespWriter.StatusCode())
+			if err != nil {
+				err = fmt.Errorf("%s: %w; query: %q", s, err, q)
+				respondWith(srw, err, http.StatusInternalServerError)
+			}
+			return
+		}
 		cacheMiss.With(labels).Inc()
 		log.Debugf("%s: cache miss", s)
 		expiration, err := userCache.Put(reader, contentMetadata, key)
