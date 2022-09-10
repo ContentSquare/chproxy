@@ -63,6 +63,10 @@ var fullConfig = Config{
 		Metrics: Metrics{
 			NetworksOrGroups: []string{"office"},
 		},
+		Proxy: Proxy{
+			Enable: true,
+			Header: "CF-Connecting-IP",
+		},
 	},
 	LogDebug: true,
 
@@ -455,6 +459,11 @@ func TestBadConfig(t *testing.T) {
 			"testdata/bad.wildcarded_users.no.wildcard.yml",
 			"user name \"analyst_named\" marked 'is_wildcared' does not match 'prefix_*'",
 		},
+		{
+			"proxy header without enabling proxy settings",
+			"testdata/bad.proxy_settings.yml",
+			"`proxy_header` cannot be set without enabling proxy settings",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -723,6 +732,9 @@ func TestConfigString(t *testing.T) {
   metrics:
     allowed_networks:
     - office
+  proxy:
+    enable: true
+    header: CF-Connecting-IP
 clusters:
 - name: first cluster
   scheme: http

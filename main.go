@@ -16,6 +16,7 @@ import (
 
 	"github.com/contentsquare/chproxy/config"
 	"github.com/contentsquare/chproxy/log"
+	"github.com/contentsquare/chproxy/middleware"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/crypto/acme/autocert"
 )
@@ -81,10 +82,10 @@ func main() {
 		autocertManager = newAutocertManager(server.HTTPS.Autocert)
 	}
 	if len(server.HTTPS.ListenAddr) != 0 {
-		go serveTLS(server.HTTPS)
+		go serveTLS(server.HTTPS, server.Proxy)
 	}
 	if len(server.HTTP.ListenAddr) != 0 {
-		go serve(server.HTTP)
+		go serve(server.HTTP, server.Proxy)
 	}
 
 	select {}
@@ -131,9 +132,11 @@ func newListener(listenAddr string) net.Listener {
 	return ln
 }
 
-func serveTLS(cfg config.HTTPS) {
+func serveTLS(cfg config.HTTPS, proxyCfg config.Proxy) {
 	ln := newListener(cfg.ListenAddr)
-	h := http.HandlerFunc(serveHTTP)
+
+	h := middleware.NewProxyMiddleware(proxyCfg, http.HandlerFunc(serveHTTP))
+
 	tlsCfg := newTLSConfig(cfg)
 	tln := tls.NewListener(ln, tlsCfg)
 	log.Infof("Serving https on %q", cfg.ListenAddr)
@@ -142,10 +145,11 @@ func serveTLS(cfg config.HTTPS) {
 	}
 }
 
-func serve(cfg config.HTTP) {
+func serve(cfg config.HTTP, proxyCfg config.Proxy) {
 	var h http.Handler
 	ln := newListener(cfg.ListenAddr)
-	h = http.HandlerFunc(serveHTTP)
+
+	h = middleware.NewProxyMiddleware(proxyCfg, http.HandlerFunc(serveHTTP))
 	if cfg.ForceAutocertHandler {
 		if autocertManager == nil {
 			panic("BUG: autocertManager is not inited")

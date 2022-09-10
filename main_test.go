@@ -23,6 +23,7 @@ import (
 	"github.com/contentsquare/chproxy/cache"
 	"github.com/contentsquare/chproxy/config"
 	"github.com/contentsquare/chproxy/log"
+	"github.com/contentsquare/chproxy/middleware"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -711,6 +712,29 @@ func TestServe(t *testing.T) {
 			},
 			startHTTP,
 		},
+		{
+			"http request with default proxy headers",
+			"testdata/https.proxy-enabled.yml",
+			func(t *testing.T) {
+				query := "SELECT 1"
+				req, err := http.NewRequest("GET", "https://127.0.0.1:8443?query="+url.QueryEscape(query), nil)
+				checkErr(t, err)
+				req.Close = true
+				req.SetBasicAuth("default", "qwerty")
+				req.Header.Add("X-Forwarded-For", "10.0.0.1")
+
+				resp, err := tlsClient.Do(req)
+				checkErr(t, err)
+				defer resp.Body.Close()
+				
+				if resp.StatusCode != http.StatusOK {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
+				}
+
+				checkResponse(t, resp.Body, expectedOkResp)
+			},
+			startTLS,
+		},
 	}
 
 	// Wait until CHServer starts.
@@ -793,7 +817,7 @@ func startTLS() (net.Listener, chan struct{}) {
 	}
 	tlsCfg := newTLSConfig(cfg.Server.HTTPS)
 	tln := tls.NewListener(ln, tlsCfg)
-	h := http.HandlerFunc(serveHTTP)
+	h := middleware.NewProxyMiddleware(cfg.Server.Proxy, http.HandlerFunc(serveHTTP))
 	go func() {
 		listenAndServe(tln, h, config.TimeoutCfg{})
 		close(done)
@@ -814,7 +838,7 @@ func startHTTP() (net.Listener, chan struct{}) {
 	if err != nil {
 		panic(fmt.Sprintf("cannot listen for %q: %s", cfg.Server.HTTP.ListenAddr, err))
 	}
-	h := http.HandlerFunc(serveHTTP)
+	h := middleware.NewProxyMiddleware(cfg.Server.Proxy, http.HandlerFunc(serveHTTP))
 	go func() {
 		listenAndServe(ln, h, config.TimeoutCfg{})
 		close(done)
