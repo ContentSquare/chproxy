@@ -726,7 +726,7 @@ func TestServe(t *testing.T) {
 				resp, err := tlsClient.Do(req)
 				checkErr(t, err)
 				defer resp.Body.Close()
-				
+
 				if resp.StatusCode != http.StatusOK {
 					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
 				}

@@ -9,7 +9,7 @@ import (
 
 type testHandler struct {
 	timesCalled int
-	remoteAddr string
+	remoteAddr  string
 }
 
 func (t *testHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -19,13 +19,13 @@ func (t *testHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func TestProxyMiddleware(t *testing.T) {
 	tests := []struct {
-		name   string
-		proxy config.Proxy
-		r *http.Request
+		name         string
+		proxy        config.Proxy
+		r            *http.Request
 		expectedAddr string
 	}{
 		{
-			name: "no proxy should forward default remote addr",
+			name:  "no proxy should forward default remote addr",
 			proxy: config.Proxy{},
 			r: &http.Request{
 				RemoteAddr: "127.0.0.1:1234",
@@ -81,7 +81,7 @@ func TestProxyMiddleware(t *testing.T) {
 				RemoteAddr: "127.0.0.1:1234",
 				Header: http.Header{
 					"X-My-Proxy-Header": []string{"10.1.0.1"},
-					"X-Forwarded-For": []string{"10.0.0.1, 10.3.2.1"},
+					"X-Forwarded-For":   []string{"10.0.0.1, 10.3.2.1"},
 				},
 			},
 			expectedAddr: "10.1.0.1",
@@ -89,13 +89,12 @@ func TestProxyMiddleware(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			handler := &testHandler{}
 
 			middleware := NewProxyMiddleware(tt.proxy, handler)
 
 			middleware.ServeHTTP(nil, tt.r)
-			
+
 			if handler.remoteAddr != tt.expectedAddr {
 				t.Errorf("Expected %s, got %s", tt.expectedAddr, handler.remoteAddr)
 			}

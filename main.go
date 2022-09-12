@@ -95,7 +95,7 @@ var autocertManager *autocert.Manager
 
 func newAutocertManager(cfg config.Autocert) *autocert.Manager {
 	if len(cfg.CacheDir) > 0 {
-		if err := os.MkdirAll(cfg.CacheDir, 0700); err != nil {
+		if err := os.MkdirAll(cfg.CacheDir, 0o700); err != nil {
 			log.Fatalf("error while creating folder %q: %s", cfg.CacheDir, err)
 		}
 	}
@@ -204,7 +204,6 @@ func createServer(ln net.Listener, h http.Handler, cfg config.TimeoutCfg) *http.
 		// must handle all these errors in the code.
 		ErrorLog: log.NilLogger,
 	}
-
 }
 
 func listenAndServe(ln net.Listener, h http.Handler, cfg config.TimeoutCfg) error {
