@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"regexp"
 	"strconv"
@@ -116,7 +115,7 @@ func (r *redisCache) Get(key *Key) (*CachedData, error) {
 	b := []byte(val)
 	metadata, offset, err := r.decodeMetadata(b)
 	if err != nil {
-		if (errors.Is(err, &RedisCacheCorruptionError{})) {
+		if errors.Is(err, &RedisCacheCorruptionError{}) {
 			log.Errorf("an error happened while handling redis key =%s, err=%s", stringKey, err)
 		}
 		return nil, err
@@ -138,10 +137,10 @@ func (r *redisCache) Get(key *Key) (*CachedData, error) {
 	// We will create an io.reader that will fetch redis bulk by bulk to reduce the memory usage.
 	redisStreamreader := newRedisStreamReader(uint64(offset), r.client, stringKey, metadata.Length)
 
-	// But before that, since the usage of the reader could take time and the object in redis could disappear btw 2 fetchs
+	// But before that, since the usage of the reader could take time and the object in redis could disappear btw 2 fetches
 	// we need to make sure the TTL will be long enough to avoid nasty side effects
 	// if the TTL is too short we will put all the data into a file and use it as a streamer
-	// nb: it would be better to retry the flow if such a failure happened but this require a huge refactoring of proxy.go
+	// nb: it would be better to retry the flow if such a failure happened but this requires a huge refactoring of proxy.go
 
 	if ttl <= minTTLForRedisStreamingReader {
 		fileStream, err := newFileWriterReader(tmpDir)
@@ -152,7 +151,7 @@ func (r *redisCache) Get(key *Key) (*CachedData, error) {
 		if err != nil {
 			return nil, err
 		}
-		err = fileStream.reseOffset()
+		err = fileStream.resetOffset()
 		if err != nil {
 			return nil, err
 		}
@@ -174,7 +173,7 @@ func (r *redisCache) Get(key *Key) (*CachedData, error) {
 }
 
 // this struct is here because CachedData requires an io.ReadCloser
-// but logic in the the Get function generates only an io.Reader
+// but logic in the Get function generates only an io.Reader
 type ioReaderDecorator struct {
 	io.Reader
 }
@@ -356,7 +355,7 @@ type fileWriterReader struct {
 }
 
 func newFileWriterReader(dir string) (*fileWriterReader, error) {
-	f, err := ioutil.TempFile(dir, redisTmpFilePrefix)
+	f, err := os.CreateTemp(dir, redisTmpFilePrefix)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create temporary file in %q: %w", dir, err)
 	}
@@ -365,24 +364,24 @@ func newFileWriterReader(dir string) (*fileWriterReader, error) {
 	}, nil
 }
 
-func (f *fileWriterReader) Close() error {
-	err := f.f.Close()
+func (r *fileWriterReader) Close() error {
+	err := r.f.Close()
 	if err != nil {
 		return err
 	}
-	return os.Remove(f.f.Name())
+	return os.Remove(r.f.Name())
 }
 
 func (r *fileWriterReader) Read(destBuf []byte) (n int, err error) {
 	return r.f.Read(destBuf)
 }
 
-func (w *fileWriterReader) Write(p []byte) (n int, err error) {
-	return w.f.Write(p)
+func (r *fileWriterReader) Write(p []byte) (n int, err error) {
+	return r.f.Write(p)
 }
 
-func (f *fileWriterReader) reseOffset() error {
-	if _, err := f.f.Seek(0, io.SeekStart); err != nil {
+func (r *fileWriterReader) resetOffset() error {
+	if _, err := r.f.Seek(0, io.SeekStart); err != nil {
 		return fmt.Errorf("cannot reset offset in: %w", err)
 	}
 	return nil
