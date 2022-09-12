@@ -50,7 +50,7 @@ func TestServe(t *testing.T) {
 		name     string
 		file     string
 		testFn   func(t *testing.T)
-		listenFn func() (net.Listener, chan struct{})
+		listenFn func() (*http.Server, chan struct{})
 	}{
 		{
 			"https request",
@@ -758,10 +758,10 @@ func TestServe(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			*configFile = tc.file
-			ln, done := tc.listenFn()
+			s, done := tc.listenFn()
 			defer func() {
-				if err := ln.Close(); err != nil {
-					t.Fatalf("unexpected error while closing listener: %s", err)
+				if err := s.Shutdown(context.Background()); err != nil {
+					t.Fatalf("unexpected error while closing server: %s", err)
 				}
 				<-done
 			}()
@@ -802,7 +802,7 @@ var tlsClient = &http.Client{Transport: &http.Transport{
 	TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 }}
 
-func startTLS() (net.Listener, chan struct{}) {
+func startTLS() (*http.Server, chan struct{}) {
 	cfg, err := loadConfig()
 	if err != nil {
 		panic(fmt.Sprintf("error while loading config: %s", err))
@@ -818,14 +818,15 @@ func startTLS() (net.Listener, chan struct{}) {
 	tlsCfg := newTLSConfig(cfg.Server.HTTPS)
 	tln := tls.NewListener(ln, tlsCfg)
 	h := middleware.NewProxyMiddleware(cfg.Server.Proxy, http.HandlerFunc(serveHTTP))
+	s := createServer(tln, h, config.TimeoutCfg{})
 	go func() {
-		listenAndServe(tln, h, config.TimeoutCfg{})
+		s.Serve(tln)
 		close(done)
 	}()
-	return tln, done
+	return s, done
 }
 
-func startHTTP() (net.Listener, chan struct{}) {
+func startHTTP() (*http.Server, chan struct{}) {
 	cfg, err := loadConfig()
 	if err != nil {
 		panic(fmt.Sprintf("error while loading config: %s", err))
@@ -839,11 +840,12 @@ func startHTTP() (net.Listener, chan struct{}) {
 		panic(fmt.Sprintf("cannot listen for %q: %s", cfg.Server.HTTP.ListenAddr, err))
 	}
 	h := middleware.NewProxyMiddleware(cfg.Server.Proxy, http.HandlerFunc(serveHTTP))
+	s := createServer(ln, h, config.TimeoutCfg{})
 	go func() {
-		listenAndServe(ln, h, config.TimeoutCfg{})
+		s.Serve(ln)
 		close(done)
 	}()
-	return ln, done
+	return s, done
 }
 
 // TODO randomise port for each instance of the mock
