@@ -371,10 +371,6 @@ func (c *Cluster) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("`cluster.heartbeat` cannot be unset for %q", c.Name)
 	}
 
-	if c.HeartBeat.UserNeeded && strings.HasSuffix(c.ClusterUsers[0].Name, "_*") && len(c.HeartBeat.User) == 0 {
-		return fmt.Errorf("`cluster.heartbeat.user ` cannot be unset for %q because a wildcarded user cannot send heartbeat", c.Name)
-	}
-
 	return checkOverflow(c.XXX, fmt.Sprintf("cluster %q", c.Name))
 }
 
@@ -534,6 +530,9 @@ type User struct {
 	// Name of ParamGroup to use
 	Params string `yaml:"params,omitempty"`
 
+	// prefix_*
+	IsWildcarded bool `yaml:"is_wildcarded,omitempty"`
+
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
 }
@@ -563,6 +562,12 @@ func (u *User) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	if u.MaxQueueTime > 0 && u.MaxQueueSize == 0 {
 		return fmt.Errorf("`max_queue_size` must be set if `max_queue_time` is set for %q", u.Name)
+	}
+
+	if u.IsWildcarded {
+		if s := strings.Split(u.Name, "_"); len(s) != 2 || s[1] != "*" {
+			return fmt.Errorf("user name %q marked 'is_wildcared' does not match 'prefix_*'", u.Name)
+		}
 	}
 
 	return checkOverflow(u.XXX, fmt.Sprintf("user %q", u.Name))
@@ -762,6 +767,9 @@ type ClusterUser struct {
 	// Each list item could be IP address or subnet mask
 	// if omitted or zero - no limits would be applied
 	AllowedNetworks Networks `yaml:"-"`
+
+	// A wildcarded user is mapped to this cluster user
+	// IsWildcarded bool
 
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`

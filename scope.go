@@ -474,9 +474,10 @@ type user struct {
 
 	allowedNetworks config.Networks
 
-	denyHTTP  bool
-	denyHTTPS bool
-	allowCORS bool
+	denyHTTP     bool
+	denyHTTPS    bool
+	allowCORS    bool
+	isWildcarded bool
 
 	cache  *cache.AsyncCache
 	params *paramsRegistry
@@ -509,8 +510,13 @@ func (up usersProfile) newUser(u config.User) (*user, error) {
 	if !ok {
 		return nil, fmt.Errorf("unknown `to_cluster` %q", u.ToCluster)
 	}
-	if _, ok := c.users[u.ToUser]; !ok {
+	var cu *clusterUser
+	if cu, ok = c.users[u.ToUser]; !ok {
 		return nil, fmt.Errorf("unknown `to_user` %q in cluster %q", u.ToUser, u.ToCluster)
+	} else if u.IsWildcarded {
+		// a wildcarded user is mapped to this cluster user
+		// used to check if a proper user to send heartbeat exists
+		cu.isWildcarded = true
 	}
 
 	var queueCh chan struct{}
@@ -548,6 +554,7 @@ func (up usersProfile) newUser(u config.User) (*user, error) {
 		denyHTTP:             u.DenyHTTP,
 		denyHTTPS:            u.DenyHTTPS,
 		allowCORS:            u.AllowCORS,
+		isWildcarded:         u.IsWildcarded,
 		cache:                cc,
 		params:               params,
 	}, nil
@@ -569,6 +576,7 @@ type clusterUser struct {
 	maxQueueTime time.Duration
 
 	allowedNetworks config.Networks
+	isWildcarded    bool
 }
 
 func newClusterUser(cu config.ClusterUser) *clusterUser {

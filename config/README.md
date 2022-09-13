@@ -4,7 +4,7 @@
  - `<addr>`: string value consisting of a hostname or IP followed by an optional port number
  - `<scheme>`: a string that can take the values `http` or `https`
  - `<duration>`: a duration matching the regular expression `^([0-9]+)(w|d|h|m|s|ms|µs|ns)`
- - `<networks>`: string value consisting of IP, IP mask or named group, for example `"127.0.0.1"` or `"127.0.0.1/24"`. 
+ - `<networks>`: string value consisting of IP, IP mask or named group, for example `"127.0.0.1"` or `"127.0.0.1/24"`.
  - `<host_name>`: string value consisting of host name, for example `"example.com"`
  - `<byte_size>`: string value matching the regular expression `/^\d+(\.\d+)?[KMGTP]?B?$/i`, for example `"100MB"`
 
@@ -68,8 +68,8 @@ file_system:
 # Expiration time for cached responses.
 expire: <duration>
 
-# DEPRECATED: default value equal to `max_execution_time` should be used. 
-#             New configuration parameter will be provided to disable the protection at will. 
+# DEPRECATED: default value equal to `max_execution_time` should be used.
+#             New configuration parameter will be provided to disable the protection at will.
 # When multiple requests with identical query simultaneously hit `chproxy`
 # and there is no cached response for the query, then only a single
 # request will be proxied to clickhouse. Other requests will wait
@@ -80,7 +80,7 @@ expire: <duration>
 # from `thundering herd` problem.
 grace_time: <duration>
 
-# Maximum total size of request payload for caching. The default value 
+# Maximum total size of request payload for caching. The default value
 # is set to 1 Petabyte.
 max_payload_size: <byte_size>
 ```
@@ -96,7 +96,7 @@ mode: "redis"
 
 # Applicable for cache mode: redis
 redis:
-  # list of addresses to redis nodes 
+  # list of addresses to redis nodes
   # you should use multiple addresses only if they all belong to the same redis cluster.
   addresses:
     - <string> # example "localhost:6379"
@@ -106,8 +106,8 @@ redis:
 # Expiration time for cached responses.
 expire: <duration>
 
-# DEPRECATED: default value equal to `max_execution_time` should be used. 
-#             New configuration parameter will be provided to disable the protection at will. 
+# DEPRECATED: default value equal to `max_execution_time` should be used.
+#             New configuration parameter will be provided to disable the protection at will.
 # When multiple requests with identical query simultaneously hit `chproxy`
 # and there is no cached response for the query, then only a single
 # request will be proxied to clickhouse. Other requests will wait
@@ -272,6 +272,12 @@ cache: <string> | optional
 # Optional group of params name to send to ClickHouse with each proxied request from <param_groups_config>
 # By default no additional params are sent to ClickHouse.
 params: <string> | optional
+
+# The user is wildcarded
+# Name matches prefix_*
+# Name and password to ClickHouse are obtained
+# from original request, not from cluster user
+is_wildcarded: <bool> | optional | default = false
 ```
 
 ### <cluster_config>
@@ -322,7 +328,7 @@ nodes: <addr> ...
 name: <string>
 
 # User password in ClickHouse `users.xml` config
-password: <string> | optional 
+password: <string> | optional
 
 # Maximum number of concurrently running queries for user
 # By default there is no limit on the number of concurrently
@@ -368,4 +374,10 @@ request: <string> | optional | default = `/?query=SELECT%201`
 
 # Reference response from clickhouse on health check request
 response: <string> | optional | default = `1\n`
+
+# Credentials to send heartbeat requests
+# for anything except '/ping'.
+# If not specified, the first cluster user' creadentials are used
+user: <string> | optional
+password: <string> | optional
 ```

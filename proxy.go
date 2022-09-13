@@ -468,7 +468,7 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 		if user.MaxExecutionTime > transactionsTimeout {
 			transactionsTimeout = user.MaxExecutionTime
 		}
-		if s := strings.Split(user.Name, "_"); len(s) == 2 && s[1] == "*" {
+		if user.IsWildcarded {
 			cfg.HasWildcarded = true
 		}
 	}
@@ -505,6 +505,21 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 	users, err := profile.newUsers()
 	if err != nil {
 		return err
+	}
+
+	for c := range cfg.Clusters {
+		cfgcl := cfg.Clusters[c]
+		clname := cfgcl.Name
+		cuname := cfgcl.ClusterUsers[0].Name
+		heartbeat := cfg.Clusters[c].HeartBeat
+		cl := clusters[clname]
+		cu := cl.users[cuname]
+
+		if cu.isWildcarded {
+			if heartbeat.UserNeeded && len(heartbeat.User) == 0 {
+				return fmt.Errorf("`cluster.heartbeat.user ` cannot be unset for %q because a wildcarded user cannot send heartbeat", clname)
+			}
+		}
 	}
 
 	// New configs have been successfully prepared.
@@ -581,6 +596,8 @@ func (rp *reverseProxy) refreshCacheMetrics() {
 	}
 }
 
+// find user, cluster and clusterUser
+// in case of wildcarded user, cluster user is crafted to use original credentials
 func (rp *reverseProxy) getUser(name string, password string) (found bool, u *user, c *cluster, cu *clusterUser) {
 	rp.lock.RLock()
 	defer rp.lock.RUnlock()
@@ -594,7 +611,7 @@ func (rp *reverseProxy) getUser(name string, password string) (found bool, u *us
 	} else if rp.hasWildcarded {
 		if s := strings.Split(name, "_"); len(s) == 2 {
 			u = rp.users[s[0]+"_*"]
-			if u != nil {
+			if u != nil && u.isWildcarded {
 				c = rp.clusters[u.toCluster]
 				wildcardedCu := c.users[u.toUser]
 				if wildcardedCu != nil {

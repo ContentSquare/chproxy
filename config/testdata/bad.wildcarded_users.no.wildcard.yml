@@ -8,7 +8,8 @@ users:
   # wildcarded user
   # matches with any name with prefix 'analyst_'
   # e.g. 'analyst_joe' or 'analyst_jane'
-  - name: "analyst_*"
+  - name: "analyst_named"
+    is_wildcarded: true
     to_cluster: "default"
     to_user: "analyst_*"
   # normal user

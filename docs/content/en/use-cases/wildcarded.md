@@ -17,6 +17,7 @@ users:
   - name: "analyst_*"
     to_cluster: "default"
     to_user: "analyst_*"
+    is_wildcarded: true
   - name: "dba"
     password: "dba_ingress_pass"
     to_cluster: "default"

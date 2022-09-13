@@ -452,9 +452,9 @@ func TestBadConfig(t *testing.T) {
 			"cannot parse byte size \"-10B\": it must be positive float followed by optional units. For example, 1.5Gb, 3T",
 		},
 		{
-			"no heartbeat user, first cluster user is wildcarded, request is not /ping",
-			"testdata/bad.wildcarded_users.no.config.yml",
-			"`cluster.heartbeat.user ` cannot be unset for \"default\" because a wildcarded user cannot send heartbeat",
+			"user is marked as is_wildcarded, but it's name is not consist of a prefix, underscore and asterisk",
+			"testdata/bad.wildcarded_users.no.wildcard.yml",
+			"user name \"analyst_named\" marked 'is_wildcared' does not match 'prefix_*'",
 		},
 	}
 

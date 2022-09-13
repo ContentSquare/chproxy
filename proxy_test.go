@@ -121,6 +121,33 @@ var badCfg = &config.Config{
 	},
 }
 
+var badCfgWithNoHeartBeatUser = &config.Config{
+	Clusters: []config.Cluster{
+		{
+			Name:   "badCfgWithNoHeartBeatUser",
+			Scheme: "http",
+			Nodes:  []string{"localhost:8123"},
+			ClusterUsers: []config.ClusterUser{
+				{
+					Name: "default",
+				},
+			},
+			HeartBeat: config.HeartBeat{
+				Request:    "/not_ping",
+				UserNeeded: true,
+			},
+		},
+	},
+	Users: []config.User{
+		{
+			Name:         "analyst_*",
+			IsWildcarded: true,
+			ToCluster:    "badCfgWithNoHeartBeatUser",
+			ToUser:       "default",
+		},
+	},
+}
+
 func TestApplyConfig(t *testing.T) {
 	proxy, err := newConfiguredProxy(goodCfg)
 	if err != nil {
@@ -130,6 +157,14 @@ func TestApplyConfig(t *testing.T) {
 		t.Fatalf("error expected; got nil")
 	}
 	if _, ok := proxy.clusters["badCfg"]; ok {
+		t.Fatalf("bad config applied; expected previous config")
+	}
+	if err := proxy.applyConfig(badCfgWithNoHeartBeatUser); err == nil {
+		t.Fatalf("error expected; got nil")
+	} else if err.Error() != "`cluster.heartbeat.user ` cannot be unset for \"badCfgWithNoHeartBeatUser\" because a wildcarded user cannot send heartbeat" {
+		t.Fatalf("unexpected error %s", err.Error())
+	}
+	if _, ok := proxy.clusters["badCfgWithNoHeartBeatUser"]; ok {
 		t.Fatalf("bad config applied; expected previous config")
 	}
 }
@@ -177,9 +212,10 @@ var wildcardedCfg = &config.Config{
 	},
 	Users: []config.User{
 		{
-			Name:      "analyst_*",
-			ToCluster: "cluster",
-			ToUser:    "analyst_*",
+			Name:         "analyst_*",
+			ToCluster:    "cluster",
+			ToUser:       "analyst_*",
+			IsWildcarded: true,
 		},
 	},
 }
