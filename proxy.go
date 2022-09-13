@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -280,12 +282,12 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		return
 	}
 	// Await for potential result from concurrent query
-	transactionState, err := userCache.AwaitForConcurrentTransaction(key)
+	transactionStatus, err := userCache.AwaitForConcurrentTransaction(key)
 	if err != nil {
 		// log and continue processing
 		log.Errorf("failed to await for concurrent transaction due to: %v", err)
 	} else {
-		if transactionState.IsCompleted() {
+		if transactionStatus.State.IsCompleted() {
 			cachedData, err := userCache.Get(key)
 			if err == nil {
 				defer cachedData.Data.Close()
@@ -297,9 +299,8 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 				cacheMissFromConcurrentQueries.With(labels).Inc()
 				log.Debugf("%s: cache miss after awaiting concurrent query", s)
 			}
-		} else if transactionState.IsFailed() {
-			err = fmt.Errorf("%s: concurrent query failed", s)
-			respondWith(srw, err, http.StatusInternalServerError)
+		} else if transactionStatus.State.IsFailed() {
+			respondWith(srw, fmt.Errorf(transactionStatus.FailReason), http.StatusInternalServerError)
 			return
 		}
 	}
@@ -346,7 +347,23 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		if srw.statusCode != 0 {
 			tmpFileRespWriter.WriteHeader(srw.statusCode)
 		}
-		rp.completeTransaction(s, statusCode, userCache, key, q)
+
+		errString, err := toString(reader)
+		if err != nil {
+			log.Errorf("%s failed to get error reason: %s", s, err.Error())
+		}
+
+		rp.completeTransaction(s, statusCode, userCache, key, q, errString)
+
+		// we need to reset the offset since the reader of tmpFileRespWriter was already
+		// consumed in RespondWithData(...)
+		err = tmpFileRespWriter.ResetFileOffset()
+		if err != nil {
+			err = fmt.Errorf("%s: %w; query: %q", s, err, q)
+			respondWith(srw, err, http.StatusInternalServerError)
+			return
+		}
+
 		err = RespondWithData(srw, reader, contentMetadata, 0*time.Second, statusCode)
 		if err != nil {
 			err = fmt.Errorf("%s: %w; query: %q", s, err, q)
@@ -358,7 +375,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 			cacheSkipped.With(labels).Inc()
 			log.Infof("%s: Request will not be cached. Content length (%d) is greater than max payload size (%d)", s, contentLength, s.user.cache.MaxPayloadSize)
 
-			rp.completeTransaction(s, statusCode, userCache, key, q)
+			rp.completeTransaction(s, statusCode, userCache, key, q, "")
 
 			err = RespondWithData(srw, reader, contentMetadata, 0*time.Second, tmpFileRespWriter.StatusCode())
 			if err != nil {
@@ -373,7 +390,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		if err != nil {
 			log.Errorf("%s: %s; query: %q - failed to put response in the cache", s, err, q)
 		}
-		rp.completeTransaction(s, statusCode, userCache, key, q)
+		rp.completeTransaction(s, statusCode, userCache, key, q, "")
 
 		// we need to reset the offset since the reader of tmpFileRespWriter was already
 		// consumed in RespondWithData(...)
@@ -392,12 +409,25 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 	}
 }
 
+func toString(stream io.Reader) (string, error) {
+	buf := new(bytes.Buffer)
+
+	_, err := buf.ReadFrom(stream)
+	if err != nil {
+		return "", err
+	}
+
+	return bytes.NewBuffer(buf.Bytes()).String(), nil
+}
+
 // clickhouseRecoverableStatusCodes set of recoverable http responses' status codes from Clickhouse.
 // When such happens we mark transaction as completed and let concurrent query to hit another Clickhouse shard.
 // possible http error codes in clickhouse (i.e: https://github.com/ClickHouse/ClickHouse/blob/master/src/Server/HTTPHandler.cpp)
 var clickhouseRecoverableStatusCodes = map[int]struct{}{http.StatusServiceUnavailable: {}}
 
-func (rp *reverseProxy) completeTransaction(s *scope, statusCode int, userCache *cache.AsyncCache, key *cache.Key, q []byte) {
+func (rp *reverseProxy) completeTransaction(s *scope, statusCode int, userCache *cache.AsyncCache, key *cache.Key,
+	q []byte,
+	failReason string) {
 	if statusCode < 300 {
 		if err := userCache.Complete(key); err != nil {
 			log.Errorf("%s: %s; query: %q", s, err, q)
@@ -410,7 +440,7 @@ func (rp *reverseProxy) completeTransaction(s *scope, statusCode int, userCache 
 			log.Errorf("%s: %s; query: %q", s, err, q)
 		}
 	} else {
-		if err := userCache.Fail(key); err != nil {
+		if err := userCache.Fail(key, failReason); err != nil {
 			log.Errorf("%s: %s; query: %q", s, err, q)
 		}
 	}

@@ -680,7 +680,7 @@ func TestServe(t *testing.T) {
 				// scenario: 1st query fails before grace_time elapsed. 2nd query fails as well.
 
 				q := "SELECT ERROR"
-				executeTwoConcurrentRequests(t, q, http.StatusInternalServerError, http.StatusInternalServerError, "DB::Exception\n", "concurrent query failed")
+				executeTwoConcurrentRequests(t, q, http.StatusInternalServerError, http.StatusInternalServerError, "DB::Exception\n", "DB::Exception\n")
 			},
 			startHTTP,
 		},

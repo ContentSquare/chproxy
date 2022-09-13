@@ -15,13 +15,18 @@ type TransactionRegistry interface {
 	Complete(key *Key) error
 
 	// Fail fails a transaction for given key
-	Fail(key *Key) error
+	Fail(key *Key, reason string) error
 
 	// Status checks the status of the transaction
-	Status(key *Key) (TransactionState, error)
+	Status(key *Key) (TransactionStatus, error)
 }
 
-type TransactionState uint64
+type TransactionStatus struct {
+	State      TransactionState
+	FailReason string // filled in only if state of transaction is transactionFailed
+}
+
+type TransactionState uint8
 
 const (
 	transactionCreated   TransactionState = 0

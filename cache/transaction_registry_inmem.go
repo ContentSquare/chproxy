@@ -8,8 +8,9 @@ import (
 )
 
 type pendingEntry struct {
-	deadline time.Time
-	state    TransactionState
+	deadline     time.Time
+	state        TransactionState
+	failedReason string
 }
 
 type inMemoryTransactionRegistry struct {
@@ -55,39 +56,41 @@ func (i *inMemoryTransactionRegistry) Create(key *Key) error {
 }
 
 func (i *inMemoryTransactionRegistry) Complete(key *Key) error {
-	i.updateTransactionState(key, transactionCompleted)
+	i.updateTransactionState(key, transactionCompleted, "")
 	return nil
 }
 
-func (i *inMemoryTransactionRegistry) Fail(key *Key) error {
-	i.updateTransactionState(key, transactionFailed)
+func (i *inMemoryTransactionRegistry) Fail(key *Key, reason string) error {
+	i.updateTransactionState(key, transactionFailed, reason)
 	return nil
 }
 
-func (i *inMemoryTransactionRegistry) updateTransactionState(key *Key, state TransactionState) {
+func (i *inMemoryTransactionRegistry) updateTransactionState(key *Key, state TransactionState, failReason string) {
 	i.pendingEntriesLock.Lock()
 	defer i.pendingEntriesLock.Unlock()
 	k := key.String()
 	if entry, ok := i.pendingEntries[k]; ok {
 		entry.state = state
+		entry.failedReason = failReason
 		i.pendingEntries[k] = entry
 	} else {
 		log.Errorf("[attempt to complete transaction] entry not found for key: %s, registering new entry with %v status", key.String(), state)
 		i.pendingEntries[k] = pendingEntry{
-			deadline: time.Now().Add(i.deadline),
-			state:    state,
+			deadline:     time.Now().Add(i.deadline),
+			state:        state,
+			failedReason: failReason,
 		}
 	}
 }
 
-func (i *inMemoryTransactionRegistry) Status(key *Key) (TransactionState, error) {
+func (i *inMemoryTransactionRegistry) Status(key *Key) (TransactionStatus, error) {
 	i.pendingEntriesLock.Lock()
 	defer i.pendingEntriesLock.Unlock()
 	k := key.String()
 	if entry, ok := i.pendingEntries[k]; ok {
-		return entry.state, nil
+		return TransactionStatus{State: entry.state, FailReason: entry.failedReason}, nil
 	}
-	return transactionAbsent, nil
+	return TransactionStatus{State: transactionAbsent}, nil
 }
 
 func (i *inMemoryTransactionRegistry) Close() error {
