@@ -423,7 +423,7 @@ func toString(stream io.Reader) (string, error) {
 // clickhouseRecoverableStatusCodes set of recoverable http responses' status codes from Clickhouse.
 // When such happens we mark transaction as completed and let concurrent query to hit another Clickhouse shard.
 // possible http error codes in clickhouse (i.e: https://github.com/ClickHouse/ClickHouse/blob/master/src/Server/HTTPHandler.cpp)
-var clickhouseRecoverableStatusCodes = map[int]struct{}{http.StatusServiceUnavailable: {}}
+var clickhouseRecoverableStatusCodes = map[int]struct{}{http.StatusServiceUnavailable: {}, http.StatusRequestTimeout: {}}
 
 func (rp *reverseProxy) completeTransaction(s *scope, statusCode int, userCache *cache.AsyncCache, key *cache.Key,
 	q []byte,
