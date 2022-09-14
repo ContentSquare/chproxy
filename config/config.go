@@ -50,9 +50,6 @@ type Config struct {
 	// Whether to ignore security warnings
 	HackMePlease bool `yaml:"hack_me_please,omitempty"`
 
-	// Whether to enable metric prefix
-	EnableMetricPrefix bool `yaml:"enable_metric_prefix,omitempty"`
-
 	NetworkGroups []NetworkGroups `yaml:"network_groups,omitempty"`
 
 	Caches []Cache `yaml:"caches,omitempty"`
@@ -879,12 +876,10 @@ func (c Config) checkVulnerabilities() error {
 		}
 		if len(u.Password) == 0 {
 			if !u.DenyHTTPS && httpsVulnerability {
-				return fmt.Errorf("https: user %q has neither password nor `allowed_networks` on `user` or `server.http` level",
-					u.Name)
+				return fmt.Errorf("https: user %q has neither password nor `allowed_networks` on `user` or `server.http` level", u.Name)
 			}
 			if !u.DenyHTTP && httpVulnerability {
-				return fmt.Errorf("http: user %q has neither password nor `allowed_networks` on `user` or `server.http` level",
-					u.Name)
+				return fmt.Errorf("http: user %q has neither password nor `allowed_networks` on `user` or `server.http` level", u.Name)
 			}
 		}
 		if len(u.Password) > 0 && httpVulnerability {

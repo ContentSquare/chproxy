@@ -8,11 +8,6 @@ log_debug: true
 # By default security checks are enabled.
 hack_me_please: true
 
-# Whether to enable metric prefix `chproxy_` before each metric name
-#
-# By default metric prefix is disabled.
-enable_metric_prefix: false
-
 # Optional response cache configs.
 #
 # Multiple distinct caches with different settings may be configured.
