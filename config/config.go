@@ -768,9 +768,6 @@ type ClusterUser struct {
 	// if omitted or zero - no limits would be applied
 	AllowedNetworks Networks `yaml:"-"`
 
-	// A wildcarded user is mapped to this cluster user
-	// IsWildcarded bool
-
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
 }
