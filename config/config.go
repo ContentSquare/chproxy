@@ -65,7 +65,7 @@ type Config struct {
 	networkReg map[string]Networks
 
 	// A wildcared user is found in config
-	HasWildcarded bool
+	HasWildcarded bool `yaml:"has_wildcarded,omitempty"`
 }
 
 // String implements the Stringer interface
