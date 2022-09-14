@@ -34,7 +34,7 @@ func (c *AsyncCache) Close() error {
 	return nil
 }
 
-func (c *AsyncCache) AwaitForConcurrentTransaction(key *Key) (TransactionState, error) {
+func (c *AsyncCache) AwaitForConcurrentTransaction(key *Key) (TransactionStatus, error) {
 	startTime := time.Now()
 	seenState := transactionAbsent
 	for {
@@ -42,17 +42,17 @@ func (c *AsyncCache) AwaitForConcurrentTransaction(key *Key) (TransactionState, 
 		if elapsedTime > c.graceTime {
 			// The entry didn't appear during deadline.
 			// Let the caller creating it.
-			return seenState, nil
+			return TransactionStatus{State: seenState}, nil
 		}
 
-		state, err := c.TransactionRegistry.Status(key)
+		status, err := c.TransactionRegistry.Status(key)
 
 		if err != nil {
-			return seenState, err
+			return TransactionStatus{State: seenState}, err
 		}
 
-		if !state.IsPending() {
-			return state, nil
+		if !status.State.IsPending() {
+			return status, nil
 		}
 
 		// Wait for deadline in the hope the entry will appear

@@ -35,3 +35,17 @@ Configuration template for distributed cache can be found [here](https://github.
 Before caching Clickhouse response, chproxy verifies that the response size 
 is not greater than configured max size. This setting can be specified in config section of the cache `max_payload_size`. The default value
 is set to 1 Petabyte. Therefore, by default this security mechanism is disabled.
+
+#### Thundering herd
+When query arrives to the chproxy with activated cache, chproxy starts, so called, transaction. Its purpose is to prevent from thundering herd effect as such 
+that the concurrent request relating to the exactly same query will await for the result of the computation from the first request.
+Internally, chproxy hosts `transactions regsitry` which stores ongoing transactions, aka concurrent queries. They're identified by the hash of the query, the same way as caching behaves.  
+There exists two types of `transaction registry` equivalent to cache alternatives:
+- distributed transaction registry (redis based)
+- local transaction registry (in RAM)
+
+When Clickhouse responds to the firstly arrived query, existing key is updated accordingly:
+- if succeeded, as completed
+- if failed, as failed along with the exception message prepended with `[concurrent query failed]`.
+
+Transaction is kept for the duration of 2 * grace_time or 2 * max_execution_time, depending if grace time is specified.

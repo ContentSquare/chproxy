@@ -17,7 +17,7 @@ func TestInMemoryTransaction(t *testing.T) {
 	}
 
 	status, err := inMemoryTransaction.Status(key)
-	if err != nil || !status.IsPending() {
+	if err != nil || !status.State.IsPending() {
 		t.Fatalf("unexpected: transaction should be pending")
 	}
 
@@ -26,7 +26,7 @@ func TestInMemoryTransaction(t *testing.T) {
 	}
 
 	status, err = inMemoryTransaction.Status(key)
-	if err != nil || !status.IsCompleted() {
+	if err != nil || !status.State.IsCompleted() {
 		t.Fatalf("unexpected: transaction should be done")
 	}
 

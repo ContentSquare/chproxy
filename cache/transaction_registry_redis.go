@@ -25,33 +25,47 @@ func newRedisTransactionRegistry(redisClient redis.UniversalClient, deadline tim
 }
 
 func (r *redisTransactionRegistry) Create(key *Key) error {
-	return r.redisClient.Set(context.Background(), toTransactionKey(key), uint64(transactionCreated), r.deadline).Err()
+	return r.redisClient.Set(context.Background(), toTransactionKey(key),
+		[]byte{uint8(transactionCreated)}, r.deadline).Err()
 }
 
 func (r *redisTransactionRegistry) Complete(key *Key) error {
-	return r.updateTransactionState(key, transactionCompleted)
+	return r.updateTransactionState(key, []byte{uint8(transactionCompleted)})
 }
 
-func (r *redisTransactionRegistry) Fail(key *Key) error {
-	return r.updateTransactionState(key, transactionFailed)
+func (r *redisTransactionRegistry) Fail(key *Key, reason string) error {
+	b := make([]byte, 0, uint32(len(reason))+1)
+	b = append(b, byte(transactionFailed))
+	b = append(b, []byte(reason)...)
+	return r.updateTransactionState(key, b)
 }
 
-func (r *redisTransactionRegistry) updateTransactionState(key *Key, state TransactionState) error {
-	return r.redisClient.Set(context.Background(), toTransactionKey(key), uint64(state), r.deadline).Err()
+func (r *redisTransactionRegistry) updateTransactionState(key *Key, value []byte) error {
+	return r.redisClient.Set(context.Background(), toTransactionKey(key), value, r.deadline).Err()
 }
 
-func (r *redisTransactionRegistry) Status(key *Key) (TransactionState, error) {
-	state, err := r.redisClient.Get(context.Background(), toTransactionKey(key)).Uint64()
+func (r *redisTransactionRegistry) Status(key *Key) (TransactionStatus, error) {
+	raw, err := r.redisClient.Get(context.Background(), toTransactionKey(key)).Bytes()
 	if errors.Is(err, redis.Nil) {
-		return transactionAbsent, nil
+		return TransactionStatus{State: transactionAbsent}, nil
 	}
 
 	if err != nil {
 		log.Errorf("Failed to fetch transaction status from redis for key: %s", key.String())
-		return transactionAbsent, err
+		return TransactionStatus{State: transactionAbsent}, err
 	}
 
-	return TransactionState(state), nil
+	if len(raw) == 0 {
+		log.Errorf("Failed to fetch transaction status from redis raw value: %s", key.String())
+		return TransactionStatus{State: transactionAbsent}, err
+	}
+
+	state := TransactionState(uint8(raw[0]))
+	var reason string
+	if state.IsFailed() && len(raw) > 1 {
+		reason = string(raw[1:])
+	}
+	return TransactionStatus{State: state, FailReason: reason}, nil
 }
 
 func (r *redisTransactionRegistry) Close() error {

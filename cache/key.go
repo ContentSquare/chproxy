@@ -10,7 +10,7 @@ import (
 
 // Version must be increased with each backward-incompatible change
 // in the cache storage.
-const Version = 4
+const Version = 5
 
 // Key is the key for use in the cache.
 type Key struct {

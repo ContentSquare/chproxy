@@ -26,7 +26,7 @@ func TestAsyncCache_Cleanup_Of_Expired_Transactions(t *testing.T) {
 	}
 	status, err := asyncCache.Status(key)
 	assert.NoError(t, err)
-	if !status.IsAbsent() {
+	if !status.State.IsAbsent() {
 		t.Fatalf("unexpected behaviour: transaction isnt done while it wasnt even started")
 	}
 
@@ -36,7 +36,7 @@ func TestAsyncCache_Cleanup_Of_Expired_Transactions(t *testing.T) {
 
 	status, err = asyncCache.Status(key)
 	assert.NoError(t, err)
-	if !status.IsPending() {
+	if !status.State.IsPending() {
 		t.Fatalf("unexpected behaviour: transaction isnt finished")
 	}
 
@@ -44,7 +44,7 @@ func TestAsyncCache_Cleanup_Of_Expired_Transactions(t *testing.T) {
 
 	status, err = asyncCache.Status(key)
 	assert.NoError(t, err)
-	if status.IsPending() {
+	if status.State.IsPending() {
 		t.Fatalf("unexpected behaviour: transaction grace time elapsed and yet it was still pending")
 	}
 }
@@ -64,7 +64,7 @@ func TestAsyncCache_AwaitForConcurrentTransaction_GraceTimeWithoutTransactionCom
 
 	status, err := asyncCache.Status(key)
 	assert.NoError(t, err)
-	if !status.IsAbsent() {
+	if !status.State.IsAbsent() {
 		t.Fatalf("unexpected behaviour: transaction isnt done while it wasnt even started")
 	}
 
@@ -74,7 +74,7 @@ func TestAsyncCache_AwaitForConcurrentTransaction_GraceTimeWithoutTransactionCom
 
 	status, err = asyncCache.Status(key)
 	assert.NoError(t, err)
-	if !status.IsPending() {
+	if !status.State.IsPending() {
 		t.Fatalf("unexpected behaviour: transaction isnt finished")
 	}
 
@@ -87,7 +87,7 @@ func TestAsyncCache_AwaitForConcurrentTransaction_GraceTimeWithoutTransactionCom
 	time.Sleep(150 * time.Millisecond)
 	status, err = asyncCache.Status(key)
 	assert.NoError(t, err)
-	if !status.IsAbsent() {
+	if !status.State.IsAbsent() {
 		t.Fatalf("unexpected behaviour: transaction awaiting time elapsed %s", elapsedTime.String())
 	}
 }
@@ -131,7 +131,7 @@ func TestAsyncCache_AwaitForConcurrentTransaction_TransactionCompletedWhileAwait
 		t.Fatalf("unexpected error: %s failed to unregister transaction", err)
 	}
 
-	if !transactionState.IsCompleted() || elapsedTime >= graceTime {
+	if !transactionState.State.IsCompleted() || elapsedTime >= graceTime {
 		t.Fatalf("unexpected behaviour: transaction awaiting time elapsed %s", elapsedTime.String())
 	}
 }
@@ -153,10 +153,11 @@ func TestAsyncCache_AwaitForConcurrentTransaction_TransactionFailedWhileAwaiting
 		t.Fatalf("unexpected error: %s failed to register transaction", err)
 	}
 
+	failReason := "failed for fun"
 	errs := make(chan error)
 	go func() {
 		time.Sleep(graceTime / 2)
-		if err := asyncCache.Fail(key); err != nil {
+		if err := asyncCache.Fail(key, failReason); err != nil {
 			errs <- err
 		} else {
 			errs <- nil
@@ -176,8 +177,12 @@ func TestAsyncCache_AwaitForConcurrentTransaction_TransactionFailedWhileAwaiting
 		t.Fatalf("unexpected error: %s failed to unregister transaction", err)
 	}
 
-	if !transactionState.IsFailed() || elapsedTime >= graceTime {
+	if !transactionState.State.IsFailed() || elapsedTime >= graceTime {
 		t.Fatalf("unexpected behaviour: transaction awaiting time elapsed %s", elapsedTime.String())
+	}
+
+	if transactionState.FailReason != failReason {
+		t.Fatalf("unexpected behaviour: transaction failed but without err reason")
 	}
 }
 
