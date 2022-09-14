@@ -23,6 +23,9 @@ import (
 // tmpDir temporary path to store ongoing queries results
 const tmpDir = "/tmp"
 
+// failedTransactionPrefix prefix added to the failed reason for concurrent queries registry
+const failedTransactionPrefix = "[concurrent query failed]"
+
 type reverseProxy struct {
 	rp *httputil.ReverseProxy
 
@@ -353,7 +356,8 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 			log.Errorf("%s failed to get error reason: %s", s, err.Error())
 		}
 
-		rp.completeTransaction(s, statusCode, userCache, key, q, errString)
+		errReason := fmt.Sprintf("%s %s", failedTransactionPrefix, errString)
+		rp.completeTransaction(s, statusCode, userCache, key, q, errReason)
 
 		// we need to reset the offset since the reader of tmpFileRespWriter was already
 		// consumed in RespondWithData(...)

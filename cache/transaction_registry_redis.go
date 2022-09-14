@@ -62,7 +62,7 @@ func (r *redisTransactionRegistry) Status(key *Key) (TransactionStatus, error) {
 
 	state := TransactionState(uint8(raw[0]))
 	var reason string
-	if state.IsFailed() {
+	if state.IsFailed() && len(raw) > 1 {
 		reason = string(raw[1:])
 	}
 	return TransactionStatus{State: state, FailReason: reason}, nil
