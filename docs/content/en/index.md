@@ -24,7 +24,7 @@ Chproxy, is an HTTP proxy and load balancer for [ClickHouse](https://ClickHouse.
 - All the limits may be independently set for each input user and for each per-cluster user.
 - May delay request execution until it fits per-user limits.
 - Per-user [response caching](/configuration/caching) may be configured.
-- Response caches have built-in protection against [thundering herd](https://en.wikipedia.org/wiki/Cache_stampede) problem aka `dogpile effect`.
+- Response caches have built-in protection against [thundering herd](https://en.wikipedia.org/wiki/Cache_stampede) problem aka `dogpile effect`. More information can be found in [Thundering herd](/configuration/caching).
 - Evenly spreads requests among replicas and nodes using `least loaded` + `round robin` technique.
 - Monitors node health and prevents from sending requests to unhealthy nodes.
 - Supports automatic HTTPS certificate issuing and renewal via [Let’s Encrypt](https://letsencrypt.org/).
