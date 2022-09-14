@@ -59,13 +59,13 @@ type Config struct {
 
 	ParamGroups []ParamGroup `yaml:"param_groups,omitempty"`
 
-	// Catches all undefined fields
-	XXX map[string]interface{} `yaml:",inline"`
-
 	networkReg map[string]Networks
 
 	// A wildcared user is found in config
-	HasWildcarded bool `yaml:"has_wildcarded,omitempty"`
+	HasWildcarded bool
+
+	// Catches all undefined fields
+	XXX map[string]interface{} `yaml:",inline"`
 }
 
 // String implements the Stringer interface
