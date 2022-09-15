@@ -49,12 +49,13 @@ func main() {
 	if err != nil {
 		log.Fatalf("error while loading config: %s", err)
 	}
+	registerMetrics(cfg)
 	if err = applyConfig(cfg); err != nil {
 		log.Fatalf("error while applying config: %s", err)
 	}
+	configSuccess.Set(1)
+	configSuccessTime.Set(float64(time.Now().Unix()))
 	log.Infof("Loading config %q: successful", *configFile)
-
-	registerMetrics(cfg)
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGHUP)
@@ -261,11 +262,8 @@ func loadConfig() (*config.Config, error) {
 	}
 	cfg, err := config.LoadFile(*configFile)
 	if err != nil {
-		configSuccess.Set(0)
 		return nil, fmt.Errorf("can't load config %q: %w", *configFile, err)
 	}
-	configSuccess.Set(1)
-	configSuccessTime.Set(float64(time.Now().Unix()))
 	return cfg, nil
 }
 
