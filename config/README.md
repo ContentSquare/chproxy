@@ -14,7 +14,10 @@
 log_debug: <bool> | default = false [optional]
 
 # Whether to ignore security warnings
-hack_me_please <bool> | default = false [optional]
+hack_me_please: <bool> | default = false [optional]
+
+# Whether to enable metric namespace
+enable_metric_namespace: <bool> | default = false [optional]
 
 # Named list of cache configurations
 caches:

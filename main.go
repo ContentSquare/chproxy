@@ -54,7 +54,7 @@ func main() {
 	}
 	log.Infof("Loading config %q: successful", *configFile)
 
-	registerMetrics()
+	registerMetrics(cfg)
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGHUP)

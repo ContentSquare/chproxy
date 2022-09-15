@@ -799,6 +799,7 @@ users:
   deny_https: true
 log_debug: true
 hack_me_please: true
+enable_metric_namespace: true
 network_groups:
 - name: office
   networks:
