@@ -858,7 +858,6 @@ param_groups:
     value: "30"
   - key: max_execution_time
     value: "30"
-haswildcarded: false
 `
 	tested := fullConfig.String()
 	if tested != expected {

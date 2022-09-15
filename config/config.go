@@ -61,9 +61,6 @@ type Config struct {
 
 	networkReg map[string]Networks
 
-	// A wildcared user is found in config
-	HasWildcarded bool
-
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
 }

@@ -469,7 +469,7 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 			transactionsTimeout = user.MaxExecutionTime
 		}
 		if user.IsWildcarded {
-			cfg.HasWildcarded = true
+			rp.hasWildcarded = true
 		}
 	}
 
@@ -572,7 +572,6 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 	rp.lock.Lock()
 	rp.clusters = clusters
 	rp.users = users
-	rp.hasWildcarded = cfg.HasWildcarded
 	// Swap is needed for deferred closing of old caches.
 	// See the code above where new caches are created.
 	caches, rp.caches = rp.caches, caches
