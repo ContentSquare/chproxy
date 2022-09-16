@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/mohae/deepcopy"
@@ -29,6 +30,8 @@ var (
 		Timeout:  Duration(time.Second * 3),
 		Request:  "/ping",
 		Response: "Ok.\n",
+		User:     "",
+		Password: "",
 	}
 
 	defaultExecutionTime = Duration(120 * time.Second)
@@ -56,10 +59,10 @@ type Config struct {
 
 	ParamGroups []ParamGroup `yaml:"param_groups,omitempty"`
 
+	networkReg map[string]Networks
+
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
-
-	networkReg map[string]Networks
 }
 
 // String implements the Stringer interface
@@ -438,6 +441,12 @@ type HeartBeat struct {
 	// default value is `Ok.\n`
 	Response string `yaml:"response,omitempty"`
 
+	// Credentials to send heartbeat requests
+	// for anything except '/ping'.
+	// If not specified, the first cluster user' creadentials are used
+	User     string `yaml:"user,omitempty"`
+	Password string `yaml:"password,omitempty"`
+
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
 }
@@ -511,6 +520,9 @@ type User struct {
 	// Name of ParamGroup to use
 	Params string `yaml:"params,omitempty"`
 
+	// prefix_*
+	IsWildcarded bool `yaml:"is_wildcarded,omitempty"`
+
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
 }
@@ -540,6 +552,12 @@ func (u *User) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	if u.MaxQueueTime > 0 && u.MaxQueueSize == 0 {
 		return fmt.Errorf("`max_queue_size` must be set if `max_queue_time` is set for %q", u.Name)
+	}
+
+	if u.IsWildcarded {
+		if s := strings.Split(u.Name, "_"); len(s) != 2 || s[1] != "*" {
+			return fmt.Errorf("user name %q marked 'is_wildcared' does not match 'prefix_*'", u.Name)
+		}
 	}
 
 	return checkOverflow(u.XXX, fmt.Sprintf("user %q", u.Name))

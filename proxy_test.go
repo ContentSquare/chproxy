@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/tls"
 	"fmt"
-	"github.com/contentsquare/chproxy/cache"
 	"io"
 	"math/rand"
 	"net"
@@ -15,6 +14,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/contentsquare/chproxy/cache"
 
 	"net/http"
 	"net/http/httptest"
@@ -120,6 +121,32 @@ var badCfg = &config.Config{
 	},
 }
 
+var badCfgWithNoHeartBeatUser = &config.Config{
+	Clusters: []config.Cluster{
+		{
+			Name:   "badCfgWithNoHeartBeatUser",
+			Scheme: "http",
+			Nodes:  []string{"localhost:8123"},
+			ClusterUsers: []config.ClusterUser{
+				{
+					Name: "default",
+				},
+			},
+			HeartBeat: config.HeartBeat{
+				Request: "/not_ping",
+			},
+		},
+	},
+	Users: []config.User{
+		{
+			Name:         "analyst_*",
+			IsWildcarded: true,
+			ToCluster:    "badCfgWithNoHeartBeatUser",
+			ToUser:       "default",
+		},
+	},
+}
+
 func TestApplyConfig(t *testing.T) {
 	proxy, err := newConfiguredProxy(goodCfg)
 	if err != nil {
@@ -129,6 +156,14 @@ func TestApplyConfig(t *testing.T) {
 		t.Fatalf("error expected; got nil")
 	}
 	if _, ok := proxy.clusters["badCfg"]; ok {
+		t.Fatalf("bad config applied; expected previous config")
+	}
+	if err := proxy.applyConfig(badCfgWithNoHeartBeatUser); err == nil {
+		t.Fatalf("error expected; got nil")
+	} else if err.Error() != "`cluster.heartbeat.user ` cannot be unset for \"badCfgWithNoHeartBeatUser\" because a wildcarded user cannot send heartbeat" {
+		t.Fatalf("unexpected error %s", err.Error())
+	}
+	if _, ok := proxy.clusters["badCfgWithNoHeartBeatUser"]; ok {
 		t.Fatalf("bad config applied; expected previous config")
 	}
 }
@@ -153,6 +188,33 @@ var authCfg = &config.Config{
 			Password:  "bar",
 			ToCluster: "cluster",
 			ToUser:    "web",
+		},
+	},
+}
+
+var wildcardedCfg = &config.Config{
+	Clusters: []config.Cluster{
+		{
+			Name:   "cluster",
+			Scheme: "http",
+			Nodes:  []string{"localhost:8123"},
+			ClusterUsers: []config.ClusterUser{
+				{
+					Name:     "web",
+					Password: "webpass",
+				},
+				{
+					Name: "analyst_*",
+				},
+			},
+		},
+	},
+	Users: []config.User{
+		{
+			Name:         "analyst_*",
+			ToCluster:    "cluster",
+			ToUser:       "analyst_*",
+			IsWildcarded: true,
 		},
 	},
 }
@@ -426,6 +488,18 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 				return makeCustomRequest(p, req)
 			},
 		},
+		{
+			cfg:           wildcardedCfg,
+			name:          "wildcarded Ok",
+			expResponse:   "user: analyst_jane, password: jane_pass\n" + okResponse,
+			expStatusCode: http.StatusOK,
+			f: func(p *reverseProxy) *http.Response {
+				req := httptest.NewRequest("POST", fakeServer.URL, nil)
+				req.Header.Set("X-ClickHouse-User", "analyst_jane")
+				req.Header.Set("X-ClickHouse-Key", "jane_pass")
+				return makeCustomRequest(p, req)
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -433,16 +507,16 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 			stopAllRequestsInFlight()
 			proxy, err := getProxy(tc.cfg)
 			if err != nil {
-				t.Fatalf("unexpected error: %s", err)
+				t.Fatalf("unexpected error: %s for %q", err, tc.name)
 			}
 			resp := tc.f(proxy)
 			b := bbToString(t, resp.Body)
 			resp.Body.Close()
 			if !strings.Contains(b, tc.expResponse) {
-				t.Fatalf("expected response: %q; got: %q", tc.expResponse, b)
+				t.Fatalf("expected response: %q; got: %q for %q", tc.expResponse, b, tc.name)
 			}
 			if tc.expStatusCode != resp.StatusCode {
-				t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, tc.expStatusCode)
+				t.Fatalf("unexpected status code: %d; expected: %d for %q", resp.StatusCode, tc.expStatusCode, tc.name)
 			}
 		})
 	}
@@ -698,6 +772,10 @@ var (
 		}
 		b := string(body)
 		r.Body.Close()
+
+		if n, p, found := r.BasicAuth(); found {
+			fmt.Fprintf(w, "user: %s, password: %s\n", n, p)
+		}
 
 		qid := r.URL.Query().Get("query_id")
 		if len(qid) == 0 && len(b) == 0 {

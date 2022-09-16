@@ -13,7 +13,19 @@ import (
 var (
 	hbHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/ping" {
-			fmt.Fprintln(w, "Ok.")
+			if _, _, found := r.BasicAuth(); !found {
+				fmt.Fprintln(w, "Ok.")
+			} else {
+				fmt.Fprintln(w, "User is not expected.")
+			}
+			return
+		}
+		if r.URL.Path == "/" && r.URL.Query().Get("query") == "SELECT 1" {
+			if _, _, found := r.BasicAuth(); found {
+				fmt.Fprintln(w, "Ok.")
+			} else {
+				fmt.Fprintln(w, "User is required.")
+			}
 			return
 		}
 		qid := r.URL.Query().Get("query")
@@ -51,7 +63,7 @@ var (
 	heartBeatFullCfg = config.HeartBeat{
 		Interval: config.Duration(20 * time.Second),
 		Timeout:  config.Duration(30 * time.Second),
-		Request:  "/ping",
+		Request:  "/?query=SELECT%201",
 		Response: "Ok.\n",
 	}
 
@@ -60,6 +72,15 @@ var (
 		Timeout:  config.Duration(30 * time.Second),
 		Request:  "/wrongQuery",
 		Response: "Ok.\n",
+	}
+
+	heartBeatWrongNamedCfg = config.HeartBeat{
+		Interval: config.Duration(20 * time.Second),
+		Timeout:  config.Duration(30 * time.Second),
+		Request:  "/?query=SELECT%201",
+		Response: "Ok.\n",
+		User:     "hbuser",
+		Password: "hbpassword",
 	}
 )
 
@@ -73,7 +94,7 @@ func TestNewHeartBeat(t *testing.T) {
 	hb := newHeartBeat(heartBeatFullCfg, clusterCfg.ClusterUsers[0])
 	testCompareNum(t, "heartbeat.interval", int64(hb.interval/time.Microsecond), int64(time.Duration(20*time.Second)/time.Microsecond))
 	testCompareNum(t, "heartbeat.timeout", int64(hb.timeout/time.Microsecond), int64(time.Duration(30*time.Second)/time.Microsecond))
-	testCompareStr(t, "heartbeat.request", hb.request, "/ping")
+	testCompareStr(t, "heartbeat.request", hb.request, "/?query=SELECT%201")
 	testCompareStr(t, "heartbeat.response", hb.response, "Ok.\n")
 	testCompareStr(t, "heartbeat.user", hb.user, "web")
 	testCompareStr(t, "heartbeat.password", hb.password, "123")
@@ -90,6 +111,10 @@ func TestNewHeartBeat(t *testing.T) {
 		t.Fatalf("heartbeat error expected")
 	}
 	testCompareStr(t, "heartbeat error", check.Error(), "unexpected response: wrong\n")
+
+	hbNameWrong := newHeartBeat(heartBeatWrongNamedCfg, clusterCfg.ClusterUsers[0])
+	testCompareStr(t, "heartbeat.user", hbNameWrong.user, "hbuser")
+	testCompareStr(t, "heartbeat.password", hbNameWrong.password, "hbpassword")
 }
 
 func testCompareNum(t *testing.T, name string, value int64, expected int64) {

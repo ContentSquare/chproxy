@@ -124,12 +124,14 @@ var fullConfig = Config{
 				Timeout:  Duration(3 * time.Second),
 				Request:  "/ping",
 				Response: "Ok.\n",
+				User:     "hbuser",
+				Password: "hbpassword",
 			},
 		},
 		{
-			Name:   "thrid cluster",
+			Name:   "third cluster",
 			Scheme: "http",
-			Nodes:  []string{"thrid1:8123", "thrid2:8123"},
+			Nodes:  []string{"third1:8123", "third2:8123"},
 			ClusterUsers: []ClusterUser{
 				{
 					Name: "default",
@@ -138,7 +140,7 @@ var fullConfig = Config{
 			HeartBeat: HeartBeat{
 				Interval: Duration(2 * time.Minute),
 				Timeout:  Duration(10 * time.Second),
-				Request:  "/ping",
+				Request:  "/?query=SELECT%201",
 				Response: "Ok.\n",
 			},
 		},
@@ -447,6 +449,11 @@ func TestBadConfig(t *testing.T) {
 			"max payload size to cache",
 			"testdata/bad.max_payload_size.yml",
 			"cannot parse byte size \"-10B\": it must be positive float followed by optional units. For example, 1.5Gb, 3T",
+		},
+		{
+			"user is marked as is_wildcarded, but it's name is not consist of a prefix, underscore and asterisk",
+			"testdata/bad.wildcarded_users.no.wildcard.yml",
+			"user name \"analyst_named\" marked 'is_wildcared' does not match 'prefix_*'",
 		},
 	}
 
@@ -767,18 +774,20 @@ clusters:
     request: /ping
     response: |
       Ok.
-- name: thrid cluster
+    user: hbuser
+    password: hbpassword
+- name: third cluster
   scheme: http
   nodes:
-  - thrid1:8123
-  - thrid2:8123
+  - third1:8123
+  - third2:8123
   users:
   - name: default
     password: XXX
   heartbeat:
     interval: 2m
     timeout: 10s
-    request: /ping
+    request: /?query=SELECT%201
     response: |
       Ok.
 users:

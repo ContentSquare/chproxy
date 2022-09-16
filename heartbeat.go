@@ -19,14 +19,24 @@ type heartBeat struct {
 	password string
 }
 
+// User credentials are not needed
+const pingStr string = "/ping"
+
 func newHeartBeat(c config.HeartBeat, firstClusterUser config.ClusterUser) *heartBeat {
 	newHB := &heartBeat{
 		interval: time.Duration(c.Interval),
 		timeout:  time.Duration(c.Timeout),
 		request:  c.Request,
 		response: c.Response,
-		user:     firstClusterUser.Name,
-		password: firstClusterUser.Password,
+	}
+	if c.Request != pingStr {
+		if len(c.User) > 0 {
+			newHB.user = c.User
+			newHB.password = c.Password
+		} else {
+			newHB.user = firstClusterUser.Name
+			newHB.password = firstClusterUser.Password
+		}
 	}
 	return newHB
 }
@@ -36,8 +46,7 @@ func (hb *heartBeat) isHealthy(addr string) error {
 	if err != nil {
 		return err
 	}
-
-	if hb.request != "/ping" && hb.user != "" {
+	if hb.request != pingStr && hb.user != "" {
 		req.SetBasicAuth(hb.user, hb.password)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), hb.timeout)
