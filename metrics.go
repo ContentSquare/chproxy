@@ -22,6 +22,7 @@ var (
 	cacheMiss                      *prometheus.CounterVec
 	cacheSize                      *prometheus.GaugeVec
 	cacheItems                     *prometheus.GaugeVec
+	cacheSkipped                   *prometheus.CounterVec
 	requestDuration                *prometheus.SummaryVec
 	proxiedResponseDuration        *prometheus.SummaryVec
 	cachedResponseDuration         *prometheus.SummaryVec
@@ -167,8 +168,9 @@ func initMetrics(cfg *config.Config) {
 	)
 	cacheSkipped = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "cache_payloadsize_too_big_total",
-			Help: "The amount of too big payloads to be cached",
+			Namespace: namespace,
+			Name:      "cache_payloadsize_too_big_total",
+			Help:      "The amount of too big payloads to be cached",
 		},
 		[]string{"cache", "user", "cluster", "cluster_user"},
 	)
