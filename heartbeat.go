@@ -26,7 +26,7 @@ func newHeartBeat(c config.HeartBeat, firstClusterUser config.ClusterUser) *hear
 		request:  c.Request,
 		response: c.Response,
 	}
-	if c.UserNeeded {
+	if c.Request != "/ping" {
 		if len(c.User) > 0 {
 			newHB.user = c.User
 			newHB.password = c.Password

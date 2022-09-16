@@ -61,29 +61,26 @@ var (
 	}
 
 	heartBeatFullCfg = config.HeartBeat{
-		Interval:   config.Duration(20 * time.Second),
-		Timeout:    config.Duration(30 * time.Second),
-		Request:    "/?query=SELECT%201",
-		Response:   "Ok.\n",
-		UserNeeded: true,
+		Interval: config.Duration(20 * time.Second),
+		Timeout:  config.Duration(30 * time.Second),
+		Request:  "/?query=SELECT%201",
+		Response: "Ok.\n",
 	}
 
 	heartBeatWrongResponseCfg = config.HeartBeat{
-		Interval:   config.Duration(20 * time.Second),
-		Timeout:    config.Duration(30 * time.Second),
-		Request:    "/wrongQuery",
-		Response:   "Ok.\n",
-		UserNeeded: true,
+		Interval: config.Duration(20 * time.Second),
+		Timeout:  config.Duration(30 * time.Second),
+		Request:  "/wrongQuery",
+		Response: "Ok.\n",
 	}
 
 	heartBeatWrongNamedCfg = config.HeartBeat{
-		Interval:   config.Duration(20 * time.Second),
-		Timeout:    config.Duration(30 * time.Second),
-		Request:    "/?query=SELECT%201",
-		Response:   "Ok.\n",
-		User:       "hbuser",
-		Password:   "hbpassword",
-		UserNeeded: true,
+		Interval: config.Duration(20 * time.Second),
+		Timeout:  config.Duration(30 * time.Second),
+		Request:  "/?query=SELECT%201",
+		Response: "Ok.\n",
+		User:     "hbuser",
+		Password: "hbpassword",
 	}
 )
 

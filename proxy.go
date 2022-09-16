@@ -516,7 +516,7 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 		cu := cl.users[cuname]
 
 		if cu.isWildcarded {
-			if heartbeat.UserNeeded && len(heartbeat.User) == 0 {
+			if heartbeat.Request != "/ping" && len(heartbeat.User) == 0 {
 				return fmt.Errorf("`cluster.heartbeat.user ` cannot be unset for %q because a wildcarded user cannot send heartbeat", clname)
 			}
 		}

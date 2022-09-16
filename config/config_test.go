@@ -138,11 +138,10 @@ var fullConfig = Config{
 				},
 			},
 			HeartBeat: HeartBeat{
-				Interval:   Duration(2 * time.Minute),
-				Timeout:    Duration(10 * time.Second),
-				Request:    "/?query=SELECT%201",
-				Response:   "Ok.\n",
-				UserNeeded: true,
+				Interval: Duration(2 * time.Minute),
+				Timeout:  Duration(10 * time.Second),
+				Request:  "/?query=SELECT%201",
+				Response: "Ok.\n",
 			},
 		},
 	},
@@ -744,7 +743,6 @@ clusters:
     request: /ping
     response: |
       Ok.
-    userneeded: false
 - name: second cluster
   scheme: https
   replicas:
@@ -778,7 +776,6 @@ clusters:
       Ok.
     user: hbuser
     password: hbpassword
-    userneeded: false
 - name: third cluster
   scheme: http
   nodes:
@@ -793,7 +790,6 @@ clusters:
     request: /?query=SELECT%201
     response: |
       Ok.
-    userneeded: true
 users:
 - name: web
   password: XXX

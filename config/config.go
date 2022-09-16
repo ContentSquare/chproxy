@@ -447,9 +447,6 @@ type HeartBeat struct {
 	User     string `yaml:"user,omitempty"`
 	Password string `yaml:"password,omitempty"`
 
-	// True if not '/ping'
-	UserNeeded bool
-
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
 }
@@ -460,10 +457,6 @@ func (h *HeartBeat) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal((*plain)(h)); err != nil {
 		return err
 	}
-	if h.Request != "/ping" {
-		h.UserNeeded = true
-	}
-
 	return checkOverflow(h.XXX, "heartbeat")
 }
 

@@ -133,8 +133,7 @@ var badCfgWithNoHeartBeatUser = &config.Config{
 				},
 			},
 			HeartBeat: config.HeartBeat{
-				Request:    "/not_ping",
-				UserNeeded: true,
+				Request: "/not_ping",
 			},
 		},
 	},
