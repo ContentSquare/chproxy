@@ -2,6 +2,7 @@ package cache
 
 import (
 	"io"
+	"time"
 )
 
 // TransactionRegistry is a registry of ongoing queries identified by Key.
@@ -20,6 +21,9 @@ type TransactionRegistry interface {
 	// Status checks the status of the transaction
 	Status(key *Key) (TransactionStatus, error)
 }
+
+// transactionEndedTTL amount of time transaction record is kept after being updated
+const transactionEndedTTL = 500 * time.Millisecond
 
 type TransactionStatus struct {
 	State      TransactionState

@@ -10,7 +10,7 @@ func TestInMemoryTransaction(t *testing.T) {
 	key := &Key{
 		Query: []byte("SELECT pending entries"),
 	}
-	inMemoryTransaction := newInMemoryTransactionRegistry(graceTime)
+	inMemoryTransaction := newInMemoryTransactionRegistry(graceTime, graceTime)
 
 	if err := inMemoryTransaction.Create(key); err != nil {
 		t.Fatalf("unexpected error: %s while registering new transaction", err)

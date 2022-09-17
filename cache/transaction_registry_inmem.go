@@ -17,17 +17,19 @@ type inMemoryTransactionRegistry struct {
 	pendingEntriesLock sync.Mutex
 	pendingEntries     map[string]pendingEntry
 
-	deadline time.Duration
-	stopCh   chan struct{}
-	wg       sync.WaitGroup
+	deadline                 time.Duration
+	transactionEndedDeadline time.Duration
+	stopCh                   chan struct{}
+	wg                       sync.WaitGroup
 }
 
-func newInMemoryTransactionRegistry(deadline time.Duration) *inMemoryTransactionRegistry {
+func newInMemoryTransactionRegistry(deadline, transactionEndedDeadline time.Duration) *inMemoryTransactionRegistry {
 	transaction := &inMemoryTransactionRegistry{
-		pendingEntriesLock: sync.Mutex{},
-		pendingEntries:     make(map[string]pendingEntry),
-		deadline:           deadline,
-		stopCh:             make(chan struct{}),
+		pendingEntriesLock:       sync.Mutex{},
+		pendingEntries:           make(map[string]pendingEntry),
+		deadline:                 deadline,
+		transactionEndedDeadline: transactionEndedDeadline,
+		stopCh:                   make(chan struct{}),
 	}
 
 	transaction.wg.Add(1)
@@ -72,11 +74,12 @@ func (i *inMemoryTransactionRegistry) updateTransactionState(key *Key, state Tra
 	if entry, ok := i.pendingEntries[k]; ok {
 		entry.state = state
 		entry.failedReason = failReason
+		entry.deadline = time.Now().Add(i.transactionEndedDeadline)
 		i.pendingEntries[k] = entry
 	} else {
 		log.Errorf("[attempt to complete transaction] entry not found for key: %s, registering new entry with %v status", key.String(), state)
 		i.pendingEntries[k] = pendingEntry{
-			deadline:     time.Now().Add(i.deadline),
+			deadline:     time.Now().Add(i.transactionEndedDeadline),
 			state:        state,
 			failedReason: failReason,
 		}

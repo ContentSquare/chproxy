@@ -13,14 +13,20 @@ import (
 
 type redisTransactionRegistry struct {
 	redisClient redis.UniversalClient
-	// deadline specifies TTL of record to be kept, no matter the associated transaction status
+
+	// deadline specifies TTL of the record to be kept
 	deadline time.Duration
+
+	// transactionEndedDeadline specifies TTL of the record to be kept that has been ended (either completed or failed)
+	transactionEndedDeadline time.Duration
 }
 
-func newRedisTransactionRegistry(redisClient redis.UniversalClient, deadline time.Duration) *redisTransactionRegistry {
+func newRedisTransactionRegistry(redisClient redis.UniversalClient, deadline time.Duration,
+	endedDeadline time.Duration) *redisTransactionRegistry {
 	return &redisTransactionRegistry{
-		redisClient: redisClient,
-		deadline:    deadline,
+		redisClient:              redisClient,
+		deadline:                 deadline,
+		transactionEndedDeadline: endedDeadline,
 	}
 }
 
@@ -41,7 +47,7 @@ func (r *redisTransactionRegistry) Fail(key *Key, reason string) error {
 }
 
 func (r *redisTransactionRegistry) updateTransactionState(key *Key, value []byte) error {
-	return r.redisClient.Set(context.Background(), toTransactionKey(key), value, r.deadline).Err()
+	return r.redisClient.Set(context.Background(), toTransactionKey(key), value, r.transactionEndedDeadline).Err()
 }
 
 func (r *redisTransactionRegistry) Status(key *Key) (TransactionStatus, error) {

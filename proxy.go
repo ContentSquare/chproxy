@@ -135,7 +135,6 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			} else {
 				rp.serveFromCache(s, srw, req, origParams, q)
 			}
-
 		}
 	}
 
