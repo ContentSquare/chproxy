@@ -117,7 +117,26 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if s.user.cache == nil || s.user.cache.Cache == nil {
 		rp.proxyRequest(s, srw, srw, req)
 	} else {
-		rp.serveFromCache(s, srw, req, origParams)
+		noCache := origParams.Get("no_cache")
+		if noCache == "1" || noCache == "true" {
+			// The response caching is disabled.
+			rp.proxyRequest(s, srw, srw, req)
+		} else {
+			q, err := getFullQuery(req)
+			if err != nil {
+				err = fmt.Errorf("%s: cannot read query: %w", s, err)
+				respondWith(srw, err, http.StatusBadRequest)
+				return
+			}
+
+			if !canCacheQuery(q) {
+				// The query cannot be cached, so just proxy it.
+				rp.proxyRequest(s, srw, srw, req)
+			} else {
+				rp.serveFromCache(s, srw, req, origParams, q)
+			}
+
+		}
 	}
 
 	// It is safe calling getQuerySnippet here, since the request
@@ -233,43 +252,9 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, srw *stat
 	}
 }
 
-func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *http.Request, origParams url.Values) {
-	noCache := origParams.Get("no_cache")
-	if noCache == "1" || noCache == "true" {
-		// The response caching is disabled.
-		rp.proxyRequest(s, srw, srw, req)
-		return
-	}
-
-	q, err := getFullQuery(req)
-	if err != nil {
-		err = fmt.Errorf("%s: cannot read query: %w", s, err)
-		respondWith(srw, err, http.StatusBadRequest)
-		return
-	}
-	if !canCacheQuery(q) {
-		// The query cannot be cached, so just proxy it.
-		rp.proxyRequest(s, srw, srw, req)
-		return
-	}
-
-	// Do not store `replica` and `cluster_node` in labels, since they have
-	// no sense for cache metrics.
-	labels := prometheus.Labels{
-		"cache":        s.user.cache.Name(),
-		"user":         s.labels["user"],
-		"cluster":      s.labels["cluster"],
-		"cluster_user": s.labels["cluster_user"],
-	}
-
-	var userParamsHash uint32
-	if s.user.params != nil {
-		userParamsHash = s.user.params.key
-	}
-
-	queryParamsHash := calcQueryParamsHash(origParams)
-
-	key := cache.NewKey(skipLeadingComments(q), origParams, sortHeader(req.Header.Get("Accept-Encoding")), userParamsHash, queryParamsHash)
+func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *http.Request, origParams url.Values, q []byte) {
+	labels := makeCacheLabels(s)
+	key := newCacheKey(s, origParams, q, req)
 
 	startTime := time.Now()
 	userCache := s.user.cache
@@ -279,8 +264,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		// The response has been successfully served from cache.
 		defer cachedData.Data.Close()
 		cacheHit.With(labels).Inc()
-		since := time.Since(startTime).Seconds()
-		cachedResponseDuration.With(labels).Observe(since)
+		cachedResponseDuration.With(labels).Observe(time.Since(startTime).Seconds())
 		log.Debugf("%s: cache hit", s)
 		_ = RespondWithData(srw, cachedData.Data, cachedData.ContentMetadata, cachedData.Ttl, http.StatusOK)
 		return
@@ -412,6 +396,28 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 			return
 		}
 	}
+}
+
+func makeCacheLabels(s *scope) prometheus.Labels {
+	// Do not store `replica` and `cluster_node` in labels, since they have
+	// no sense for cache metrics.
+	return prometheus.Labels{
+		"cache":        s.user.cache.Name(),
+		"user":         s.labels["user"],
+		"cluster":      s.labels["cluster"],
+		"cluster_user": s.labels["cluster_user"],
+	}
+}
+
+func newCacheKey(s *scope, origParams url.Values, q []byte, req *http.Request) *cache.Key {
+	var userParamsHash uint32
+	if s.user.params != nil {
+		userParamsHash = s.user.params.key
+	}
+
+	queryParamsHash := calcQueryParamsHash(origParams)
+
+	return cache.NewKey(skipLeadingComments(q), origParams, sortHeader(req.Header.Get("Accept-Encoding")), userParamsHash, queryParamsHash)
 }
 
 func toString(stream io.Reader) (string, error) {
