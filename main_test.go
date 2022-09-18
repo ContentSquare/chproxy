@@ -256,7 +256,8 @@ func TestServe(t *testing.T) {
 				resp, err := tlsClient.Do(req)
 				checkErr(t, err)
 				if resp.StatusCode != http.StatusInternalServerError {
-					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusInternalServerError)
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode,
+						http.StatusInternalServerError)
 				}
 				resp.Body.Close()
 
@@ -503,7 +504,8 @@ func TestServe(t *testing.T) {
 				checkErr(t, err)
 				body, _ := io.ReadAll(resp.Body)
 				if resp.StatusCode != http.StatusOK {
-					t.Fatalf("unexpected status code: %d; expected: %d; body: %s", resp.StatusCode, http.StatusOK, string(body))
+					t.Fatalf("unexpected status code: %d; expected: %d; body: %s", resp.StatusCode, http.StatusOK,
+						string(body))
 				}
 				resp.Body.Close()
 			},
@@ -680,7 +682,8 @@ func TestServe(t *testing.T) {
 				// scenario: 1st query fails before grace_time elapsed. 2nd query fails as well.
 
 				q := "SELECT ERROR"
-				executeTwoConcurrentRequests(t, q, http.StatusInternalServerError, http.StatusInternalServerError, "DB::Exception\n", "[concurrent query failed] DB::Exception\n")
+				executeTwoConcurrentRequests(t, q, http.StatusInternalServerError, http.StatusInternalServerError,
+					"DB::Exception\n", "[concurrent query failed] DB::Exception\n")
 			},
 			startHTTP,
 		},
@@ -692,7 +695,8 @@ func TestServe(t *testing.T) {
 				// scenario: 1st query fails before grace_time elapsed. 2nd query fails as well.
 
 				q := "SELECT RECOVERABLE-ERROR"
-				executeTwoConcurrentRequests(t, q, http.StatusServiceUnavailable, http.StatusServiceUnavailable, "DB::Unavailable\n", "DB::Unavailable\n")
+				executeTwoConcurrentRequests(t, q, http.StatusServiceUnavailable, http.StatusServiceUnavailable,
+					"DB::Unavailable\n", "DB::Unavailable\n")
 			},
 			startHTTP,
 		},
@@ -714,6 +718,9 @@ func TestServe(t *testing.T) {
 		t.Fatalf("CHServer didn't start in %s", time.Since(startTime))
 	}
 
+	// register metrics for all testCases using same EnableMetricNamespace option
+	cfg := &config.Config{EnableMetricNamespace: false}
+	registerMetrics(cfg)
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			*configFile = tc.file
@@ -892,7 +899,8 @@ func fakeCHHandler(w http.ResponseWriter, r *http.Request) {
 
 // executeTwoConcurrentRequests concurrently executes 2 requests for the same query.
 // Results are asserted according to the specified input parameters.
-func executeTwoConcurrentRequests(t *testing.T, query string, firstStatusCode, secondStatusCode int, firstBody, secondBody string) {
+func executeTwoConcurrentRequests(t *testing.T, query string, firstStatusCode, secondStatusCode int,
+	firstBody, secondBody string) {
 	u := fmt.Sprintf("http://127.0.0.1:9090?query=%s&user=concurrent_user", url.QueryEscape(query))
 
 	var wg sync.WaitGroup
