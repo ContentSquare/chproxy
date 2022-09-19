@@ -1,7 +1,6 @@
 package cache
 
 import (
-	"github.com/stretchr/testify/assert"
 	"log"
 	"os"
 	"testing"
@@ -9,6 +8,7 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/contentsquare/chproxy/config"
+	"github.com/stretchr/testify/assert"
 )
 
 const asyncTestDir = "./async-test-data"
