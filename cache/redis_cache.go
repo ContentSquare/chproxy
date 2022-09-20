@@ -142,34 +142,23 @@ func (r *redisCache) Get(key *Key) (*CachedData, error) {
 	// if the TTL is too short we will put all the data into a file and use it as a streamer
 	// nb: it would be better to retry the flow if such a failure happened but this requires a huge refactoring of proxy.go
 
-	if ttl <= minTTLForRedisStreamingReader {
-		fileStream, err := newFileWriterReader(tmpDir)
-		if err != nil {
-			return nil, err
-		}
-		_, err = io.Copy(fileStream, redisStreamreader)
-		if err != nil {
-			return nil, err
-		}
-		err = fileStream.resetOffset()
-		if err != nil {
-			return nil, err
-		}
-		value := &CachedData{
-			ContentMetadata: *metadata,
-			Data:            fileStream,
-			Ttl:             ttl,
-		}
-		return value, nil
+	fileStream, err := newFileWriterReader(tmpDir)
+	if err != nil {
+		return nil, err
 	}
-
-	value := &CachedData{
+	_, err = io.Copy(fileStream, redisStreamreader)
+	if err != nil {
+		return nil, err
+	}
+	err = fileStream.resetOffset()
+	if err != nil {
+		return nil, err
+	}
+	return &CachedData{
 		ContentMetadata: *metadata,
-		Data:            &ioReaderDecorator{Reader: redisStreamreader},
+		Data:            fileStream,
 		Ttl:             ttl,
-	}
-
-	return value, nil
+	}, nil
 }
 
 // this struct is here because CachedData requires an io.ReadCloser
