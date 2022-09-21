@@ -438,7 +438,8 @@ var clickhouseRecoverableStatusCodes = map[int]struct{}{http.StatusServiceUnavai
 func (rp *reverseProxy) completeTransaction(s *scope, statusCode int, userCache *cache.AsyncCache, key *cache.Key,
 	q []byte,
 	failReason string) {
-	if statusCode < 300 {
+	// complete successful transactions or those with empty fail reason
+	if statusCode < 300 || failReason == "" {
 		if err := userCache.Complete(key); err != nil {
 			log.Errorf("%s: %s; query: %q", s, err, q)
 		}
