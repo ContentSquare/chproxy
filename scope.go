@@ -684,13 +684,12 @@ func (h *host) runHeartbeat(done <-chan struct{}) {
 			hostHealth.With(label).Set(0)
 		}
 	}
-	heartbeat()
 	for {
+		heartbeat()
 		select {
 		case <-done:
 			return
 		case <-time.After(hb.interval):
-			heartbeat()
 		}
 	}
 }
