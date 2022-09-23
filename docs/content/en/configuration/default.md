@@ -20,11 +20,6 @@ log_debug: true
 # By default security checks are enabled.
 hack_me_please: true
 
-# Whether to enable metric namespace `chproxy`
-#
-# By default metric namespace is disabled.
-enable_metric_namespace: false
-
 # Optional response cache configs.
 #
 # Multiple distinct caches with different settings may be configured.
@@ -164,6 +159,7 @@ server:
   # By default access to `/metrics` is unrestricted.
   metrics:
     allowed_networks: ["office"]
+    namespace: ""
 
 # Configs for input users.
 users:

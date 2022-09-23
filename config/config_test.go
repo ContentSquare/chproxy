@@ -36,8 +36,7 @@ var fullConfig = Config{
 			MaxPayloadSize: ByteSize(100 << 20),
 		},
 	},
-	HackMePlease:          true,
-	EnableMetricNamespace: true,
+	HackMePlease: true,
 	Server: Server{
 		HTTP: HTTP{
 			ListenAddr:           ":9090",
@@ -816,7 +815,6 @@ users:
   deny_https: true
 log_debug: true
 hack_me_please: true
-enable_metric_namespace: true
 network_groups:
 - name: office
   networks:

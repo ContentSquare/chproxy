@@ -53,9 +53,6 @@ type Config struct {
 	// Whether to ignore security warnings
 	HackMePlease bool `yaml:"hack_me_please,omitempty"`
 
-	// Whether to enable metric namespace
-	EnableMetricNamespace bool `yaml:"enable_metric_namespace,omitempty"`
-
 	NetworkGroups []NetworkGroups `yaml:"network_groups,omitempty"`
 
 	Caches []Cache `yaml:"caches,omitempty"`
@@ -293,6 +290,9 @@ type Metrics struct {
 	// Each list item could be IP address or subnet mask
 	// if omitted or zero - no limits would be applied
 	AllowedNetworks Networks `yaml:"-"`
+
+	// Prometheus metric namespace
+	Namespace string `yaml:"namespace,omitempty"`
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
