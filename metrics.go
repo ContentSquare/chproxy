@@ -37,7 +37,7 @@ var (
 )
 
 func initMetrics(cfg *config.Config) {
-	namespace := getNamespace(cfg)
+	namespace := cfg.Server.Metrics.Namespace
 	statusCodes = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: namespace,
@@ -257,14 +257,6 @@ func initMetrics(cfg *config.Config) {
 		Name:      "bad_requests_total",
 		Help:      "Total number of unsupported requests",
 	})
-}
-
-func getNamespace(cfg *config.Config) string {
-	namespace := ""
-	if cfg.EnableMetricNamespace {
-		namespace = "chproxy"
-	}
-	return namespace
 }
 
 func registerMetrics(cfg *config.Config) {

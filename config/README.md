@@ -16,9 +16,6 @@ log_debug: <bool> | default = false [optional]
 # Whether to ignore security warnings
 hack_me_please: <bool> | default = false [optional]
 
-# Whether to enable metric namespace
-enable_metric_namespace: <bool> | default = false [optional]
-
 # Named list of cache configurations
 caches:
   - <cache_config> ...
@@ -215,6 +212,9 @@ allowed_hosts: <host_name> ... | optional
 # List of networks or network_groups access is allowed from
 # Each list item could be IP address or subnet mask
 allowed_networks: <network_groups>, <networks> ... | optional
+
+# Prometheus metric namespace
+namespace: <string> | optional
 ```
 
 ### <user_config>

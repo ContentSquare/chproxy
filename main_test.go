@@ -718,8 +718,7 @@ func TestServe(t *testing.T) {
 		t.Fatalf("CHServer didn't start in %s", time.Since(startTime))
 	}
 
-	// register metrics for all testCases using same EnableMetricNamespace option
-	cfg := &config.Config{EnableMetricNamespace: false}
+	cfg := &config.Config{}
 	registerMetrics(cfg)
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
