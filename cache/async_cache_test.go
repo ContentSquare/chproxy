@@ -15,7 +15,7 @@ const asyncTestDir = "./async-test-data"
 
 func TestAsyncCache_Cleanup_Of_Expired_Transactions(t *testing.T) {
 	graceTime := 100 * time.Millisecond
-	asyncCache := newAsyncTestCache(t, graceTime)
+	asyncCache := newAsyncTestCache(t, graceTime, graceTime/2)
 	defer func() {
 		asyncCache.Close()
 		os.RemoveAll(asyncTestDir)
@@ -51,7 +51,7 @@ func TestAsyncCache_Cleanup_Of_Expired_Transactions(t *testing.T) {
 
 func TestAsyncCache_AwaitForConcurrentTransaction_GraceTimeWithoutTransactionCompletion(t *testing.T) {
 	graceTime := 100 * time.Millisecond
-	asyncCache := newAsyncTestCache(t, graceTime)
+	asyncCache := newAsyncTestCache(t, graceTime, graceTime/2)
 
 	defer func() {
 		asyncCache.Close()
@@ -94,7 +94,7 @@ func TestAsyncCache_AwaitForConcurrentTransaction_GraceTimeWithoutTransactionCom
 
 func TestAsyncCache_AwaitForConcurrentTransaction_TransactionCompletedWhileAwaiting(t *testing.T) {
 	graceTime := 300 * time.Millisecond
-	asyncCache := newAsyncTestCache(t, graceTime)
+	asyncCache := newAsyncTestCache(t, graceTime, graceTime/2)
 
 	defer func() {
 		asyncCache.Close()
@@ -138,7 +138,7 @@ func TestAsyncCache_AwaitForConcurrentTransaction_TransactionCompletedWhileAwait
 
 func TestAsyncCache_AwaitForConcurrentTransaction_TransactionFailedWhileAwaiting(t *testing.T) {
 	graceTime := 300 * time.Millisecond
-	asyncCache := newAsyncTestCache(t, graceTime)
+	asyncCache := newAsyncTestCache(t, graceTime, graceTime/2)
 
 	defer func() {
 		asyncCache.Close()
@@ -186,7 +186,7 @@ func TestAsyncCache_AwaitForConcurrentTransaction_TransactionFailedWhileAwaiting
 	}
 }
 
-func newAsyncTestCache(t *testing.T, graceTime time.Duration) *AsyncCache {
+func newAsyncTestCache(t *testing.T, graceTime, transactionEndedTime time.Duration) *AsyncCache {
 	t.Helper()
 	cfg := config.Cache{
 		Name: "foobar",
@@ -203,7 +203,7 @@ func newAsyncTestCache(t *testing.T, graceTime time.Duration) *AsyncCache {
 
 	asyncC := &AsyncCache{
 		Cache:               c,
-		TransactionRegistry: newInMemoryTransactionRegistry(graceTime),
+		TransactionRegistry: newInMemoryTransactionRegistry(graceTime, transactionEndedTime),
 		graceTime:           graceTime,
 	}
 	return asyncC

@@ -91,12 +91,12 @@ func NewAsyncCache(cfg config.Cache, maxExecutionTime time.Duration) (*AsyncCach
 	switch cfg.Mode {
 	case "file_system":
 		cache, err = newFilesSystemCache(cfg, graceTime)
-		transaction = newInMemoryTransactionRegistry(transactionDeadline)
+		transaction = newInMemoryTransactionRegistry(transactionDeadline, transactionEndedTTL)
 	case "redis":
 		var redisClient redis.UniversalClient
 		redisClient, err = clients.NewRedisClient(cfg.Redis)
 		cache = newRedisCache(redisClient, cfg)
-		transaction = newRedisTransactionRegistry(redisClient, transactionDeadline)
+		transaction = newRedisTransactionRegistry(redisClient, transactionDeadline, transactionEndedTTL)
 	default:
 		return nil, fmt.Errorf("unknown config mode")
 	}
