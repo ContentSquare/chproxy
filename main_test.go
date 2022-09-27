@@ -23,6 +23,7 @@ import (
 	"github.com/contentsquare/chproxy/cache"
 	"github.com/contentsquare/chproxy/config"
 	"github.com/contentsquare/chproxy/log"
+	"github.com/stretchr/testify/assert"
 )
 
 var testDir = "./temp-test-data"
@@ -582,6 +583,16 @@ func TestServe(t *testing.T) {
 			startHTTP,
 		},
 		{
+			"http metrics namespace",
+			"testdata/http.metrics.namespace.yml",
+			func(t *testing.T) {
+				resp := httpGet(t, "http://127.0.0.1:9090/metrics", http.StatusOK)
+				assert.GreaterOrEqual(t, len(getStringFromResponse(t, resp.Body)), 10000)
+				resp.Body.Close()
+			},
+			startHTTP,
+		},
+		{
 			"http user networks",
 			"testdata/http.user.networks.yml",
 			func(t *testing.T) {
@@ -1028,15 +1039,19 @@ func checkErr(t *testing.T, err error) {
 	}
 }
 
-func checkResponse(t *testing.T, r io.Reader, expected string) {
+func getStringFromResponse(t *testing.T, r io.Reader) string {
 	if r == nil {
-		t.Fatal("unexpected nil reader")
+		t.Fatalf("unexpected nil reader")
 	}
 	response, err := io.ReadAll(r)
 	if err != nil {
 		t.Fatalf("unexpected err while reading: %s", err)
 	}
-	got := string(response)
+	return string(response)
+}
+
+func checkResponse(t *testing.T, r io.Reader, expected string) {
+	got := getStringFromResponse(t, r)
 	if !strings.Contains(got, expected) {
 		t.Fatalf("got: %q; expected: %q", got, expected)
 	}
