@@ -209,7 +209,7 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, srw *stat
 	var err error
 
 	// test if we could do the rerun
-	if numr > 0 && retryNum <= numr {
+	if numr > 1 && retryNum <= numr {
 		for i := 0; i <= retryNum; i++ {
 			rp.rp.ServeHTTP(rw, req)
 			err = ctx.Err()
