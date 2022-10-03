@@ -162,6 +162,77 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	requestDuration.With(s.labels).Observe(since)
 }
 
+func runReq(ctx context.Context, s *scope, startTime time.Time, retryNum int, rp *httputil.ReverseProxy, rw http.ResponseWriter, srw *statResponseWriter, req *http.Request, err error) error {
+	numr := len(s.host.replica.cluster.replicas)
+
+	// test if we could do the rerun
+	if numr > 1 && retryNum <= numr {
+		for i := 0; i <= retryNum; i++ {
+			rp.ServeHTTP(rw, req)
+			err = ctx.Err()
+			if err == nil { //nolint: gocritic
+				// The request has been successfully proxied.
+				since := time.Since(startTime).Seconds()
+				proxiedResponseDuration.With(s.labels).Observe(since)
+
+				// cache.FSResponseWriter pushes status code to srw on Finalize/Fail actions
+				// but they didn't happen yet, so manually propagate the status code from crw to srw.
+				if crw, ok := rw.(*cache.TmpFileResponseWriter); ok {
+					srw.statusCode = crw.StatusCode()
+				}
+				// StatusBadGateway response is returned by http.ReverseProxy when
+				// it cannot establish connection to remote host.
+				if srw.statusCode == http.StatusBadGateway {
+					if i == retryNum {
+						s.host.penalize()
+						q := getQuerySnippet(req)
+						err = fmt.Errorf("%s: cannot reach %s; query: %q", s, s.host.addr.Host, q)
+						respondWith(srw, err, srw.statusCode)
+					} else {
+						h := s.host
+						h.dec()
+						h.active = 0
+						s.host = h.replica.getHost()
+						h.active = 1
+						req.URL.Host = s.host.addr.Host
+						req.URL.Scheme = s.host.addr.Scheme
+					}
+				} else {
+					return err
+				}
+			} else {
+				return err
+			}
+		}
+	} else {
+		rp.ServeHTTP(rw, req)
+
+		err = ctx.Err()
+		if err == nil { //nolint: gocritic
+			// The request has been successfully proxied.
+			since := time.Since(startTime).Seconds()
+			proxiedResponseDuration.With(s.labels).Observe(since)
+
+			// cache.FSResponseWriter pushes status code to srw on Finalize/Fail actions
+			// but they didn't happen yet, so manually propagate the status code from crw to srw.
+			if crw, ok := rw.(*cache.TmpFileResponseWriter); ok {
+				srw.statusCode = crw.StatusCode()
+			}
+
+			// StatusBadGateway response is returned by http.ReverseProxy when
+			// it cannot establish connection to remote host.
+			if srw.statusCode == http.StatusBadGateway {
+				s.host.penalize()
+				q := getQuerySnippet(req)
+				err = fmt.Errorf("%s: cannot reach %s; query: %q", s, s.host.addr.Host, q)
+				respondWith(srw, err, srw.statusCode)
+			}
+		}
+	}
+
+	return err
+}
+
 // proxyRequest proxies the given request to clickhouse and sends response
 // to rw.
 //
@@ -202,76 +273,11 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, srw *stat
 
 	startTime := time.Now()
 
-	numr := len(s.host.replica.cluster.replicas)
-
 	retryNum := 1
 
 	var err error
 
-	// test if we could do the rerun
-	if numr > 1 && retryNum <= numr {
-		for i := 0; i <= retryNum; i++ {
-			rp.rp.ServeHTTP(rw, req)
-			err = ctx.Err()
-			if err == nil { //nolint: gocritic
-				// The request has been successfully proxied.
-				since := time.Since(startTime).Seconds()
-				proxiedResponseDuration.With(s.labels).Observe(since)
-
-				// cache.FSResponseWriter pushes status code to srw on Finalize/Fail actions
-				// but they didn't happen yet, so manually propagate the status code from crw to srw.
-				if crw, ok := rw.(*cache.TmpFileResponseWriter); ok {
-					srw.statusCode = crw.StatusCode()
-				}
-				// StatusBadGateway response is returned by http.ReverseProxy when
-				// it cannot establish connection to remote host.
-				if srw.statusCode == http.StatusBadGateway {
-					if i == retryNum {
-						s.host.penalize()
-						q := getQuerySnippet(req)
-						err := fmt.Errorf("%s: cannot reach %s; query: %q", s, s.host.addr.Host, q)
-						respondWith(srw, err, srw.statusCode)
-					} else {
-						h := s.host
-						h.dec()
-						h.active = 0
-						s.host = h.replica.getHost()
-						h.active = 1
-						req.URL.Host = s.host.addr.Host
-						req.URL.Scheme = s.host.addr.Scheme
-					}
-				} else {
-					break
-				}
-			} else {
-				break
-			}
-		}
-	} else {
-		rp.rp.ServeHTTP(rw, req)
-
-		err = ctx.Err()
-		if err == nil { //nolint: gocritic
-			// The request has been successfully proxied.
-			since := time.Since(startTime).Seconds()
-			proxiedResponseDuration.With(s.labels).Observe(since)
-
-			// cache.FSResponseWriter pushes status code to srw on Finalize/Fail actions
-			// but they didn't happen yet, so manually propagate the status code from crw to srw.
-			if crw, ok := rw.(*cache.TmpFileResponseWriter); ok {
-				srw.statusCode = crw.StatusCode()
-			}
-
-			// StatusBadGateway response is returned by http.ReverseProxy when
-			// it cannot establish connection to remote host.
-			if srw.statusCode == http.StatusBadGateway {
-				s.host.penalize()
-				q := getQuerySnippet(req)
-				err := fmt.Errorf("%s: cannot reach %s; query: %q", s, s.host.addr.Host, q)
-				respondWith(srw, err, srw.statusCode)
-			}
-		}
-	}
+	err = runReq(ctx, s, startTime, retryNum, rp.rp, rw, srw, req, err)
 
 	if errors.Is(err, context.Canceled) {
 		canceledRequest.With(s.labels).Inc()
