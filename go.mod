@@ -3,10 +3,10 @@ module github.com/contentsquare/chproxy
 go 1.17
 
 require (
-	github.com/DataDog/zstd v1.5.0
 	github.com/alicebob/miniredis/v2 v2.21.0
 	github.com/go-redis/redis/v8 v8.11.4
 	github.com/google/go-cmp v0.5.7
+	github.com/klauspost/compress v1.15.11
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
 	github.com/pierrec/lz4 v2.4.0+incompatible
 	github.com/prometheus/client_golang v1.3.0
