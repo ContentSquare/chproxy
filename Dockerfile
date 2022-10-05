@@ -6,5 +6,5 @@ COPY ${BINARY} /
 
 EXPOSE 9090
 
-ENTRYPOINT ["/chproxy"]
+ENTRYPOINT ["/${BINARY}"]
 CMD [ "--help" ]
