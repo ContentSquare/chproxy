@@ -5,71 +5,15 @@ before:
     - go mod download
 
 builds:
-  - id: linux-amd64
+  - id: chproxy
     binary: chproxy
     env:
       - CGO_ENABLED=0
     goos:
       - linux
-    goarch:
-      - amd64
-    flags:
-      - "-tags={{ .Env.BUILD_TAG }}"
-    ldflags:
-      - -s
-      - -w
-      - -X main.buildTime={{ .Date }}
-      - -X main.buildRevision={{ .FullCommit }}
-      - -X main.buildTag={{ .Version }}
-    gcflags:
-      - -trimpath={{.Env.GOPATH}}/src
-
-  - id: linux-arm64
-    binary: chproxy-arm64
-    env:
-      - CGO_ENABLED=0
-      - CC=aarch64-linux-gnu-gcc
-    goos:
-      - linux
-    goarch:
-      - arm64
-    flags:
-      - "-tags={{ .Env.BUILD_TAG }}"
-    ldflags:
-      - -s
-      - -w
-      - -X main.buildTime={{ .Date }}
-      - -X main.buildRevision={{ .FullCommit }}
-      - -X main.buildTag={{ .Version }}
-    gcflags:
-      - -trimpath={{.Env.GOPATH}}/src
-
-  - id: darwin-amd64
-    binary: darwin-amd64
-    env:
-      - CGO_ENABLED=0
-    goos:
       - darwin
     goarch:
       - amd64
-    flags:
-      - "-tags={{ .Env.BUILD_TAG }}"
-    ldflags:
-      - -s
-      - -w
-      - -X main.buildTime={{ .Date }}
-      - -X main.buildRevision={{ .FullCommit }}
-      - -X main.buildTag={{ .Version }}
-    gcflags:
-      - -trimpath={{.Env.GOPATH}}/src
-
-  - id: darwin-arm64
-    binary: darwin-arm64
-    env:
-      - CGO_ENABLED=0
-    goos:
-      - darwin
-    goarch:
       - arm64
     flags:
       - "-tags={{ .Env.BUILD_TAG }}"
@@ -95,8 +39,15 @@ dockers:
     image_templates:
       - "contentsquareplatform/chproxy:{{ .Version }}-arm64"
     build_flag_templates:
-      - "--build-arg=BINARY=chproxy-arm64"
+      - "--build-arg=BINARY=chproxy"
       - "--platform=linux/arm64"
+  - goos: linux
+    goarch: arm64
+    image_templates:
+      - "contentsquareplatform/chproxy:{{ .Version }}-arm64v8"
+    build_flag_templates:
+      - "--build-arg=BINARY=chproxy"
+      - "--platform=linux/arm64/v8"
 
 snapshot:
   name_template: "{{ .FullCommit }}-SNAPSHOT"
