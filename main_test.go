@@ -818,7 +818,7 @@ func startTLS() (*http.Server, chan struct{}) {
 	tlsCfg := newTLSConfig(cfg.Server.HTTPS)
 	tln := tls.NewListener(ln, tlsCfg)
 	h := middleware.NewProxyMiddleware(cfg.Server.Proxy, http.HandlerFunc(serveHTTP))
-	s := createServer(tln, h, config.TimeoutCfg{})
+	s := newServer(tln, h, config.TimeoutCfg{})
 	go func() {
 		s.Serve(tln)
 		close(done)
@@ -840,7 +840,7 @@ func startHTTP() (*http.Server, chan struct{}) {
 		panic(fmt.Sprintf("cannot listen for %q: %s", cfg.Server.HTTP.ListenAddr, err))
 	}
 	h := middleware.NewProxyMiddleware(cfg.Server.Proxy, http.HandlerFunc(serveHTTP))
-	s := createServer(ln, h, config.TimeoutCfg{})
+	s := newServer(ln, h, config.TimeoutCfg{})
 	go func() {
 		s.Serve(ln)
 		close(done)

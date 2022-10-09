@@ -192,7 +192,7 @@ func newTLSConfig(cfg config.HTTPS) *tls.Config {
 	return &tlsCfg
 }
 
-func createServer(ln net.Listener, h http.Handler, cfg config.TimeoutCfg) *http.Server {
+func newServer(ln net.Listener, h http.Handler, cfg config.TimeoutCfg) *http.Server {
 	return &http.Server{
 		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 		Handler:      h,
@@ -207,7 +207,7 @@ func createServer(ln net.Listener, h http.Handler, cfg config.TimeoutCfg) *http.
 }
 
 func listenAndServe(ln net.Listener, h http.Handler, cfg config.TimeoutCfg) error {
-	s := createServer(ln, h, cfg)
+	s := newServer(ln, h, cfg)
 	return s.Serve(ln)
 }
 

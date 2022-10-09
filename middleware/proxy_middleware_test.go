@@ -46,6 +46,19 @@ func TestProxyMiddleware(t *testing.T) {
 			expectedAddr: "10.0.0.1",
 		},
 		{
+			name: "proxy should ignore invalid IP values in the Proxy header",
+			proxy: config.Proxy{
+				Enable: true,
+			},
+			r: &http.Request{
+				RemoteAddr: "127.0.0.1:1234",
+				Header: http.Header{
+					"X-Forwarded-For": []string{"nonsense"},
+				},
+			},
+			expectedAddr: "127.0.0.1:1234",
+		},
+		{
 			name: "proxy should forward proxy header X-Real-IP if set",
 			proxy: config.Proxy{
 				Enable: true,
@@ -70,6 +83,58 @@ func TestProxyMiddleware(t *testing.T) {
 				},
 			},
 			expectedAddr: "10.0.0.1",
+		},
+		{
+			name: "proxy should properly parse Forwarded header",
+			proxy: config.Proxy{
+				Enable: true,
+			},
+			r: &http.Request{
+				RemoteAddr: "127.0.0.1:1234",
+				Header: http.Header{
+					"Forwarded": []string{"for=10.0.0.1;proto=http;by=203.0.113.43"},
+				},
+			},
+			expectedAddr: "10.0.0.1",
+		},
+		{
+			name: "proxy should parse Forwarded header in a case insensitive manner",
+			proxy: config.Proxy{
+				Enable: true,
+			},
+			r: &http.Request{
+				RemoteAddr: "127.0.0.1:1234",
+				Header: http.Header{
+					"Forwarded": []string{"For=10.0.0.1"},
+				},
+			},
+			expectedAddr: "10.0.0.1",
+		},
+		{
+			name: "proxy should parse IPv6 in Forwarded header",
+			proxy: config.Proxy{
+				Enable: true,
+			},
+			r: &http.Request{
+				RemoteAddr: "127.0.0.1:1234",
+				Header: http.Header{
+					"Forwarded": []string{"for=\"[2001:db8:cafe::17]\""},
+				},
+			},
+			expectedAddr: "2001:db8:cafe::17",
+		},
+		{
+			name: "proxy should parse IPv6 + port in Forwarded header",
+			proxy: config.Proxy{
+				Enable: true,
+			},
+			r: &http.Request{
+				RemoteAddr: "127.0.0.1:1234",
+				Header: http.Header{
+					"Forwarded": []string{"for=\"[2001:db8:cafe::17]:4711\""},
+				},
+			},
+			expectedAddr: "2001:db8:cafe::17:4711",
 		},
 		{
 			name: "proxy should forward custom proxy header if set",

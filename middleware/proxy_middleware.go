@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"net"
 	"net/http"
 	"strings"
 
@@ -33,14 +34,33 @@ func (m *ProxyMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (m *ProxyMiddleware) getIP(r *http.Request) string {
 	if m.proxy.Enable {
+		var addr string
 		if m.proxy.Header != "" {
-			return r.Header.Get(m.proxy.Header)
+			addr = r.Header.Get(m.proxy.Header)
 		} else {
-			return parseDefaultProxyHeaders(r)
+			addr = parseDefaultProxyHeaders(r)
+		}
+
+		if isValidAddr(addr) {
+			return addr
 		}
 	}
 
 	return r.RemoteAddr
+}
+
+// isValidAddr checks if the Addr is a valid IP or IP:port.
+func isValidAddr(addr string) bool {
+	if addr == "" {
+		return false
+	}
+
+	ip, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return net.ParseIP(addr) != nil
+	}
+
+	return net.ParseIP(ip) != nil
 }
 
 func parseDefaultProxyHeaders(r *http.Request) string {
@@ -78,13 +98,18 @@ func parseForwardedHeader(fwd string) string {
 
 	for _, split := range splits {
 		trimmed := strings.TrimSpace(split)
-		if strings.HasPrefix(trimmed, "for=") {
+		if strings.HasPrefix(strings.ToLower(trimmed), "for=") {
 			forSplits := strings.Split(trimmed, ", ")
 			if len(forSplits) == 0 {
 				return ""
 			}
 
-			return forSplits[0][4:]
+			addr := forSplits[0][4:]
+			trimmedAddr := strings.
+				NewReplacer("\"", "", "[", "", "]", "").
+				Replace(addr) // If IpV6, remove brackets and quotes.
+
+			return trimmedAddr
 		}
 	}
 
