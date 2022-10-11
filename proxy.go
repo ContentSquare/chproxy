@@ -167,57 +167,34 @@ type ResponseWriterWithCode interface {
 	StatusCode() int
 }
 
-type mockResponseWriter struct {
-	http.ResponseWriter
-	statusCode int
-}
-
-func (m *mockResponseWriter) StatusCode() int {
-	return m.statusCode
-}
-
-func (m *mockResponseWriter) Header() http.Header {
-	return m.ResponseWriter.Header()
-}
-
-func (m *mockResponseWriter) Write(i []byte) (int, error) {
-	return m.ResponseWriter.Write(i)
-
-}
-
-func (m *mockResponseWriter) WriteHeader(statusCode int) {
-	m.statusCode = statusCode
-}
-
 func runReq(ctx context.Context, s *scope, startTime time.Time, retryNum int, rp func(http.ResponseWriter, *http.Request), rw http.ResponseWriter, srw *statResponseWriter, req *http.Request, err error) error {
 	// test if we could do the rerun
-
 	numr := len(s.host.replica.cluster.replicas)
-	mrw := rw.(*mockResponseWriter)
 	if numr > 1 && retryNum <= numr {
 		for i := 0; i <= retryNum; i++ {
-			rp(mrw, req)
-			fmt.Println(mrw.StatusCode())
+			rp(rw, req)
 			err = ctx.Err()
 			if err == nil { //nolint: gocritic
 				// The request has been successfully proxied.
-				//since := time.Since(startTime).Seconds()
-				//proxiedResponseDuration.With(s.labels).Observe(since)
+				//	 since := time.Since(startTime).Seconds()
+				// proxiedResponseDuration.With(s.labels).Observe(since)
 
 				// cache.FSResponseWriter pushes status code to srw on Finalize/Fail actions
 				// but they didn't happen yet, so manually propagate the status code from crw to srw.
-				//				if crw, ok := rw.(*cache.TmpFileResponseWriter); ok {
-				//					srw.statusCode = crw.StatusCode()
-				//				}
+				if crw, ok := rw.(ResponseWriterWithCode); ok {
+					srw.statusCode = crw.StatusCode()
+				}
+
+				fmt.Println(srw.statusCode)
 
 				// StatusBadGateway response is returned by http.ReverseProxy when
 				// it cannot establish connection to remote host.
-				if mrw.StatusCode() == http.StatusBadGateway {
+				if srw.statusCode == http.StatusBadGateway {
 					if i == retryNum {
 						s.host.penalize()
 						q := getQuerySnippet(req)
 						err = fmt.Errorf("%s: cannot reach %s; query: %q", s, s.host.addr.Host, q)
-						respondWith(mrw, err, mrw.statusCode)
+						respondWith(srw, err, srw.statusCode)
 					} else {
 						h := s.host
 						h.dec()

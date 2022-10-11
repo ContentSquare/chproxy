@@ -79,19 +79,16 @@ func TestReRunFail(t *testing.T) {
 		},
 	}
 
-	rw := httptest.NewRecorder()
-
 	srw := &statResponseWriter{
-		ResponseWriter: rw,
-	}
-
-	mrw := &mockResponseWriter{
-		ResponseWriter: rw,
+		ResponseWriter: httptest.NewRecorder(),
 	}
 
 	var err error
 
 	retryNum := 1
+	mrw := &mockResponseWriter{
+		statusCode: 0,
+	}
 
 	err1 := runReq(ctx, s, startTime, retryNum, mockReverseProxy, mrw, srw, req, err)
 
@@ -167,17 +164,14 @@ func TestReRunOnce(t *testing.T) {
 		},
 	}
 
-	rw := httptest.NewRecorder()
-
 	srw := &statResponseWriter{
-		ResponseWriter: rw,
-	}
-
-	mrw := &mockResponseWriter{
-		ResponseWriter: rw,
+		ResponseWriter: httptest.NewRecorder(),
 	}
 
 	var err error
+	mrw := &mockResponseWriter{
+		statusCode: 0,
+	}
 
 	retryNum := 1
 
@@ -188,7 +182,7 @@ func TestReRunOnce(t *testing.T) {
 	}
 }
 
-func TestReRun(t *testing.T) {
+func TestReRunSuccess(t *testing.T) {
 	//create a new req
 	req := httptest.NewRequest(http.MethodGet, "http://localhost:8080", nil)
 
@@ -255,14 +249,12 @@ func TestReRun(t *testing.T) {
 		},
 	}
 
-	rw := httptest.NewRecorder()
-
 	srw := &statResponseWriter{
-		ResponseWriter: rw,
+		ResponseWriter: httptest.NewRecorder(),
 	}
 
 	mrw := &mockResponseWriter{
-		ResponseWriter: rw,
+		statusCode: 0,
 	}
 
 	var err error
@@ -276,6 +268,27 @@ func TestReRun(t *testing.T) {
 	}
 }
 
+type mockResponseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (m *mockResponseWriter) StatusCode() int {
+	return m.statusCode
+}
+
+func (m *mockResponseWriter) Header() http.Header {
+	return m.ResponseWriter.Header()
+}
+
+func (m *mockResponseWriter) Write(i []byte) (int, error) {
+	return m.ResponseWriter.Write(i)
+
+}
+
+func (m *mockResponseWriter) WriteHeader(statusCode int) {
+	m.statusCode = statusCode
+}
 func mockReverseProxy(rw http.ResponseWriter, req *http.Request) {
 	if req.URL.Host != "localhost:8090" {
 		fmt.Println("unvalid host")
