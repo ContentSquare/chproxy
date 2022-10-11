@@ -90,7 +90,7 @@ func TestReRunFail(t *testing.T) {
 		statusCode: 0,
 	}
 
-	err1 := runReq(ctx, s, startTime, retryNum, mockReverseProxy, mrw, srw, req, err)
+	err1 := runReq(ctx, s, startTime, retryNum, mockReverseProxy, mrw, srw, req)
 
 	if err1 == nil {
 		t.Errorf("the retry should be failed: %v", err)
@@ -168,16 +168,15 @@ func TestReRunOnce(t *testing.T) {
 		ResponseWriter: httptest.NewRecorder(),
 	}
 
-	var err error
 	mrw := &mockResponseWriter{
 		statusCode: 0,
 	}
 
 	retryNum := 1
 
-	err1 := runReq(ctx, s, startTime, retryNum, mockReverseProxy, mrw, srw, req, err)
+	err := runReq(ctx, s, startTime, retryNum, mockReverseProxy, mrw, srw, req)
 
-	if err1 != nil {
+	if err != nil {
 		t.Errorf("the retry is failed: %v", err)
 	}
 }
@@ -257,13 +256,11 @@ func TestReRunSuccess(t *testing.T) {
 		statusCode: 0,
 	}
 
-	var err error
-
 	retryNum := 1
 
-	err1 := runReq(ctx, s, startTime, retryNum, mockReverseProxy, mrw, srw, req, err)
+	err := runReq(ctx, s, startTime, retryNum, mockReverseProxy, mrw, srw, req)
 
-	if err1 != nil {
+	if err != nil {
 		t.Errorf("the retry is failed: %v", err)
 	}
 }

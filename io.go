@@ -12,6 +12,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+type ResponseWriterWithCode interface {
+	http.ResponseWriter
+	StatusCode() int
+}
+
 // statResponseWriter collects the amount of bytes written.
 //
 // The wrapped ResponseWriter must implement http.CloseNotifier.
@@ -50,6 +55,14 @@ func RespondWithData(rw http.ResponseWriter, data io.Reader, metadata cache.Cont
 	}
 
 	return nil
+}
+
+func (rw *statResponseWriter) StatusCode() int {
+	if rw.statusCode == 0 {
+		return http.StatusOK
+	}
+
+	return rw.statusCode
 }
 
 func (rw *statResponseWriter) Write(b []byte) (int, error) {
