@@ -23,10 +23,12 @@ import (
 	"github.com/contentsquare/chproxy/cache"
 	"github.com/contentsquare/chproxy/config"
 	"github.com/contentsquare/chproxy/log"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 )
 
 var testDir = "./temp-test-data"
+var labels = prometheus.Labels{}
 
 func TestMain(m *testing.M) {
 	log.SuppressOutput(true)
@@ -110,7 +112,7 @@ func TestServe(t *testing.T) {
 				if err != nil {
 					t.Fatalf("unexpected error while getting response from cache: %s", err)
 				}
-				err = RespondWithData(rw, cachedData.Data, cachedData.ContentMetadata, cachedData.Ttl, 200)
+				err = RespondWithData(rw, cachedData.Data, cachedData.ContentMetadata, cachedData.Ttl, 200, labels)
 				if err != nil {
 					t.Fatalf("unexpected error while getting response from cache: %s", err)
 				}
@@ -186,7 +188,7 @@ func TestServe(t *testing.T) {
 					t.Fatalf("unexpected error while getting response from cache: %s", err)
 				}
 
-				err = RespondWithData(rw, cachedData.Data, cachedData.ContentMetadata, cachedData.Ttl, 200)
+				err = RespondWithData(rw, cachedData.Data, cachedData.ContentMetadata, cachedData.Ttl, 200, labels)
 				if err != nil {
 					t.Fatalf("unexpected error while getting response from cache: %s", err)
 				}
@@ -235,7 +237,7 @@ func TestServe(t *testing.T) {
 					t.Fatalf("unexpected error while writing reposnse from cache: %s", err)
 				}
 
-				err = RespondWithData(rw, cachedData.Data, cachedData.ContentMetadata, cachedData.Ttl, 200)
+				err = RespondWithData(rw, cachedData.Data, cachedData.ContentMetadata, cachedData.Ttl, 200, labels)
 				if err != nil {
 					t.Fatalf("unexpected error while getting response from cache: %s", err)
 				}
