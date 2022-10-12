@@ -15,7 +15,7 @@ import (
 	"github.com/contentsquare/chproxy/config"
 )
 
-const cacheTTL = time.Duration(10 * time.Second)
+const cacheTTL = time.Duration(30 * time.Second)
 
 var redisConf = config.Cache{
 	Name: "foobar",

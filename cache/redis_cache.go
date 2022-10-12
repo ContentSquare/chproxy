@@ -30,9 +30,9 @@ const putTimeout = 2 * time.Second
 const statsTimeout = 500 * time.Millisecond
 
 // this variable is key to select whether the result should be streamed
-// from redis to the http response or if the cache should first put the
-// result from redis in a temporary files
-const minTTLForRedisStreamingReader = 5 * time.Second
+// from redis to the http response or if chproxy should first put the
+// result from redis in a temporary files before sending it to the http response
+const minTTLForRedisStreamingReader = 15 * time.Second
 
 // tmpDir temporary path to store ongoing queries results
 const tmpDir = "/tmp"
