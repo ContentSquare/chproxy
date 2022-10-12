@@ -23,7 +23,6 @@ import (
 	"github.com/contentsquare/chproxy/cache"
 	"github.com/contentsquare/chproxy/config"
 	"github.com/contentsquare/chproxy/log"
-	"github.com/contentsquare/chproxy/middleware"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -817,7 +816,7 @@ func startTLS() (*http.Server, chan struct{}) {
 	}
 	tlsCfg := newTLSConfig(cfg.Server.HTTPS)
 	tln := tls.NewListener(ln, tlsCfg)
-	h := middleware.NewProxyMiddleware(cfg.Server.Proxy, http.HandlerFunc(serveHTTP))
+	h := http.HandlerFunc(serveHTTP)
 	s := newServer(tln, h, config.TimeoutCfg{})
 	go func() {
 		s.Serve(tln)
@@ -839,7 +838,7 @@ func startHTTP() (*http.Server, chan struct{}) {
 	if err != nil {
 		panic(fmt.Sprintf("cannot listen for %q: %s", cfg.Server.HTTP.ListenAddr, err))
 	}
-	h := middleware.NewProxyMiddleware(cfg.Server.Proxy, http.HandlerFunc(serveHTTP))
+	h := http.HandlerFunc(serveHTTP)
 	s := newServer(ln, h, config.TimeoutCfg{})
 	go func() {
 		s.Serve(ln)

@@ -16,7 +16,6 @@ import (
 
 	"github.com/contentsquare/chproxy/config"
 	"github.com/contentsquare/chproxy/log"
-	"github.com/contentsquare/chproxy/middleware"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/crypto/acme/autocert"
 )
@@ -35,6 +34,7 @@ var (
 	allowedNetworksHTTP    atomic.Value
 	allowedNetworksHTTPS   atomic.Value
 	allowedNetworksMetrics atomic.Value
+	proxySettings          atomic.Value
 )
 
 func main() {
@@ -82,10 +82,10 @@ func main() {
 		autocertManager = newAutocertManager(server.HTTPS.Autocert)
 	}
 	if len(server.HTTPS.ListenAddr) != 0 {
-		go serveTLS(server.HTTPS, server.Proxy)
+		go serveTLS(server.HTTPS)
 	}
 	if len(server.HTTP.ListenAddr) != 0 {
-		go serve(server.HTTP, server.Proxy)
+		go serve(server.HTTP)
 	}
 
 	select {}
@@ -132,10 +132,10 @@ func newListener(listenAddr string) net.Listener {
 	return ln
 }
 
-func serveTLS(cfg config.HTTPS, proxyCfg config.Proxy) {
+func serveTLS(cfg config.HTTPS) {
 	ln := newListener(cfg.ListenAddr)
 
-	h := middleware.NewProxyMiddleware(proxyCfg, http.HandlerFunc(serveHTTP))
+	h := http.HandlerFunc(serveHTTP)
 
 	tlsCfg := newTLSConfig(cfg)
 	tln := tls.NewListener(ln, tlsCfg)
@@ -145,11 +145,11 @@ func serveTLS(cfg config.HTTPS, proxyCfg config.Proxy) {
 	}
 }
 
-func serve(cfg config.HTTP, proxyCfg config.Proxy) {
+func serve(cfg config.HTTP) {
 	var h http.Handler
 	ln := newListener(cfg.ListenAddr)
 
-	h = middleware.NewProxyMiddleware(proxyCfg, http.HandlerFunc(serveHTTP))
+	h = http.HandlerFunc(serveHTTP)
 	if cfg.ForceAutocertHandler {
 		if autocertManager == nil {
 			panic("BUG: autocertManager is not inited")
@@ -242,15 +242,20 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 		promHandler.ServeHTTP(rw, r)
 	case "/", "/query":
 		var err error
+
+		proxySettings := proxySettings.Load().(*config.Proxy)
+		proxyHandler := NewProxyHandler(proxySettings)
+		remoteAddr := proxyHandler.GetRemoteAddr(r)
+
 		var an *config.Networks
 		if r.TLS != nil {
 			an = allowedNetworksHTTPS.Load().(*config.Networks)
-			err = fmt.Errorf("https connections are not allowed from %s", r.RemoteAddr)
+			err = fmt.Errorf("https connections are not allowed from %s", remoteAddr)
 		} else {
 			an = allowedNetworksHTTP.Load().(*config.Networks)
-			err = fmt.Errorf("http connections are not allowed from %s", r.RemoteAddr)
+			err = fmt.Errorf("http connections are not allowed from %s", remoteAddr)
 		}
-		if !an.Contains(r.RemoteAddr) {
+		if !an.Contains(remoteAddr) {
 			rw.Header().Set("Connection", "close")
 			respondWith(rw, err, http.StatusForbidden)
 			return
@@ -282,6 +287,7 @@ func applyConfig(cfg *config.Config) error {
 	allowedNetworksHTTP.Store(&cfg.Server.HTTP.AllowedNetworks)
 	allowedNetworksHTTPS.Store(&cfg.Server.HTTPS.AllowedNetworks)
 	allowedNetworksMetrics.Store(&cfg.Server.Metrics.AllowedNetworks)
+	proxySettings.Store(&cfg.Server.Proxy)
 	log.SetDebug(cfg.LogDebug)
 	log.Infof("Loaded config:\n%s", cfg)
 

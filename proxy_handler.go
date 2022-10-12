@@ -1,4 +1,4 @@
-package middleware
+package main
 
 import (
 	"net"
@@ -14,25 +14,17 @@ const (
 	forwardedHeader     = "Forwarded"
 )
 
-type ProxyMiddleware struct {
-	proxy config.Proxy
-
-	next http.Handler
+type ProxyHandler struct {
+	proxy *config.Proxy
 }
 
-func NewProxyMiddleware(proxy config.Proxy, next http.Handler) *ProxyMiddleware {
-	return &ProxyMiddleware{
+func NewProxyHandler(proxy *config.Proxy) *ProxyHandler {
+	return &ProxyHandler{
 		proxy: proxy,
-		next:  next,
 	}
 }
 
-func (m *ProxyMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	r.RemoteAddr = m.getIP(r)
-	m.next.ServeHTTP(w, r)
-}
-
-func (m *ProxyMiddleware) getIP(r *http.Request) string {
+func (m *ProxyHandler) GetRemoteAddr(r *http.Request) string {
 	if m.proxy.Enable {
 		var addr string
 		if m.proxy.Header != "" {

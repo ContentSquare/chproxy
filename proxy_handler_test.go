@@ -1,4 +1,4 @@
-package middleware
+package main
 
 import (
 	"net/http"
@@ -7,26 +7,16 @@ import (
 	"github.com/contentsquare/chproxy/config"
 )
 
-type testHandler struct {
-	timesCalled int
-	remoteAddr  string
-}
-
-func (t *testHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	t.timesCalled++
-	t.remoteAddr = r.RemoteAddr
-}
-
-func TestProxyMiddleware(t *testing.T) {
+func TestProxyHandler(t *testing.T) {
 	tests := []struct {
 		name         string
-		proxy        config.Proxy
+		proxy        *config.Proxy
 		r            *http.Request
 		expectedAddr string
 	}{
 		{
 			name:  "no proxy should forward default remote addr",
-			proxy: config.Proxy{},
+			proxy: &config.Proxy{},
 			r: &http.Request{
 				RemoteAddr: "127.0.0.1:1234",
 			},
@@ -34,7 +24,7 @@ func TestProxyMiddleware(t *testing.T) {
 		},
 		{
 			name: "proxy should forward proxy header X-Forwarded-For if set",
-			proxy: config.Proxy{
+			proxy: &config.Proxy{
 				Enable: true,
 			},
 			r: &http.Request{
@@ -47,7 +37,7 @@ func TestProxyMiddleware(t *testing.T) {
 		},
 		{
 			name: "proxy should ignore invalid IP values in the Proxy header",
-			proxy: config.Proxy{
+			proxy: &config.Proxy{
 				Enable: true,
 			},
 			r: &http.Request{
@@ -60,7 +50,7 @@ func TestProxyMiddleware(t *testing.T) {
 		},
 		{
 			name: "proxy should forward proxy header X-Real-IP if set",
-			proxy: config.Proxy{
+			proxy: &config.Proxy{
 				Enable: true,
 			},
 			r: &http.Request{
@@ -73,7 +63,7 @@ func TestProxyMiddleware(t *testing.T) {
 		},
 		{
 			name: "proxy should forward proxy header Forwarded if set",
-			proxy: config.Proxy{
+			proxy: &config.Proxy{
 				Enable: true,
 			},
 			r: &http.Request{
@@ -86,7 +76,7 @@ func TestProxyMiddleware(t *testing.T) {
 		},
 		{
 			name: "proxy should properly parse Forwarded header",
-			proxy: config.Proxy{
+			proxy: &config.Proxy{
 				Enable: true,
 			},
 			r: &http.Request{
@@ -99,7 +89,7 @@ func TestProxyMiddleware(t *testing.T) {
 		},
 		{
 			name: "proxy should parse Forwarded header in a case insensitive manner",
-			proxy: config.Proxy{
+			proxy: &config.Proxy{
 				Enable: true,
 			},
 			r: &http.Request{
@@ -112,7 +102,7 @@ func TestProxyMiddleware(t *testing.T) {
 		},
 		{
 			name: "proxy should parse IPv6 in Forwarded header",
-			proxy: config.Proxy{
+			proxy: &config.Proxy{
 				Enable: true,
 			},
 			r: &http.Request{
@@ -125,7 +115,7 @@ func TestProxyMiddleware(t *testing.T) {
 		},
 		{
 			name: "proxy should parse IPv6 + port in Forwarded header",
-			proxy: config.Proxy{
+			proxy: &config.Proxy{
 				Enable: true,
 			},
 			r: &http.Request{
@@ -138,7 +128,7 @@ func TestProxyMiddleware(t *testing.T) {
 		},
 		{
 			name: "proxy should forward custom proxy header if set",
-			proxy: config.Proxy{
+			proxy: &config.Proxy{
 				Enable: true,
 				Header: "X-My-Proxy-Header",
 			},
@@ -154,18 +144,12 @@ func TestProxyMiddleware(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := &testHandler{}
+			handler := NewProxyHandler(tt.proxy)
 
-			middleware := NewProxyMiddleware(tt.proxy, handler)
+			remoteAddr := handler.GetRemoteAddr(tt.r)
 
-			middleware.ServeHTTP(nil, tt.r)
-
-			if handler.remoteAddr != tt.expectedAddr {
-				t.Errorf("Expected %s, got %s", tt.expectedAddr, handler.remoteAddr)
-			}
-
-			if handler.timesCalled != 1 {
-				t.Errorf("Expected handler to be called once, got %d", handler.timesCalled)
+			if remoteAddr != tt.expectedAddr {
+				t.Errorf("Expected %s, got %s", tt.expectedAddr, remoteAddr)
 			}
 		})
 	}
