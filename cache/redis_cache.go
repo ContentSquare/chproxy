@@ -24,8 +24,8 @@ type redisCache struct {
 }
 
 const getTimeout = 2 * time.Second
-const removeTimeout = 3 * time.Second
-const renameTimeout = 2 * time.Second
+const removeTimeout = 1 * time.Second
+const renameTimeout = 1 * time.Second
 const putTimeout = 2 * time.Second
 const statsTimeout = 500 * time.Millisecond
 
@@ -376,7 +376,9 @@ func (r *redisStreamReader) Read(destBuf []byte) (n int, err error) {
 		// others errors, such as timeouts
 		if err != nil && !errors.Is(err, redis.Nil) {
 			log.Debugf("failed to get key %s with error: %s", r.key, err)
-			return bytesWritten, err
+			err2 := &RedisCacheError{key: r.key, readPayloadSize: r.readPayloadSize,
+				expectedPayloadSize: r.expectedPayloadSize, rootcause: err}
+			return bytesWritten, err2
 		}
 		r.bufferOffset = 0
 		r.buffer = []byte(newBuf)
@@ -432,11 +434,16 @@ type RedisCacheError struct {
 	key                 string
 	readPayloadSize     int
 	expectedPayloadSize int
+	rootcause           error
 }
 
 func (e *RedisCacheError) Error() string {
-	return fmt.Sprintf("error while reading cached result in redis for key %s, only %d bytes of %d were fetched",
+	errorMsg := fmt.Sprintf("error while reading cached result in redis for key %s, only %d bytes of %d were fetched",
 		e.key, e.readPayloadSize, e.expectedPayloadSize)
+	if e.rootcause != nil {
+		errorMsg = fmt.Sprintf("%s, root cause:%s", errorMsg, e.rootcause)
+	}
+	return errorMsg
 }
 
 type RedisCacheCorruptionError struct {
