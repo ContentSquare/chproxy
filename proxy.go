@@ -163,20 +163,18 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 }
 
 func runReq(ctx context.Context, s *scope, startTime time.Time, retryNum int, rp func(http.ResponseWriter, *http.Request),
-	rw ResponseWriterWithCode, srw *statResponseWriter, req *http.Request) error {
-	// test if we could do the rerun
-	numr := len(s.host.replica.cluster.replicas)
-	if numr > 1 && retryNum <= numr {
+	rw ResponseWriterWithCode, srw *statResponseWriter, req *http.Request, proxiedResponseDuration *prometheus.SummaryVec,
+) error {
+	numReplicas := len(s.host.replica.cluster.replicas)
+	if numReplicas > 1 && retryNum <= numReplicas {
 		for i := 0; i <= retryNum; i++ {
 			rp(rw, req)
 			err := ctx.Err()
 			if err == nil { //nolint: gocritic
 				// The request has been successfully proxied.
-				// fixme
-				//	 since := time.Since(startTime).Seconds()
-				// proxiedResponseDuration.With(s.labels).Observe(since)
 
-				fmt.Println(rw.StatusCode())
+				since := time.Since(startTime).Seconds()
+				proxiedResponseDuration.With(s.labels).Observe(since)
 
 				// StatusBadGateway response is returned by http.ReverseProxy when
 				// it cannot establish connection to remote host.
@@ -186,6 +184,7 @@ func runReq(ctx context.Context, s *scope, startTime time.Time, retryNum int, rp
 						q := getQuerySnippet(req)
 						err = fmt.Errorf("%s: cannot reach %s; query: %q", s, s.host.addr.Host, q)
 						respondWith(srw, err, srw.statusCode)
+						return err
 					} else {
 						h := s.host
 						h.dec()
@@ -208,10 +207,9 @@ func runReq(ctx context.Context, s *scope, startTime time.Time, retryNum int, rp
 		err := ctx.Err()
 		if err == nil { //nolint: gocritic
 			// The request has been successfully proxied.
-			// fixme
-			// since := time.Since(startTime).Seconds()
-			// fixme
-			// proxiedResponseDuration.With(s.labels).Observe(since)
+
+			since := time.Since(startTime).Seconds()
+			proxiedResponseDuration.With(s.labels).Observe(since)
 
 			// StatusBadGateway response is returned by http.ReverseProxy when
 			// it cannot establish connection to remote host.
@@ -270,7 +268,7 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw ResponseWriterWithCode, srw *s
 
 	retryNum := 1
 
-	err := runReq(ctx, s, startTime, retryNum, rp.rp.ServeHTTP, rw, srw, req)
+	err := runReq(ctx, s, startTime, retryNum, rp.rp.ServeHTTP, rw, srw, req, proxiedResponseDuration)
 
 	if errors.Is(err, context.Canceled) {
 		canceledRequest.With(s.labels).Inc()
@@ -465,7 +463,13 @@ func newCacheKey(s *scope, origParams url.Values, q []byte, req *http.Request) *
 
 	queryParamsHash := calcQueryParamsHash(origParams)
 
-	return cache.NewKey(skipLeadingComments(q), origParams, sortHeader(req.Header.Get("Accept-Encoding")), userParamsHash, queryParamsHash)
+	return cache.NewKey(
+		skipLeadingComments(q),
+		origParams,
+		sortHeader(req.Header.Get("Accept-Encoding")),
+		userParamsHash,
+		queryParamsHash,
+	)
 }
 
 func toString(stream io.Reader) (string, error) {
@@ -486,7 +490,8 @@ var clickhouseRecoverableStatusCodes = map[int]struct{}{http.StatusServiceUnavai
 
 func (rp *reverseProxy) completeTransaction(s *scope, statusCode int, userCache *cache.AsyncCache, key *cache.Key,
 	q []byte,
-	failReason string) {
+	failReason string,
+) {
 	// complete successful transactions or those with empty fail reason
 	if statusCode < 300 || failReason == "" {
 		if err := userCache.Complete(key); err != nil {
@@ -513,7 +518,7 @@ func calcQueryParamsHash(origParams url.Values) uint32 {
 			queryParams[param] = origParams.Get(param)
 		}
 	}
-	var queryParamsHash, err = calcMapHash(queryParams)
+	queryParamsHash, err := calcMapHash(queryParams)
 	if err != nil {
 		log.Errorf("fail to calc hash for params %s; %s", origParams, err)
 		return 0
@@ -606,7 +611,10 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 
 		if cu.isWildcarded {
 			if heartbeat.Request != "/ping" && len(heartbeat.User) == 0 {
-				return fmt.Errorf("`cluster.heartbeat.user ` cannot be unset for %q because a wildcarded user cannot send heartbeat", clname)
+				return fmt.Errorf(
+					"`cluster.heartbeat.user ` cannot be unset for %q because a wildcarded user cannot send heartbeat",
+					clname,
+				)
 			}
 		}
 	}
