@@ -177,6 +177,7 @@ func executeWithRetry(
 	if numReplicas > 1 && retryNum <= numReplicas {
 		for i := 0; i <= retryNum; i++ {
 			rp(rw, req)
+
 			err := ctx.Err()
 			if err == nil { //nolint: gocritic
 				// The request has been successfully proxied.
@@ -184,15 +185,16 @@ func executeWithRetry(
 				since := time.Since(startTime).Seconds()
 				proxiedResponseDuration.With(s.labels).Observe(since)
 
+				srw.statusCode = rw.StatusCode()
+
 				// StatusBadGateway response is returned by http.ReverseProxy when
 				// it cannot establish connection to remote host.
 				if rw.StatusCode() == http.StatusBadGateway {
 					if i == retryNum {
 						s.host.penalize()
 						q := getQuerySnippet(req)
-						err = fmt.Errorf("%s: cannot reach %s; query: %q", s, s.host.addr.Host, q)
-						respondWith(srw, err, srw.statusCode)
-						return err
+                        err1 := fmt.Errorf("%s: cannot reach %s; query: %q", s, s.host.addr.Host, q)
+						respondWith(srw, err1, srw.statusCode)
 					} else {
 						h := s.host
 						h.dec()
@@ -203,7 +205,7 @@ func executeWithRetry(
 						req.URL.Scheme = s.host.addr.Scheme
 					}
 				} else {
-					return err
+					return nil
 				}
 			} else {
 				return err
@@ -219,18 +221,19 @@ func executeWithRetry(
 			since := time.Since(startTime).Seconds()
 			proxiedResponseDuration.With(s.labels).Observe(since)
 
+			srw.statusCode = rw.StatusCode()
+
 			// StatusBadGateway response is returned by http.ReverseProxy when
 			// it cannot establish connection to remote host.
 			if rw.StatusCode() == http.StatusBadGateway {
 				s.host.penalize()
 				q := getQuerySnippet(req)
-				err = fmt.Errorf("%s: cannot reach %s; query: %q", s, s.host.addr.Host, q)
-				respondWith(srw, err, srw.statusCode)
-				return err
+                err1 := fmt.Errorf("%s: cannot reach %s; query: %q", s, s.host.addr.Host, q)
+				respondWith(srw, err1, srw.statusCode)
 			}
 		}
+		return err
 	}
-
 	return nil
 }
 
@@ -279,6 +282,8 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw ResponseWriterWithCode, srw *s
 	err := executeWithRetry(ctx, s, startTime, retryNum, rp.rp.ServeHTTP, rw, srw, req, proxiedResponseDuration)
 
 	switch {
+	case err == nil:
+		return
 	case errors.Is(err, context.Canceled):
 		canceledRequest.With(s.labels).Inc()
 

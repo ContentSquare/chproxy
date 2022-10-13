@@ -94,7 +94,7 @@ func TestRunQueryFail(t *testing.T) {
 		proxiedResponseDuration,
 	)
 
-	if err == nil {
+	if srw.statusCode == 200 {
 		t.Errorf("the retry should be failed: %v", err)
 	}
 }
@@ -130,7 +130,7 @@ func TestRunQuerySuccessOnce(t *testing.T) {
 		req,
 		proxiedResponseDuration,
 	)
-	if err != nil {
+	if srw.statusCode != 200 {
 		t.Errorf("the retry is failed: %v", err)
 	}
 }
@@ -166,17 +166,15 @@ func TestRunQuerySuccess(t *testing.T) {
 		req,
 		proxiedResponseDuration,
 	)
-	if err != nil {
+	if srw.statusCode != 200 {
 		t.Errorf("the retry is failed: %v", err)
 	}
 }
 
 func mockReverseProxy(rw http.ResponseWriter, req *http.Request) {
 	if req.URL.Host != "localhost:8090" {
-		fmt.Println("unvalid host")
 		rw.WriteHeader(http.StatusBadGateway)
 	} else {
-		fmt.Println("valid host")
 		rw.WriteHeader(http.StatusOK)
 	}
 }
