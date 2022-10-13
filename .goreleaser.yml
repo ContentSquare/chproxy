@@ -45,6 +45,7 @@ dockers:
     goarch: arm64
     image_templates:
       - "contentsquareplatform/chproxy:{{ .Version }}-arm64v8"
+    use: buildx
     build_flag_templates:
       - "--build-arg=BINARY=chproxy"
       - "--platform=linux/arm64/v8"
