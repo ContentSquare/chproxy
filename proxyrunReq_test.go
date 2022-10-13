@@ -12,60 +12,14 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-type mockResponseWriter struct {
+type mockResponseWriterWithCode struct {
 	http.ResponseWriter
 	statusCode int
 }
 
-func mockProxiedResponseDuration() *prometheus.SummaryVec {
-	proxiedResponseDuration := prometheus.NewSummaryVec(
-		prometheus.SummaryOpts{
-			Namespace:  "mockNamespace",
-			Name:       "proxied_response_duration_seconds",
-			Help:       "Response duration proxied from clickhouse",
-			Objectives: map[float64]float64{0.5: 1e-1, 0.9: 1e-2, 0.99: 1e-3, 0.999: 1e-4, 1: 1e-5},
-		},
-		[]string{"user", "cluster", "cluster_user", "replica", "cluster_node"},
-	)
-
-	return proxiedResponseDuration
-}
-
-func (m *mockResponseWriter) StatusCode() int {
-	return m.statusCode
-}
-
-func (m *mockResponseWriter) Header() http.Header {
-	return m.ResponseWriter.Header()
-}
-
-func (m *mockResponseWriter) Write(i []byte) (int, error) {
-	return m.ResponseWriter.Write(i)
-}
-
-func (m *mockResponseWriter) WriteHeader(statusCode int) {
-	m.statusCode = statusCode
-}
-
-func mockStatResponseWriter(s *scope) *statResponseWriter {
-	responseBodyBytes = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: "mockNamespace",
-			Name:      "mockName",
-			Help:      "mockHelp",
-		},
-		[]string{"user", "cluster", "cluster_user", "replica", "cluster_node"},
-	)
-	return &statResponseWriter{
-		ResponseWriter: httptest.NewRecorder(),
-		bytesWritten:   responseBodyBytes.With(s.labels),
-	}
-}
-
+// TestRunQueryFail function statResponseWriter's statusCode will not be 200, but the query has been proxied
+// The request will be retried 1 time with a different host in the same replica
 func TestRunQueryFail(t *testing.T) {
-	// run request fail because it cannot establish the connection with the host
-	// the request will be retried 1 time in the same replica with a different host
-
 	req := newRequest("http://localhost:8080")
 
 	hs := []string{"localhost:8080", "localhost:8081"}
@@ -74,7 +28,7 @@ func TestRunQueryFail(t *testing.T) {
 
 	srw := mockStatResponseWriter(s)
 
-	mrw := &mockResponseWriter{
+	mrw := &mockResponseWriterWithCode{
 		statusCode: 0,
 	}
 
@@ -97,12 +51,15 @@ func TestRunQueryFail(t *testing.T) {
 	if srw.statusCode == 200 {
 		t.Errorf("the retry should be failed: %v", err)
 	}
+
+	if err != nil {
+		t.Errorf("the query should be proxied")
+	}
 }
 
+// TestRunQuerySuccessOnce function statResponseWriter's statusCode will be StatusOK after executeWithRetry, the query has been proxied
+// The execution will succeeded without retry
 func TestRunQuerySuccessOnce(t *testing.T) {
-	// run request succeeded without retry
-	// the establishment with the host succeeded at the first time
-
 	req := newRequest("http://localhost:8090")
 
 	hs := []string{"localhost:8080", "localhost:8090"}
@@ -111,7 +68,7 @@ func TestRunQuerySuccessOnce(t *testing.T) {
 
 	srw := mockStatResponseWriter(s)
 
-	mrw := &mockResponseWriter{
+	mrw := &mockResponseWriterWithCode{
 		statusCode: 0,
 	}
 
@@ -135,10 +92,9 @@ func TestRunQuerySuccessOnce(t *testing.T) {
 	}
 }
 
+// TestRunQuerySuccess function statResponseWriter's statusCode will be StatusOK after executeWithRetry, the query has been proxied
+// The execution will succeeded after retry
 func TestRunQuerySuccess(t *testing.T) {
-	// run request succeeded because it can establish the connection with the host
-	// the request wiexecuteWithRetryretried 1 time in the same replica with a different host
-
 	req := newRequest("http://localhost:8080")
 
 	hs := []string{"localhost:8080", "localhost:8090"}
@@ -147,7 +103,7 @@ func TestRunQuerySuccess(t *testing.T) {
 
 	srw := mockStatResponseWriter(s)
 
-	mrw := &mockResponseWriter{
+	mrw := &mockResponseWriterWithCode{
 		statusCode: 0,
 	}
 
@@ -248,4 +204,49 @@ func newMockScope(hs []string) *scope {
 			"cluster_node": "default",
 		},
 	}
+}
+
+func mockProxiedResponseDuration() *prometheus.SummaryVec {
+	proxiedResponseDuration := prometheus.NewSummaryVec(
+		prometheus.SummaryOpts{
+			Namespace:  "mockNamespace",
+			Name:       "proxied_response_duration_seconds",
+			Help:       "Response duration proxied from clickhouse",
+			Objectives: map[float64]float64{0.5: 1e-1, 0.9: 1e-2, 0.99: 1e-3, 0.999: 1e-4, 1: 1e-5},
+		},
+		[]string{"user", "cluster", "cluster_user", "replica", "cluster_node"},
+	)
+
+	return proxiedResponseDuration
+}
+
+func mockStatResponseWriter(s *scope) *statResponseWriter {
+	responseBodyBytes = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "mockNamespace",
+			Name:      "mockName",
+			Help:      "mockHelp",
+		},
+		[]string{"user", "cluster", "cluster_user", "replica", "cluster_node"},
+	)
+	return &statResponseWriter{
+		ResponseWriter: httptest.NewRecorder(),
+		bytesWritten:   responseBodyBytes.With(s.labels),
+	}
+}
+
+func (m *mockResponseWriterWithCode) StatusCode() int {
+	return m.statusCode
+}
+
+func (m *mockResponseWriterWithCode) Header() http.Header {
+	return m.ResponseWriter.Header()
+}
+
+func (m *mockResponseWriterWithCode) Write(i []byte) (int, error) {
+	return m.ResponseWriter.Write(i)
+}
+
+func (m *mockResponseWriterWithCode) WriteHeader(statusCode int) {
+	m.statusCode = statusCode
 }
