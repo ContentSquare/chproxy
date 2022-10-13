@@ -162,8 +162,16 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	requestDuration.With(s.labels).Observe(since)
 }
 
-func runReq(ctx context.Context, s *scope, startTime time.Time, retryNum int, rp func(http.ResponseWriter, *http.Request),
-	rw ResponseWriterWithCode, srw *statResponseWriter, req *http.Request, proxiedResponseDuration *prometheus.SummaryVec,
+func executeWithRetry(
+	ctx context.Context,
+	s *scope,
+	startTime time.Time,
+	retryNum int,
+	rp func(http.ResponseWriter, *http.Request),
+	rw ResponseWriterWithCode,
+	srw *statResponseWriter,
+	req *http.Request,
+	proxiedResponseDuration *prometheus.SummaryVec,
 ) error {
 	numReplicas := len(s.host.replica.cluster.replicas)
 	if numReplicas > 1 && retryNum <= numReplicas {
@@ -268,9 +276,10 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw ResponseWriterWithCode, srw *s
 
 	retryNum := 1
 
-	err := runReq(ctx, s, startTime, retryNum, rp.rp.ServeHTTP, rw, srw, req, proxiedResponseDuration)
+	err := executeWithRetry(ctx, s, startTime, retryNum, rp.rp.ServeHTTP, rw, srw, req, proxiedResponseDuration)
 
-	if errors.Is(err, context.Canceled) {
+	switch {
+	case errors.Is(err, context.Canceled):
 		canceledRequest.With(s.labels).Inc()
 
 		q := getQuerySnippet(req)
@@ -279,7 +288,7 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw ResponseWriterWithCode, srw *s
 			log.Errorf("%s: cannot kill query: %s; query: %q", s, err, q)
 		}
 		srw.statusCode = 499 // See https://httpstatuses.com/499 .
-	} else if errors.Is(err, context.DeadlineExceeded) {
+	case errors.Is(err, context.DeadlineExceeded):
 		timeoutRequest.With(s.labels).Inc()
 
 		// Penalize host with the timed out query, because it may be overloaded.
@@ -293,7 +302,7 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw ResponseWriterWithCode, srw *s
 		err = fmt.Errorf("%s: %w; query: %q", s, timeoutErrMsg, q)
 		respondWith(rw, err, http.StatusGatewayTimeout)
 		srw.statusCode = http.StatusGatewayTimeout
-	} else {
+	default:
 		panic(fmt.Sprintf("BUG: context.Context.Err() returned unexpected error: %s", err))
 	}
 }

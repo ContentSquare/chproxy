@@ -80,9 +80,19 @@ func TestRunQueryFail(t *testing.T) {
 
 	retryNum := 1
 
-    proxiedResponseDuration := mockProxiedResponseDuration()
+	proxiedResponseDuration := mockProxiedResponseDuration()
 
-	err := runReq(context.Background(), s, time.Now(), retryNum, mockReverseProxy, mrw, srw, req, proxiedResponseDuration)
+	err := executeWithRetry(
+		context.Background(),
+		s,
+		time.Now(),
+		retryNum,
+		mockReverseProxy,
+		mrw,
+		srw,
+		req,
+		proxiedResponseDuration,
+	)
 
 	if err == nil {
 		t.Errorf("the retry should be failed: %v", err)
@@ -107,9 +117,19 @@ func TestRunQuerySuccessOnce(t *testing.T) {
 
 	retryNum := 1
 
-    proxiedResponseDuration := mockProxiedResponseDuration()
+	proxiedResponseDuration := mockProxiedResponseDuration()
 
-	err := runReq(context.Background(), s, time.Now(), retryNum, mockReverseProxy, mrw, srw, req, proxiedResponseDuration)
+	err := executeWithRetry(
+		context.Background(),
+		s,
+		time.Now(),
+		retryNum,
+		mockReverseProxy,
+		mrw,
+		srw,
+		req,
+		proxiedResponseDuration,
+	)
 	if err != nil {
 		t.Errorf("the retry is failed: %v", err)
 	}
@@ -117,7 +137,7 @@ func TestRunQuerySuccessOnce(t *testing.T) {
 
 func TestRunQuerySuccess(t *testing.T) {
 	// run request succeeded because it can establish the connection with the host
-	// the request will be retried 1 time in the same replica with a different host
+	// the request wiexecuteWithRetryretried 1 time in the same replica with a different host
 
 	req := newRequest("http://localhost:8080")
 
@@ -133,9 +153,19 @@ func TestRunQuerySuccess(t *testing.T) {
 
 	retryNum := 1
 
-    proxiedResponseDuration := mockProxiedResponseDuration()
+	proxiedResponseDuration := mockProxiedResponseDuration()
 
-	err := runReq(context.Background(), s, time.Now(), retryNum, mockReverseProxy, mrw, srw, req, proxiedResponseDuration)
+	err := executeWithRetry(
+		context.Background(),
+		s,
+		time.Now(),
+		retryNum,
+		mockReverseProxy,
+		mrw,
+		srw,
+		req,
+		proxiedResponseDuration,
+	)
 	if err != nil {
 		t.Errorf("the retry is failed: %v", err)
 	}
