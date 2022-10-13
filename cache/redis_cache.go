@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"os"
 	"regexp"
 	"strconv"
@@ -22,10 +23,16 @@ type redisCache struct {
 	expire time.Duration
 }
 
-const getTimeout = 1 * time.Second
-const putTimeout = 10 * time.Second // the put is long enough for very large cached result (+200MB) because it's also linked to the speed of the reader
+const getTimeout = 2 * time.Second
+const removeTimeout = 1 * time.Second
+const renameTimeout = 1 * time.Second
+const putTimeout = 2 * time.Second
 const statsTimeout = 500 * time.Millisecond
-const minTTLForRedisStreamingReader = 5 * time.Second
+
+// this variable is key to select whether the result should be streamed
+// from redis to the http response or if chproxy should first put the
+// result from redis in a temporary files before sending it to the http response
+const minTTLForRedisStreamingReader = 15 * time.Second
 
 // tmpDir temporary path to store ongoing queries results
 const tmpDir = "/tmp"
@@ -240,16 +247,23 @@ func (r *redisCache) decodeMetadata(b []byte) (*ContentMetadata, int, error) {
 
 func (r *redisCache) Put(reader io.Reader, contentMetadata ContentMetadata, key *Key) (time.Duration, error) {
 	medatadata := r.encodeMetadata(&contentMetadata)
-	ctx, cancelFunc := context.WithTimeout(context.Background(), putTimeout)
-	defer cancelFunc()
+
 	stringKey := key.String()
-	err := r.client.Set(ctx, stringKey, medatadata, r.expire).Err()
+	// in order to make the streaming operation atomic, chproxy streams into a temporary key (only known by the current goroutine)
+	// then it switches the full result to the "real" stringKey available for other goroutines
+	random := strconv.Itoa(rand.Int())
+	stringKeyTmp := stringKey + random + "_tmp"
+
+	ctxSet, cancelFuncSet := context.WithTimeout(context.Background(), putTimeout)
+	defer cancelFuncSet()
+	err := r.client.Set(ctxSet, stringKeyTmp, medatadata, r.expire).Err()
 	if err != nil {
 		return 0, err
 	}
-	// we don't read all the reader content then send it in one call to redis to avoid memory issue
+	// we don't fetch all the reader content bulks by bulks to from redis to avoid memory issue
 	// if the content is big (which is the case when chproxy users are fetching a lot of data)
 	buffer := make([]byte, 2*1024*1024)
+	totalByteWrittenExpected := len(medatadata)
 	for {
 		n, err := reader.Read(buffer)
 		// the reader should return an err = io.EOF once it has nothing to read or at the last read call with content.
@@ -262,15 +276,41 @@ func (r *redisCache) Put(reader io.Reader, contentMetadata ContentMetadata, key 
 		if err != nil && !errors.Is(err, io.EOF) {
 			return 0, err
 		}
-		err = r.client.Append(ctx, stringKey, string(buffer[:n])).Err()
+		ctxAppend, cancelFuncAppend := context.WithTimeout(context.Background(), putTimeout)
+		defer cancelFuncAppend()
+		totalByteWritten, err := r.client.Append(ctxAppend, stringKeyTmp, string(buffer[:n])).Result()
 		if err != nil {
+			// trying to clean redis from this partially inserted item
+			r.clean(stringKeyTmp)
 			return 0, err
+		}
+		totalByteWrittenExpected += n
+		if int(totalByteWritten) != totalByteWrittenExpected {
+			// trying to clean redis from this partially inserted item
+			r.clean(stringKeyTmp)
+			return 0, fmt.Errorf("could not stream the value into redis, only %d bytes were written instead of %d", totalByteWritten, totalByteWrittenExpected)
 		}
 		if errors.Is(err, io.EOF) {
 			break
 		}
 	}
+	// at this step we know that the item stored in stringKeyTmp is fully written
+	// so we can put it to its final stringKey
+	ctxRename, cancelFuncRename := context.WithTimeout(context.Background(), renameTimeout)
+	defer cancelFuncRename()
+	r.client.Rename(ctxRename, stringKeyTmp, stringKey)
 	return r.expire, nil
+}
+
+func (r *redisCache) clean(stringKey string) {
+	delCtx, cancelFunc := context.WithTimeout(context.Background(), removeTimeout)
+	defer cancelFunc()
+	delErr := r.client.Del(delCtx, stringKey).Err()
+	if delErr != nil {
+		log.Debugf("redis item was only partially inserted and chproxy couldn't remove the partial result because of %s", delErr)
+	} else {
+		log.Debugf("redis item was only partially inserted, chproxy was able to remove it")
+	}
 }
 
 func (r *redisCache) Name() string {
@@ -303,7 +343,7 @@ func newRedisStreamReader(offset uint64, client redis.UniversalClient, key strin
 
 func (r *redisStreamReader) Read(destBuf []byte) (n int, err error) {
 	// the logic is simple:
-	// 1) if the buffer still has data to write, it writes it into destBuf with overflowing destBuf
+	// 1) if the buffer still has data to write, it writes it into destBuf without overflowing destBuf
 	// 2) if the buffer only has already written data, the StreamRedis refresh the buffer with new data from redis
 	// 3) if the buffer only has already written data & redis has no more data to read then StreamRedis sends an EOF err
 	bufSize := len(r.buffer)
@@ -313,7 +353,8 @@ func (r *redisStreamReader) Read(destBuf []byte) (n int, err error) {
 		// Because of the way we fetch from redis, we need to do an extra check because we have no way
 		// to know if redis is really EOF or if the value was expired from cache while reading it
 		if r.readPayloadSize != r.expectedPayloadSize {
-			return 0, &RedisCacheError{readPayloadSize: r.readPayloadSize, expectedPayloadSize: r.expectedPayloadSize}
+			log.Debugf("error while fetching data from redis payload size doesn't macht")
+			return 0, &RedisCacheError{key: r.key, readPayloadSize: r.readPayloadSize, expectedPayloadSize: r.expectedPayloadSize}
 		}
 		return 0, io.EOF
 	}
@@ -334,8 +375,10 @@ func (r *redisStreamReader) Read(destBuf []byte) (n int, err error) {
 
 		// others errors, such as timeouts
 		if err != nil && !errors.Is(err, redis.Nil) {
-			log.Errorf("failed to get key %s with error: %s", r.key, err)
-			return bytesWritten, err
+			log.Debugf("failed to get key %s with error: %s", r.key, err)
+			err2 := &RedisCacheError{key: r.key, readPayloadSize: r.readPayloadSize,
+				expectedPayloadSize: r.expectedPayloadSize, rootcause: err}
+			return bytesWritten, err2
 		}
 		r.bufferOffset = 0
 		r.buffer = []byte(newBuf)
@@ -388,12 +431,19 @@ func (r *fileWriterReader) resetOffset() error {
 }
 
 type RedisCacheError struct {
+	key                 string
 	readPayloadSize     int
 	expectedPayloadSize int
+	rootcause           error
 }
 
 func (e *RedisCacheError) Error() string {
-	return fmt.Sprintf("error while reading cached result in redis, only %d bytes of %d were fetched", e.readPayloadSize, e.expectedPayloadSize)
+	errorMsg := fmt.Sprintf("error while reading cached result in redis for key %s, only %d bytes of %d were fetched",
+		e.key, e.readPayloadSize, e.expectedPayloadSize)
+	if e.rootcause != nil {
+		errorMsg = fmt.Sprintf("%s, root cause:%s", errorMsg, e.rootcause)
+	}
+	return errorMsg
 }
 
 type RedisCacheCorruptionError struct {

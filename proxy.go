@@ -265,7 +265,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		cacheHit.With(labels).Inc()
 		cachedResponseDuration.With(labels).Observe(time.Since(startTime).Seconds())
 		log.Debugf("%s: cache hit", s)
-		_ = RespondWithData(srw, cachedData.Data, cachedData.ContentMetadata, cachedData.Ttl, http.StatusOK)
+		_ = RespondWithData(srw, cachedData.Data, cachedData.ContentMetadata, cachedData.Ttl, http.StatusOK, labels)
 		return
 	}
 	// Await for potential result from concurrent query
@@ -278,7 +278,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 			cachedData, err := userCache.Get(key)
 			if err == nil {
 				defer cachedData.Data.Close()
-				_ = RespondWithData(srw, cachedData.Data, cachedData.ContentMetadata, cachedData.Ttl, http.StatusOK)
+				_ = RespondWithData(srw, cachedData.Data, cachedData.ContentMetadata, cachedData.Ttl, http.StatusOK, labels)
 				cacheHitFromConcurrentQueries.With(labels).Inc()
 				log.Debugf("%s: cache hit after awaiting concurrent query", s)
 				return
@@ -352,7 +352,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 			return
 		}
 
-		err = RespondWithData(srw, reader, contentMetadata, 0*time.Second, statusCode)
+		err = RespondWithData(srw, reader, contentMetadata, 0*time.Second, statusCode, labels)
 		if err != nil {
 			err = fmt.Errorf("%s: %w; query: %q", s, err, q)
 			respondWith(srw, err, http.StatusInternalServerError)
@@ -365,7 +365,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 
 			rp.completeTransaction(s, statusCode, userCache, key, q, "")
 
-			err = RespondWithData(srw, reader, contentMetadata, 0*time.Second, tmpFileRespWriter.StatusCode())
+			err = RespondWithData(srw, reader, contentMetadata, 0*time.Second, tmpFileRespWriter.StatusCode(), labels)
 			if err != nil {
 				err = fmt.Errorf("%s: %w; query: %q", s, err, q)
 				respondWith(srw, err, http.StatusInternalServerError)
@@ -376,6 +376,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		log.Debugf("%s: cache miss", s)
 		expiration, err := userCache.Put(reader, contentMetadata, key)
 		if err != nil {
+			cacheFailedInsert.With(labels).Inc()
 			log.Errorf("%s: %s; query: %q - failed to put response in the cache", s, err, q)
 		}
 		rp.completeTransaction(s, statusCode, userCache, key, q, "")
@@ -388,7 +389,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 			respondWith(srw, err, http.StatusInternalServerError)
 			return
 		}
-		err = RespondWithData(srw, reader, contentMetadata, expiration, statusCode)
+		err = RespondWithData(srw, reader, contentMetadata, expiration, statusCode, labels)
 		if err != nil {
 			err = fmt.Errorf("%s: %w; query: %q", s, err, q)
 			respondWith(srw, err, http.StatusInternalServerError)

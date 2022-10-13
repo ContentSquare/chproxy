@@ -18,6 +18,8 @@ var (
 	clusterUserQueueOverflow       *prometheus.CounterVec
 	requestBodyBytes               *prometheus.CounterVec
 	responseBodyBytes              *prometheus.CounterVec
+	cacheFailedInsert              *prometheus.CounterVec
+	cacheCorruptedFetch            *prometheus.CounterVec
 	cacheHit                       *prometheus.CounterVec
 	cacheMiss                      *prometheus.CounterVec
 	cacheSize                      *prometheus.GaugeVec
@@ -133,6 +135,22 @@ func initMetrics(cfg *config.Config) {
 			Help:      "The amount of bytes written to response bodies",
 		},
 		[]string{"user", "cluster", "cluster_user", "replica", "cluster_node"},
+	)
+	cacheFailedInsert = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "cache_insertion_failures_total",
+			Help:      "The number of insertion in the cache that didn't work out",
+		},
+		[]string{"cache", "user", "cluster", "cluster_user"},
+	)
+	cacheCorruptedFetch = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "cache_get_corrutpion_total",
+			Help:      "The number of time a data fetching from redis was corrupted",
+		},
+		[]string{"cache", "user", "cluster", "cluster_user"},
 	)
 	cacheHit = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -264,7 +282,7 @@ func registerMetrics(cfg *config.Config) {
 	prometheus.MustRegister(statusCodes, requestSum, requestSuccess,
 		limitExcess, hostPenalties, hostHealth, concurrentQueries,
 		requestQueueSize, userQueueOverflow, clusterUserQueueOverflow,
-		requestBodyBytes, responseBodyBytes,
+		requestBodyBytes, responseBodyBytes, cacheFailedInsert, cacheCorruptedFetch,
 		cacheHit, cacheMiss, cacheSize, cacheItems, cacheSkipped,
 		requestDuration, proxiedResponseDuration, cachedResponseDuration,
 		canceledRequest, timeoutRequest,

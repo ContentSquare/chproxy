@@ -15,7 +15,7 @@ import (
 	"github.com/contentsquare/chproxy/config"
 )
 
-const cacheTTL = time.Duration(10 * time.Second)
+const cacheTTL = time.Duration(30 * time.Second)
 
 var redisConf = config.Cache{
 	Name: "foobar",
@@ -170,6 +170,56 @@ func TestKeyExpirationWhileFetchtingRedis(t *testing.T) {
 		t.Fatalf("expecting an error of type RedisCacheError, err=%s", err)
 	}
 }
+
+func TestCorruptedPayloadWhileFetchtingRedis(t *testing.T) {
+	cache, redis := getRedisCacheAndServer(t)
+	defer cache.Close()
+
+	key := &Key{
+		Query: []byte(fmt.Sprintf("SELECT test")),
+	}
+	payloadSize := 4 * 1024 * 1024
+	exepctedValue := strings.Repeat("a", payloadSize)
+	reader := strings.NewReader(exepctedValue)
+
+	if _, err := cache.Put(reader, ContentMetadata{Encoding: "ce", Type: "ct", Length: int64(payloadSize)}, key); err != nil {
+		t.Fatalf("failed to put it to cache: %s", err)
+	}
+
+	//simulating a data alteration
+	redisData, err := redis.Get(key.String())
+	if err != nil {
+		t.Fatalf("item not inseted in redis")
+	}
+
+	err = redis.Set(key.String(), redisData[:payloadSize-100])
+	if err != nil {
+		t.Fatalf("could not alter data in redis")
+	}
+	//simulate a value almost expired
+	redis.SetTTL(key.String(), 2*time.Second)
+
+	_, err = cache.Get(key)
+	_, isRedisCacheError := err.(*RedisCacheError)
+	if err == nil || !isRedisCacheError {
+		t.Fatalf("expecting an error of type RedisCacheError, err=%s", err)
+	}
+
+	//simulate a value that will not expire soon
+	redis.SetTTL(key.String(), 500*time.Second)
+
+	cachedData, err := cache.Get(key)
+	if err != nil {
+		t.Fatalf("failed to get data from redis cache: %s", err)
+	}
+
+	_, err = io.ReadAll(cachedData.Data)
+	_, isRedisCacheError = err.(*RedisCacheError)
+	if err == nil || !isRedisCacheError {
+		t.Fatalf("expecting an error of type RedisCacheError, err=%s", err)
+	}
+}
+
 func TestSmallTTLOnBigPayloadAreCacheWithFile(t *testing.T) {
 	cache, redis := getRedisCacheAndServer(t)
 	defer cache.Close()

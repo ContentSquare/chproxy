@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/contentsquare/chproxy/cache"
+	"github.com/contentsquare/chproxy/log"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -28,7 +30,7 @@ type statResponseWriter struct {
 	bytesWritten prometheus.Counter
 }
 
-func RespondWithData(rw http.ResponseWriter, data io.Reader, metadata cache.ContentMetadata, ttl time.Duration, statusCode int) error {
+func RespondWithData(rw http.ResponseWriter, data io.Reader, metadata cache.ContentMetadata, ttl time.Duration, statusCode int, labels prometheus.Labels) error {
 	h := rw.Header()
 	if len(metadata.Type) > 0 {
 		h.Set("Content-Type", metadata.Type)
@@ -46,6 +48,13 @@ func RespondWithData(rw http.ResponseWriter, data io.Reader, metadata cache.Cont
 	rw.WriteHeader(statusCode)
 
 	if _, err := io.Copy(rw, data); err != nil {
+		var perr *cache.RedisCacheError
+
+		if errors.As(err, &perr) {
+			cacheCorruptedFetch.With(labels).Inc()
+			log.Debugf("redis cache error")
+		}
+		log.Errorf("cannot send response to client: %s", err)
 		return fmt.Errorf("cannot send response to client: %w", err)
 	}
 
