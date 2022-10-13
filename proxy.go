@@ -193,7 +193,7 @@ func executeWithRetry(
 					if i == retryNum {
 						s.host.penalize()
 						q := getQuerySnippet(req)
-                        err1 := fmt.Errorf("%s: cannot reach %s; query: %q", s, s.host.addr.Host, q)
+						err1 := fmt.Errorf("%s: cannot reach %s; query: %q", s, s.host.addr.Host, q)
 						respondWith(srw, err1, srw.statusCode)
 					} else {
 						h := s.host
@@ -228,7 +228,7 @@ func executeWithRetry(
 			if rw.StatusCode() == http.StatusBadGateway {
 				s.host.penalize()
 				q := getQuerySnippet(req)
-                err1 := fmt.Errorf("%s: cannot reach %s; query: %q", s, s.host.addr.Host, q)
+				err1 := fmt.Errorf("%s: cannot reach %s; query: %q", s, s.host.addr.Host, q)
 				respondWith(srw, err1, srw.statusCode)
 			}
 		}
