@@ -453,7 +453,7 @@ func TestBadConfig(t *testing.T) {
 		{
 			"user is marked as is_wildcarded, but it's name is not consist of a prefix, underscore and asterisk",
 			"testdata/bad.wildcarded_users.no.wildcard.yml",
-			"user name \"analyst_named\" marked 'is_wildcared' does not match 'prefix_*'",
+			"user name \"analyst_named\" marked 'is_wildcared' does not match 'prefix*' or '*suffix' or '*'",
 		},
 	}
 

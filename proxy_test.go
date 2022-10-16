@@ -74,6 +74,12 @@ func newConfiguredProxy(cfg *config.Config) (*reverseProxy, error) {
 	}
 	return p, nil
 }
+func init() {
+	// we need to initiliaze prometheus metrics
+	// otherwise the calls the proxy.applyConfig will fail
+	// due to memory issues if someone only runs proxy_test
+	initMetrics(goodCfg)
+}
 
 func TestNewReverseProxy(t *testing.T) {
 	proxy := newReverseProxy()
@@ -206,6 +212,9 @@ var wildcardedCfg = &config.Config{
 				{
 					Name: "analyst_*",
 				},
+				{
+					Name: "*-UK",
+				},
 			},
 		},
 	},
@@ -214,6 +223,39 @@ var wildcardedCfg = &config.Config{
 			Name:         "analyst_*",
 			ToCluster:    "cluster",
 			ToUser:       "analyst_*",
+			IsWildcarded: true,
+		},
+		{
+			Name:         "*-UK",
+			ToCluster:    "cluster",
+			ToUser:       "*-UK",
+			IsWildcarded: true,
+		},
+	},
+}
+
+var fullWildcardedCfg = &config.Config{
+	Clusters: []config.Cluster{
+		{
+			Name:   "cluster",
+			Scheme: "http",
+			Nodes:  []string{"localhost:8123"},
+			ClusterUsers: []config.ClusterUser{
+				{
+					Name:     "web",
+					Password: "webpass",
+				},
+				{
+					Name: "*",
+				},
+			},
+		},
+	},
+	Users: []config.User{
+		{
+			Name:         "*",
+			ToCluster:    "cluster",
+			ToUser:       "*",
 			IsWildcarded: true,
 		},
 	},
@@ -490,13 +532,49 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 		},
 		{
 			cfg:           wildcardedCfg,
-			name:          "wildcarded Ok",
+			name:          "wildcarded Ok1",
 			expResponse:   "user: analyst_jane, password: jane_pass\n" + okResponse,
 			expStatusCode: http.StatusOK,
 			f: func(p *reverseProxy) *http.Response {
 				req := httptest.NewRequest("POST", fakeServer.URL, nil)
 				req.Header.Set("X-ClickHouse-User", "analyst_jane")
 				req.Header.Set("X-ClickHouse-Key", "jane_pass")
+				return makeCustomRequest(p, req)
+			},
+		},
+		{
+			cfg:           wildcardedCfg,
+			name:          "wildcarded Ok2",
+			expResponse:   "user: john-UK, password: john_pass\n" + okResponse,
+			expStatusCode: http.StatusOK,
+			f: func(p *reverseProxy) *http.Response {
+				req := httptest.NewRequest("POST", fakeServer.URL, nil)
+				req.Header.Set("X-ClickHouse-User", "john-UK")
+				req.Header.Set("X-ClickHouse-Key", "john_pass")
+				return makeCustomRequest(p, req)
+			},
+		},
+		{
+			cfg:           fullWildcardedCfg,
+			name:          "wildcarded Ok3",
+			expResponse:   "user: toto, password: titi\n" + okResponse,
+			expStatusCode: http.StatusOK,
+			f: func(p *reverseProxy) *http.Response {
+				req := httptest.NewRequest("POST", fakeServer.URL, nil)
+				req.Header.Set("X-ClickHouse-User", "toto")
+				req.Header.Set("X-ClickHouse-Key", "titi")
+				return makeCustomRequest(p, req)
+			},
+		},
+		{
+			cfg:           fullWildcardedCfg,
+			name:          "wildcarded Ko for default user",
+			expResponse:   "invalid username or password for user \"default\"",
+			expStatusCode: http.StatusUnauthorized,
+			f: func(p *reverseProxy) *http.Response {
+				req := httptest.NewRequest("POST", fakeServer.URL, nil)
+				req.Header.Set("X-ClickHouse-User", "default")
+				req.Header.Set("X-ClickHouse-Key", "")
 				return makeCustomRequest(p, req)
 			},
 		},

@@ -277,7 +277,7 @@ cache: <string> | optional
 params: <string> | optional
 
 # The user is wildcarded
-# Name matches prefix_*
+# Name matches prefix* or *suffix or *
 # Name and password to ClickHouse are obtained
 # from original request, not from cluster user
 is_wildcarded: <bool> | optional | default = false
