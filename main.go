@@ -34,7 +34,7 @@ var (
 	allowedNetworksHTTP    atomic.Value
 	allowedNetworksHTTPS   atomic.Value
 	allowedNetworksMetrics atomic.Value
-	proxySettings          atomic.Value
+	proxyHandler           atomic.Value
 )
 
 func main() {
@@ -243,8 +243,7 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 	case "/", "/query":
 		var err error
 
-		proxySettings := proxySettings.Load().(*config.Proxy)
-		proxyHandler := NewProxyHandler(proxySettings)
+		proxyHandler := proxyHandler.Load().(*ProxyHandler)
 		remoteAddr := proxyHandler.GetRemoteAddr(r)
 
 		var an *config.Networks
@@ -287,7 +286,7 @@ func applyConfig(cfg *config.Config) error {
 	allowedNetworksHTTP.Store(&cfg.Server.HTTP.AllowedNetworks)
 	allowedNetworksHTTPS.Store(&cfg.Server.HTTPS.AllowedNetworks)
 	allowedNetworksMetrics.Store(&cfg.Server.Metrics.AllowedNetworks)
-	proxySettings.Store(&cfg.Server.Proxy)
+	proxyHandler.Store(NewProxyHandler(&cfg.Server.Proxy))
 	log.SetDebug(cfg.LogDebug)
 	log.Infof("Loaded config:\n%s", cfg)
 
