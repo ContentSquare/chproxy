@@ -757,6 +757,8 @@ type cluster struct {
 	killQueryUserPassword string
 
 	heartBeat *heartBeat
+
+	retryNumber int
 }
 
 func newCluster(c config.Cluster) (*cluster, error) {
@@ -776,6 +778,7 @@ func newCluster(c config.Cluster) (*cluster, error) {
 		killQueryUserName:     c.KillQueryUser.Name,
 		killQueryUserPassword: c.KillQueryUser.Password,
 		heartBeat:             heartBeat,
+		retryNumber:           c.RetryNumber,
 	}
 
 	replicas, err := newReplicas(c.Replicas, c.Nodes, c.Scheme, newC)

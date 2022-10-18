@@ -280,11 +280,9 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw ResponseWriterWithCode, srw *s
 
 	req = req.WithContext(ctx)
 
-	retryNum := 1
-
 	startTime := time.Now()
 
-	executeDuration, err := executeWithRetry(ctx, s, retryNum, rp.rp.ServeHTTP, rw, srw, req, func(duration float64) {
+	executeDuration, err := executeWithRetry(ctx, s, s.cluster.retryNumber, rp.rp.ServeHTTP, rw, srw, req, func(duration float64) {
 		proxiedResponseDuration.With(s.labels).Observe(duration)
 	})
 
