@@ -165,76 +165,81 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 func executeWithRetry(
 	ctx context.Context,
 	s *scope,
-	startTime time.Time,
 	retryNum int,
 	rp func(http.ResponseWriter, *http.Request),
 	rw ResponseWriterWithCode,
 	srw *statResponseWriter,
 	req *http.Request,
-	proxiedResponseDuration *prometheus.SummaryVec,
-) error {
+	monitorDuration func(float64),
+) (float64, error) {
+	// num of replicas should > 1,
+	// when the host is unavailable,
+	// it could make sure there might be another set of replicas contains all the data of clickhouse
+	startTime := time.Now()
+	var since float64
 	numReplicas := len(s.host.replica.cluster.replicas)
 	if numReplicas > 1 && retryNum <= numReplicas {
 		for i := 0; i <= retryNum; i++ {
 			rp(rw, req)
 
 			err := ctx.Err()
-			if err == nil { //nolint: gocritic
-				// The request has been successfully proxied.
+			if err != nil {
+				since = time.Since(startTime).Seconds()
 
-				since := time.Since(startTime).Seconds()
-				proxiedResponseDuration.With(s.labels).Observe(since)
+				return since, err
+			}
+			srw.statusCode = rw.StatusCode()
+			if rw.StatusCode() == http.StatusBadGateway {
+				if i == retryNum {
+					since = time.Since(startTime).Seconds()
+					monitorDuration(since)
 
-				srw.statusCode = rw.StatusCode()
-
-				// StatusBadGateway response is returned by http.ReverseProxy when
-				// it cannot establish connection to remote host.
-				if rw.StatusCode() == http.StatusBadGateway {
-					if i == retryNum {
-						s.host.penalize()
-						q := getQuerySnippet(req)
-						err1 := fmt.Errorf("%s: cannot reach %s; query: %q", s, s.host.addr.Host, q)
-						respondWith(srw, err1, srw.statusCode)
-					} else {
-						h := s.host
-						h.dec()
-						h.active = 0
-						s.host = h.replica.getHost()
-						h.active = 1
-						req.URL.Host = s.host.addr.Host
-						req.URL.Scheme = s.host.addr.Scheme
-					}
+					s.host.penalize()
+					q := getQuerySnippet(req)
+					err1 := fmt.Errorf("%s: cannot reach %s; query: %q", s, s.host.addr.Host, q)
+					respondWith(srw, err1, srw.statusCode)
+					return since, nil
 				} else {
-					return nil
+					h := s.host
+					h.dec()
+					h.active = 0
+					s.host = h.replica.getHost()
+					h.active = 1
+					req.URL.Host = s.host.addr.Host
+					req.URL.Scheme = s.host.addr.Scheme
 				}
 			} else {
-				return err
+				since = time.Since(startTime).Seconds()
+
+				return since, nil
 			}
 		}
 	} else {
 		rp(rw, req)
 
 		err := ctx.Err()
-		if err == nil { //nolint: gocritic
-			// The request has been successfully proxied.
+		if err != nil {
+			since = time.Since(startTime).Seconds()
 
-			since := time.Since(startTime).Seconds()
-			proxiedResponseDuration.With(s.labels).Observe(since)
-
-			srw.statusCode = rw.StatusCode()
-
-			// StatusBadGateway response is returned by http.ReverseProxy when
-			// it cannot establish connection to remote host.
-			if rw.StatusCode() == http.StatusBadGateway {
-				s.host.penalize()
-				q := getQuerySnippet(req)
-				err1 := fmt.Errorf("%s: cannot reach %s; query: %q", s, s.host.addr.Host, q)
-				respondWith(srw, err1, srw.statusCode)
-			}
+			return since, err
 		}
-		return err
+		// The request has been successfully proxied.
+
+		since = time.Since(startTime).Seconds()
+		monitorDuration(since)
+
+		srw.statusCode = rw.StatusCode()
+
+		// StatusBadGateway response is returned by http.ReverseProxy when
+		// it cannot establish connection to remote host.
+		if rw.StatusCode() == http.StatusBadGateway {
+			s.host.penalize()
+			q := getQuerySnippet(req)
+			err1 := fmt.Errorf("%s: cannot reach %s; query: %q", s, s.host.addr.Host, q)
+			respondWith(srw, err1, srw.statusCode)
+		}
 	}
-	return nil
+	return since, nil
 }
 
 // proxyRequest proxies the given request to clickhouse and sends response
@@ -275,11 +280,13 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw ResponseWriterWithCode, srw *s
 
 	req = req.WithContext(ctx)
 
-	startTime := time.Now()
-
 	retryNum := 1
 
-	err := executeWithRetry(ctx, s, startTime, retryNum, rp.rp.ServeHTTP, rw, srw, req, proxiedResponseDuration)
+	startTime := time.Now()
+
+	executeDuration, err := executeWithRetry(ctx, s, retryNum, rp.rp.ServeHTTP, rw, srw, req, func(duration float64) {
+		proxiedResponseDuration.With(s.labels).Observe(duration)
+	})
 
 	switch {
 	case err == nil:
@@ -300,7 +307,7 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw ResponseWriterWithCode, srw *s
 		s.host.penalize()
 
 		q := getQuerySnippet(req)
-		log.Debugf("%s: query timeout in %s; query: %q", s, time.Since(startTime), q)
+		log.Debugf("%s: query timeout in %f; query: %q", s, executeDuration, q)
 		if err := s.killQuery(); err != nil {
 			log.Errorf("%s: cannot kill query: %s; query: %q", s, err, q)
 		}

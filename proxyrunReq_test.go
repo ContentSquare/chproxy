@@ -34,18 +34,15 @@ func TestRunQueryFail(t *testing.T) {
 
 	retryNum := 1
 
-	proxiedResponseDuration := mockProxiedResponseDuration()
-
-	err := executeWithRetry(
+	_, err := executeWithRetry(
 		context.Background(),
 		s,
-		time.Now(),
 		retryNum,
 		mockReverseProxy,
 		mrw,
 		srw,
 		req,
-		proxiedResponseDuration,
+		func(f float64) {},
 	)
 
 	if srw.statusCode == 200 {
@@ -74,18 +71,15 @@ func TestRunQuerySuccessOnce(t *testing.T) {
 
 	retryNum := 1
 
-	proxiedResponseDuration := mockProxiedResponseDuration()
-
-	err := executeWithRetry(
+	_, err := executeWithRetry(
 		context.Background(),
 		s,
-		time.Now(),
 		retryNum,
 		mockReverseProxy,
 		mrw,
 		srw,
 		req,
-		proxiedResponseDuration,
+		func(f float64) {},
 	)
 	if srw.statusCode != 200 {
 		t.Errorf("the retry is failed: %v", err)
@@ -109,18 +103,15 @@ func TestRunQuerySuccess(t *testing.T) {
 
 	retryNum := 1
 
-	proxiedResponseDuration := mockProxiedResponseDuration()
-
-	err := executeWithRetry(
+	_, err := executeWithRetry(
 		context.Background(),
 		s,
-		time.Now(),
 		retryNum,
 		mockReverseProxy,
 		mrw,
 		srw,
 		req,
-		proxiedResponseDuration,
+		func(f float64) {},
 	)
 	if srw.statusCode != 200 {
 		t.Errorf("the retry is failed: %v", err)
@@ -204,20 +195,6 @@ func newMockScope(hs []string) *scope {
 			"cluster_node": "default",
 		},
 	}
-}
-
-func mockProxiedResponseDuration() *prometheus.SummaryVec {
-	proxiedResponseDuration := prometheus.NewSummaryVec(
-		prometheus.SummaryOpts{
-			Namespace:  "mockNamespace",
-			Name:       "proxied_response_duration_seconds",
-			Help:       "Response duration proxied from clickhouse",
-			Objectives: map[float64]float64{0.5: 1e-1, 0.9: 1e-2, 0.99: 1e-3, 0.999: 1e-4, 1: 1e-5},
-		},
-		[]string{"user", "cluster", "cluster_user", "replica", "cluster_node"},
-	)
-
-	return proxiedResponseDuration
 }
 
 func mockStatResponseWriter(s *scope) *statResponseWriter {
