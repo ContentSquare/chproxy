@@ -33,7 +33,7 @@ var shouldStop uint64 = 0
 const max_concurrent_goroutines = 256
 
 const heavyRequestDuration = time.Millisecond * 512
-
+const defaultUsername = "default"
 const (
 	okResponse = "1"
 )
@@ -57,7 +57,7 @@ var goodCfg = &config.Config{
 	},
 	Users: []config.User{
 		{
-			Name:      "default",
+			Name:      defaultUsername,
 			ToCluster: "cluster",
 			ToUser:    "web",
 		},
@@ -100,8 +100,8 @@ func TestNewReverseProxy(t *testing.T) {
 	if len(proxy.users) != 1 {
 		t.Fatalf("got %d users; expResponse: %d", len(proxy.users), 1)
 	}
-	if _, ok := proxy.users["default"]; !ok {
-		t.Fatalf("expected user %q to be present in users", "default")
+	if _, ok := proxy.users[defaultUsername]; !ok {
+		t.Fatalf("expected user %q to be present in users", defaultUsername)
 	}
 }
 
@@ -113,14 +113,14 @@ var badCfg = &config.Config{
 			Nodes:  []string{"localhost:8123"},
 			ClusterUsers: []config.ClusterUser{
 				{
-					Name: "default",
+					Name: defaultUsername,
 				},
 			},
 		},
 	},
 	Users: []config.User{
 		{
-			Name:      "default",
+			Name:      defaultUsername,
 			ToCluster: "cluster",
 			ToUser:    "foo",
 		},
@@ -135,7 +135,7 @@ var badCfgWithNoHeartBeatUser = &config.Config{
 			Nodes:  []string{"localhost:8123"},
 			ClusterUsers: []config.ClusterUser{
 				{
-					Name: "default",
+					Name: defaultUsername,
 				},
 			},
 			HeartBeat: config.HeartBeat{
@@ -148,7 +148,7 @@ var badCfgWithNoHeartBeatUser = &config.Config{
 			Name:         "analyst_*",
 			IsWildcarded: true,
 			ToCluster:    "badCfgWithNoHeartBeatUser",
-			ToUser:       "default",
+			ToUser:       defaultUsername,
 		},
 	},
 }
@@ -300,10 +300,10 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 		{
 			cfg:           goodCfg,
 			name:          "choose max time between users",
-			expResponse:   "timeout for user \"default\" exceeded: 10ms",
+			expResponse:   fmt.Sprintf("timeout for user \"%s\" exceeded: 10ms", defaultUsername),
 			expStatusCode: http.StatusGatewayTimeout,
 			f: func(p *reverseProxy) *http.Response {
-				p.users["default"].maxExecutionTime = time.Millisecond * 10
+				p.users[defaultUsername].maxExecutionTime = time.Millisecond * 10
 				p.clusters["cluster"].users["web"].maxExecutionTime = time.Millisecond * 15
 				return makeHeavyRequest(p, time.Millisecond*20)
 			},
@@ -314,7 +314,7 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 			expResponse:   "timeout for cluster user \"web\" exceeded: 10ms",
 			expStatusCode: http.StatusGatewayTimeout,
 			f: func(p *reverseProxy) *http.Response {
-				p.users["default"].maxExecutionTime = time.Millisecond * 15
+				p.users[defaultUsername].maxExecutionTime = time.Millisecond * 15
 				p.clusters["cluster"].users["web"].maxExecutionTime = time.Millisecond * 10
 				return makeHeavyRequest(p, time.Millisecond*20)
 			},
@@ -322,10 +322,10 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 		{
 			cfg:           goodCfg,
 			name:          "max concurrent queries for user",
-			expResponse:   "limits for user \"default\" are exceeded: max_concurrent_queries limit: 1;",
+			expResponse:   fmt.Sprintf("limits for user \"%s\" are exceeded: max_concurrent_queries limit: 1;", defaultUsername),
 			expStatusCode: http.StatusTooManyRequests,
 			f: func(p *reverseProxy) *http.Response {
-				p.users["default"].maxConcurrentQueries = 1
+				p.users[defaultUsername].maxConcurrentQueries = 1
 				runHeavyRequestInGoroutine(p, 1, true)
 				return makeRequest(p)
 			},
@@ -336,8 +336,8 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 			expResponse:   okResponse,
 			expStatusCode: http.StatusOK,
 			f: func(p *reverseProxy) *http.Response {
-				p.users["default"].maxConcurrentQueries = 1
-				p.users["default"].queueCh = make(chan struct{}, 2)
+				p.users[defaultUsername].maxConcurrentQueries = 1
+				p.users[defaultUsername].queueCh = make(chan struct{}, 2)
 				runHeavyRequestInGoroutine(p, 1, true)
 				return makeRequest(p)
 			},
@@ -348,7 +348,7 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 			expResponse:   okResponse,
 			expStatusCode: http.StatusOK,
 			f: func(p *reverseProxy) *http.Response {
-				p.users["default"].maxConcurrentQueries = 1
+				p.users[defaultUsername].maxConcurrentQueries = 1
 				p.clusters["cluster"].users["web"].queueCh = make(chan struct{}, 2)
 				runHeavyRequestInGoroutine(p, 1, true)
 				return makeRequest(p)
@@ -363,18 +363,18 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 				p.caches["max_payload_size"] = &cache.AsyncCache{
 					MaxPayloadSize: 8 * 1024 * 1024,
 				}
-				p.users["default"].cache = p.caches["max_payload_size"]
+				p.users[defaultUsername].cache = p.caches["max_payload_size"]
 				return makeRequest(p)
 			},
 		},
 		{
 			cfg:           goodCfg,
 			name:          "queue overflow for user",
-			expResponse:   "limits for user \"default\" are exceeded: max_concurrent_queries limit: 1",
+			expResponse:   fmt.Sprintf("limits for user \"%s\" are exceeded: max_concurrent_queries limit: 1", defaultUsername),
 			expStatusCode: http.StatusTooManyRequests,
 			f: func(p *reverseProxy) *http.Response {
-				p.users["default"].maxConcurrentQueries = 1
-				p.users["default"].queueCh = make(chan struct{}, 1)
+				p.users[defaultUsername].maxConcurrentQueries = 1
+				p.users[defaultUsername].queueCh = make(chan struct{}, 1)
 				// we don't wait the requests to be handled by the fakeServer because one of them will be enqueued and not handled
 				// this is why we handle this part manually
 				nbRequest := atomic.LoadUint64(&totalNbOfRequests)
@@ -417,10 +417,10 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 		{
 			cfg:           goodCfg,
 			name:          "disallow http",
-			expResponse:   "user \"default\" is not allowed to access via http",
+			expResponse:   fmt.Sprintf("user \"%s\" is not allowed to access via http", defaultUsername),
 			expStatusCode: http.StatusForbidden,
 			f: func(p *reverseProxy) *http.Response {
-				p.users["default"].denyHTTP = true
+				p.users[defaultUsername].denyHTTP = true
 				return makeRequest(p)
 			},
 		},
@@ -569,11 +569,11 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 		{
 			cfg:           fullWildcardedCfg,
 			name:          "wildcarded Ko for default user",
-			expResponse:   "invalid username or password for user \"default\"",
+			expResponse:   fmt.Sprintf("invalid username or password for user \"%s\"", defaultUsername),
 			expStatusCode: http.StatusUnauthorized,
 			f: func(p *reverseProxy) *http.Response {
 				req := httptest.NewRequest("POST", fakeServer.URL, nil)
-				req.Header.Set("X-ClickHouse-User", "default")
+				req.Header.Set("X-ClickHouse-User", defaultUsername)
 				req.Header.Set("X-ClickHouse-Key", "")
 				return makeCustomRequest(p, req)
 			},
@@ -659,7 +659,7 @@ func TestKillQuery(t *testing.T) {
 		{
 			name: "timeout user",
 			f: func(p *reverseProxy) *http.Response {
-				p.users["default"].maxExecutionTime = time.Millisecond * 5
+				p.users[defaultUsername].maxExecutionTime = time.Millisecond * 5
 				return makeHeavyRequest(p, time.Millisecond*40)
 			},
 		},
@@ -807,7 +807,7 @@ func TestReverseProxy_ServeHTTP2(t *testing.T) {
 			t.Fatalf("unexpected error: %s", err)
 		}
 		resp := makeRequest(proxy)
-		expected := "user \"default\" is not allowed to access"
+		expected := fmt.Sprintf("user \"%s\" is not allowed to access", defaultUsername)
 		b := bbToString(t, resp.Body)
 		resp.Body.Close()
 		if !strings.Contains(b, expected) {
@@ -938,7 +938,7 @@ func newConfig() *config.Config {
 	newCfg := *goodCfg
 	newCfg.Users = []config.User{
 		{
-			Name:                 "default",
+			Name:                 defaultUsername,
 			MaxConcurrentQueries: rand.Uint32(),
 		},
 	}

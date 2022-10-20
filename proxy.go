@@ -695,9 +695,10 @@ func getUserInformations(rp *reverseProxy, user *user, name string, password str
 
 		// TODO : improve the following behavior
 		// the wildcarded user feature creates some side-effects on clusterUser limitations (like the max_concurrent_queries)
-		// because of the use of a deep copy in the clusterUser. The side effect should not be to impactful since the limitation still work on user.
+		// because of the use of a deep copy of the clusterUser. The side effect should not be too impactful since the limitation still works on user.
 		// But we need this deep copy since we're changing the name & password of clusterUser and if we used the same instance for every call to chproxy,
-		// it could lead to security issues since a specific query run by user A on chproxy side could trigger a query in clickhouse from user B
+		// it could lead to security issues since a specific query run by user A on chproxy side could trigger a query in clickhouse from user B.
+		// Doing a clean fix would require a huge refactoring.
 	}
 	return
 }
