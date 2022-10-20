@@ -36,6 +36,7 @@ var (
 	configSuccess                  prometheus.Gauge
 	configSuccessTime              prometheus.Gauge
 	badRequest                     prometheus.Counter
+	retryRequest                   *prometheus.CounterVec
 )
 
 func initMetrics(cfg *config.Config) {
@@ -275,6 +276,14 @@ func initMetrics(cfg *config.Config) {
 		Name:      "bad_requests_total",
 		Help:      "Total number of unsupported requests",
 	})
+	retryRequest = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "retry_request_total",
+			Help:      "The number of retry requests",
+		},
+		[]string{"cluster"},
+	)
 }
 
 func registerMetrics(cfg *config.Config) {
@@ -286,5 +295,5 @@ func registerMetrics(cfg *config.Config) {
 		cacheHit, cacheMiss, cacheSize, cacheItems, cacheSkipped,
 		requestDuration, proxiedResponseDuration, cachedResponseDuration,
 		canceledRequest, timeoutRequest,
-		configSuccess, configSuccessTime, badRequest)
+		configSuccess, configSuccessTime, badRequest, retryRequest)
 }

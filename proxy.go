@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/contentsquare/chproxy/cache"
@@ -201,12 +202,16 @@ func executeWithRetry(
 					return since, nil
 				} else {
 					h := s.host
+					log.Debugf("the invalid host is: %s", s.host.addr)
 					h.dec()
-					h.active = 0
-					s.host = h.replica.getHost()
-					h.active = 1
-					req.URL.Host = s.host.addr.Host
-					req.URL.Scheme = s.host.addr.Scheme
+					atomic.StoreUint32(&h.active, uint32(0))
+					s.host = h.replica.cluster.getHost()
+					if s.host.active == 1 {
+						req.URL.Host = s.host.addr.Host
+						req.URL.Scheme = s.host.addr.Scheme
+						log.Debugf("the valid host is: %s", s.host.addr)
+					}
+					retryRequest.With(s.labels).Inc()
 				}
 			} else {
 				since = time.Since(startTime).Seconds()

@@ -346,8 +346,8 @@ type Cluster struct {
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
 
-	// Retry number for query - how many times a query can retry after bad gateway response from the host
-	RetryNumber int `yaml:"retrynumber"`
+	// Retry number for query - how many times a query can retry after receiving a recoverable but failed response from Clickhouse node
+	RetryNumber int `yaml:"retrynumber,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.

@@ -17,9 +17,9 @@ type mockResponseWriterWithCode struct {
 	statusCode int
 }
 
-// TestRunQueryFail function statResponseWriter's statusCode will not be 200, but the query has been proxied
+// TestQueryWithRetryFail function statResponseWriter's statusCode will not be 200, but the query has been proxied
 // The request will be retried 1 time with a different host in the same replica
-func TestRunQueryFail(t *testing.T) {
+func TestQueryWithRetryFail(t *testing.T) {
 	req := newRequest("http://localhost:8080")
 
 	hs := []string{"localhost:8080", "localhost:8081"}
@@ -56,7 +56,7 @@ func TestRunQueryFail(t *testing.T) {
 
 // TestRunQuerySuccessOnce function statResponseWriter's statusCode will be StatusOK after executeWithRetry, the query has been proxied
 // The execution will succeeded without retry
-func TestRunQuerySuccessOnce(t *testing.T) {
+func TestQuerySuccessOnce(t *testing.T) {
 	req := newRequest("http://localhost:8090")
 
 	hs := []string{"localhost:8080", "localhost:8090"}
@@ -86,9 +86,9 @@ func TestRunQuerySuccessOnce(t *testing.T) {
 	}
 }
 
-// TestRunQuerySuccess function statResponseWriter's statusCode will be StatusOK after executeWithRetry, the query has been proxied
+// TestQueryWithRetrySuccess function statResponseWriter's statusCode will be StatusOK after executeWithRetry, the query has been proxied
 // The execution will succeeded after retry
-func TestRunQuerySuccess(t *testing.T) {
+func TestQueryWithRetrySuccess(t *testing.T) {
 	req := newRequest("http://localhost:8080")
 
 	hs := []string{"localhost:8080", "localhost:8090"}
