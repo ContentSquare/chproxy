@@ -282,7 +282,7 @@ func initMetrics(cfg *config.Config) {
 			Name:      "retry_request_total",
 			Help:      "The number of retry requests",
 		},
-		[]string{"cluster"},
+		[]string{"user", "cluster", "cluster_user", "replica", "cluster_node"},
 	)
 }
 

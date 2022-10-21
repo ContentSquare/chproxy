@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/assert"
 )
 
 type mockResponseWriterWithCode struct {
@@ -17,14 +18,21 @@ type mockResponseWriterWithCode struct {
 	statusCode int
 }
 
+type mockHosts struct {
+	hs  []string
+	hst []string
+}
+
 // TestQueryWithRetryFail function statResponseWriter's statusCode will not be 200, but the query has been proxied
 // The request will be retried 1 time with a different host in the same replica
 func TestQueryWithRetryFail(t *testing.T) {
 	req := newRequest("http://localhost:8080")
 
-	hs := []string{"localhost:8080", "localhost:8081"}
+	mhs := &mockHosts{
+		hs: []string{"localhost:8080", "localhost:8081"},
+	}
 
-	s := newMockScope(hs)
+	s := newMockScope(mhs.hs)
 
 	srw := mockStatResponseWriter(s)
 
@@ -38,20 +46,20 @@ func TestQueryWithRetryFail(t *testing.T) {
 		context.Background(),
 		s,
 		retryNum,
-		mockReverseProxy,
+		mhs.mockReverseProxy,
 		mrw,
 		srw,
 		req,
 		func(f float64) {},
+		func() {},
 	)
 
-	if srw.statusCode == 200 {
-		t.Errorf("the retry should be failed: %v", err)
-	}
-
 	if err != nil {
-		t.Errorf("the query should be proxied")
+		t.Errorf("the execution with retry failed: %v", err)
 	}
+	assert.Equal(t, srw.statusCode, http.StatusBadGateway)
+	assert.Equal(t, mhs.hs, mhs.hst)
+
 }
 
 // TestRunQuerySuccessOnce function statResponseWriter's statusCode will be StatusOK after executeWithRetry, the query has been proxied
@@ -59,9 +67,11 @@ func TestQueryWithRetryFail(t *testing.T) {
 func TestQuerySuccessOnce(t *testing.T) {
 	req := newRequest("http://localhost:8090")
 
-	hs := []string{"localhost:8080", "localhost:8090"}
+	mhs := &mockHosts{
+		hs: []string{"localhost:8080", "localhost:8090"},
+	}
 
-	s := newMockScope(hs)
+	s := newMockScope(mhs.hs)
 
 	srw := mockStatResponseWriter(s)
 
@@ -75,15 +85,18 @@ func TestQuerySuccessOnce(t *testing.T) {
 		context.Background(),
 		s,
 		retryNum,
-		mockReverseProxy,
+		mhs.mockReverseProxy,
 		mrw,
 		srw,
 		req,
 		func(f float64) {},
+		func() {},
 	)
-	if srw.statusCode != 200 {
-		t.Errorf("the retry is failed: %v", err)
+	if err != nil {
+		t.Errorf("The execution with retry failed, %v", err)
 	}
+	assert.Equal(t, mhs.hst, []string{mhs.hs[1]})
+	assert.Equal(t, srw.statusCode, 200)
 }
 
 // TestQueryWithRetrySuccess function statResponseWriter's statusCode will be StatusOK after executeWithRetry, the query has been proxied
@@ -91,9 +104,11 @@ func TestQuerySuccessOnce(t *testing.T) {
 func TestQueryWithRetrySuccess(t *testing.T) {
 	req := newRequest("http://localhost:8080")
 
-	hs := []string{"localhost:8080", "localhost:8090"}
+	mhs := &mockHosts{
+		hs: []string{"localhost:8080", "localhost:8090"},
+	}
 
-	s := newMockScope(hs)
+	s := newMockScope(mhs.hs)
 
 	srw := mockStatResponseWriter(s)
 
@@ -107,23 +122,27 @@ func TestQueryWithRetrySuccess(t *testing.T) {
 		context.Background(),
 		s,
 		retryNum,
-		mockReverseProxy,
+		mhs.mockReverseProxy,
 		mrw,
 		srw,
 		req,
 		func(f float64) {},
+		func() {},
 	)
-	if srw.statusCode != 200 {
-		t.Errorf("the retry is failed: %v", err)
+	if err != nil {
+		t.Errorf("The execution with retry failed, %v", err)
 	}
+	assert.Equal(t, srw.statusCode, 200)
+	assert.Equal(t, mhs.hs, mhs.hst)
 }
 
-func mockReverseProxy(rw http.ResponseWriter, req *http.Request) {
+func (mhs *mockHosts) mockReverseProxy(rw http.ResponseWriter, req *http.Request) {
 	if req.URL.Host != "localhost:8090" {
 		rw.WriteHeader(http.StatusBadGateway)
 	} else {
 		rw.WriteHeader(http.StatusOK)
 	}
+	mhs.hst = append(mhs.hst, req.URL.Host)
 }
 
 func newRequest(host string) *http.Request {

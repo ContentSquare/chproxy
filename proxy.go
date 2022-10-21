@@ -172,6 +172,7 @@ func executeWithRetry(
 	srw *statResponseWriter,
 	req *http.Request,
 	monitorDuration func(float64),
+	monitorRetryRequestInc func(),
 ) (float64, error) {
 	// num of replicas should > 1,
 	// when the host is unavailable,
@@ -211,7 +212,7 @@ func executeWithRetry(
 						req.URL.Scheme = s.host.addr.Scheme
 						log.Debugf("the valid host is: %s", s.host.addr)
 					}
-					//					retryRequest.With(s.labels).Inc()
+					monitorRetryRequestInc()
 				}
 			} else {
 				since = time.Since(startTime).Seconds()
@@ -289,7 +290,7 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw ResponseWriterWithCode, srw *s
 
 	executeDuration, err := executeWithRetry(ctx, s, s.cluster.retryNumber, rp.rp.ServeHTTP, rw, srw, req, func(duration float64) {
 		proxiedResponseDuration.With(s.labels).Observe(duration)
-	})
+	}, func() { retryRequest.With(s.labels).Inc() })
 
 	switch {
 	case err == nil:
