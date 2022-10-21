@@ -558,8 +558,8 @@ func (u *User) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	if u.IsWildcarded {
-		if s := strings.Split(u.Name, "_"); len(s) != 2 || s[1] != "*" {
-			return fmt.Errorf("user name %q marked 'is_wildcared' does not match 'prefix_*'", u.Name)
+		if s := strings.Split(u.Name, "*"); !(len(s) == 2 && (s[0] == "" || s[1] == "")) {
+			return fmt.Errorf("user name %q marked 'is_wildcared' does not match 'prefix*' or '*suffix' or '*'", u.Name)
 		}
 	}
 

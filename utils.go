@@ -21,6 +21,8 @@ func respondWith(rw http.ResponseWriter, err error, status int) {
 	fmt.Fprintf(rw, "%s\n", err)
 }
 
+var defaultUser = "default"
+
 // getAuth retrieves auth credentials from request
 // according to CH documentation @see "https://clickhouse.yandex/docs/en/interfaces/http/"
 func getAuth(req *http.Request) (string, string) {
@@ -41,7 +43,7 @@ func getAuth(req *http.Request) (string, string) {
 		return name, pass
 	}
 	// if still no credentials - treat it as `default` user request
-	return "default", ""
+	return defaultUser, ""
 }
 
 // getSessionId retrieves session id
