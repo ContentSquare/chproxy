@@ -654,12 +654,12 @@ func (rp *reverseProxy) getUser(name string, password string) (found bool, u *us
 		found = false
 	case rp.hasWildcarded:
 		// checking if we have wildcarded users and if username matches one 3 possibles patterns
-		found, u, c, cu = findWildcardedUserInformation(rp, name, password)
+		found, u, c, cu = rp.findWildcardedUserInformation(name, password)
 	}
 	return found, u, c, cu
 }
 
-func findWildcardedUserInformation(rp *reverseProxy, name string, password string) (found bool, u *user, c *cluster, cu *clusterUser) {
+func (rp *reverseProxy) findWildcardedUserInformation(name string, password string) (found bool, u *user, c *cluster, cu *clusterUser) {
 	// cf a validation in config.go, the names must contains either a prefix, a suffix or a wildcard
 	// the wildcarded user is "*"
 	// the wildcarded user is "*[suffix]"
@@ -669,16 +669,16 @@ func findWildcardedUserInformation(rp *reverseProxy, name string, password strin
 			s := strings.Split(user.name, "*")
 			switch {
 			case s[0] == "" && s[1] == "":
-				return generateWildcardedUserInformation(rp, user, name, password)
+				return rp.generateWildcardedUserInformation(user, name, password)
 			case s[0] == "":
 				suffix := s[1]
 				if strings.HasSuffix(name, suffix) {
-					return generateWildcardedUserInformation(rp, user, name, password)
+					return rp.generateWildcardedUserInformation(user, name, password)
 				}
 			case s[1] == "":
 				prefix := s[0]
 				if strings.HasPrefix(name, prefix) {
-					return generateWildcardedUserInformation(rp, user, name, password)
+					return rp.generateWildcardedUserInformation(user, name, password)
 				}
 			}
 		}
@@ -686,7 +686,7 @@ func findWildcardedUserInformation(rp *reverseProxy, name string, password strin
 	return false, nil, nil, nil
 }
 
-func generateWildcardedUserInformation(rp *reverseProxy, user *user, name string, password string) (found bool, u *user, c *cluster, cu *clusterUser) {
+func (rp *reverseProxy) generateWildcardedUserInformation(user *user, name string, password string) (found bool, u *user, c *cluster, cu *clusterUser) {
 	found = false
 	c = rp.clusters[user.toCluster]
 	wildcardedCu := c.users[user.toUser]
