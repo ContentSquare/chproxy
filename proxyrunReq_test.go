@@ -18,6 +18,12 @@ type mockResponseWriterWithCode struct {
 	statusCode int
 }
 
+type mockStatResponseWriter struct {
+	http.ResponseWriter
+	http.CloseNotifier
+	statusCode int
+}
+
 type mockHosts struct {
 	hs  []string
 	hst []string
@@ -34,7 +40,7 @@ func TestQueryWithRetryFail(t *testing.T) {
 
 	s := newMockScope(mhs.hs)
 
-	srw := mockStatResponseWriter(s)
+	srw := mockStatRW(s)
 
 	mrw := &mockResponseWriterWithCode{
 		statusCode: 0,
@@ -73,7 +79,7 @@ func TestQuerySuccessOnce(t *testing.T) {
 
 	s := newMockScope(mhs.hs)
 
-	srw := mockStatResponseWriter(s)
+	srw := mockStatRW(s)
 
 	mrw := &mockResponseWriterWithCode{
 		statusCode: 0,
@@ -110,7 +116,7 @@ func TestQueryWithRetrySuccess(t *testing.T) {
 
 	s := newMockScope(mhs.hs)
 
-	srw := mockStatResponseWriter(s)
+	srw := mockStatRW(s)
 
 	mrw := &mockResponseWriterWithCode{
 		statusCode: 0,
@@ -216,19 +222,29 @@ func newMockScope(hs []string) *scope {
 	}
 }
 
-func mockStatResponseWriter(s *scope) *statResponseWriter {
-	responseBodyBytes = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: "mockNamespace",
-			Name:      "mockName",
-			Help:      "mockHelp",
-		},
-		[]string{"user", "cluster", "cluster_user", "replica", "cluster_node"},
-	)
-	return &statResponseWriter{
+func mockStatRW(s *scope) *mockStatResponseWriter {
+
+	return &mockStatResponseWriter{
 		ResponseWriter: httptest.NewRecorder(),
-		bytesWritten:   responseBodyBytes.With(s.labels),
+		CloseNotifier:  &testCloseNotifier{},
+		statusCode:     0,
 	}
+}
+
+func (srw *mockStatResponseWriter) StatusCode() int {
+	return srw.statusCode
+}
+
+func (srw *mockStatResponseWriter) GetStatusCode(code int) {
+	srw.statusCode = code
+}
+
+func (srw *mockStatResponseWriter) Header() http.Header {
+	return srw.ResponseWriter.Header()
+}
+
+func (srw *mockStatResponseWriter) Write(i []byte) (int, error) {
+	return srw.ResponseWriter.Write(i)
 }
 
 func (m *mockResponseWriterWithCode) StatusCode() int {

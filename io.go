@@ -19,6 +19,13 @@ type ResponseWriterWithCode interface {
 	StatusCode() int
 }
 
+type StatResponseWriter interface {
+	http.ResponseWriter
+	http.CloseNotifier
+	StatusCode() int
+	GetStatusCode(code int)
+}
+
 // statResponseWriter collects the amount of bytes written.
 //
 // The wrapped ResponseWriter must implement http.CloseNotifier.
@@ -64,6 +71,10 @@ func RespondWithData(rw http.ResponseWriter, data io.Reader, metadata cache.Cont
 	}
 
 	return nil
+}
+
+func (rw *statResponseWriter) GetStatusCode(code int) {
+	rw.statusCode = code
 }
 
 func (rw *statResponseWriter) StatusCode() int {

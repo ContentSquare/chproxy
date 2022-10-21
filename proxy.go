@@ -169,7 +169,7 @@ func executeWithRetry(
 	retryNum int,
 	rp func(http.ResponseWriter, *http.Request),
 	rw ResponseWriterWithCode,
-	srw *statResponseWriter,
+	srw StatResponseWriter,
 	req *http.Request,
 	monitorDuration func(float64),
 	monitorRetryRequestInc func(),
@@ -190,7 +190,7 @@ func executeWithRetry(
 
 				return since, err
 			}
-			srw.statusCode = rw.StatusCode()
+			srw.GetStatusCode(rw.StatusCode())
 			if rw.StatusCode() == http.StatusBadGateway {
 				if i == retryNum {
 					since = time.Since(startTime).Seconds()
@@ -199,7 +199,7 @@ func executeWithRetry(
 					s.host.penalize()
 					q := getQuerySnippet(req)
 					err1 := fmt.Errorf("%s: cannot reach %s; query: %q", s, s.host.addr.Host, q)
-					respondWith(srw, err1, srw.statusCode)
+					respondWith(srw, err1, srw.StatusCode())
 					return since, nil
 				} else {
 					h := s.host
@@ -234,15 +234,14 @@ func executeWithRetry(
 		since = time.Since(startTime).Seconds()
 		monitorDuration(since)
 
-		srw.statusCode = rw.StatusCode()
-
+		srw.GetStatusCode(rw.StatusCode())
 		// StatusBadGateway response is returned by http.ReverseProxy when
 		// it cannot establish connection to remote host.
 		if rw.StatusCode() == http.StatusBadGateway {
 			s.host.penalize()
 			q := getQuerySnippet(req)
 			err1 := fmt.Errorf("%s: cannot reach %s; query: %q", s, s.host.addr.Host, q)
-			respondWith(srw, err1, srw.statusCode)
+			respondWith(srw, err1, srw.StatusCode())
 		}
 	}
 	return since, nil
