@@ -244,17 +244,17 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 		var err error
 
 		proxyHandler := proxyHandler.Load().(*ProxyHandler)
-		remoteAddr := proxyHandler.GetRemoteAddr(r)
+		r.RemoteAddr = proxyHandler.GetRemoteAddr(r)
 
 		var an *config.Networks
 		if r.TLS != nil {
 			an = allowedNetworksHTTPS.Load().(*config.Networks)
-			err = fmt.Errorf("https connections are not allowed from %s", remoteAddr)
+			err = fmt.Errorf("https connections are not allowed from %s", r.RemoteAddr)
 		} else {
 			an = allowedNetworksHTTP.Load().(*config.Networks)
-			err = fmt.Errorf("http connections are not allowed from %s", remoteAddr)
+			err = fmt.Errorf("http connections are not allowed from %s", r.RemoteAddr)
 		}
-		if !an.Contains(remoteAddr) {
+		if !an.Contains(r.RemoteAddr) {
 			rw.Header().Set("Connection", "close")
 			respondWith(rw, err, http.StatusForbidden)
 			return
