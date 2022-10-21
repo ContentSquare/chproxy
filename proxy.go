@@ -654,34 +654,39 @@ func (rp *reverseProxy) getUser(name string, password string) (found bool, u *us
 		found = false
 	case rp.hasWildcarded:
 		// checking if we have wildcarded users and if username matches one 3 possibles patterns
-		for _, user := range rp.users {
-			if user.isWildcarded {
-				s := strings.Split(user.name, "*")
-				// cf a validation in config.go, the names must contains either a prefix, a suffix or a wildcard
-				switch {
-				case s[0] == "" && s[1] == "":
-					// the wildcarded user is "*"
-					return getUserInformations(rp, user, name, password)
-				case s[0] == "":
-					// the wildcarded user is "*[suffix]"
-					suffix := s[1]
-					if strings.HasSuffix(name, suffix) {
-						return getUserInformations(rp, user, name, password)
-					}
-				case s[1] == "":
-					// the wildcarded user is "[prefix]*"
-					prefix := s[0]
-					if strings.HasPrefix(name, prefix) {
-						return getUserInformations(rp, user, name, password)
-					}
-				}
-			}
-		}
+		found, u, c, cu = findWildcardedUserInformation(rp, name, password)
 	}
 	return found, u, c, cu
 }
 
-func getUserInformations(rp *reverseProxy, user *user, name string, password string) (found bool, u *user, c *cluster, cu *clusterUser) {
+func findWildcardedUserInformation(rp *reverseProxy, name string, password string) (found bool, u *user, c *cluster, cu *clusterUser) {
+	// cf a validation in config.go, the names must contains either a prefix, a suffix or a wildcard
+	// the wildcarded user is "*"
+	// the wildcarded user is "*[suffix]"
+	// the wildcarded user is "[prefix]*"
+	for _, user := range rp.users {
+		if user.isWildcarded {
+			s := strings.Split(user.name, "*")
+			switch {
+			case s[0] == "" && s[1] == "":
+				return generateWildcardedUserInformation(rp, user, name, password)
+			case s[0] == "":
+				suffix := s[1]
+				if strings.HasSuffix(name, suffix) {
+					return generateWildcardedUserInformation(rp, user, name, password)
+				}
+			case s[1] == "":
+				prefix := s[0]
+				if strings.HasPrefix(name, prefix) {
+					return generateWildcardedUserInformation(rp, user, name, password)
+				}
+			}
+		}
+	}
+	return false, nil, nil, nil
+}
+
+func generateWildcardedUserInformation(rp *reverseProxy, user *user, name string, password string) (found bool, u *user, c *cluster, cu *clusterUser) {
 	found = false
 	c = rp.clusters[user.toCluster]
 	wildcardedCu := c.users[user.toUser]
