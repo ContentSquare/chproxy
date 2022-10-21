@@ -211,7 +211,7 @@ func executeWithRetry(
 						req.URL.Scheme = s.host.addr.Scheme
 						log.Debugf("the valid host is: %s", s.host.addr)
 					}
-					retryRequest.With(s.labels).Inc()
+					//					retryRequest.With(s.labels).Inc()
 				}
 			} else {
 				since = time.Since(startTime).Seconds()
