@@ -161,6 +161,12 @@ server:
     allowed_networks: ["office"]
     namespace: ""
 
+  # Proxy settings enable parsing proxy headers in cases where
+  # CHProxy is run behind another proxy.
+  proxy:
+    enable: true
+    header: CF-Connecting-IP
+
 # Configs for input users.
 users:
     # Name and password are used to authorize access via BasicAuth or

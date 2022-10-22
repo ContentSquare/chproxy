@@ -105,7 +105,8 @@ func (n Networks) Contains(addr string) bool {
 
 	h, _, err := net.SplitHostPort(addr)
 	if err != nil {
-		panic(fmt.Sprintf("BUG: unexpected error while parsing RemoteAddr: %s", err))
+		// If we only have an IP address. This happens when the proxy middleware is enabled.
+		h = addr
 	}
 
 	ip := net.ParseIP(h)
