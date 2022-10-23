@@ -17,7 +17,7 @@ None
 * Add changelog to follow the content of new releases [#253](https://github.com/ContentSquare/chproxy/pull/253)
 
 #### Improvement
-* Ability to use the wildcarded user feature using the patterns [some_prefix][*], [*][some_suffix] & [*] instead of just [some_prefix]_[*] [#250](https://github.com/ContentSquare/chproxy/pull/250)
+* Ability to use the wildcarded user feature using the patterns [some_prefix][\*], [\*][some_suffix] & [\*] instead of just [some_prefix]_[\*] [#250](https://github.com/ContentSquare/chproxy/pull/250)
 
 #### Bug Fix
 * The wildcarded user feature on 1.18.0 had a security issue that was fixed: If 2 different users connected to chproxy at the same time, sometimes the same user/pwd was used to query clickhouse [#250](https://github.com/ContentSquare/chproxy/pull/250)
