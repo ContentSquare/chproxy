@@ -7,7 +7,7 @@ position: 103
 
 
 
-### <a id="229"></a> CHProxy release 1.19.0, 2022-10-23
+### <a id="229"></a> release 1.19.0, 2022-10-23
 
 #### Backward Incompatible Change
 None
@@ -24,7 +24,7 @@ None
 
 
 
-### <a id="228"></a> CHProxy release 1.18.0, 2022-10-13
+### <a id="228"></a> release 1.18.0, 2022-10-13
 
 #### Backward Incompatible Change
 None
@@ -43,7 +43,7 @@ None
 
 
 
-### <a id="228"></a> CHProxy release 1.17.2, 2022-09-15
+### <a id="228"></a> release 1.17.2, 2022-09-15
 
 #### Backward Incompatible Change
 None
@@ -59,7 +59,7 @@ None
 
 
 
-### <a id="228"></a> CHProxy release 1.17.1, 2022-09-12
+### <a id="228"></a> release 1.17.1, 2022-09-12
 
 #### Backward Incompatible Change
 None
@@ -77,7 +77,7 @@ None
 
 
 
-### <a id="228"></a> CHProxy release 1.17.0, 2022-08-29
+### <a id="228"></a> release 1.17.0, 2022-08-29
 
 #### Backward Incompatible Change
 None
