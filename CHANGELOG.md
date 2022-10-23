@@ -4,7 +4,7 @@ menuTitle: Changelog
 category: Guides
 position: 103
 ---
-# CHANGELOG
+
 
 
 ### <a id="229"></a> CHProxy release 1.19.0, 2022-10-23
