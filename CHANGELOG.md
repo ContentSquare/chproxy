@@ -35,7 +35,7 @@ None
 
 #### Improvement
 * When cache is activated and a query fails, the failure is cached just for 500 msec [#235](https://github.com/ContentSquare/chproxy/pull/235)
-* Move from github.com/DataDog/zstd to github.com/klauspost/compress/zstd to avoid cgo dependancies to ease the use of chproxy on mac M1 [#238](https://github.com/ContentSquare/chproxy/pull/238)
+* Move from github.com/DataDog/zstd to github.com/klauspost/compress/zstd to avoid cgo dependencies to ease the use of chproxy on mac M1 [#238](https://github.com/ContentSquare/chproxy/pull/238)
 * Ability to use a prometheus namespace for the exported metrics [#232](https://github.com/ContentSquare/chproxy/pull/232)
 
 #### Bug Fix
