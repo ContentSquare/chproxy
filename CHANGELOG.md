@@ -1,3 +1,9 @@
+---
+title: Changelog
+menuTitle: Changelog
+category: Guides
+position: 103
+---
 # CHANGELOG
 
 
