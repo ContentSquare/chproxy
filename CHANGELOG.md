@@ -5,12 +5,11 @@ category: Guides
 position: 103
 ---
 
+Since 1.17.1, chproxy follows [semantic versioning](https://semver.org/).
+Don't expect breaking changes between 2 releases if they have the same major version.
 
 
 ### <a id="229"></a> release 1.19.0, 2022-10-23
-
-#### Backward Incompatible Change
-None
 
 #### New Feature
 * Ability to run chproxy behind a reverse proxy (like cloudflare, nginx ...) [#225](https://github.com/ContentSquare/chproxy/pull/225) 
@@ -25,9 +24,6 @@ None
 
 
 ### <a id="228"></a> release 1.18.0, 2022-10-13
-
-#### Backward Incompatible Change
-None
 
 #### New Feature
 * (Wildcarded users) Ability to by-pass the user authentication of chproxy on rely only on clickhouse user authentication [#219](https://github.com/ContentSquare/chproxy/pull/219)
@@ -45,45 +41,21 @@ None
 
 ### <a id="228"></a> release 1.17.2, 2022-09-15
 
-#### Backward Incompatible Change
-None
-
-#### New Feature
-None 
-
 #### Improvement
 * Make the error more explicit (with the associated root cause) when cache is activated and a query fails then the same query is asked and the error is fetched from the cache [#229](https://github.com/ContentSquare/chproxy/pull/229)
-
-#### Bug Fix
-None
 
 
 
 ### <a id="228"></a> release 1.17.1, 2022-09-12
-
-#### Backward Incompatible Change
-None
-
-#### New Feature
-None 
 
 #### Improvement
 * Better selection of the errors that need to be cached to avoid the thundering herd problem [#193](https://github.com/ContentSquare/chproxy/pull/193)
 * Ability to only cache queries on redis that are below a certain threshold [#191](https://github.com/ContentSquare/chproxy/pull/191)
 * improve documentation [#215](https://github.com/ContentSquare/chproxy/pull/215)
 
-#### Bug Fix
-None
-
 
 
 ### <a id="228"></a> release 1.17.0, 2022-08-29
-
-#### Backward Incompatible Change
-None
-
-#### New Feature
-None 
 
 #### Improvement
 * improve processing speed when using cache  [#212](https://github.com/ContentSquare/chproxy/pull/212)
