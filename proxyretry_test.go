@@ -235,7 +235,7 @@ func (srw *mockStatResponseWriter) StatusCode() int {
 	return srw.statusCode
 }
 
-func (srw *mockStatResponseWriter) GetStatusCode(code int) {
+func (srw *mockStatResponseWriter) SetStatusCode(code int) {
 	srw.statusCode = code
 }
 
