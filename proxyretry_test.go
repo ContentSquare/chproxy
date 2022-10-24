@@ -57,7 +57,7 @@ func TestQueryWithRetryFail(t *testing.T) {
 		srw,
 		req,
 		func(f float64) {},
-		func() {},
+		func(l prometheus.Labels) {},
 	)
 
 	if err != nil {
@@ -96,7 +96,7 @@ func TestQuerySuccessOnce(t *testing.T) {
 		srw,
 		req,
 		func(f float64) {},
-		func() {},
+		func(l prometheus.Labels) {},
 	)
 	if err != nil {
 		t.Errorf("The execution with retry failed, %v", err)
@@ -133,7 +133,7 @@ func TestQueryWithRetrySuccess(t *testing.T) {
 		srw,
 		req,
 		func(f float64) {},
-		func() {},
+		func(l prometheus.Labels) {},
 	)
 	if err != nil {
 		t.Errorf("The execution with retry failed, %v", err)

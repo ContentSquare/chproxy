@@ -172,7 +172,7 @@ func executeWithRetry(
 	srw StatResponseWriter,
 	req *http.Request,
 	monitorDuration func(float64),
-	monitorRetryRequestInc func(),
+	monitorRetryRequestInc func(prometheus.Labels),
 ) (float64, error) {
 	// num of replicas should > 1,
 	// when the host is unavailable,
@@ -206,13 +206,13 @@ func executeWithRetry(
 					h := s.host
 					h.dec()
 					atomic.StoreUint32(&h.active, uint32(0))
+					monitorRetryRequestInc(s.labels)
 					s.host = h.replica.cluster.getHost()
 					if s.host.active == 1 {
 						req.URL.Host = s.host.addr.Host
 						req.URL.Scheme = s.host.addr.Scheme
 						log.Debugf("the valid host is: %s", s.host.addr)
 					}
-					monitorRetryRequestInc()
 				}
 			} else {
 				since = time.Since(startTime).Seconds()
@@ -290,7 +290,7 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw ResponseWriterWithCode, srw *s
 
 	executeDuration, err := executeWithRetry(ctx, s, s.cluster.retryNumber, rp.rp.ServeHTTP, rw, srw, req, func(duration float64) {
 		proxiedResponseDuration.With(s.labels).Observe(duration)
-	}, func() { retryRequest.With(s.labels).Inc() })
+	}, func(labels prometheus.Labels) { retryRequest.With(labels).Inc() })
 
 	switch {
 	case err == nil:
