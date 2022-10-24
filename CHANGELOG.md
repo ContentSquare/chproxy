@@ -5,7 +5,7 @@ category: Guides
 position: 103
 ---
 
-Since 1.17.1, chproxy follows [semantic versioning](https://semver.org/).
+Since v1.17.1, chproxy follows [semantic versioning](https://semver.org/).
 Don't expect breaking changes between 2 releases if they have the same major version.
 
 
