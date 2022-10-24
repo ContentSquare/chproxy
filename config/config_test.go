@@ -89,7 +89,6 @@ var fullConfig = Config{
 				Request:  "/ping",
 				Response: "Ok.\n",
 			},
-			RetryNumber: 1,
 		},
 		{
 			Name:   "second cluster",
@@ -128,7 +127,6 @@ var fullConfig = Config{
 				User:     "hbuser",
 				Password: "hbpassword",
 			},
-			RetryNumber: 1,
 		},
 		{
 			Name:   "third cluster",
@@ -145,7 +143,6 @@ var fullConfig = Config{
 				Request:  "/?query=SELECT%201",
 				Response: "Ok.\n",
 			},
-			RetryNumber: 1,
 		},
 	},
 
@@ -277,7 +274,6 @@ func TestLoadConfig(t *testing.T) {
 							Request:  "/ping",
 							Response: "Ok.\n",
 						},
-						RetryNumber: 1,
 					},
 				},
 				Users: []User{
@@ -747,7 +743,6 @@ clusters:
     request: /ping
     response: |
       Ok.
-  retrynumber: 1
 - name: second cluster
   scheme: https
   replicas:
@@ -781,7 +776,6 @@ clusters:
       Ok.
     user: hbuser
     password: hbpassword
-  retrynumber: 1
 - name: third cluster
   scheme: http
   nodes:
@@ -796,7 +790,6 @@ clusters:
     request: /?query=SELECT%201
     response: |
       Ok.
-  retrynumber: 1
 users:
 - name: web
   password: XXX
