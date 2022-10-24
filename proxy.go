@@ -725,25 +725,67 @@ func (rp *reverseProxy) getUser(name string, password string) (found bool, u *us
 	defer rp.lock.RUnlock()
 	found = false
 	u = rp.users[name]
-	if u != nil {
+	switch {
+	case u != nil:
 		found = (u.password == password)
 		// existence of c and cu for toCluster is guaranteed by applyConfig
 		c = rp.clusters[u.toCluster]
 		cu = c.users[u.toUser]
-	} else if rp.hasWildcarded {
-		if s := strings.Split(name, "_"); len(s) == 2 {
-			u = rp.users[s[0]+"_*"]
-			if u != nil && u.isWildcarded {
-				c = rp.clusters[u.toCluster]
-				wildcardedCu := c.users[u.toUser]
-				if wildcardedCu != nil {
-					found = true
-					cu = wildcardedCu
-					cu.name = name
-					cu.password = password
+	case name == "" || name == defaultUser:
+		// default user can't work with the wildcarded feature for security reasons
+		found = false
+	case rp.hasWildcarded:
+		// checking if we have wildcarded users and if username matches one 3 possibles patterns
+		found, u, c, cu = rp.findWildcardedUserInformation(name, password)
+	}
+	return found, u, c, cu
+}
+
+func (rp *reverseProxy) findWildcardedUserInformation(name string, password string) (found bool, u *user, c *cluster, cu *clusterUser) {
+	// cf a validation in config.go, the names must contains either a prefix, a suffix or a wildcard
+	// the wildcarded user is "*"
+	// the wildcarded user is "*[suffix]"
+	// the wildcarded user is "[prefix]*"
+	for _, user := range rp.users {
+		if user.isWildcarded {
+			s := strings.Split(user.name, "*")
+			switch {
+			case s[0] == "" && s[1] == "":
+				return rp.generateWildcardedUserInformation(user, name, password)
+			case s[0] == "":
+				suffix := s[1]
+				if strings.HasSuffix(name, suffix) {
+					return rp.generateWildcardedUserInformation(user, name, password)
+				}
+			case s[1] == "":
+				prefix := s[0]
+				if strings.HasPrefix(name, prefix) {
+					return rp.generateWildcardedUserInformation(user, name, password)
 				}
 			}
 		}
+	}
+	return false, nil, nil, nil
+}
+
+func (rp *reverseProxy) generateWildcardedUserInformation(user *user, name string, password string) (found bool, u *user, c *cluster, cu *clusterUser) {
+	found = false
+	c = rp.clusters[user.toCluster]
+	wildcardedCu := c.users[user.toUser]
+	if wildcardedCu != nil {
+		newCU := deepCopy(wildcardedCu)
+		found = true
+		u = user
+		cu = newCU
+		cu.name = name
+		cu.password = password
+
+		// TODO : improve the following behavior
+		// the wildcarded user feature creates some side-effects on clusterUser limitations (like the max_concurrent_queries)
+		// because of the use of a deep copy of the clusterUser. The side effect should not be too impactful since the limitation still works on user.
+		// But we need this deep copy since we're changing the name & password of clusterUser and if we used the same instance for every call to chproxy,
+		// it could lead to security issues since a specific query run by user A on chproxy side could trigger a query in clickhouse from user B.
+		// Doing a clean fix would require a huge refactoring.
 	}
 	return
 }

@@ -34,6 +34,7 @@ var (
 	allowedNetworksHTTP    atomic.Value
 	allowedNetworksHTTPS   atomic.Value
 	allowedNetworksMetrics atomic.Value
+	proxyHandler           atomic.Value
 )
 
 func main() {
@@ -94,7 +95,7 @@ var autocertManager *autocert.Manager
 
 func newAutocertManager(cfg config.Autocert) *autocert.Manager {
 	if len(cfg.CacheDir) > 0 {
-		if err := os.MkdirAll(cfg.CacheDir, 0700); err != nil {
+		if err := os.MkdirAll(cfg.CacheDir, 0o700); err != nil {
 			log.Fatalf("error while creating folder %q: %s", cfg.CacheDir, err)
 		}
 	}
@@ -133,7 +134,9 @@ func newListener(listenAddr string) net.Listener {
 
 func serveTLS(cfg config.HTTPS) {
 	ln := newListener(cfg.ListenAddr)
+
 	h := http.HandlerFunc(serveHTTP)
+
 	tlsCfg := newTLSConfig(cfg)
 	tln := tls.NewListener(ln, tlsCfg)
 	log.Infof("Serving https on %q", cfg.ListenAddr)
@@ -145,6 +148,7 @@ func serveTLS(cfg config.HTTPS) {
 func serve(cfg config.HTTP) {
 	var h http.Handler
 	ln := newListener(cfg.ListenAddr)
+
 	h = http.HandlerFunc(serveHTTP)
 	if cfg.ForceAutocertHandler {
 		if autocertManager == nil {
@@ -188,8 +192,8 @@ func newTLSConfig(cfg config.HTTPS) *tls.Config {
 	return &tlsCfg
 }
 
-func listenAndServe(ln net.Listener, h http.Handler, cfg config.TimeoutCfg) error {
-	s := &http.Server{
+func newServer(ln net.Listener, h http.Handler, cfg config.TimeoutCfg) *http.Server {
+	return &http.Server{
 		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 		Handler:      h,
 		ReadTimeout:  time.Duration(cfg.ReadTimeout),
@@ -200,6 +204,10 @@ func listenAndServe(ln net.Listener, h http.Handler, cfg config.TimeoutCfg) erro
 		// must handle all these errors in the code.
 		ErrorLog: log.NilLogger,
 	}
+}
+
+func listenAndServe(ln net.Listener, h http.Handler, cfg config.TimeoutCfg) error {
+	s := newServer(ln, h, cfg)
 	return s.Serve(ln)
 }
 
@@ -234,6 +242,10 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 		promHandler.ServeHTTP(rw, r)
 	case "/", "/query":
 		var err error
+
+		proxyHandler := proxyHandler.Load().(*ProxyHandler)
+		r.RemoteAddr = proxyHandler.GetRemoteAddr(r)
+
 		var an *config.Networks
 		if r.TLS != nil {
 			an = allowedNetworksHTTPS.Load().(*config.Networks)
@@ -274,6 +286,7 @@ func applyConfig(cfg *config.Config) error {
 	allowedNetworksHTTP.Store(&cfg.Server.HTTP.AllowedNetworks)
 	allowedNetworksHTTPS.Store(&cfg.Server.HTTPS.AllowedNetworks)
 	allowedNetworksMetrics.Store(&cfg.Server.Metrics.AllowedNetworks)
+	proxyHandler.Store(NewProxyHandler(&cfg.Server.Proxy))
 	log.SetDebug(cfg.LogDebug)
 	log.Infof("Loaded config:\n%s", cfg)
 

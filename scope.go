@@ -272,7 +272,7 @@ func (s *scope) killQuery() error {
 	// send request as kill_query_user
 	userName := s.cluster.killQueryUserName
 	if len(userName) == 0 {
-		userName = "default"
+		userName = defaultUser
 	}
 	req.SetBasicAuth(userName, s.cluster.killQueryUserPassword)
 
@@ -577,6 +577,23 @@ type clusterUser struct {
 
 	allowedNetworks config.Networks
 	isWildcarded    bool
+}
+
+func deepCopy(cu *clusterUser) *clusterUser {
+	var queueCh chan struct{}
+	if cu.maxQueueTime > 0 {
+		queueCh = make(chan struct{}, cu.maxQueueTime)
+	}
+	return &clusterUser{
+		name:                 cu.name,
+		password:             cu.password,
+		maxConcurrentQueries: cu.maxConcurrentQueries,
+		maxExecutionTime:     time.Duration(cu.maxExecutionTime),
+		reqPerMin:            cu.reqPerMin,
+		queueCh:              queueCh,
+		maxQueueTime:         time.Duration(cu.maxQueueTime),
+		allowedNetworks:      cu.allowedNetworks,
+	}
 }
 
 func newClusterUser(cu config.ClusterUser) *clusterUser {

@@ -136,6 +136,9 @@ type Server struct {
 	// Optional metrics handler configuration
 	Metrics Metrics `yaml:"metrics,omitempty"`
 
+	// Optional Proxy configuration
+	Proxy Proxy `yaml:"proxy,omitempty"`
+
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
 }
@@ -308,6 +311,35 @@ func (c *Metrics) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 	return checkOverflow(c.XXX, "metrics")
+}
+
+type Proxy struct {
+	// Enable enables parsing proxy headers. In proxy mode, CHProxy will try to
+	// parse the X-Forwarded-For, X-Real-IP or Forwarded header to extract the IP. If an other header is configured
+	// in the proxy settings, CHProxy will  use that header instead.
+	Enable bool `yaml:"enable,omitempty"`
+
+	// Header allows for configuring an alternative header to parse the remote IP from, e.g.
+	// CF-Connecting-IP. If this is set, Enable must be set to true otherwise this setting
+	// will be ignored.
+	Header string `yaml:"header,omitempty"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *Proxy) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain Proxy
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+
+	if !c.Enable && c.Header != "" {
+		return fmt.Errorf("`proxy_header` cannot be set without enabling proxy settings")
+	}
+
+	return checkOverflow(c.XXX, "proxy")
 }
 
 // Cluster describes CH cluster configuration
@@ -564,8 +596,8 @@ func (u *User) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	if u.IsWildcarded {
-		if s := strings.Split(u.Name, "_"); len(s) != 2 || s[1] != "*" {
-			return fmt.Errorf("user name %q marked 'is_wildcared' does not match 'prefix_*'", u.Name)
+		if s := strings.Split(u.Name, "*"); !(len(s) == 2 && (s[0] == "" || s[1] == "")) {
+			return fmt.Errorf("user name %q marked 'is_wildcared' does not match 'prefix*' or '*suffix' or '*'", u.Name)
 		}
 	}
 
