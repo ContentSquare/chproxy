@@ -203,16 +203,17 @@ func executeWithRetry(
 					respondWith(srw, err1, srw.StatusCode())
 					return since, nil
 				} else {
-					h := s.host
-					h.dec()
-					atomic.StoreUint32(&h.active, uint32(0))
+					// the query execution has been failed
+					s.host.penalize()
+					s.host.dec()
+					atomic.StoreUint32(&s.host.active, uint32(0))
 					monitorRetryRequestInc(s.labels)
+					h := s.host
 					s.host = h.replica.cluster.getHost()
-					if s.host.active == 1 {
-						req.URL.Host = s.host.addr.Host
-						req.URL.Scheme = s.host.addr.Scheme
-						log.Debugf("the valid host is: %s", s.host.addr)
-					}
+
+					req.URL.Host = s.host.addr.Host
+					req.URL.Scheme = s.host.addr.Scheme
+					log.Debugf("the valid host is: %s", s.host.addr)
 				}
 			} else {
 				since = time.Since(startTime).Seconds()
