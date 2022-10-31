@@ -314,6 +314,10 @@ kill_query_user: <kill_query_user_config> | optional
 
 # HeartBeat - user configuration for heart beat requests.
 heartbeat: <heartbeat_config> | optional
+
+# RetryNumber - user configuration for query retry when one host cannot respond.
+retrynumber: 0
+
 ```
 
 ### <replica_config>

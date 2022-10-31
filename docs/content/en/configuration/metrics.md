@@ -8,6 +8,7 @@ Metrics are exposed in [Prometheus text format](https://prometheus.io/docs/instr
 
 | Name | Type | Description | Labels |
 | ------------- | ------------- | ------------- | ------------- |
+| retry_request_total | Counter | The number of retry requests | `user`, `cluster`, `cluster_user`, `replica`, `cluster_node` |
 | bad_requests_total | Counter | The number of unsupported requests | |
 | cache_hits_total | Counter | The amount of cache hits | `cache`, `user`, `cluster`, `cluster_user` |
 | cache_items | Gauge | The number of items in each cache | `cache` |

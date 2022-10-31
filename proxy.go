@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/contentsquare/chproxy/cache"
@@ -162,12 +163,98 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	requestDuration.With(s.labels).Observe(since)
 }
 
+func executeWithRetry(
+	ctx context.Context,
+	s *scope,
+	retryNum int,
+	rp func(http.ResponseWriter, *http.Request),
+	rw ResponseWriterWithCode,
+	srw StatResponseWriter,
+	req *http.Request,
+	monitorDuration func(float64),
+	monitorRetryRequestInc func(prometheus.Labels),
+) (float64, error) {
+	// num of replicas should > 1,
+	// when the host is unavailable,
+	// it could make sure there might be another set of replicas contains all the data of clickhouse
+	startTime := time.Now()
+	var since float64
+	numReplicas := len(s.host.replica.cluster.replicas)
+	if numReplicas > 1 && retryNum <= numReplicas {
+		for i := 0; i <= retryNum; i++ {
+			rp(rw, req)
+
+			err := ctx.Err()
+			if err != nil {
+				since = time.Since(startTime).Seconds()
+
+				return since, err
+			}
+			srw.SetStatusCode(rw.StatusCode())
+			if rw.StatusCode() == http.StatusBadGateway {
+				log.Debugf("the invalid host is: %s", s.host.addr)
+				if i == retryNum {
+					since = time.Since(startTime).Seconds()
+					monitorDuration(since)
+
+					s.host.penalize()
+					q := getQuerySnippet(req)
+					err1 := fmt.Errorf("%s: cannot reach %s; query: %q", s, s.host.addr.Host, q)
+					respondWith(srw, err1, srw.StatusCode())
+					return since, nil
+				} else {
+					// the query execution has been failed
+					s.host.penalize()
+					s.host.dec()
+					atomic.StoreUint32(&s.host.active, uint32(0))
+					monitorRetryRequestInc(s.labels)
+					h := s.host
+					s.host = h.replica.cluster.getHost()
+
+					req.URL.Host = s.host.addr.Host
+					req.URL.Scheme = s.host.addr.Scheme
+					log.Debugf("the valid host is: %s", s.host.addr)
+				}
+			} else {
+				since = time.Since(startTime).Seconds()
+
+				return since, nil
+			}
+		}
+	} else {
+		rp(rw, req)
+
+		err := ctx.Err()
+		if err != nil {
+			since = time.Since(startTime).Seconds()
+
+			return since, err
+		}
+		// The request has been successfully proxied.
+
+		since = time.Since(startTime).Seconds()
+		monitorDuration(since)
+
+		srw.SetStatusCode(rw.StatusCode())
+		// StatusBadGateway response is returned by http.ReverseProxy when
+		// it cannot establish connection to remote host.
+		if rw.StatusCode() == http.StatusBadGateway {
+			log.Debugf("the invalid host is: %s", s.host.addr)
+			s.host.penalize()
+			q := getQuerySnippet(req)
+			err1 := fmt.Errorf("%s: cannot reach %s; query: %q", s, s.host.addr.Host, q)
+			respondWith(srw, err1, srw.StatusCode())
+		}
+	}
+	return since, nil
+}
+
 // proxyRequest proxies the given request to clickhouse and sends response
 // to rw.
 //
 // srw is required only for setting non-200 status codes on timeouts
 // or on client connection disconnects.
-func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, srw *statResponseWriter, req *http.Request) {
+func (rp *reverseProxy) proxyRequest(s *scope, rw ResponseWriterWithCode, srw *statResponseWriter, req *http.Request) {
 	// wrap body into cachedReadCloser, so we could obtain the original
 	// request on error.
 	if _, ok := req.Body.(*cachedReadCloser); !ok {
@@ -201,29 +288,15 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, srw *stat
 	req = req.WithContext(ctx)
 
 	startTime := time.Now()
-	rp.rp.ServeHTTP(rw, req)
 
-	err := ctx.Err()
-	if err == nil { //nolint: gocritic
-		// The request has been successfully proxied.
-		since := time.Since(startTime).Seconds()
-		proxiedResponseDuration.With(s.labels).Observe(since)
+	executeDuration, err := executeWithRetry(ctx, s, s.cluster.retryNumber, rp.rp.ServeHTTP, rw, srw, req, func(duration float64) {
+		proxiedResponseDuration.With(s.labels).Observe(duration)
+	}, func(labels prometheus.Labels) { retryRequest.With(labels).Inc() })
 
-		// cache.FSResponseWriter pushes status code to srw on Finalize/Fail actions
-		// but they didn't happen yet, so manually propagate the status code from crw to srw.
-		if crw, ok := rw.(*cache.TmpFileResponseWriter); ok {
-			srw.statusCode = crw.StatusCode()
-		}
-
-		// StatusBadGateway response is returned by http.ReverseProxy when
-		// it cannot establish connection to remote host.
-		if srw.statusCode == http.StatusBadGateway {
-			s.host.penalize()
-			q := getQuerySnippet(req)
-			err := fmt.Errorf("%s: cannot reach %s; query: %q", s, s.host.addr.Host, q)
-			respondWith(srw, err, srw.statusCode)
-		}
-	} else if errors.Is(err, context.Canceled) {
+	switch {
+	case err == nil:
+		return
+	case errors.Is(err, context.Canceled):
 		canceledRequest.With(s.labels).Inc()
 
 		q := getQuerySnippet(req)
@@ -232,21 +305,21 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw http.ResponseWriter, srw *stat
 			log.Errorf("%s: cannot kill query: %s; query: %q", s, err, q)
 		}
 		srw.statusCode = 499 // See https://httpstatuses.com/499 .
-	} else if errors.Is(err, context.DeadlineExceeded) {
+	case errors.Is(err, context.DeadlineExceeded):
 		timeoutRequest.With(s.labels).Inc()
 
 		// Penalize host with the timed out query, because it may be overloaded.
 		s.host.penalize()
 
 		q := getQuerySnippet(req)
-		log.Debugf("%s: query timeout in %s; query: %q", s, time.Since(startTime), q)
+		log.Debugf("%s: query timeout in %f; query: %q", s, executeDuration, q)
 		if err := s.killQuery(); err != nil {
 			log.Errorf("%s: cannot kill query: %s; query: %q", s, err, q)
 		}
 		err = fmt.Errorf("%s: %w; query: %q", s, timeoutErrMsg, q)
 		respondWith(rw, err, http.StatusGatewayTimeout)
 		srw.statusCode = http.StatusGatewayTimeout
-	} else {
+	default:
 		panic(fmt.Sprintf("BUG: context.Context.Err() returned unexpected error: %s", err))
 	}
 }
@@ -417,7 +490,13 @@ func newCacheKey(s *scope, origParams url.Values, q []byte, req *http.Request) *
 
 	queryParamsHash := calcQueryParamsHash(origParams)
 
-	return cache.NewKey(skipLeadingComments(q), origParams, sortHeader(req.Header.Get("Accept-Encoding")), userParamsHash, queryParamsHash)
+	return cache.NewKey(
+		skipLeadingComments(q),
+		origParams,
+		sortHeader(req.Header.Get("Accept-Encoding")),
+		userParamsHash,
+		queryParamsHash,
+	)
 }
 
 func toString(stream io.Reader) (string, error) {
@@ -438,7 +517,8 @@ var clickhouseRecoverableStatusCodes = map[int]struct{}{http.StatusServiceUnavai
 
 func (rp *reverseProxy) completeTransaction(s *scope, statusCode int, userCache *cache.AsyncCache, key *cache.Key,
 	q []byte,
-	failReason string) {
+	failReason string,
+) {
 	// complete successful transactions or those with empty fail reason
 	if statusCode < 300 || failReason == "" {
 		if err := userCache.Complete(key); err != nil {
@@ -465,7 +545,7 @@ func calcQueryParamsHash(origParams url.Values) uint32 {
 			queryParams[param] = origParams.Get(param)
 		}
 	}
-	var queryParamsHash, err = calcMapHash(queryParams)
+	queryParamsHash, err := calcMapHash(queryParams)
 	if err != nil {
 		log.Errorf("fail to calc hash for params %s; %s", origParams, err)
 		return 0
@@ -558,7 +638,10 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 
 		if cu.isWildcarded {
 			if heartbeat.Request != "/ping" && len(heartbeat.User) == 0 {
-				return fmt.Errorf("`cluster.heartbeat.user ` cannot be unset for %q because a wildcarded user cannot send heartbeat", clname)
+				return fmt.Errorf(
+					"`cluster.heartbeat.user ` cannot be unset for %q because a wildcarded user cannot send heartbeat",
+					clname,
+				)
 			}
 		}
 	}

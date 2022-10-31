@@ -19,6 +19,7 @@ var (
 		Scheme:       "http",
 		ClusterUsers: []ClusterUser{defaultClusterUser},
 		HeartBeat:    defaultHeartBeat,
+		RetryNumber:  defaultRetryNumber,
 	}
 
 	defaultClusterUser = ClusterUser{
@@ -37,6 +38,8 @@ var (
 	defaultExecutionTime = Duration(120 * time.Second)
 
 	defaultMaxPayloadSize = ByteSize(1 << 50)
+
+	defaultRetryNumber = 0
 )
 
 // Config describes server configuration, access and proxy rules
@@ -374,6 +377,9 @@ type Cluster struct {
 
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
+
+	// Retry number for query - how many times a query can retry after receiving a recoverable but failed response from Clickhouse node
+	RetryNumber int `yaml:"retrynumber,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
