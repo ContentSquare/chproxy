@@ -489,6 +489,11 @@ func newCacheKey(s *scope, origParams url.Values, q []byte, req *http.Request) *
 	}
 
 	queryParamsHash := calcQueryParamsHash(origParams)
+	credHash, err := calcCredentialHash(s.user.name, s.user.password)
+	if err != nil {
+		log.Errorf("fail to calc hash on credentials for user %s", s.user.name)
+		credHash = 0
+	}
 
 	return cache.NewKey(
 		skipLeadingComments(q),
@@ -496,6 +501,7 @@ func newCacheKey(s *scope, origParams url.Values, q []byte, req *http.Request) *
 		sortHeader(req.Header.Get("Accept-Encoding")),
 		userParamsHash,
 		queryParamsHash,
+		credHash,
 	)
 }
 

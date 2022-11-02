@@ -1,8 +1,20 @@
 caches:
-  - name: "shared_cache"
+  - name: "shared_cache1"
     mode: "file_system"
     file_system:
-      dir: "temp-test-data/shared_cache"
+      dir: "temp-test-data/shared_cache1"
+      max_size: "10M"
+    expire: "1m"
+  - name: "shared_cache2"
+    mode: "file_system"
+    file_system:
+      dir: "temp-test-data/shared_cache2"
+      max_size: "10M"
+    expire: "1m"
+  - name: "shared_cache3"
+    mode: "file_system"
+    file_system:
+      dir: "temp-test-data/shared_cache3"
       max_size: "10M"
     expire: "1m"
 
@@ -12,12 +24,26 @@ server:
       allowed_networks: ["127.0.0.1/24"]
 
 users:
-  - name: "user1"
-    cache: "shared_cache"
+  - name: "user1_test1"
+    cache: "shared_cache1"
     to_cluster: "default"
     to_user: "default"
-  - name: "user2"
-    cache: "shared_cache"
+  - name: "user1_test2"
+    password: "toto"
+    cache: "shared_cache2"
+    to_cluster: "default"
+    to_user: "default"
+  - name: "user2_test2"
+    password: "titi"
+    cache: "shared_cache2"
+    to_cluster: "default"
+    to_user: "default"
+  - name: "user1_test3"
+    cache: "shared_cache3"
+    to_cluster: "default"
+    to_user: "default"
+  - name: "user2_test3"
+    cache: "shared_cache3"
     to_cluster: "default"
     to_user: "default"
 
