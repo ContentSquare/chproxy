@@ -1058,6 +1058,24 @@ func TestReloadConfig(t *testing.T) {
 	if err := reloadConfig(); err == nil {
 		t.Fatal("error expected; got nil")
 	}
+
+	assert.Equal(t, proxy.skipTlsVerify, false)
+}
+
+func TestReloadConfigProxyEnabled(t *testing.T) {
+	*configFile = "testdata/https.proxy-enabled.yml"
+	if err := reloadConfig(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	assert.Equal(t, false, proxy.skipTlsVerify)
+}
+
+func TestReloadConfigSkipBackendTLSVerify(t *testing.T) {
+	*configFile = "testdata/https.proxy-enabled-backend-tls-disabled.yml"
+	if err := reloadConfig(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	assert.Equal(t, true, proxy.skipTlsVerify)
 }
 
 func checkErr(t *testing.T, err error) {

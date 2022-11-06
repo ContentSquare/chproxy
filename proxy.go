@@ -46,6 +46,7 @@ type reverseProxy struct {
 	clusters      map[string]*cluster
 	caches        map[string]*cache.AsyncCache
 	hasWildcarded bool
+	skipTlsVerify bool
 }
 
 func newReverseProxy(skipTLSVerify bool) *reverseProxy {
@@ -61,8 +62,9 @@ func newReverseProxy(skipTLSVerify bool) *reverseProxy {
 			// are handled and logged in the code below.
 			ErrorLog: log.NilLogger,
 		},
-		reloadSignal: make(chan struct{}),
-		reloadWG:     sync.WaitGroup{},
+		reloadSignal:  make(chan struct{}),
+		reloadWG:      sync.WaitGroup{},
+		skipTlsVerify: skipTLSVerify,
 	}
 }
 

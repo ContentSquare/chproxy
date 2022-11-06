@@ -30,3 +30,13 @@ server:
 ```
 
 `Chproxy` assumes the header contains the remote address and doesn't apply any parsing logic to extract the remote address from the header. 
+
+Additionally, TLS verification of backend servers using the `https` scheme can be disabled in this section:
+
+```yml
+server:
+  proxy:
+    skip_tls_verify: true
+```
+
+This is obviously a potential security risk! This is intented primarily for testing/QA scenarios where the remote server may have a self-signed certificate.

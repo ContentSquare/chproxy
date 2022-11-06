@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"reflect"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -229,10 +230,6 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	switch r.URL.Path {
-	case "/health":
-		rw.WriteHeader(http.StatusOK)
-		rw.Write([]byte(http.StatusText(http.StatusOK)))
-		return
 	case "/favicon.ico":
 	case "/metrics":
 		an := allowedNetworksMetrics.Load().(*config.Networks)
@@ -284,8 +281,25 @@ func loadConfig() (*config.Config, error) {
 }
 
 func applyConfig(cfg *config.Config) error {
-	if proxy == nil {
-		proxy = newReverseProxy(cfg.Server.Proxy.SkipTLSVerify)
+	var skipTLSVerify bool
+
+	if proxy == nil || reflect.ValueOf(proxy).IsZero() {
+		// if we have not yet initialized the proxy, do so
+		if !reflect.ValueOf(cfg.Server.Proxy).IsZero() {
+			// if the optional cfg.server.proxy section is present, use its
+			// setting for SkipTLSVerify
+			skipTLSVerify = cfg.Server.Proxy.SkipTLSVerify
+		}
+		proxy = newReverseProxy(skipTLSVerify)
+	} else {
+		// if the proxy has already been initialized, re-create it IFF the
+		// value for cfg.server.proxy.skiptlsverify has changed
+		if !reflect.ValueOf(cfg.Server.Proxy).IsZero() {
+			skipTLSVerify = cfg.Server.Proxy.SkipTLSVerify
+			if skipTLSVerify != proxy.skipTlsVerify {
+				proxy = newReverseProxy(skipTLSVerify)
+			}
+		}
 	}
 	if err := proxy.applyConfig(cfg); err != nil {
 		return err
