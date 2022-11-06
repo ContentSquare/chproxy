@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"reflect"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -281,21 +280,11 @@ func loadConfig() (*config.Config, error) {
 }
 
 func applyConfig(cfg *config.Config) error {
-	var skipTLSVerify bool
 
-	if !reflect.ValueOf(cfg.Server.Proxy).IsZero() {
-		// if the optional cfg.server.proxy section is present, use its
-		// setting for SkipTLSVerify
-		skipTLSVerify = cfg.Server.Proxy.SkipTLSVerify
-	}
-
-	if proxy == nil || reflect.ValueOf(proxy).IsZero() {
-		// if we have not yet initialized the proxy, do so
-		proxy = newReverseProxy(skipTLSVerify)
-	} else if skipTLSVerify != proxy.skipTlsVerify {
-		// if the proxy has already been initialized, re-create it IFF the
-		// value for cfg.server.proxy.skiptlsverify has changed
-		proxy = newReverseProxy(skipTLSVerify)
+	// if the proxy has not been initialized, or if the value for
+	// cfg.server.proxy.skipTLSVerify has changed, initialize it
+	if proxy == nil || cfg.Server.Proxy.SkipTLSVerify != proxy.skipTLSVerify {
+		proxy = newReverseProxy(cfg.Server.Proxy.SkipTLSVerify)
 	}
 
 	if err := proxy.applyConfig(cfg); err != nil {

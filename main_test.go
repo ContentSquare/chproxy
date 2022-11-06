@@ -1059,7 +1059,7 @@ func TestReloadConfig(t *testing.T) {
 		t.Fatal("error expected; got nil")
 	}
 
-	assert.Equal(t, proxy.skipTlsVerify, false)
+	assert.Equal(t, proxy.skipTLSVerify, false)
 }
 
 func TestReloadConfigProxyEnabled(t *testing.T) {
@@ -1067,7 +1067,7 @@ func TestReloadConfigProxyEnabled(t *testing.T) {
 	if err := reloadConfig(); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
-	assert.Equal(t, false, proxy.skipTlsVerify)
+	assert.Equal(t, false, proxy.skipTLSVerify)
 }
 
 func TestReloadConfigSkipBackendTLSVerify(t *testing.T) {
@@ -1075,7 +1075,7 @@ func TestReloadConfigSkipBackendTLSVerify(t *testing.T) {
 	if err := reloadConfig(); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
-	assert.Equal(t, true, proxy.skipTlsVerify)
+	assert.Equal(t, true, proxy.skipTLSVerify)
 }
 
 func checkErr(t *testing.T, err error) {
