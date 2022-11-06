@@ -20,7 +20,8 @@ type AsyncCache struct {
 
 	graceTime time.Duration
 
-	MaxPayloadSize config.ByteSize
+	MaxPayloadSize     config.ByteSize
+	SharedWithAllUsers bool
 }
 
 func (c *AsyncCache) Close() error {
@@ -112,5 +113,6 @@ func NewAsyncCache(cfg config.Cache, maxExecutionTime time.Duration) (*AsyncCach
 		TransactionRegistry: transaction,
 		graceTime:           graceTime,
 		MaxPayloadSize:      maxPayloadSize,
+		SharedWithAllUsers:  cfg.SharedWithAllUsers,
 	}, nil
 }

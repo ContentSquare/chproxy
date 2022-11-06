@@ -675,6 +675,48 @@ func TestServe(t *testing.T) {
 			startHTTP,
 		},
 		{
+			"http share cache for same user with different pwd",
+			"testdata/http.shared.cache.yml",
+			func(t *testing.T) {
+				// because of the wildcarded feature that delegate the authentication to clickouse
+				// we can't afford to return a cached of the same user without reaching clickhouse
+				// if the pwd is not the same than the one used for the cached query
+				cacheDir := "temp-test-data/shared_cache4"
+				checkFilesCount(t, cacheDir, 0)
+				httpGet(t, "http://127.0.0.1:9090?query=SELECT&user=user1_test4&password=toto", http.StatusOK)
+				checkFilesCount(t, cacheDir, 1)
+				httpGet(t, "http://127.0.0.1:9090?query=SELECT&user=user2_test4&password=titi", http.StatusOK)
+				checkFilesCount(t, cacheDir, 1)
+			},
+			startHTTP,
+		},
+		{
+			"http share cache for different user",
+			"testdata/http.shared.cache.yml",
+			func(t *testing.T) {
+				cacheDir := "temp-test-data/shared_cache5"
+				checkFilesCount(t, cacheDir, 0)
+				httpGet(t, "http://127.0.0.1:9090?query=SELECT&user=user1_test5", http.StatusOK)
+				checkFilesCount(t, cacheDir, 1)
+				httpGet(t, "http://127.0.0.1:9090?query=SELECT&user=user2_test5", http.StatusOK)
+				checkFilesCount(t, cacheDir, 1)
+			},
+			startHTTP,
+		},
+		{
+			"http not share cache for different user using wildcarded feature",
+			"testdata/http.shared.cache.yml",
+			func(t *testing.T) {
+				cacheDir := "temp-test-data/shared_cache6"
+				checkFilesCount(t, cacheDir, 0)
+				httpGet(t, "http://127.0.0.1:9090?query=SELECT&user=user1_test6", http.StatusOK)
+				checkFilesCount(t, cacheDir, 1)
+				httpGet(t, "http://127.0.0.1:9090?query=SELECT&user=user2_test6", http.StatusOK)
+				checkFilesCount(t, cacheDir, 2)
+			},
+			startHTTP,
+		},
+		{
 			"http cached gzipped deadline",
 			"testdata/http.cache.deadline.yml",
 			func(t *testing.T) {

@@ -23,3 +23,6 @@ users:
 clusters:
   - name: "default"
     nodes: ["127.0.0.1:8124"]
+    users:
+    - name: "default"
+      password: "qwerty"

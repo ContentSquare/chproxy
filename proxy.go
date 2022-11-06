@@ -489,7 +489,11 @@ func newCacheKey(s *scope, origParams url.Values, q []byte, req *http.Request) *
 	}
 
 	queryParamsHash := calcQueryParamsHash(origParams)
-	credHash, err := calcCredentialHash(s.user.name, s.user.password)
+	credHash, err := uint32(0), error(nil)
+
+	if !s.user.cache.SharedWithAllUsers {
+		credHash, err = calcCredentialHash(s.clusterUser.name, s.clusterUser.password)
+	}
 	if err != nil {
 		log.Errorf("fail to calc hash on credentials for user %s", s.user.name)
 		credHash = 0

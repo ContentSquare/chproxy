@@ -21,9 +21,10 @@ var fullConfig = Config{
 				Dir:     "/path/to/longterm/cachedir",
 				MaxSize: ByteSize(100 << 30),
 			},
-			Expire:         Duration(time.Hour),
-			GraceTime:      Duration(20 * time.Second),
-			MaxPayloadSize: ByteSize(100 << 30),
+			Expire:             Duration(time.Hour),
+			GraceTime:          Duration(20 * time.Second),
+			MaxPayloadSize:     ByteSize(100 << 30),
+			SharedWithAllUsers: false,
 		},
 		{
 			Name: "shortterm",
@@ -32,8 +33,9 @@ var fullConfig = Config{
 				Dir:     "/path/to/shortterm/cachedir",
 				MaxSize: ByteSize(100 << 20),
 			},
-			Expire:         Duration(10 * time.Second),
-			MaxPayloadSize: ByteSize(100 << 20),
+			Expire:             Duration(10 * time.Second),
+			MaxPayloadSize:     ByteSize(100 << 20),
+			SharedWithAllUsers: true,
 		},
 	},
 	HackMePlease: true,
@@ -851,6 +853,7 @@ caches:
     dir: /path/to/shortterm/cachedir
     max_size: 104857600
   max_payload_size: 104857600
+  shared_with_all_users: true
 param_groups:
 - name: cron-job
   params:

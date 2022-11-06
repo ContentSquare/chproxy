@@ -82,7 +82,11 @@ grace_time: <duration>
 
 # Maximum total size of request payload for caching. The default value
 # is set to 1 Petabyte.
+# The default value set so high is to allow users who do not use response size limitations virtually unlimited cache.
 max_payload_size: <byte_size>
+
+# Whether a query cached by a user can be used by another user
+shared_with_all_users: <bool> | default = false [optional]
 ```
 
 ### <distributed_cache_config>
@@ -122,6 +126,9 @@ grace_time: <duration>
 # is set to 1 Petabyte.
 # The default value set so high is to allow users who do not use response size limitations virtually unlimited cache.
 max_payload_size: <byte_size>
+
+# Whether a query cached by a user can be used by another user
+shared_with_all_users: <bool> | default = false [optional]
 ```
 
 ### <param_groups_config>

@@ -47,6 +47,7 @@ caches:
       max_size: 100Mb
       dir: "/path/to/shortterm/cachedir"
     max_payload_size: 100Mb
+    shared_with_all_users: true
     expire: 10s
 
 # Optional network lists, might be used as values for `allowed_networks`.
