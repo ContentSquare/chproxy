@@ -8,6 +8,27 @@ position: 103
 Since v1.17.1, chproxy follows [semantic versioning](https://semver.org/).
 Don't expect breaking changes between 2 releases if they have the same major version.
 
+### <a id="229"></a> release 1.20.0, 2022-11-??
+
+#### Release note
+Until chproxy 1.19.0, the same cache was shared for all the users.
+Since 1.20.0, each user has his own cache but you can override this behavior by setting `shared_with_all_users = true` in the config file.
+
+
+#### New Feature
+* Ability to decide whether the cache is specific per user or shared with all users (specific per user by default) [#258](https://github.com/ContentSquare/chproxy/pull/258) 
+* Ability to bypass the tls validation (useful if chproxy is behind a reverse proxy using an auto signed certificate)  [#260](https://github.com/ContentSquare/chproxy/pull/260)
+* Ability to retry a failed query up to `retrynumber` times [#242](https://github.com/ContentSquare/chproxy/pull/242)
+
+#### Improvement
+* add contribution guidelines [#257](https://github.com/ContentSquare/chproxy/pull/257)
+
+#### Bug Fix
+* By default the cache was shared with all users, which could led to situations where a user could access data he wasn't allowed to see (according to clickhouse rules). Now the cache is specific for each user [#258](https://github.com/ContentSquare/chproxy/pull/258) 
+
+
+
+https://github.com/ContentSquare/chproxy/pull/258
 
 ### <a id="229"></a> release 1.19.0, 2022-10-23
 
