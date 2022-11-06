@@ -283,24 +283,21 @@ func loadConfig() (*config.Config, error) {
 func applyConfig(cfg *config.Config) error {
 	var skipTLSVerify bool
 
+	if !reflect.ValueOf(cfg.Server.Proxy).IsZero() {
+		// if the optional cfg.server.proxy section is present, use its
+		// setting for SkipTLSVerify
+		skipTLSVerify = cfg.Server.Proxy.SkipTLSVerify
+	}
+
 	if proxy == nil || reflect.ValueOf(proxy).IsZero() {
 		// if we have not yet initialized the proxy, do so
-		if !reflect.ValueOf(cfg.Server.Proxy).IsZero() {
-			// if the optional cfg.server.proxy section is present, use its
-			// setting for SkipTLSVerify
-			skipTLSVerify = cfg.Server.Proxy.SkipTLSVerify
-		}
 		proxy = newReverseProxy(skipTLSVerify)
-	} else {
+	} else if skipTLSVerify != proxy.skipTlsVerify {
 		// if the proxy has already been initialized, re-create it IFF the
 		// value for cfg.server.proxy.skiptlsverify has changed
-		if !reflect.ValueOf(cfg.Server.Proxy).IsZero() {
-			skipTLSVerify = cfg.Server.Proxy.SkipTLSVerify
-			if skipTLSVerify != proxy.skipTlsVerify {
-				proxy = newReverseProxy(skipTLSVerify)
-			}
-		}
+		proxy = newReverseProxy(skipTLSVerify)
 	}
+
 	if err := proxy.applyConfig(cfg); err != nil {
 		return err
 	}
