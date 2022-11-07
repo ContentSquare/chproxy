@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
@@ -46,13 +47,15 @@ type scope struct {
 	remoteAddr string
 	localAddr  string
 
+	httpClient *http.Client
+
 	// is true when KillQuery has been called
 	canceled bool
 
 	labels prometheus.Labels
 }
 
-func newScope(req *http.Request, u *user, c *cluster, cu *clusterUser, sessionId string, sessionTimeout int) *scope {
+func newScope(req *http.Request, u *user, c *cluster, cu *clusterUser, sessionId string, sessionTimeout int, skipTLSVerify bool) *scope {
 	h := c.getHost()
 	if sessionId != "" {
 		h = c.getHostSticky(sessionId)
@@ -60,6 +63,10 @@ func newScope(req *http.Request, u *user, c *cluster, cu *clusterUser, sessionId
 	var localAddr string
 	if addr, ok := req.Context().Value(http.LocalAddrContextKey).(net.Addr); ok {
 		localAddr = addr.String()
+	}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	if skipTLSVerify {
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 	s := &scope{
 		startTime:      time.Now(),
@@ -73,6 +80,8 @@ func newScope(req *http.Request, u *user, c *cluster, cu *clusterUser, sessionId
 
 		remoteAddr: req.RemoteAddr,
 		localAddr:  localAddr,
+
+		httpClient: &http.Client{Transport: transport},
 
 		labels: prometheus.Labels{
 			"user":         u.name,
@@ -276,7 +285,7 @@ func (s *scope) killQuery() error {
 	}
 	req.SetBasicAuth(userName, s.cluster.killQueryUserPassword)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("error while executing clickhouse query %q at %q: %w", query, addr, err)
 	}
@@ -778,7 +787,7 @@ type cluster struct {
 	retryNumber int
 }
 
-func newCluster(c config.Cluster) (*cluster, error) {
+func newCluster(c config.Cluster, skipTLSVerify bool) (*cluster, error) {
 	clusterUsers := make(map[string]*clusterUser, len(c.ClusterUsers))
 	for _, cu := range c.ClusterUsers {
 		if _, ok := clusterUsers[cu.Name]; ok {
@@ -787,7 +796,11 @@ func newCluster(c config.Cluster) (*cluster, error) {
 		clusterUsers[cu.Name] = newClusterUser(cu)
 	}
 
-	heartBeat := newHeartBeat(c.HeartBeat, c.ClusterUsers[0])
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	if skipTLSVerify {
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	}
+	heartBeat := newHeartBeat(c.HeartBeat, c.ClusterUsers[0], &http.Client{Transport: transport})
 
 	newC := &cluster{
 		name:                  c.Name,
@@ -807,13 +820,13 @@ func newCluster(c config.Cluster) (*cluster, error) {
 	return newC, nil
 }
 
-func newClusters(cfg []config.Cluster) (map[string]*cluster, error) {
+func newClusters(cfg []config.Cluster, skipTLSVerify bool) (map[string]*cluster, error) {
 	clusters := make(map[string]*cluster, len(cfg))
 	for _, c := range cfg {
 		if _, ok := clusters[c.Name]; ok {
 			return nil, fmt.Errorf("duplicate config for cluster %q", c.Name)
 		}
-		tmpC, err := newCluster(c)
+		tmpC, err := newCluster(c, skipTLSVerify)
 		if err != nil {
 			return nil, fmt.Errorf("cannot initialize cluster %q: %w", c.Name, err)
 		}

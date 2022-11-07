@@ -571,7 +571,7 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 	rp.configLock.Lock()
 	defer rp.configLock.Unlock()
 
-	clusters, err := newClusters(cfg.Clusters)
+	clusters, err := newClusters(cfg.Clusters, cfg.Server.Proxy.SkipTLSVerify)
 	if err != nil {
 		return err
 	}
@@ -825,6 +825,6 @@ func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 		return nil, http.StatusForbidden, fmt.Errorf("cluster user %q is not allowed to access", cu.name)
 	}
 
-	s := newScope(req, u, c, cu, sessionId, sessionTimeout)
+	s := newScope(req, u, c, cu, sessionId, sessionTimeout, rp.skipTLSVerify)
 	return s, 0, nil
 }

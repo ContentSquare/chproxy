@@ -11,23 +11,25 @@ import (
 )
 
 type heartBeat struct {
-	interval time.Duration
-	timeout  time.Duration
-	request  string
-	response string
-	user     string
-	password string
+	interval   time.Duration
+	timeout    time.Duration
+	request    string
+	response   string
+	user       string
+	password   string
+	httpClient *http.Client
 }
 
 // User credentials are not needed
 const pingStr string = "/ping"
 
-func newHeartBeat(c config.HeartBeat, firstClusterUser config.ClusterUser) *heartBeat {
+func newHeartBeat(c config.HeartBeat, firstClusterUser config.ClusterUser, httpClient *http.Client) *heartBeat {
 	newHB := &heartBeat{
-		interval: time.Duration(c.Interval),
-		timeout:  time.Duration(c.Timeout),
-		request:  c.Request,
-		response: c.Response,
+		interval:   time.Duration(c.Interval),
+		timeout:    time.Duration(c.Timeout),
+		request:    c.Request,
+		response:   c.Response,
+		httpClient: httpClient,
 	}
 	if c.Request != pingStr {
 		if len(c.User) > 0 {
@@ -54,7 +56,7 @@ func (hb *heartBeat) isHealthy(addr string) error {
 	req = req.WithContext(ctx)
 
 	startTime := time.Now()
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := hb.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("cannot send request in %s: %w", time.Since(startTime), err)
 	}

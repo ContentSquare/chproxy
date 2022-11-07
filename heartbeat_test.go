@@ -85,13 +85,13 @@ var (
 )
 
 func TestNewHeartBeat(t *testing.T) {
-	c, err := newCluster(clusterCfg)
+	c, err := newCluster(clusterCfg, false)
 	if err != nil {
 		t.Fatalf("error while initialize claster: %s", err)
 	}
 	testCompareNum(t, "cluster.heartbeat.interval", int64(c.heartBeat.interval/time.Microsecond), int64(time.Duration(5*time.Second)/time.Microsecond))
 
-	hb := newHeartBeat(heartBeatFullCfg, clusterCfg.ClusterUsers[0])
+	hb := newHeartBeat(heartBeatFullCfg, clusterCfg.ClusterUsers[0], &http.Client{})
 	testCompareNum(t, "heartbeat.interval", int64(hb.interval/time.Microsecond), int64(time.Duration(20*time.Second)/time.Microsecond))
 	testCompareNum(t, "heartbeat.timeout", int64(hb.timeout/time.Microsecond), int64(time.Duration(30*time.Second)/time.Microsecond))
 	testCompareStr(t, "heartbeat.request", hb.request, "/?query=SELECT%201")
@@ -105,14 +105,14 @@ func TestNewHeartBeat(t *testing.T) {
 		t.Fatalf("query request error `%q`", check)
 	}
 
-	hbWrong := newHeartBeat(heartBeatWrongResponseCfg, clusterCfg.ClusterUsers[0])
+	hbWrong := newHeartBeat(heartBeatWrongResponseCfg, clusterCfg.ClusterUsers[0], &http.Client{})
 	check := hbWrong.isHealthy(fakeHBServer.URL)
 	if check == nil {
 		t.Fatalf("heartbeat error expected")
 	}
 	testCompareStr(t, "heartbeat error", check.Error(), "unexpected response: wrong\n")
 
-	hbNameWrong := newHeartBeat(heartBeatWrongNamedCfg, clusterCfg.ClusterUsers[0])
+	hbNameWrong := newHeartBeat(heartBeatWrongNamedCfg, clusterCfg.ClusterUsers[0], &http.Client{})
 	testCompareStr(t, "heartbeat.user", hbNameWrong.user, "hbuser")
 	testCompareStr(t, "heartbeat.password", hbNameWrong.password, "hbpassword")
 }
