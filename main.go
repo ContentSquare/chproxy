@@ -280,7 +280,6 @@ func loadConfig() (*config.Config, error) {
 }
 
 func applyConfig(cfg *config.Config) error {
-
 	// if the proxy has not been initialized, or if the value for
 	// cfg.server.proxy.skipTLSVerify has changed, initialize it
 	if proxy == nil || cfg.Server.Proxy.SkipTLSVerify != proxy.skipTLSVerify {
