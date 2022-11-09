@@ -665,6 +665,9 @@ type Cache struct {
 
 	// Maximum total size of request payload for caching
 	MaxPayloadSize ByteSize `yaml:"max_payload_size,omitempty"`
+
+	// Whether a query cached by a user could be used by another user
+	SharedWithAllUsers bool `yaml:"shared_with_all_users,omitempty"`
 }
 
 type FileSystemCacheConfig struct {

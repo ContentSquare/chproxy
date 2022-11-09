@@ -95,10 +95,12 @@ func TestServe(t *testing.T) {
 				checkResponse(t, resp.Body, expectedOkResp)
 
 				// check cached response
+				credHash, _ := calcCredentialHash("default", "qwerty")
 				key := &cache.Key{
-					Query:          []byte(q),
-					AcceptEncoding: "gzip",
-					Version:        cache.Version,
+					Query:              []byte(q),
+					AcceptEncoding:     "gzip",
+					Version:            cache.Version,
+					UserCredentialHash: credHash,
 				}
 				path := fmt.Sprintf("%s/cache/%s", testDir, key.String())
 				if _, err := os.Stat(path); err != nil {
@@ -173,10 +175,12 @@ func TestServe(t *testing.T) {
 
 				checkResponse(t, resp.Body, expectedOkResp)
 
+				credHash, _ := calcCredentialHash("default", "qwerty")
 				key := &cache.Key{
-					Query:          []byte(q),
-					AcceptEncoding: "gzip",
-					Version:        cache.Version,
+					Query:              []byte(q),
+					AcceptEncoding:     "gzip",
+					Version:            cache.Version,
+					UserCredentialHash: credHash,
 				}
 
 				rw := httptest.NewRecorder()
@@ -219,11 +223,14 @@ func TestServe(t *testing.T) {
 				resp.Body.Close()
 
 				// check cached response
+				credHash, _ := calcCredentialHash("default", "qwerty")
 				key := &cache.Key{
-					Query:          []byte(expectedQuery),
-					AcceptEncoding: "gzip",
-					Version:        cache.Version,
+					Query:              []byte(expectedQuery),
+					AcceptEncoding:     "gzip",
+					Version:            cache.Version,
+					UserCredentialHash: credHash,
 				}
+
 				path := fmt.Sprintf("%s/cache/%s", testDir, key.String())
 				if _, err := os.Stat(path); err != nil {
 					t.Fatalf("err while getting file %q info: %s", path, err)
@@ -265,10 +272,12 @@ func TestServe(t *testing.T) {
 				resp.Body.Close()
 
 				// check cached response
+				credHash, _ := calcCredentialHash("default", "qwerty")
 				key := &cache.Key{
-					Query:          []byte(q),
-					AcceptEncoding: "gzip",
-					Version:        cache.Version,
+					Query:              []byte(q),
+					AcceptEncoding:     "gzip",
+					Version:            cache.Version,
+					UserCredentialHash: credHash,
 				}
 				path := fmt.Sprintf("%s/cache/%s", testDir, key.String())
 				if _, err := os.Stat(path); !os.IsNotExist(err) {
@@ -448,10 +457,12 @@ func TestServe(t *testing.T) {
 				}
 
 				// check cached response
+				credHash, _ := calcCredentialHash("default", "")
 				key := &cache.Key{
-					Query:          []byte(q),
-					AcceptEncoding: "gzip",
-					Version:        cache.Version,
+					Query:              []byte(q),
+					AcceptEncoding:     "gzip",
+					Version:            cache.Version,
+					UserCredentialHash: credHash,
 				}
 
 				duration := redisClient.TTL(key.String())
@@ -617,20 +628,91 @@ func TestServe(t *testing.T) {
 			startHTTP,
 		},
 		{
-			"http shared cache",
+			"http shared cache for them user",
 			"testdata/http.shared.cache.yml",
 			func(t *testing.T) {
 				// actually we can check that cache-file is shared via metrics
 				// but it needs additional library for doing this
 				// so it would be just files amount check
-				cacheDir := "temp-test-data/shared_cache"
+				cacheDir := "temp-test-data/shared_cache1"
 				checkFilesCount(t, cacheDir, 0)
-				httpGet(t, "http://127.0.0.1:9090?query=SELECT&user=user1", http.StatusOK)
+				httpGet(t, "http://127.0.0.1:9090?query=SELECT&user=user1_test1", http.StatusOK)
 				checkFilesCount(t, cacheDir, 1)
-				httpGet(t, "http://127.0.0.1:9090?query=SELECT&user=user2", http.StatusOK)
+				httpGet(t, "http://127.0.0.1:9090?query=SELECT&user=user1_test1", http.StatusOK)
 				// request from different user expected to be served with already cached,
 				// so count of files should be the same
 				checkFilesCount(t, cacheDir, 1)
+			},
+			startHTTP,
+		},
+		{
+			"http not share cache for same user with different pwd",
+			"testdata/http.shared.cache.yml",
+			func(t *testing.T) {
+				// because of the wildcarded feature that delegate the authentication to clickouse
+				// we can't afford to return a cached of the same user without reaching clickhouse
+				// if the pwd is not the same than the one used for the cached query
+				cacheDir := "temp-test-data/shared_cache2"
+				checkFilesCount(t, cacheDir, 0)
+				httpGet(t, "http://127.0.0.1:9090?query=SELECT&user=user1_test2&password=toto", http.StatusOK)
+				checkFilesCount(t, cacheDir, 1)
+				httpGet(t, "http://127.0.0.1:9090?query=SELECT&user=user2_test2&password=titi", http.StatusOK)
+				checkFilesCount(t, cacheDir, 2)
+			},
+			startHTTP,
+		},
+		{
+			"http not share cache for different user",
+			"testdata/http.shared.cache.yml",
+			func(t *testing.T) {
+				cacheDir := "temp-test-data/shared_cache3"
+				checkFilesCount(t, cacheDir, 0)
+				httpGet(t, "http://127.0.0.1:9090?query=SELECT&user=user1_test3", http.StatusOK)
+				checkFilesCount(t, cacheDir, 1)
+				httpGet(t, "http://127.0.0.1:9090?query=SELECT&user=user2_test3", http.StatusOK)
+				checkFilesCount(t, cacheDir, 2)
+			},
+			startHTTP,
+		},
+		{
+			"http share cache for same user with different pwd",
+			"testdata/http.shared.cache.yml",
+			func(t *testing.T) {
+				// because of the wildcarded feature that delegate the authentication to clickouse
+				// we can't afford to return a cached of the same user without reaching clickhouse
+				// if the pwd is not the same than the one used for the cached query
+				cacheDir := "temp-test-data/shared_cache4"
+				checkFilesCount(t, cacheDir, 0)
+				httpGet(t, "http://127.0.0.1:9090?query=SELECT&user=user1_test4&password=toto", http.StatusOK)
+				checkFilesCount(t, cacheDir, 1)
+				httpGet(t, "http://127.0.0.1:9090?query=SELECT&user=user2_test4&password=titi", http.StatusOK)
+				checkFilesCount(t, cacheDir, 1)
+			},
+			startHTTP,
+		},
+		{
+			"http share cache for different user",
+			"testdata/http.shared.cache.yml",
+			func(t *testing.T) {
+				cacheDir := "temp-test-data/shared_cache5"
+				checkFilesCount(t, cacheDir, 0)
+				httpGet(t, "http://127.0.0.1:9090?query=SELECT&user=user1_test5", http.StatusOK)
+				checkFilesCount(t, cacheDir, 1)
+				httpGet(t, "http://127.0.0.1:9090?query=SELECT&user=user2_test5", http.StatusOK)
+				checkFilesCount(t, cacheDir, 1)
+			},
+			startHTTP,
+		},
+		{
+			"http not share cache for different user using wildcarded feature",
+			"testdata/http.shared.cache.yml",
+			func(t *testing.T) {
+				cacheDir := "temp-test-data/shared_cache6"
+				checkFilesCount(t, cacheDir, 0)
+				httpGet(t, "http://127.0.0.1:9090?query=SELECT&user=user1_test6", http.StatusOK)
+				checkFilesCount(t, cacheDir, 1)
+				httpGet(t, "http://127.0.0.1:9090?query=SELECT&user=user2_test6", http.StatusOK)
+				checkFilesCount(t, cacheDir, 2)
 			},
 			startHTTP,
 		},
@@ -795,7 +877,7 @@ func checkFilesCount(t *testing.T, dir string, expectedLen int) {
 		t.Fatalf("error while reading dir %q: %s", dir, err)
 	}
 	if expectedLen != len(files) {
-		t.Fatalf("expected %d files in cache dir; got: %d", expectedLen, len(files))
+		t.Fatalf("expected %d files in cache dir %s; got: %d", expectedLen, dir, len(files))
 	}
 }
 

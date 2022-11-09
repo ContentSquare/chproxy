@@ -49,3 +49,14 @@ When Clickhouse responds to the firstly arrived query, existing key is updated a
 - if failed, as failed along with the exception message prepended with `[concurrent query failed]`.
 
 Transaction is kept for the duration of 2 * grace_time or 2 * max_execution_time, depending if grace time is specified.
+
+#### Cache shared with all users
+Until version 1.19.0, the cache is shared with all users.
+It means that if:
+- a user X does a query A,
+- then the result is cached,
+- then a user Y does the same query A
+User Y will get the cached response from user X's query.
+
+Since 1.20.0, the cache is specific for each user by default since it's better in terms of security.
+It's possible to use the previous behavior by setting the following property of the cache in the config file `shared_with_all_users = true` 

@@ -52,10 +52,13 @@ type Key struct {
 
 	// QueryParamsHash must contain hashed value of query params
 	QueryParamsHash uint32
+
+	// UserCredentialHash must contain hashed value of username & password
+	UserCredentialHash uint32
 }
 
 // NewKey construct cache key from provided parameters with default version number
-func NewKey(query []byte, originParams url.Values, acceptEncoding string, userParamsHash uint32, queryParamsHash uint32) *Key {
+func NewKey(query []byte, originParams url.Values, acceptEncoding string, userParamsHash uint32, queryParamsHash uint32, userCredentialHash uint32) *Key {
 	return &Key{
 		Query:                 query,
 		AcceptEncoding:        acceptEncoding,
@@ -70,6 +73,7 @@ func NewKey(query []byte, originParams url.Values, acceptEncoding string, userPa
 		UserParamsHash:        userParamsHash,
 		Version:               Version,
 		QueryParamsHash:       queryParamsHash,
+		UserCredentialHash:    userCredentialHash,
 	}
 }
 
@@ -79,9 +83,9 @@ func (k *Key) filePath(dir string) string {
 
 // String returns string representation of the key.
 func (k *Key) String() string {
-	s := fmt.Sprintf("V%d; Query=%q; AcceptEncoding=%q; DefaultFormat=%q; Database=%q; Compress=%q; EnableHTTPCompression=%q; Namespace=%q; MaxResultRows=%q; Extremes=%q; ResultOverflowMode=%q; UserParams=%d; QueryParams=%d",
+	s := fmt.Sprintf("V%d; Query=%q; AcceptEncoding=%q; DefaultFormat=%q; Database=%q; Compress=%q; EnableHTTPCompression=%q; Namespace=%q; MaxResultRows=%q; Extremes=%q; ResultOverflowMode=%q; UserParams=%d; QueryParams=%d; UserCredentialHash=%d",
 		k.Version, k.Query, k.AcceptEncoding, k.DefaultFormat, k.Database, k.Compress, k.EnableHTTPCompression, k.Namespace,
-		k.MaxResultRows, k.Extremes, k.ResultOverflowMode, k.UserParamsHash, k.QueryParamsHash)
+		k.MaxResultRows, k.Extremes, k.ResultOverflowMode, k.UserParamsHash, k.QueryParamsHash, k.UserCredentialHash)
 	h := sha256.Sum256([]byte(s))
 
 	// The first 16 bytes of the hash should be enough

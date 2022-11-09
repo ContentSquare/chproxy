@@ -289,3 +289,8 @@ func calcMapHash(m map[string]string) (uint32, error) {
 	}
 	return h.Sum32(), nil
 }
+func calcCredentialHash(user string, pwd string) (uint32, error) {
+	h := fnv.New32a()
+	_, err := h.Write([]byte(user + pwd))
+	return h.Sum32(), err
+}
