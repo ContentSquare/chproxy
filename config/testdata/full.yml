@@ -241,6 +241,10 @@ clusters:
       name: "default"
       password: "***"
 
+    # Retry query when it cannot be run by the current node.
+    # By default 0 is used.
+    retry_number: 1
+
     # Configuration for cluster users.
     users:
         # The user name is used in `to_user`.
@@ -260,6 +264,10 @@ clusters:
         nodes: ["127.0.1.1:8443", "127.0.1.2:8443"]
       - name: "replica2"
         nodes: ["127.0.2.1:8443", "127.0.2.2:8443"]
+
+    # Retry query when it cannot be run by the current node.
+    # By default 0 is used.
+    retry_number: 2
 
     users:
       - name: "default"
@@ -288,6 +296,10 @@ clusters:
 
   - name: "third cluster"
     nodes: ["third1:8123", "third2:8123"]
+
+    # Retry query when it cannot be run by the current node.
+    # By default 0 is used.
+    retry_number: 3
 
     # User configuration for heart beat requests.
     # Credentials of the first user in clusters.users will be used for heart beat requests to clickhouse.
