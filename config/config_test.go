@@ -283,6 +283,7 @@ func TestLoadConfig(t *testing.T) {
 							Request:  "/ping",
 							Response: "Ok.\n",
 						},
+						RetryNumber: 1,
 					},
 				},
 				Users: []User{
