@@ -89,6 +89,7 @@ var fullConfig = Config{
 					MaxExecutionTime:     Duration(time.Minute),
 				},
 			},
+			RetryNumber: 1,
 			HeartBeat: HeartBeat{
 				Interval: Duration(5 * time.Second),
 				Timeout:  Duration(3 * time.Second),
@@ -125,6 +126,7 @@ var fullConfig = Config{
 					MaxQueueTime:         Duration(70 * time.Second),
 				},
 			},
+			RetryNumber: 2,
 			HeartBeat: HeartBeat{
 				Interval: Duration(5 * time.Second),
 				Timeout:  Duration(3 * time.Second),
@@ -143,6 +145,7 @@ var fullConfig = Config{
 					Name: "default",
 				},
 			},
+			RetryNumber: 3,
 			HeartBeat: HeartBeat{
 				Interval: Duration(2 * time.Minute),
 				Timeout:  Duration(10 * time.Second),
@@ -757,6 +760,7 @@ clusters:
     request: /ping
     response: |
       Ok.
+  retry_number: 1
 - name: second cluster
   scheme: https
   replicas:
@@ -790,6 +794,7 @@ clusters:
       Ok.
     user: hbuser
     password: hbpassword
+  retry_number: 2
 - name: third cluster
   scheme: http
   nodes:
@@ -804,6 +809,7 @@ clusters:
     request: /?query=SELECT%201
     response: |
       Ok.
+  retry_number: 3
 users:
 - name: web
   password: XXX

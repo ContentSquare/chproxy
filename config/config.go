@@ -39,7 +39,7 @@ var (
 
 	defaultMaxPayloadSize = ByteSize(1 << 50)
 
-	defaultRetryNumber = 0
+	defaultRetryNumber = 1
 )
 
 // Config describes server configuration, access and proxy rules
