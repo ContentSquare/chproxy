@@ -221,7 +221,6 @@ func executeWithRetry(
 
 			return since, nil
 		}
-
 	}
 	return since, nil
 }
