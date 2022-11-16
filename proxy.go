@@ -174,13 +174,22 @@ func executeWithRetry(
 	monitorDuration func(float64),
 	monitorRetryRequestInc func(prometheus.Labels),
 ) (float64, error) {
-	// num of replicas should > 1,
-	// when the host is unavailable,
-	// it could make sure there might be another set of replicas contains all the data of clickhouse
 	startTime := time.Now()
 	var since float64
-	numReplicas := len(s.host.replica.cluster.replicas)
-	if numReplicas > 1 && retryNum <= numReplicas {
+
+	// Check all active hosts
+	numHosts := 0
+	for i := 0; i < len(s.cluster.replicas); i++ {
+		for j := 0; j < len(s.cluster.replicas[i].hosts); j++ {
+			if s.cluster.replicas[i].hosts[j].isActive() {
+				numHosts++
+			}
+		}
+	}
+
+	// If the number of active hosts is larger than 1,
+	// we will be able to retry the query in one host when the current one is down.
+	if numHosts > 1 {
 		for i := 0; i <= retryNum; i++ {
 			rp(rw, req)
 
