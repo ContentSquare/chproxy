@@ -214,14 +214,15 @@ func executeWithRetry(
 				q := getQuerySnippet(req)
 				err1 := fmt.Errorf("%s: cannot reach %s; query: %q", s, s.host.addr.Host, q)
 				respondWith(srw, err1, srw.StatusCode())
-				return since, nil
+				break
 			}
 		} else {
 			since = time.Since(startTime).Seconds()
-			return since, nil
+			break
 		}
 		numRetry++
 	}
+	return since, nil
 }
 
 // proxyRequest proxies the given request to clickhouse and sends response
