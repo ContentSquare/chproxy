@@ -198,7 +198,8 @@ func executeWithRetry(
 			s.host.dec()
 			atomic.StoreUint32(&s.host.active, uint32(0))
 			newHost := s.host.replica.cluster.getHost()
-			if numRetry < maxRetry && newHost.isActive() && s.sessionId != "" {
+			// The query could be retried if it has no stickiness to a certain server
+			if numRetry < maxRetry && newHost.isActive() && s.sessionId == "" {
 				// the query execution has been failed
 				monitorRetryRequestInc(s.labels)
 
