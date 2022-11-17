@@ -196,14 +196,14 @@ func executeWithRetry(
 			log.Debugf("the invalid host is: %s", s.host.addr)
 			s.host.penalize()
 			s.host.dec()
-			if numRetry < maxRetry && s.host.replica.cluster.getHost().isActive() {
+			newHost := s.host.replica.cluster.getHost()
+			if numRetry < maxRetry && newHost.isActive() {
 				// the query execution has been failed
 				atomic.StoreUint32(&s.host.active, uint32(0))
 				monitorRetryRequestInc(s.labels)
 
 				// update host
-				h := s.host
-				s.host = h.replica.cluster.getHost()
+				s.host = newHost
 
 				req.URL.Host = s.host.addr.Host
 				req.URL.Scheme = s.host.addr.Scheme
