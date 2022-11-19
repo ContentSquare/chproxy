@@ -1,10 +1,8 @@
 FROM debian
 
-ARG BINARY
-
-COPY ${BINARY} /
+COPY chproxy /
 
 EXPOSE 9090
 
-ENTRYPOINT ["/${BINARY}"]
+ENTRYPOINT ["/chproxy"]
 CMD [ "--help" ]
