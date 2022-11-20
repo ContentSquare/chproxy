@@ -27,6 +27,10 @@ param_groups:
 # Named network lists
 network_groups: <network_groups_config> ... [optional]
 
+# Settings for connection pool to ClickHouse
+connection_pool:
+  max_idle_conns: 100
+
 server:
   <server_config> [optional]
 

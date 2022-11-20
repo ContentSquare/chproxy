@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -655,6 +656,21 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 			}
 		}
 	}
+
+	var customizedTransport http.RoundTripper = &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          cfg.ConnectionPool.MaxIdleConns,
+		MaxIdleConnsPerHost:   cfg.ConnectionPool.MaxIdleConnsPerHost,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+	rp.rp.Transport = customizedTransport
 
 	// New configs have been successfully prepared.
 	// Restart service goroutines with new configs.
