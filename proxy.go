@@ -166,7 +166,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 func executeWithRetry(
 	ctx context.Context,
 	s *scope,
-	retryNum int,
+	maxRetry int,
 	rp func(http.ResponseWriter, *http.Request),
 	rw ResponseWriterWithCode,
 	srw StatResponseWriter,
@@ -174,54 +174,11 @@ func executeWithRetry(
 	monitorDuration func(float64),
 	monitorRetryRequestInc func(prometheus.Labels),
 ) (float64, error) {
-	// num of replicas should > 1,
-	// when the host is unavailable,
-	// it could make sure there might be another set of replicas contains all the data of clickhouse
 	startTime := time.Now()
 	var since float64
-	numReplicas := len(s.host.replica.cluster.replicas)
-	if numReplicas > 1 && retryNum <= numReplicas {
-		for i := 0; i <= retryNum; i++ {
-			rp(rw, req)
 
-			err := ctx.Err()
-			if err != nil {
-				since = time.Since(startTime).Seconds()
-
-				return since, err
-			}
-			srw.SetStatusCode(rw.StatusCode())
-			if rw.StatusCode() == http.StatusBadGateway {
-				log.Debugf("the invalid host is: %s", s.host.addr)
-				if i == retryNum {
-					since = time.Since(startTime).Seconds()
-					monitorDuration(since)
-
-					s.host.penalize()
-					q := getQuerySnippet(req)
-					err1 := fmt.Errorf("%s: cannot reach %s; query: %q", s, s.host.addr.Host, q)
-					respondWith(srw, err1, srw.StatusCode())
-					return since, nil
-				} else {
-					// the query execution has been failed
-					s.host.penalize()
-					s.host.dec()
-					atomic.StoreUint32(&s.host.active, uint32(0))
-					monitorRetryRequestInc(s.labels)
-					h := s.host
-					s.host = h.replica.cluster.getHost()
-
-					req.URL.Host = s.host.addr.Host
-					req.URL.Scheme = s.host.addr.Scheme
-					log.Debugf("the valid host is: %s", s.host.addr)
-				}
-			} else {
-				since = time.Since(startTime).Seconds()
-
-				return since, nil
-			}
-		}
-	} else {
+	numRetry := 0
+	for {
 		rp(rw, req)
 
 		err := ctx.Err()
@@ -232,19 +189,39 @@ func executeWithRetry(
 		}
 		// The request has been successfully proxied.
 
-		since = time.Since(startTime).Seconds()
-		monitorDuration(since)
-
 		srw.SetStatusCode(rw.StatusCode())
 		// StatusBadGateway response is returned by http.ReverseProxy when
 		// it cannot establish connection to remote host.
 		if rw.StatusCode() == http.StatusBadGateway {
 			log.Debugf("the invalid host is: %s", s.host.addr)
 			s.host.penalize()
-			q := getQuerySnippet(req)
-			err1 := fmt.Errorf("%s: cannot reach %s; query: %q", s, s.host.addr.Host, q)
-			respondWith(srw, err1, srw.StatusCode())
+			s.host.dec()
+			atomic.StoreUint32(&s.host.active, uint32(0))
+			newHost := s.host.replica.cluster.getHost()
+			// The query could be retried if it has no stickiness to a certain server
+			if numRetry < maxRetry && newHost.isActive() && s.sessionId == "" {
+				// the query execution has been failed
+				monitorRetryRequestInc(s.labels)
+
+				// update host
+				s.host = newHost
+
+				req.URL.Host = s.host.addr.Host
+				req.URL.Scheme = s.host.addr.Scheme
+				log.Debugf("the valid host is: %s", s.host.addr)
+			} else {
+				since = time.Since(startTime).Seconds()
+				monitorDuration(since)
+				q := getQuerySnippet(req)
+				err1 := fmt.Errorf("%s: cannot reach %s; query: %q", s, s.host.addr.Host, q)
+				respondWith(srw, err1, srw.StatusCode())
+				break
+			}
+		} else {
+			since = time.Since(startTime).Seconds()
+			break
 		}
+		numRetry++
 	}
 	return since, nil
 }
