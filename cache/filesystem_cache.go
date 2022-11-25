@@ -273,6 +273,7 @@ func (f *fileSystemCache) clean() {
 	//
 	// Seed the generator with the current time in order to randomize
 	// set of files to be removed below.
+	// nolint:gosec // not security sensitve, only used internally.
 	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	for totalSize > f.maxSize && loopsCount < 3 {
