@@ -43,6 +43,7 @@ linters:
     - unused
     - varcheck
     - whitespace
+    - gosec
   disable:
     # Should be readded in the future with a dedicated PR to do the fix
     - cyclop
@@ -51,7 +52,6 @@ linters:
     - funlen
     - gocognit
     - gofumpt
-    - gosec
     - govet
     - ifshort
     - ineffassign

@@ -171,6 +171,7 @@ func serve(cfg config.HTTP) {
 func newTLSConfig(cfg config.HTTPS) *tls.Config {
 	tlsCfg := tls.Config{
 		PreferServerCipherSuites: true,
+		MinVersion:               tls.VersionTLS12,
 		CurvePreferences: []tls.CurveID{
 			tls.CurveP256,
 			tls.X25519,
@@ -193,13 +194,13 @@ func newTLSConfig(cfg config.HTTPS) *tls.Config {
 }
 
 func newServer(ln net.Listener, h http.Handler, cfg config.TimeoutCfg) *http.Server {
+	// nolint:gosec // We already configured ReadTimeout, so no need to set ReadHeaderTimeout as well.
 	return &http.Server{
 		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 		Handler:      h,
 		ReadTimeout:  time.Duration(cfg.ReadTimeout),
 		WriteTimeout: time.Duration(cfg.WriteTimeout),
 		IdleTimeout:  time.Duration(cfg.IdleTimeout),
-
 		// Suppress error logging from the server, since chproxy
 		// must handle all these errors in the code.
 		ErrorLog: log.NilLogger,

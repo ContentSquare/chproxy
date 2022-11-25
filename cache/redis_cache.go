@@ -251,6 +251,7 @@ func (r *redisCache) Put(reader io.Reader, contentMetadata ContentMetadata, key 
 	stringKey := key.String()
 	// in order to make the streaming operation atomic, chproxy streams into a temporary key (only known by the current goroutine)
 	// then it switches the full result to the "real" stringKey available for other goroutines
+	// nolint:gosec // not security sensitve, only used internally.
 	random := strconv.Itoa(rand.Int())
 	stringKeyTmp := stringKey + random + "_tmp"
 
