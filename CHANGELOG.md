@@ -16,6 +16,7 @@ Since 1.20.0, each user has his own cache but you can override this behavior by 
 
 Since 1.20.0, if you're using docker images from [contentsquareplatform docker hub](https://hub.docker.com/r/contentsquareplatform/chproxy), the way to run them was simplified (cf `Improvment`)
 
+For security reason, since 1.20.0, only the clients using at least TLS 1.2 (released in 2008) can use chproxy with https.
 
 #### New Feature
 * Ability to decide whether the cache is specific per user or shared with all users (specific per user by default) [#258](https://github.com/ContentSquare/chproxy/pull/258) 
@@ -32,6 +33,7 @@ docker run -d -v $(PWD)/testdata:/opt/testdata/ contentsquareplatform/chproxy:v1
 docker run -d -v $(PWD)/testdata:/opt/testdata/ -e BINARY=chproxy contentsquareplatform/chproxy:v1.19.0-arm64v8 -config /opt/testdata/config.yml
 ```
 [270](https://github.com/ContentSquare/chproxy/pull/274)
+Since 1.20.0, only the clients using at least TLS 1.2 (released in 2008) will be able to connect with chproxy in https [#276](https://github.com/ContentSquare/chproxy/pull/276)
 
 #### Bug Fix
 * By default the cache was shared with all users, which could led to situations where a user could access data he wasn't allowed to see (according to clickhouse rules). Now the cache is specific for each user [#258](https://github.com/ContentSquare/chproxy/pull/258) 
