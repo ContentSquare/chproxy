@@ -11,12 +11,10 @@ Don't expect breaking changes between 2 releases if they have the same major ver
 ### <a id="229"></a> release 1.20.0, 2022-11-??
 
 #### Release note
-Until chproxy 1.19.0, the same cache was shared for all the users.
+* Until chproxy 1.19.0, the same cache was shared for all the users.
 Since 1.20.0, each user has his own cache but you can override this behavior by setting `shared_with_all_users = true` in the config file.
-
-Since 1.20.0, if you're using docker images from [contentsquareplatform docker hub](https://hub.docker.com/r/contentsquareplatform/chproxy), the way to run them was simplified (cf `Improvment`)
-
-For security reason, since 1.20.0, only the clients using at least TLS 1.2 (released in 2008) can use chproxy with https.
+* Since 1.20.0, if you're using docker images from [contentsquareplatform docker hub](https://hub.docker.com/r/contentsquareplatform/chproxy), the way to run them was simplified (cf `Improvment`)
+* For security reason, since 1.20.0, only the clients using at least TLS 1.2 (released in 2008) can use chproxy with https.
 
 #### New Feature
 * Ability to decide whether the cache is specific per user or shared with all users (specific per user by default) [#258](https://github.com/ContentSquare/chproxy/pull/258) 
