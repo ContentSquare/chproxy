@@ -8,7 +8,7 @@ position: 103
 Since v1.17.1, chproxy follows [semantic versioning](https://semver.org/).
 Don't expect breaking changes between 2 releases if they have the same major version.
 
-### <a id="229"></a> release 1.20.0, 2022-11-??
+### <a id="229"></a> release 1.20.0, 2022-11-29
 
 #### Release note
 * Until chproxy 1.19.0, the same cache was shared for all the users.
