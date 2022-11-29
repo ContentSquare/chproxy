@@ -8,6 +8,36 @@ position: 103
 Since v1.17.1, chproxy follows [semantic versioning](https://semver.org/).
 Don't expect breaking changes between 2 releases if they have the same major version.
 
+### <a id="229"></a> release 1.20.0, 2022-11-29
+
+#### Release note
+* Until chproxy 1.19.0, the same cache was shared for all the users.
+Since 1.20.0, each user has his own cache but you can override this behavior by setting `shared_with_all_users = true` in the config file.
+* Since 1.20.0, if you're using docker images from [contentsquareplatform docker hub](https://hub.docker.com/r/contentsquareplatform/chproxy), the way to run them was simplified (cf `Improvment`)
+* For security reason, since 1.20.0, only the clients using at least TLS 1.2 (released in 2008) can use chproxy with https.
+
+#### New Feature
+* Ability to decide whether the cache is specific per user or shared with all users (specific per user by default) [#258](https://github.com/ContentSquare/chproxy/pull/258) 
+* Ability to retry a failed query up to `retrynumber` times [#242](https://github.com/ContentSquare/chproxy/pull/242) [#269](https://github.com/ContentSquare/chproxy/pull/269) [#270](https://github.com/ContentSquare/chproxy/pull/270)
+
+#### Improvement
+* add contribution guidelines [#257](https://github.com/ContentSquare/chproxy/pull/257)
+* Since 1.20.0, the BINARY argument is not needed to run docker images from [contentsquareplatform docker hub](https://hub.docker.com/r/contentsquareplatform/chproxy)
+```
+#new way:
+docker run -d -v $(PWD)/testdata:/opt/testdata/ contentsquareplatform/chproxy:v1.20.0-arm64v8 -config /opt/testdata/config.yml
+#old way:
+docker run -d -v $(PWD)/testdata:/opt/testdata/ -e BINARY=chproxy contentsquareplatform/chproxy:v1.19.0-arm64v8 -config /opt/testdata/config.yml
+```
+[270](https://github.com/ContentSquare/chproxy/pull/274)
+Since 1.20.0, only the clients using at least TLS 1.2 (released in 2008) will be able to connect with chproxy in https [#276](https://github.com/ContentSquare/chproxy/pull/276)
+
+#### Bug Fix
+* By default the cache was shared with all users, which could led to situations where a user could access data he wasn't allowed to see (according to clickhouse rules). Now the cache is specific for each user [#258](https://github.com/ContentSquare/chproxy/pull/258) 
+
+
+
+https://github.com/ContentSquare/chproxy/pull/258
 
 ### <a id="229"></a> release 1.19.0, 2022-10-23
 
