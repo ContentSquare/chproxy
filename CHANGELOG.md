@@ -20,7 +20,6 @@ For security reason, since 1.20.0, only the clients using at least TLS 1.2 (rele
 
 #### New Feature
 * Ability to decide whether the cache is specific per user or shared with all users (specific per user by default) [#258](https://github.com/ContentSquare/chproxy/pull/258) 
-* Ability to bypass the tls validation (useful if chproxy is behind a reverse proxy using an auto signed certificate)  [#260](https://github.com/ContentSquare/chproxy/pull/260)
 * Ability to retry a failed query up to `retrynumber` times [#242](https://github.com/ContentSquare/chproxy/pull/242) [#269](https://github.com/ContentSquare/chproxy/pull/269) [#270](https://github.com/ContentSquare/chproxy/pull/270)
 
 #### Improvement
