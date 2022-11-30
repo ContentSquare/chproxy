@@ -44,11 +44,11 @@ linters:
     - varcheck
     - whitespace
     - gosec
+    - forcetypeassert
   disable:
     # Should be readded in the future with a dedicated PR to do the fix
     - cyclop
     - exhaustive
-    - forcetypeassert
     - funlen
     - gocognit
     - gofumpt

@@ -232,6 +232,7 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
 	case "/favicon.ico":
 	case "/metrics":
+		// nolint:forcetypeassert // We will cover this by tests as we control what is stored.
 		an := allowedNetworksMetrics.Load().(*config.Networks)
 		if !an.Contains(r.RemoteAddr) {
 			err := fmt.Errorf("connections to /metrics are not allowed from %s", r.RemoteAddr)
@@ -243,15 +244,17 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 		promHandler.ServeHTTP(rw, r)
 	case "/", "/query":
 		var err error
-
+		// nolint:forcetypeassert // We will cover this by tests as we control what is stored.
 		proxyHandler := proxyHandler.Load().(*ProxyHandler)
 		r.RemoteAddr = proxyHandler.GetRemoteAddr(r)
 
 		var an *config.Networks
 		if r.TLS != nil {
+			// nolint:forcetypeassert // We will cover this by tests as we control what is stored.
 			an = allowedNetworksHTTPS.Load().(*config.Networks)
 			err = fmt.Errorf("https connections are not allowed from %s", r.RemoteAddr)
 		} else {
+			// nolint:forcetypeassert // We will cover this by tests as we control what is stored.
 			an = allowedNetworksHTTP.Load().(*config.Networks)
 			err = fmt.Errorf("http connections are not allowed from %s", r.RemoteAddr)
 		}

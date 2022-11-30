@@ -26,6 +26,8 @@ type StatResponseWriter interface {
 	SetStatusCode(code int)
 }
 
+var _ StatResponseWriter = &statResponseWriter{}
+
 // statResponseWriter collects the amount of bytes written.
 //
 // The wrapped ResponseWriter must implement http.CloseNotifier.
@@ -107,8 +109,14 @@ func (rw *statResponseWriter) WriteHeader(statusCode int) {
 // CloseNotify implements http.CloseNotifier
 func (rw *statResponseWriter) CloseNotify() <-chan bool {
 	// The rw.ResponseWriter must implement http.CloseNotifier
-	return rw.ResponseWriter.(http.CloseNotifier).CloseNotify()
+	rwc, ok := rw.ResponseWriter.(http.CloseNotifier)
+	if !ok {
+		panic("BUG: the wrapped ResponseWriter must implement http.CloseNotifier")
+	}
+	return rwc.CloseNotify()
 }
+
+var _ io.ReadCloser = &statReadCloser{}
 
 // statReadCloser collects the amount of bytes read.
 type statReadCloser struct {
@@ -122,6 +130,8 @@ func (src *statReadCloser) Read(p []byte) (int, error) {
 	src.bytesRead.Add(float64(n))
 	return n, err
 }
+
+var _ io.ReadCloser = &cachedReadCloser{}
 
 // cachedReadCloser caches the first 1Kb form the wrapped ReadCloser.
 type cachedReadCloser struct {

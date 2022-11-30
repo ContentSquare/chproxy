@@ -25,6 +25,11 @@ type TmpFileResponseWriter struct {
 }
 
 func NewTmpFileResponseWriter(rw http.ResponseWriter, dir string) (*TmpFileResponseWriter, error) {
+	_, ok := rw.(http.CloseNotifier)
+	if !ok {
+		return nil, fmt.Errorf("the response writer does not implement http.CloseNotifier")
+	}
+
 	f, err := ioutil.TempFile(dir, "tmp")
 	if err != nil {
 		return nil, fmt.Errorf("cannot create temporary file in %q: %w", dir, err)
@@ -120,6 +125,7 @@ func (rw *TmpFileResponseWriter) GetCapturedContentEncoding() string {
 
 // CloseNotify implements http.CloseNotifier
 func (rw *TmpFileResponseWriter) CloseNotify() <-chan bool {
+	// nolint:forcetypeassert // it is guaranteed by NewTmpFileResponseWriter
 	// The rw.FSResponseWriter must implement http.CloseNotifier.
 	return rw.ResponseWriter.(http.CloseNotifier).CloseNotify()
 }

@@ -38,6 +38,10 @@ func (r *FakeResponse) WriteHeader(status int) {
 	r.status = status
 }
 
+func (r *FakeResponse) CloseNotify() <-chan bool {
+	return nil
+}
+
 const testTmpWriterDir = "./test-tmp-data"
 
 func init() {
