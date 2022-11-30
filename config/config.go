@@ -79,6 +79,8 @@ func (c *Config) String() string {
 
 func withoutSensitiveInfo(config *Config) *Config {
 	const pswPlaceHolder = "XXX"
+
+	// nolint: forcetypeassert // no need to check type, it is specified by function.
 	c := deepcopy.Copy(config).(*Config)
 	for i := range c.Users {
 		c.Users[i].Password = pswPlaceHolder

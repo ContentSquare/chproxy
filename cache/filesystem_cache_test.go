@@ -254,6 +254,10 @@ func (trw *testResponseWriter) Header() http.Header {
 
 func (trw *testResponseWriter) WriteHeader(statusCode int) {}
 
+func (trw *testResponseWriter) CloseNotify() <-chan bool {
+	return nil
+}
+
 func newTestCache(t *testing.T) *fileSystemCache {
 	t.Helper()
 

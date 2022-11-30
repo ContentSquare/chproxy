@@ -253,7 +253,12 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw ResponseWriterWithCode, srw *s
 	ctx, ctxCancel := context.WithCancel(ctx)
 	defer ctxCancel()
 	// rw must implement http.CloseNotifier.
-	ch := rw.(http.CloseNotifier).CloseNotify()
+	rwc, ok := rw.(http.CloseNotifier)
+	if !ok {
+		panic("BUG: the wrapped ResponseWriter must implement http.CloseNotifier")
+	}
+
+	ch := rwc.CloseNotify()
 	go func() {
 		select {
 		case <-ch:
