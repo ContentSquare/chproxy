@@ -28,7 +28,7 @@ var (
 )
 
 var (
-	proxy = newReverseProxy()
+	proxy *reverseProxy
 
 	// networks allow lists
 	allowedNetworksHTTP    atomic.Value
@@ -279,7 +279,17 @@ func loadConfig() (*config.Config, error) {
 	return cfg, nil
 }
 
+// a configuration parameter value that is used in proxy initialization
+// changed
+func proxyConfigChanged(cfgCp *config.ConnectionPool, rp *reverseProxy) bool {
+	return cfgCp.MaxIdleConns != proxy.maxIdleConns ||
+		cfgCp.MaxIdleConnsPerHost != proxy.maxIdleConnsPerHost
+}
+
 func applyConfig(cfg *config.Config) error {
+	if proxy == nil || proxyConfigChanged(&cfg.ConnectionPool, proxy) {
+		proxy = newReverseProxy(&cfg.ConnectionPool)
+	}
 	if err := proxy.applyConfig(cfg); err != nil {
 		return err
 	}

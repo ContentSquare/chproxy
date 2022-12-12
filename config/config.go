@@ -37,7 +37,7 @@ var (
 
 	defaultConnectionPool = ConnectionPool{
 		MaxIdleConns:        100,
-		MaxIdleConnsPerHost: 10,
+		MaxIdleConnsPerHost: 2,
 	}
 
 	defaultExecutionTime = Duration(120 * time.Second)

@@ -92,7 +92,7 @@ connection_pool:
   max_idle_conns: 100
   # Number of connections per ClickHouse host to keep open
   # when they are not needed for clients.
-  max_idle_conns_per_host: 10
+  max_idle_conns_per_host: 2
 
 # Settings for `chproxy` input interfaces.
 server:
