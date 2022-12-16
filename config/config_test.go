@@ -37,6 +37,18 @@ var fullConfig = Config{
 			MaxPayloadSize:     ByteSize(100 << 20),
 			SharedWithAllUsers: true,
 		},
+		{
+			Name:               "redis-cache",
+			Mode:               "redis",
+			Expire:             Duration(10 * time.Second),
+			MaxPayloadSize:     ByteSize(100 << 30),
+			SharedWithAllUsers: true,
+			Redis: RedisCacheConfig{
+				Username:  "chproxy",
+				Password:  "password",
+				Addresses: []string{"127.0.0.1:6379"},
+			},
+		},
 	},
 	HackMePlease: true,
 	Server: Server{
@@ -706,6 +718,7 @@ func TestRemovalSensitiveData(t *testing.T) {
 	conf.Clusters[1].ClusterUsers[0].Password = "XXX"
 	conf.Clusters[1].ClusterUsers[1].Password = "XXX"
 	conf.Clusters[2].ClusterUsers[0].Password = "XXX"
+	conf.Caches[2].Redis.Password = "XXX"
 
 	if !cmp.Equal(conf, confSafe, cmpopts.IgnoreUnexported(Config{})) {
 		t.Fatalf("confCopy should have sensitive data replaced with XXX values,\n the diff is: %s",
@@ -860,6 +873,16 @@ caches:
     dir: /path/to/shortterm/cachedir
     max_size: 104857600
   max_payload_size: 104857600
+  shared_with_all_users: true
+- mode: redis
+  name: redis-cache
+  expire: 10s
+  redis:
+    username: chproxy
+    password: XXX
+    addresses:
+    - 127.0.0.1:6379
+  max_payload_size: 107374182400
   shared_with_all_users: true
 param_groups:
 - name: cron-job

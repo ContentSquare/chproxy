@@ -93,6 +93,11 @@ func withoutSensitiveInfo(config *Config) *Config {
 			c.Clusters[i].ClusterUsers[j].Password = pswPlaceHolder
 		}
 	}
+	for i := range c.Caches {
+		if len(c.Caches[i].Redis.Username) > 0 {
+			c.Caches[i].Redis.Password = pswPlaceHolder
+		}
+	}
 	return c
 }
 
