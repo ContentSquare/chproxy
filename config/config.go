@@ -35,6 +35,11 @@ var (
 		Password: "",
 	}
 
+	defaultConnectionPool = ConnectionPool{
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 2,
+	}
+
 	defaultExecutionTime = Duration(120 * time.Second)
 
 	defaultMaxPayloadSize = ByteSize(1 << 50)
@@ -61,6 +66,8 @@ type Config struct {
 	Caches []Cache `yaml:"caches,omitempty"`
 
 	ParamGroups []ParamGroup `yaml:"param_groups,omitempty"`
+
+	ConnectionPool ConnectionPool `yaml:"connection_pool,omitempty"`
 
 	networkReg map[string]Networks
 
@@ -766,6 +773,32 @@ type Param struct {
 	Key string `yaml:"key"`
 	// Value is a value of param
 	Value string `yaml:"value"`
+}
+
+// ConnectionPool describes pool of connection with ClickHouse
+// settings
+type ConnectionPool struct {
+	// Maximum total number of idle connections between chproxy and all ClickHouse instances
+	MaxIdleConns int `yaml:"max_idle_conns,omitempty"`
+
+	// Maximum number of idle connections between chproxy and particuler ClickHouse instance
+	MaxIdleConnsPerHost int `yaml:"max_idle_conns_per_host,omitempty"`
+
+	// Catches all undefined fields
+	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (cp *ConnectionPool) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*cp = defaultConnectionPool
+	type plain ConnectionPool
+	if err := unmarshal((*plain)(cp)); err != nil {
+		return err
+	}
+	if cp.MaxIdleConnsPerHost > cp.MaxIdleConns || cp.MaxIdleConns < 0 {
+		return fmt.Errorf("inconsistent ConnectionPool settings")
+	}
+	return checkOverflow(cp.XXX, "connection_pool")
 }
 
 // ClusterUser describes simplest <users> configuration

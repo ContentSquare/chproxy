@@ -188,6 +188,11 @@ var fullConfig = Config{
 		},
 	},
 
+	ConnectionPool: ConnectionPool{
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 2,
+	},
+
 	Users: []User{
 		{
 			Name:             "web",
@@ -876,6 +881,9 @@ param_groups:
     value: "30"
   - key: max_execution_time
     value: "30"
+connection_pool:
+  max_idle_conns: 100
+  max_idle_conns_per_host: 2
 `
 	tested := fullConfig.String()
 	if tested != expected {

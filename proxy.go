@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -41,23 +42,42 @@ type reverseProxy struct {
 	// RWMutex enables concurrent access to getScope.
 	lock sync.RWMutex
 
-	users         map[string]*user
-	clusters      map[string]*cluster
-	caches        map[string]*cache.AsyncCache
-	hasWildcarded bool
+	users               map[string]*user
+	clusters            map[string]*cluster
+	caches              map[string]*cache.AsyncCache
+	hasWildcarded       bool
+	maxIdleConns        int
+	maxIdleConnsPerHost int
 }
 
-func newReverseProxy() *reverseProxy {
+func newReverseProxy(cfgCp *config.ConnectionPool) *reverseProxy {
+	transport := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          cfgCp.MaxIdleConns,
+		MaxIdleConnsPerHost:   cfgCp.MaxIdleConnsPerHost,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+
 	return &reverseProxy{
 		rp: &httputil.ReverseProxy{
-			Director: func(*http.Request) {},
+			Director:  func(*http.Request) {},
+			Transport: transport,
 
 			// Suppress error logging in ReverseProxy, since all the errors
 			// are handled and logged in the code below.
 			ErrorLog: log.NilLogger,
 		},
-		reloadSignal: make(chan struct{}),
-		reloadWG:     sync.WaitGroup{},
+		reloadSignal:        make(chan struct{}),
+		reloadWG:            sync.WaitGroup{},
+		maxIdleConns:        cfgCp.MaxIdleConnsPerHost,
+		maxIdleConnsPerHost: cfgCp.MaxIdleConnsPerHost,
 	}
 }
 
