@@ -49,6 +49,16 @@ caches:
     max_payload_size: 100Mb
     shared_with_all_users: true
     expire: 10s
+  - name: redis-cache
+    mode: redis
+    expire: 10s
+    redis:
+      username: chproxy
+      password: password
+      addresses:
+        - 127.0.0.1:6379
+    max_payload_size: 107374182400
+    shared_with_all_users: true
 
 # Optional network lists, might be used as values for `allowed_networks`.
 network_groups:
