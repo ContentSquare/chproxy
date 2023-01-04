@@ -43,8 +43,7 @@ docker run -d -v $(PWD)/testdata:/opt/testdata/ -e BINARY=chproxy contentsquarep
 Since 1.20.0, only the clients using at least TLS 1.2 (released in 2008) will be able to connect with chproxy in https [#276](https://github.com/ContentSquare/chproxy/pull/276)
 
 #### Bug Fix
-* By default the cache was shared with all users, which could led to situations where a user could access data he wasn't allowed to see (according to clickhouse rules). Now the cache is specific for each user [#258](https://github.com/ContentSquare/chproxy/pull/258) 
-https://github.com/ContentSquare/chproxy/pull/258
+* By default the cache was shared with all users, which could led to situations where a user could access data he wasn't allowed to see (according to clickhouse rules). Now the cache is specific for each user [#258](https://github.com/ContentSquare/chproxy/pull/258)
 
 
 
