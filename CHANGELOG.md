@@ -8,6 +8,16 @@ position: 103
 Since v1.17.1, chproxy follows [semantic versioning](https://semver.org/).
 Don't expect breaking changes between 2 releases if they have the same major version.
 
+### <a id="229"></a> release 1.21.0, 2022-01-05
+
+#### New Feature
+* Ability to change the maximum number of idle TCP connections to clickhouse to avoid issues in edge case scenarios [#275](https://github.com/ContentSquare/chproxy/pull/275)
+
+#### Improvement
+* hide redis credentials previously written in the log at startup [#282](https://github.com/ContentSquare/chproxy/pull/282)
+* [code quality] strengthen linter rules [#77](https://github.com/ContentSquare/chproxy/pull/277)
+
+
 ### <a id="229"></a> release 1.20.0, 2022-11-29
 
 #### Release note
@@ -33,11 +43,10 @@ docker run -d -v $(PWD)/testdata:/opt/testdata/ -e BINARY=chproxy contentsquarep
 Since 1.20.0, only the clients using at least TLS 1.2 (released in 2008) will be able to connect with chproxy in https [#276](https://github.com/ContentSquare/chproxy/pull/276)
 
 #### Bug Fix
-* By default the cache was shared with all users, which could led to situations where a user could access data he wasn't allowed to see (according to clickhouse rules). Now the cache is specific for each user [#258](https://github.com/ContentSquare/chproxy/pull/258) 
+* By default the cache was shared with all users, which could led to situations where a user could access data he wasn't allowed to see (according to clickhouse rules). Now the cache is specific for each user [#258](https://github.com/ContentSquare/chproxy/pull/258)
 
 
 
-https://github.com/ContentSquare/chproxy/pull/258
 
 ### <a id="229"></a> release 1.19.0, 2022-10-23
 
