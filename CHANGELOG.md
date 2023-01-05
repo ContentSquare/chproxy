@@ -8,7 +8,7 @@ position: 103
 Since v1.17.1, chproxy follows [semantic versioning](https://semver.org/).
 Don't expect breaking changes between 2 releases if they have the same major version.
 
-### <a id="229"></a> release 1.21.0, 2022-XX-XX
+### <a id="229"></a> release 1.21.0, 2022-01-05
 
 #### New Feature
 * Ability to change the maximum number of idle TCP connections to clickhouse to avoid issues in edge case scenarios [#275](https://github.com/ContentSquare/chproxy/pull/275)
