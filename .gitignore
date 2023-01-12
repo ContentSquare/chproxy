@@ -11,3 +11,8 @@
 /docs/.nuxt
 /docs/static/sw.js
 .idea
+
+# Examples data directories
+examples/*/resources/chproxy/data
+examples/*/resources/clickhouse/data
+examples/*/resources/clickhouse/config/*-preprocessed.xml

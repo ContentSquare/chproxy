@@ -1,0 +1,31 @@
+log_debug: false
+hack_me_please: true
+
+server:
+  http:
+    listen_addr: "0.0.0.0:9001"
+
+users:
+  - name: "default"
+    password: "password"
+    to_cluster: "default"
+    to_user: "admin"
+    max_concurrent_queries: 1000
+    max_execution_time: 10m
+    cache: "default_cache"
+
+clusters:
+  - name: "default"
+    nodes: ["172.23.0.11:8123", "172.23.0.12:8123", "172.23.0.13:8123"]
+    users:
+      - name: "admin"
+        password: "123"
+
+caches:
+  - name: "default_cache"
+    mode: "file_system"
+    file_system:
+      dir: "/data/cache"
+      max_size: 150Mb
+    expire: 10s
+    grace_time: 5s
