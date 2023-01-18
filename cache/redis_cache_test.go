@@ -3,6 +3,7 @@ package cache
 import (
 	"errors"
 	"fmt"
+	"github.com/contentsquare/chproxy/utils"
 	"io"
 	"os"
 	"strings"
@@ -16,14 +17,6 @@ import (
 )
 
 const cacheTTL = time.Duration(30 * time.Second)
-
-var redisConf = config.Cache{
-	Name: "foobar",
-	Redis: config.RedisCacheConfig{
-		Addresses: []string{"http://localhost:8080"},
-	},
-	Expire: config.Duration(cacheTTL),
-}
 
 func TestCacheSize(t *testing.T) {
 	redisCache := getRedisCache(t)
@@ -62,12 +55,35 @@ func getRedisCacheAndServer(t *testing.T) (*redisCache, *miniredis.Miniredis) {
 	redisClient := redis.NewUniversalClient(&redis.UniversalOptions{
 		Addrs: []string{s.Addr()},
 	})
+	redisConf, err := getRedisConf()
+	if err != nil {
+		t.Fatalf("failed to get redis config: %s", err)
+	}
+
 	redisCache := newRedisCache(redisClient, redisConf)
 	return redisCache, s
 }
+
 func getRedisCache(t *testing.T) *redisCache {
 	redisCache, _ := getRedisCacheAndServer(t)
 	return redisCache
+}
+
+func getRedisConf() (config.Cache, error) {
+	port, err := utils.GetFreeTcpPort()
+	if err != nil {
+		return config.Cache{}, err
+	}
+
+	redisConf := config.Cache{
+		Name: "foobar",
+		Redis: config.RedisCacheConfig{
+			Addresses: []string{fmt.Sprintf("http://localhost:%d", port)},
+		},
+		Expire: config.Duration(cacheTTL),
+	}
+
+	return redisConf, nil
 }
 
 func TestRedisCacheAddGet(t *testing.T) {

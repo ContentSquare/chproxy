@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"github.com/contentsquare/chproxy/utils"
 	"io"
 	"net"
 	"net/http"
@@ -933,8 +934,13 @@ func startHTTP() (*http.Server, chan struct{}) {
 
 // TODO randomise port for each instance of the mock
 func startRedis(t *testing.T) *miniredis.Miniredis {
+	port, err := utils.GetFreeTcpPort()
+	if err != nil {
+		t.Fatalf("Failed to get random tcp port for redis")
+	}
+
 	redis := miniredis.NewMiniRedis()
-	if err := redis.StartAddr("127.0.0.1:6379"); err != nil {
+	if err := redis.StartAddr(fmt.Sprintf("127.0.0.1:%d", port)); err != nil {
 		t.Fatalf("Failed to create redis server: %s", err)
 	}
 	return redis
