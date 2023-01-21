@@ -2,7 +2,7 @@
 title: Changelog
 menuTitle: Changelog
 category: Guides
-position: 103
+position: 104
 ---
 
 Since v1.17.1, chproxy follows [semantic versioning](https://semver.org/).
