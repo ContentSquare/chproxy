@@ -11,7 +11,9 @@ Response caching is enabled by assigning cache name to user. Multiple users may 
 
 Currently only `SELECT` responses are cached.
 
-Caching is disabled for request with `no_cache=1` in query string.
+Caching is disabled for request with `no_cache=1` as an http query parameter. 
+There's no support for similar feature within SQL query.
+
 
 Optional cache namespace may be passed in query string as `cache_namespace=aaaa`. This allows caching
 distinct responses for the identical query under distinct cache namespaces. Additionally,
