@@ -7,7 +7,7 @@ import (
 	"github.com/contentsquare/chproxy/clients"
 	"github.com/contentsquare/chproxy/config"
 	"github.com/contentsquare/chproxy/log"
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
 )
 
 // AsyncCache is a transactional cache enabled to serve the results from concurrent queries.
