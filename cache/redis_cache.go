@@ -14,7 +14,7 @@ import (
 
 	"github.com/contentsquare/chproxy/config"
 	"github.com/contentsquare/chproxy/log"
-	"github.com/redis/go-redis/v9"
+	"github.com/go-redis/redis/v8"
 )
 
 type redisCache struct {

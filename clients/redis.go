@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/contentsquare/chproxy/config"
-	"github.com/redis/go-redis/v9"
+	"github.com/go-redis/redis/v8"
 )
 
 // TODO Implement TLS Client
