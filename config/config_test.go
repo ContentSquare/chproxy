@@ -2,6 +2,8 @@ package config
 
 import (
 	"bytes"
+	"fmt"
+	"github.com/contentsquare/chproxy/global/types"
 	"net"
 	"testing"
 	"time"
@@ -11,6 +13,8 @@ import (
 	"github.com/mohae/deepcopy"
 	"gopkg.in/yaml.v2"
 )
+
+var redisPort = types.RedisPort
 
 var fullConfig = Config{
 	Caches: []Cache{
@@ -46,7 +50,7 @@ var fullConfig = Config{
 			Redis: RedisCacheConfig{
 				Username:  "chproxy",
 				Password:  "password",
-				Addresses: []string{"127.0.0.1:6379"},
+				Addresses: []string{"127.0.0.1:" + redisPort},
 			},
 		},
 	},
@@ -733,7 +737,7 @@ func TestRemovalSensitiveData(t *testing.T) {
 }
 
 func TestConfigString(t *testing.T) {
-	expected := `server:
+	expected := fmt.Sprintf(`server:
   http:
     listen_addr: :9090
     allowed_networks:
@@ -825,7 +829,7 @@ clusters:
   heartbeat:
     interval: 2m
     timeout: 10s
-    request: /?query=SELECT%201
+    request: /?query=SELECT%%201
     response: |
       Ok.
   retry_number: 3
@@ -886,7 +890,7 @@ caches:
     username: chproxy
     password: XXX
     addresses:
-    - 127.0.0.1:6379
+    - 127.0.0.1:%s
   max_payload_size: 107374182400
   shared_with_all_users: true
 param_groups:
@@ -907,7 +911,7 @@ param_groups:
 connection_pool:
   max_idle_conns: 100
   max_idle_conns_per_host: 2
-`
+`, redisPort)
 	tested := fullConfig.String()
 	if tested != expected {
 		t.Fatalf("the stringify version of fullConfig is not what it's expected: %s",

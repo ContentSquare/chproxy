@@ -104,7 +104,7 @@ users:
     is_wildcarded: true
 clusters:
   - name: "default"
-    nodes: ["127.0.0.1:8124"]
+    nodes: ["127.0.0.1:18124"]
     users:
     - name: "default"
     - name: "user1_test1"

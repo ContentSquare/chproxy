@@ -63,7 +63,7 @@ caches:
     # You should use multiple addresses only if they all belong to the same redis cluster.
     redis:
       addresses:
-        - "localhost:6379"
+        - "localhost:16379"
       username: "user"
       password: "pass"
     expire: 10s
