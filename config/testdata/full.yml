@@ -56,7 +56,7 @@ caches:
       username: chproxy
       password: password
       addresses:
-        - 127.0.0.1:6379
+        - 127.0.0.1:16379
     max_payload_size: 107374182400
     shared_with_all_users: true
 

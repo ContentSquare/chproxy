@@ -25,10 +25,16 @@ import (
 	"github.com/contentsquare/chproxy/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/contentsquare/chproxy/global/types"
 )
 
-var testDir = "./temp-test-data"
-var labels = prometheus.Labels{}
+var (
+	testDir   = "./temp-test-data"
+	labels    = prometheus.Labels{}
+	redisPort = types.RedisPort
+	chPort    = types.ClickHousePort
+)
 
 func TestMain(m *testing.M) {
 	log.SuppressOutput(true)
@@ -826,7 +832,7 @@ func TestServe(t *testing.T) {
 	startTime := time.Now()
 	i := 0
 	for i < 10 {
-		if _, err := http.Get("http://127.0.0.1:8124/"); err == nil {
+		if _, err := http.Get(fmt.Sprintf("http://127.0.0.1:%s/", chPort)); err == nil {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -934,7 +940,7 @@ func startHTTP() (*http.Server, chan struct{}) {
 // TODO randomise port for each instance of the mock
 func startRedis(t *testing.T) *miniredis.Miniredis {
 	redis := miniredis.NewMiniRedis()
-	if err := redis.StartAddr("127.0.0.1:6379"); err != nil {
+	if err := redis.StartAddr("127.0.0.1:" + redisPort); err != nil {
 		t.Fatalf("Failed to create redis server: %s", err)
 	}
 	return redis
@@ -942,7 +948,7 @@ func startRedis(t *testing.T) *miniredis.Miniredis {
 
 // TODO randomise port for each instance of the mock
 func startCHServer() {
-	http.ListenAndServe(":8124", http.HandlerFunc(fakeCHHandler))
+	http.ListenAndServe(":"+chPort, http.HandlerFunc(fakeCHHandler))
 }
 
 var patt = regexp.MustCompile(`(\d+)$`)

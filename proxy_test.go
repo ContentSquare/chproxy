@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"fmt"
+	"golang.org/x/time/rate"
 	"io"
 	"math/rand"
 	"net"
@@ -576,6 +577,38 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 				req.Header.Set("X-ClickHouse-User", defaultUsername)
 				req.Header.Set("X-ClickHouse-Key", "")
 				return makeCustomRequest(p, req)
+			},
+		},
+		{
+			cfg:           goodCfg,
+			name:          "packet size token limit for user",
+			expResponse:   "limits for user \"default\" is exceeded: packet_size_token_limit_burst limit: 4B",
+			expStatusCode: http.StatusTooManyRequests,
+			f: func(p *reverseProxy) *http.Response {
+				p.users["default"].packetSizeTokenLimitBurst = 4
+				p.users["default"].packetSizeUnit = "B"
+				p.users["default"].packetSizeTokenRate = 1
+				p.users["default"].packetSizeTokenLimiter = rate.NewLimiter(
+					rate.Limit(4), 1)
+				p.users["default"].maxExecutionTime = 10
+				go makeHeavyRequest(p, time.Millisecond*20)
+				return makeHeavyRequest(p, time.Millisecond*300)
+			},
+		},
+		{
+			cfg:           goodCfg,
+			name:          "packet size token limit for cluster user",
+			expResponse:   "limits for cluster user \"web\" is exceeded: packet_size_token_limit_burst limit: 4B",
+			expStatusCode: http.StatusTooManyRequests,
+			f: func(p *reverseProxy) *http.Response {
+				p.clusters["cluster"].users["web"].packetSizeTokenLimitBurst = 4
+				p.clusters["cluster"].users["web"].packetSizeUnit = "B"
+				p.clusters["cluster"].users["web"].packetSizeTokenRate = 1
+				p.clusters["cluster"].users["web"].packetSizeTokenLimiter = rate.NewLimiter(
+					rate.Limit(4), 1)
+				p.users["default"].maxExecutionTime = 10
+				go makeHeavyRequest(p, time.Millisecond*20)
+				return makeHeavyRequest(p, time.Millisecond*300)
 			},
 		},
 	}
