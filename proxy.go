@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -197,8 +198,20 @@ func executeWithRetry(
 	startTime := time.Now()
 	var since float64
 
+	// keep the request body
+	body, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		since = time.Since(startTime).Seconds()
+
+		return since, err
+	}
+	req.Body.Close()
+
 	numRetry := 0
 	for {
+		// update body
+		req.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+
 		rp(rw, req)
 
 		err := ctx.Err()
