@@ -200,12 +200,12 @@ func executeWithRetry(
 
 	// keep the request body
 	body, err := ioutil.ReadAll(req.Body)
+	req.Body.Close()
 	if err != nil {
 		since = time.Since(startTime).Seconds()
 
 		return since, err
 	}
-	req.Body.Close()
 
 	numRetry := 0
 	for {
