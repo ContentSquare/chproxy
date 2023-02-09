@@ -199,19 +199,19 @@ func executeWithRetry(
 	var since float64
 
 	// keep the request body
-	defer req.Body.Close()
 	body, err := ioutil.ReadAll(req.Body)
 	if err != nil {
 		since = time.Since(startTime).Seconds()
 
 		return since, err
 	}
+	req.Body.Close()
 
 	numRetry := 0
 	for {
 		// update body
-		defer req.Body.Close()
 		req.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+		req.Body.Close()
 
 		rp(rw, req)
 
