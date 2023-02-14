@@ -294,3 +294,22 @@ func calcCredentialHash(user string, pwd string) (uint32, error) {
 	_, err := h.Write([]byte(user + pwd))
 	return h.Sum32(), err
 }
+
+func formatPacketSizeByUnit(packetBytes int, unit string) float64 {
+	packetSizeNum := float64(0)
+	switch unit {
+	case "KB":
+		packetSizeNum = float64(packetBytes) / float64(1024)
+	case "MB":
+		packetSizeNum = float64(packetBytes) / float64(1024*1024)
+	case "GB":
+		packetSizeNum = float64(packetBytes) / float64(1024*1024*1024)
+	case "TB":
+		packetSizeNum = float64(packetBytes) / float64(1024*1024*1024*1024)
+	case "PB":
+		packetSizeNum = float64(packetBytes) / float64(1024*1024*1024*1024*1024)
+	default:
+		packetSizeNum = float64(packetBytes) / float64(1)
+	}
+	return packetSizeNum
+}

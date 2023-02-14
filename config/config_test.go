@@ -457,6 +457,16 @@ func TestBadConfig(t *testing.T) {
 			"`max_queue_size` must be set if `max_queue_time` is set for \"default\"",
 		},
 		{
+			"packet size token burst and rate on user",
+			"testdata/bad.packet_size_token_burst_rate_user.yml",
+			"`packet_size_token_rate` must be set if `packet_size_token_limit_burst` is set for \"default\"",
+		},
+		{
+			"packet size token burst and rate on user on cluster_user",
+			"testdata/bad.packet_size_token_burst_rate_cluster_user.yml",
+			"`packet_size_token_rate` must be set if `packet_size_token_limit_burst` is set for \"default\"",
+		},
+		{
 			"cache max size",
 			"testdata/bad.cache_max_size.yml",
 			"cannot parse byte size \"-10B\": it must be positive float followed by optional units. For example, 1.5Gb, 3T",

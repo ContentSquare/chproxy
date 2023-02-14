@@ -544,6 +544,18 @@ type User struct {
 	// if omitted or zero - no limits would be applied
 	ReqPerMin uint32 `yaml:"requests_per_minute,omitempty"`
 
+	// The burst of summary upload packet size in a period of time(eg.10s) for user
+	// if omitted or zero - no limits would be applied
+	PacketSizeTokenLimitBurst int `yaml:"packet_size_token_limit_burst,omitempty"`
+
+	// packet size token produced rate limit
+	// if omitted or zero - no limits would be applied
+	PacketSizeTokenRate float64 `yaml:"packet_size_token_rate,omitempty"`
+
+	// packet size unit
+	// if omitted by empty - GB would be applied
+	PacketSizeUnit string `yaml:"packet_size_unit,omitempty"`
+
 	// Maximum number of queries waiting for execution in the queue
 	// if omitted or zero - queries are executed without waiting
 	// in the queue
@@ -613,6 +625,10 @@ func (u *User) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		if s := strings.Split(u.Name, "*"); !(len(s) == 2 && (s[0] == "" || s[1] == "")) {
 			return fmt.Errorf("user name %q marked 'is_wildcared' does not match 'prefix*' or '*suffix' or '*'", u.Name)
 		}
+	}
+
+	if u.PacketSizeTokenLimitBurst > 0 && u.PacketSizeTokenRate == 0 {
+		return fmt.Errorf("`packet_size_token_rate` must be set if `packet_size_token_limit_burst` is set for %q", u.Name)
 	}
 
 	return checkOverflow(u.XXX, fmt.Sprintf("user %q", u.Name))
@@ -826,6 +842,18 @@ type ClusterUser struct {
 	// if omitted or zero - no limits would be applied
 	ReqPerMin uint32 `yaml:"requests_per_minute,omitempty"`
 
+	// The burst of summary upload packet size in a period of time(eg.10s) for user
+	// if omitted or zero - no limits would be applied
+	PacketSizeTokenLimitBurst int `yaml:"packet_size_token_limit_burst,omitempty"`
+
+	// packet size token produced rate limit
+	// if omitted or zero - no limits would be applied
+	PacketSizeTokenRate float64 `yaml:"packet_size_token_rate,omitempty"`
+
+	// packet size unit
+	// if omitted by empty - B would be applied
+	PacketSizeUnit string `yaml:"packet_size_unit,omitempty"`
+
 	// Maximum number of queries waiting for execution in the queue
 	// if omitted or zero - queries are executed without waiting
 	// in the queue
@@ -859,6 +887,10 @@ func (cu *ClusterUser) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	if cu.MaxQueueTime > 0 && cu.MaxQueueSize == 0 {
 		return fmt.Errorf("`max_queue_size` must be set if `max_queue_time` is set for %q", cu.Name)
+	}
+
+	if cu.PacketSizeTokenLimitBurst > 0 && cu.PacketSizeTokenRate == 0 {
+		return fmt.Errorf("`packet_size_token_rate` must be set if `packet_size_token_limit_burst` is set for %q", cu.Name)
 	}
 
 	return checkOverflow(cu.XXX, fmt.Sprintf("cluster.user %q", cu.Name))
