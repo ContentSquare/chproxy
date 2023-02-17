@@ -834,9 +834,8 @@ func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 
 	q, err := getFullQuery(req)
 	if err != nil {
-		return nil, http.StatusBadRequest, fmt.Errorf("%s: cannot read query: %s", s, err)
+		return nil, http.StatusBadRequest, fmt.Errorf("%s: cannot read query: %w", s, err)
 	}
-	s.requestBodyBytes = len(q)
-
+	s.requestPacketSize = len(q)
 	return s, 0, nil
 }

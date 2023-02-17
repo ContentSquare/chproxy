@@ -258,6 +258,14 @@ max_execution_time: <duration> | optional | default = 0
 # By default there are no per-minute limits
 requests_per_minute: <int> | optional | default = 0
 
+# The burst of request packet size token bucket for user
+# By default there are no request packet size limits
+request_packet_size_tokens_burst: <byte_size> | optional | default = 0
+
+# The request packet size tokens produced rate per second for user
+# By default there are no request packet size limits
+request_packet_size_tokens_rate: <byte_size> | optional | default = 0
+
 # Maximum number of requests waiting for execution in the queue.
 # By default requests are executed without waiting in the queue
 max_queue_size: <int> | optional | default = 0
@@ -361,6 +369,14 @@ max_execution_time: <duration> | optional | default = 0
 # Maximum number of requests per minute for user.
 # By default there are no per-minute limits
 requests_per_minute: <int> | optional | default = 0
+
+# The burst of request packet size token bucket for user
+# By default there are no request packet size limits
+request_packet_size_tokens_burst: <byte_size> | optional | default = 0
+
+# The request packet size tokens produced rate per second for user
+# By default there are no request packet size limits
+request_packet_size_tokens_rate: <byte_size> | optional | default = 0
 
 # Maximum number of requests waiting for execution in the queue.
 # By default requests are executed without waiting in the queue

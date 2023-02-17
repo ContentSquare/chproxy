@@ -52,7 +52,7 @@ type scope struct {
 
 	labels prometheus.Labels
 
-	requestBodyBytes int
+	requestPacketSize int
 }
 
 func newScope(req *http.Request, u *user, c *cluster, cu *clusterUser, sessionId string, sessionTimeout int) *scope {
@@ -227,6 +227,24 @@ func (s *scope) inc() error {
 			s.clusterUser.name, s.clusterUser.reqPerMin)
 	}
 
+	// reserving tokens num s.requestPacketSize
+	if s.user.reqPacketSizeTokensBurst > 0 {
+		tl := s.user.reqPacketSizeTokenLimiter
+		ok := tl.AllowN(time.Now(), s.requestPacketSize)
+		if !ok {
+			err = fmt.Errorf("limits for user %q is exceeded: request_packet_size_tokens_burst limit: %d",
+				s.user.name, s.user.reqPacketSizeTokensBurst)
+		}
+	}
+	if s.clusterUser.reqPacketSizeTokensBurst > 0 {
+		tl := s.clusterUser.reqPacketSizeTokenLimiter
+		ok := tl.AllowN(time.Now(), s.requestPacketSize)
+		if !ok {
+			err = fmt.Errorf("limits for cluster user %q is exceeded: request_packet_size_tokens_burst limit: %d",
+				s.clusterUser.name, s.clusterUser.reqPacketSizeTokensBurst)
+		}
+	}
+
 	if err != nil {
 		s.user.queryCounter.dec()
 		s.clusterUser.queryCounter.dec()
@@ -236,28 +254,6 @@ func (s *scope) inc() error {
 		s.user.rateLimiter.dec()
 		s.clusterUser.rateLimiter.dec()
 		return err
-	}
-
-	// packet size token limit
-	if s.user.packetSizeTokenLimitBurst > 0 {
-		tl := s.user.packetSizeTokenLimiter
-		ctx, cancel := context.WithTimeout(context.TODO(), s.user.maxExecutionTime)
-		defer cancel()
-		err = tl.WaitN(ctx, int(formatPacketSizeByUnit(s.requestBodyBytes, s.user.packetSizeUnit))) // request packet size num by packet size unit
-		if err != nil {
-			return fmt.Errorf("limits for user %q is exceeded: packet_size_token_limit_burst limit: %d%s",
-				s.user.name, s.user.packetSizeTokenLimitBurst, s.user.packetSizeUnit)
-		}
-	}
-	if s.clusterUser.packetSizeTokenLimitBurst > 0 {
-		tl := s.clusterUser.packetSizeTokenLimiter
-		ctx, cancel := context.WithTimeout(context.TODO(), s.clusterUser.maxExecutionTime)
-		defer cancel()
-		err = tl.WaitN(ctx, int(formatPacketSizeByUnit(s.requestBodyBytes, s.clusterUser.packetSizeUnit))) // request packet size num by packet size unit
-		if err != nil {
-			return fmt.Errorf("limits for cluster user %q is exceeded: packet_size_token_limit_burst limit: %d%s",
-				s.clusterUser.name, s.clusterUser.packetSizeTokenLimitBurst, s.clusterUser.packetSizeUnit)
-		}
 	}
 
 	s.host.inc()
@@ -494,10 +490,9 @@ type user struct {
 	reqPerMin   uint32
 	rateLimiter rateLimiter
 
-	packetSizeTokenLimiter    *rate.Limiter
-	packetSizeUnit            string
-	packetSizeTokenLimitBurst int
-	packetSizeTokenRate       float64
+	reqPacketSizeTokenLimiter *rate.Limiter
+	reqPacketSizeTokensBurst  config.ByteSize
+	reqPacketSizeTokensRate   config.ByteSize
 
 	queueCh      chan struct{}
 	maxQueueTime time.Duration
@@ -580,10 +575,9 @@ func (up usersProfile) newUser(u config.User) (*user, error) {
 		reqPerMin:                 u.ReqPerMin,
 		queueCh:                   queueCh,
 		maxQueueTime:              time.Duration(u.MaxQueueTime),
-		packetSizeTokenLimiter:    rate.NewLimiter(rate.Limit(u.PacketSizeTokenRate), u.PacketSizeTokenLimitBurst),
-		packetSizeTokenLimitBurst: u.PacketSizeTokenLimitBurst,
-		packetSizeUnit:            u.PacketSizeUnit,
-		packetSizeTokenRate:       u.PacketSizeTokenRate,
+		reqPacketSizeTokenLimiter: rate.NewLimiter(rate.Limit(u.ReqPacketSizeTokensRate), int(u.ReqPacketSizeTokensBurst)),
+		reqPacketSizeTokensBurst:  u.ReqPacketSizeTokensBurst,
+		reqPacketSizeTokensRate:   u.ReqPacketSizeTokensRate,
 		allowedNetworks:           u.AllowedNetworks,
 		denyHTTP:                  u.DenyHTTP,
 		denyHTTPS:                 u.DenyHTTPS,
@@ -609,10 +603,9 @@ type clusterUser struct {
 	queueCh      chan struct{}
 	maxQueueTime time.Duration
 
-	packetSizeTokenLimiter    *rate.Limiter
-	packetSizeUnit            string
-	packetSizeTokenLimitBurst int
-	packetSizeTokenRate       float64
+	reqPacketSizeTokenLimiter *rate.Limiter
+	reqPacketSizeTokensBurst  config.ByteSize
+	reqPacketSizeTokensRate   config.ByteSize
 
 	allowedNetworks config.Networks
 	isWildcarded    bool
@@ -646,10 +639,9 @@ func newClusterUser(cu config.ClusterUser) *clusterUser {
 		maxConcurrentQueries:      cu.MaxConcurrentQueries,
 		maxExecutionTime:          time.Duration(cu.MaxExecutionTime),
 		reqPerMin:                 cu.ReqPerMin,
-		packetSizeTokenLimiter:    rate.NewLimiter(rate.Limit(cu.PacketSizeTokenRate), cu.PacketSizeTokenLimitBurst),
-		packetSizeTokenLimitBurst: cu.PacketSizeTokenLimitBurst,
-		packetSizeUnit:            cu.PacketSizeUnit,
-		packetSizeTokenRate:       cu.PacketSizeTokenRate,
+		reqPacketSizeTokenLimiter: rate.NewLimiter(rate.Limit(cu.ReqPacketSizeTokensRate), int(cu.ReqPacketSizeTokensBurst)),
+		reqPacketSizeTokensBurst:  cu.ReqPacketSizeTokensBurst,
+		reqPacketSizeTokensRate:   cu.ReqPacketSizeTokensRate,
 		queueCh:                   queueCh,
 		maxQueueTime:              time.Duration(cu.MaxQueueTime),
 		allowedNetworks:           cu.AllowedNetworks,

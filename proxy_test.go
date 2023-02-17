@@ -581,34 +581,58 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 		},
 		{
 			cfg:           goodCfg,
-			name:          "packet size token limit for user",
-			expResponse:   "limits for user \"default\" is exceeded: packet_size_token_limit_burst limit: 4B",
+			name:          "request packet size token limit for user",
+			expResponse:   "limits for user \"default\" is exceeded: request_packet_size_tokens_burst limit: 4",
 			expStatusCode: http.StatusTooManyRequests,
 			f: func(p *reverseProxy) *http.Response {
-				p.users["default"].packetSizeTokenLimitBurst = 4
-				p.users["default"].packetSizeUnit = "B"
-				p.users["default"].packetSizeTokenRate = 1
-				p.users["default"].packetSizeTokenLimiter = rate.NewLimiter(
-					rate.Limit(4), 1)
-				p.users["default"].maxExecutionTime = 10
+				p.users[defaultUsername].reqPacketSizeTokensBurst = 4
+				p.users[defaultUsername].reqPacketSizeTokenLimiter = rate.NewLimiter(
+					rate.Limit(1), 4)
 				go makeHeavyRequest(p, time.Millisecond*20)
-				return makeHeavyRequest(p, time.Millisecond*300)
+				return makeHeavyRequest(p, time.Millisecond*200)
 			},
 		},
 		{
 			cfg:           goodCfg,
-			name:          "packet size token limit for cluster user",
-			expResponse:   "limits for cluster user \"web\" is exceeded: packet_size_token_limit_burst limit: 4B",
+			name:          "request packet size token limit for cluster user",
+			expResponse:   "limits for cluster user \"web\" is exceeded: request_packet_size_tokens_burst limit: 4",
 			expStatusCode: http.StatusTooManyRequests,
 			f: func(p *reverseProxy) *http.Response {
-				p.clusters["cluster"].users["web"].packetSizeTokenLimitBurst = 4
-				p.clusters["cluster"].users["web"].packetSizeUnit = "B"
-				p.clusters["cluster"].users["web"].packetSizeTokenRate = 1
-				p.clusters["cluster"].users["web"].packetSizeTokenLimiter = rate.NewLimiter(
-					rate.Limit(4), 1)
-				p.users["default"].maxExecutionTime = 10
+				p.clusters["cluster"].users["web"].reqPacketSizeTokensBurst = 4
+				p.clusters["cluster"].users["web"].reqPacketSizeTokenLimiter = rate.NewLimiter(
+					rate.Limit(1), 4)
 				go makeHeavyRequest(p, time.Millisecond*20)
-				return makeHeavyRequest(p, time.Millisecond*300)
+				return makeHeavyRequest(p, time.Millisecond*200)
+			},
+		},
+		{
+			cfg:           goodCfg,
+			name:          "queuing request packet size token limit for user",
+			expResponse:   okResponse,
+			expStatusCode: http.StatusOK,
+			f: func(p *reverseProxy) *http.Response {
+				p.users[defaultUsername].reqPacketSizeTokensBurst = 5
+				p.users[defaultUsername].reqPacketSizeTokenLimiter = rate.NewLimiter(
+					rate.Limit(1), 5)
+				p.users[defaultUsername].queueCh = make(chan struct{}, 2)
+				p.users[defaultUsername].maxQueueTime = 10 * time.Second
+				runHeavyRequestInGoroutine(p, 1, true)
+				return makeHeavyRequest(p, time.Millisecond*200)
+			},
+		},
+		{
+			cfg:           goodCfg,
+			name:          "queuing request with packet size token limit for cluster user",
+			expResponse:   okResponse,
+			expStatusCode: http.StatusOK,
+			f: func(p *reverseProxy) *http.Response {
+				p.clusters["cluster"].users["web"].reqPacketSizeTokensBurst = 5
+				p.clusters["cluster"].users["web"].reqPacketSizeTokenLimiter = rate.NewLimiter(
+					rate.Limit(1), 5)
+				p.clusters["cluster"].users["web"].queueCh = make(chan struct{}, 2)
+				p.clusters["cluster"].users["web"].maxQueueTime = 10 * time.Second
+				runHeavyRequestInGoroutine(p, 1, true)
+				return makeHeavyRequest(p, time.Millisecond*200)
 			},
 		},
 	}
