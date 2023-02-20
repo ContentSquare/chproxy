@@ -7,7 +7,7 @@ users:
   - name: "default"
     to_cluster: "cluster"
     to_user: "default"
-    packet_size_token_limit_burst: 10
+    request_packet_size_tokens_burst: 10
 
 clusters:
   - name: "cluster"

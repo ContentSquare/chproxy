@@ -13,4 +13,4 @@ clusters:
     nodes: ["127.0.0.1:8123"]
     users:
       - name: "default"
-        packet_size_token_limit_burst: 10
+        request_packet_size_tokens_burst: 10

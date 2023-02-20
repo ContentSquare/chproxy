@@ -459,12 +459,12 @@ func TestBadConfig(t *testing.T) {
 		{
 			"packet size token burst and rate on user",
 			"testdata/bad.packet_size_token_burst_rate_user.yml",
-			"`packet_size_token_rate` must be set if `packet_size_token_limit_burst` is set for \"default\"",
+			"`request_packet_size_tokens_rate` must be set if `request_packet_size_tokens_burst` is set for \"default\"",
 		},
 		{
 			"packet size token burst and rate on user on cluster_user",
 			"testdata/bad.packet_size_token_burst_rate_cluster_user.yml",
-			"`packet_size_token_rate` must be set if `packet_size_token_limit_burst` is set for \"default\"",
+			"`request_packet_size_tokens_rate` must be set if `request_packet_size_tokens_burst` is set for \"default\"",
 		},
 		{
 			"cache max size",
