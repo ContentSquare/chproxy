@@ -12,6 +12,7 @@ require (
 	github.com/redis/go-redis/v9 v9.0.2
 	github.com/stretchr/testify v1.8.1
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
+	golang.org/x/time v0.3.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 

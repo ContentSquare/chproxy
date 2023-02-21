@@ -17,6 +17,7 @@ import (
 	"github.com/contentsquare/chproxy/config"
 	"github.com/contentsquare/chproxy/log"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/time/rate"
 )
 
 type scopeID uint64
@@ -50,6 +51,8 @@ type scope struct {
 	canceled bool
 
 	labels prometheus.Labels
+
+	requestPacketSize int
 }
 
 func newScope(req *http.Request, u *user, c *cluster, cu *clusterUser, sessionId string, sessionTimeout int) *scope {
@@ -222,6 +225,24 @@ func (s *scope) inc() error {
 	if s.clusterUser.reqPerMin > 0 && int32(cRPM) > 0 && cRPM > s.clusterUser.reqPerMin {
 		err = fmt.Errorf("rate limit for cluster user %q is exceeded: requests_per_minute limit: %d",
 			s.clusterUser.name, s.clusterUser.reqPerMin)
+	}
+
+	// reserving tokens num s.requestPacketSize
+	if s.user.reqPacketSizeTokensBurst > 0 {
+		tl := s.user.reqPacketSizeTokenLimiter
+		ok := tl.AllowN(time.Now(), s.requestPacketSize)
+		if !ok {
+			err = fmt.Errorf("limits for user %q is exceeded: request_packet_size_tokens_burst limit: %d",
+				s.user.name, s.user.reqPacketSizeTokensBurst)
+		}
+	}
+	if s.clusterUser.reqPacketSizeTokensBurst > 0 {
+		tl := s.clusterUser.reqPacketSizeTokenLimiter
+		ok := tl.AllowN(time.Now(), s.requestPacketSize)
+		if !ok {
+			err = fmt.Errorf("limits for cluster user %q is exceeded: request_packet_size_tokens_burst limit: %d",
+				s.clusterUser.name, s.clusterUser.reqPacketSizeTokensBurst)
+		}
 	}
 
 	if err != nil {
@@ -469,6 +490,10 @@ type user struct {
 	reqPerMin   uint32
 	rateLimiter rateLimiter
 
+	reqPacketSizeTokenLimiter *rate.Limiter
+	reqPacketSizeTokensBurst  config.ByteSize
+	reqPacketSizeTokensRate   config.ByteSize
+
 	queueCh      chan struct{}
 	maxQueueTime time.Duration
 
@@ -541,22 +566,25 @@ func (up usersProfile) newUser(u config.User) (*user, error) {
 	}
 
 	return &user{
-		name:                 u.Name,
-		password:             u.Password,
-		toCluster:            u.ToCluster,
-		toUser:               u.ToUser,
-		maxConcurrentQueries: u.MaxConcurrentQueries,
-		maxExecutionTime:     time.Duration(u.MaxExecutionTime),
-		reqPerMin:            u.ReqPerMin,
-		queueCh:              queueCh,
-		maxQueueTime:         time.Duration(u.MaxQueueTime),
-		allowedNetworks:      u.AllowedNetworks,
-		denyHTTP:             u.DenyHTTP,
-		denyHTTPS:            u.DenyHTTPS,
-		allowCORS:            u.AllowCORS,
-		isWildcarded:         u.IsWildcarded,
-		cache:                cc,
-		params:               params,
+		name:                      u.Name,
+		password:                  u.Password,
+		toCluster:                 u.ToCluster,
+		toUser:                    u.ToUser,
+		maxConcurrentQueries:      u.MaxConcurrentQueries,
+		maxExecutionTime:          time.Duration(u.MaxExecutionTime),
+		reqPerMin:                 u.ReqPerMin,
+		queueCh:                   queueCh,
+		maxQueueTime:              time.Duration(u.MaxQueueTime),
+		reqPacketSizeTokenLimiter: rate.NewLimiter(rate.Limit(u.ReqPacketSizeTokensRate), int(u.ReqPacketSizeTokensBurst)),
+		reqPacketSizeTokensBurst:  u.ReqPacketSizeTokensBurst,
+		reqPacketSizeTokensRate:   u.ReqPacketSizeTokensRate,
+		allowedNetworks:           u.AllowedNetworks,
+		denyHTTP:                  u.DenyHTTP,
+		denyHTTPS:                 u.DenyHTTPS,
+		allowCORS:                 u.AllowCORS,
+		isWildcarded:              u.IsWildcarded,
+		cache:                     cc,
+		params:                    params,
 	}, nil
 }
 
@@ -574,6 +602,10 @@ type clusterUser struct {
 
 	queueCh      chan struct{}
 	maxQueueTime time.Duration
+
+	reqPacketSizeTokenLimiter *rate.Limiter
+	reqPacketSizeTokensBurst  config.ByteSize
+	reqPacketSizeTokensRate   config.ByteSize
 
 	allowedNetworks config.Networks
 	isWildcarded    bool
@@ -602,14 +634,17 @@ func newClusterUser(cu config.ClusterUser) *clusterUser {
 		queueCh = make(chan struct{}, cu.MaxQueueSize)
 	}
 	return &clusterUser{
-		name:                 cu.Name,
-		password:             cu.Password,
-		maxConcurrentQueries: cu.MaxConcurrentQueries,
-		maxExecutionTime:     time.Duration(cu.MaxExecutionTime),
-		reqPerMin:            cu.ReqPerMin,
-		queueCh:              queueCh,
-		maxQueueTime:         time.Duration(cu.MaxQueueTime),
-		allowedNetworks:      cu.AllowedNetworks,
+		name:                      cu.Name,
+		password:                  cu.Password,
+		maxConcurrentQueries:      cu.MaxConcurrentQueries,
+		maxExecutionTime:          time.Duration(cu.MaxExecutionTime),
+		reqPerMin:                 cu.ReqPerMin,
+		reqPacketSizeTokenLimiter: rate.NewLimiter(rate.Limit(cu.ReqPacketSizeTokensRate), int(cu.ReqPacketSizeTokensBurst)),
+		reqPacketSizeTokensBurst:  cu.ReqPacketSizeTokensBurst,
+		reqPacketSizeTokensRate:   cu.ReqPacketSizeTokensRate,
+		queueCh:                   queueCh,
+		maxQueueTime:              time.Duration(cu.MaxQueueTime),
+		allowedNetworks:           cu.AllowedNetworks,
 	}
 }
 

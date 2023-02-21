@@ -1,0 +1,16 @@
+server:
+  http:
+    listen_addr: ":8080"
+    allowed_networks: ["127.0.0.1"]
+
+users:
+  - name: "default"
+    to_cluster: "cluster"
+    to_user: "default"
+
+clusters:
+  - name: "cluster"
+    nodes: ["127.0.0.1:8123"]
+    users:
+      - name: "default"
+        request_packet_size_tokens_burst: 10

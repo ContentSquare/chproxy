@@ -544,6 +544,14 @@ type User struct {
 	// if omitted or zero - no limits would be applied
 	ReqPerMin uint32 `yaml:"requests_per_minute,omitempty"`
 
+	// The burst of request packet size token bucket for user
+	// if omitted or zero - no limits would be applied
+	ReqPacketSizeTokensBurst ByteSize `yaml:"request_packet_size_tokens_burst,omitempty"`
+
+	// The request packet size tokens produced rate per second for user
+	// if omitted or zero - no limits would be applied
+	ReqPacketSizeTokensRate ByteSize `yaml:"request_packet_size_tokens_rate,omitempty"`
+
 	// Maximum number of queries waiting for execution in the queue
 	// if omitted or zero - queries are executed without waiting
 	// in the queue
@@ -613,6 +621,10 @@ func (u *User) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		if s := strings.Split(u.Name, "*"); !(len(s) == 2 && (s[0] == "" || s[1] == "")) {
 			return fmt.Errorf("user name %q marked 'is_wildcared' does not match 'prefix*' or '*suffix' or '*'", u.Name)
 		}
+	}
+
+	if u.ReqPacketSizeTokensBurst > 0 && u.ReqPacketSizeTokensRate == 0 {
+		return fmt.Errorf("`request_packet_size_tokens_rate` must be set if `request_packet_size_tokens_burst` is set for %q", u.Name)
 	}
 
 	return checkOverflow(u.XXX, fmt.Sprintf("user %q", u.Name))
@@ -826,6 +838,14 @@ type ClusterUser struct {
 	// if omitted or zero - no limits would be applied
 	ReqPerMin uint32 `yaml:"requests_per_minute,omitempty"`
 
+	// The burst of request packet size token bucket for user
+	// if omitted or zero - no limits would be applied
+	ReqPacketSizeTokensBurst ByteSize `yaml:"request_packet_size_tokens_burst,omitempty"`
+
+	// The request packet size tokens produced rate for user
+	// if omitted or zero - no limits would be applied
+	ReqPacketSizeTokensRate ByteSize `yaml:"request_packet_size_tokens_rate,omitempty"`
+
 	// Maximum number of queries waiting for execution in the queue
 	// if omitted or zero - queries are executed without waiting
 	// in the queue
@@ -859,6 +879,10 @@ func (cu *ClusterUser) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 	if cu.MaxQueueTime > 0 && cu.MaxQueueSize == 0 {
 		return fmt.Errorf("`max_queue_size` must be set if `max_queue_time` is set for %q", cu.Name)
+	}
+
+	if cu.ReqPacketSizeTokensBurst > 0 && cu.ReqPacketSizeTokensRate == 0 {
+		return fmt.Errorf("`request_packet_size_tokens_rate` must be set if `request_packet_size_tokens_burst` is set for %q", cu.Name)
 	}
 
 	return checkOverflow(cu.XXX, fmt.Sprintf("cluster.user %q", cu.Name))
