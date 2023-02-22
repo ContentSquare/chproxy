@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -25,6 +27,8 @@ type mockStatResponseWriter struct {
 }
 
 type mockHosts struct {
+	t   *testing.T
+	b   string
 	hs  []string
 	hst []string
 }
@@ -32,9 +36,13 @@ type mockHosts struct {
 // TestQueryWithRetryFail function statResponseWriter's statusCode will not be 200, but the query has been proxied
 // The request will be retried 1 time with a different host in the same replica
 func TestQueryWithRetryFail(t *testing.T) {
-	req := newRequest("http://localhost:8080")
+	body := "foo query"
+
+	req := newRequest("http://localhost:8080", body)
 
 	mhs := &mockHosts{
+		t:  t,
+		b:  body,
 		hs: []string{"localhost:8080", "localhost:8081"},
 	}
 
@@ -71,9 +79,13 @@ func TestQueryWithRetryFail(t *testing.T) {
 // TestRunQuerySuccessOnce function statResponseWriter's statusCode will be StatusOK after executeWithRetry, the query has been proxied
 // The execution will succeeded without retry
 func TestQuerySuccessOnce(t *testing.T) {
-	req := newRequest("http://localhost:8090")
+	body := "foo query"
+
+	req := newRequest("http://localhost:8090", body)
 
 	mhs := &mockHosts{
+		t:  t,
+		b:  body,
 		hs: []string{"localhost:8080", "localhost:8090"},
 	}
 
@@ -108,9 +120,13 @@ func TestQuerySuccessOnce(t *testing.T) {
 // TestQueryWithRetrySuccess function statResponseWriter's statusCode will be StatusOK after executeWithRetry, the query has been proxied
 // The execution will succeeded after retry
 func TestQueryWithRetrySuccess(t *testing.T) {
-	req := newRequest("http://localhost:8080")
+	body := "foo query"
+
+	req := newRequest("http://localhost:8080", body)
 
 	mhs := &mockHosts{
+		t:  t,
+		b:  body,
 		hs: []string{"localhost:8080", "localhost:8090"},
 	}
 
@@ -148,12 +164,21 @@ func (mhs *mockHosts) mockReverseProxy(rw http.ResponseWriter, req *http.Request
 	} else {
 		rw.WriteHeader(http.StatusOK)
 	}
+
+	b, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		mhs.t.Errorf("The req body cannot be read: %v", err)
+	}
+	req.Body.Close()
+
+	assert.Equal(mhs.t, mhs.b, string(b))
+
 	mhs.hst = append(mhs.hst, req.URL.Host)
 }
 
-func newRequest(host string) *http.Request {
+func newRequest(host, body string) *http.Request {
 	// create a new req
-	req := httptest.NewRequest(http.MethodGet, host, nil)
+	req := httptest.NewRequest(http.MethodPost, host, strings.NewReader(body))
 
 	ctx := context.Background()
 
