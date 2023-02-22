@@ -36,7 +36,7 @@ docker run -d -v <LOCAL CONFIG>:/config.yml contentsquareplatform/chproxy:<VERSI
 Example:
 
 ```console
-docker run -d -v $(pwd)/config/examples/simple.yml:/config.yml contentsquareplatform/chproxy:1.15.0 -config /config.yml
+docker run -d -v $(pwd)/config/examples/simple.yml:/config.yml contentsquareplatform/chproxy:v1.20.0 -config /config.yml
 ```
 
 ### Build a local image.
