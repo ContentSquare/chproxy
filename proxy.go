@@ -54,10 +54,13 @@ type reverseProxy struct {
 func newReverseProxy(cfgCp *config.ConnectionPool) *reverseProxy {
 	transport := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
-		DialContext: (&net.Dialer{
-			Timeout:   30 * time.Second,
-			KeepAlive: 30 * time.Second,
-		}).DialContext,
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			dialer := &net.Dialer{
+				Timeout:   30 * time.Second,
+				KeepAlive: 30 * time.Second,
+			}
+			return dialer.DialContext(ctx, network, addr)
+		},
 		ForceAttemptHTTP2:     true,
 		MaxIdleConns:          cfgCp.MaxIdleConns,
 		MaxIdleConnsPerHost:   cfgCp.MaxIdleConnsPerHost,
