@@ -1,6 +1,6 @@
 FROM debian
 
-RUN apt update && apt install -y ca-certificates
+RUN apt update && apt install -y ca-certificates curl
 
 COPY chproxy /
 
