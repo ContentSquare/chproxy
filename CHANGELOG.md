@@ -8,6 +8,23 @@ position: 104
 Since v1.17.1, chproxy follows [semantic versioning](https://semver.org/).
 Don't expect breaking changes between 2 releases if they have the same major version.
 
+### <a id="229"></a> release 1.22.0, 2022-02-27
+
+#### New Feature
+* Ability to limit throughput for a specific user[#299]
+
+#### Improvement
+* New quick start guide in the documentation [#286]
+* Small documentation improvment [#289]
+* Change redis & clickhouse ports in the unit tests to avoid conflicts with an already running clickhouse or redis on the developer's computer [#291]
+* Better documentation about the docker image [#302]
+* Add `curl` in the docker image [#307]
+
+#### Bug Fix
+* Fix an issue in the retry mecanism when chproxy queries clickhouse using  HTTP POSTs [#296]
+* Update redis client library, go-redis, to avoid bugs with redis v7 in cluster mode [#292]
+* add ca-certificates into the docker image to fix issues with https [#301]
+
 ### <a id="229"></a> release 1.21.0, 2022-01-05
 
 #### New Feature
