@@ -35,7 +35,7 @@ var nextScopeID = uint64(time.Now().UnixNano())
 
 type scope struct {
 	startTime   time.Time
-	id          scopeID
+	id          string
 	host        *host
 	cluster     *cluster
 	user        *user
@@ -64,9 +64,13 @@ func newScope(req *http.Request, u *user, c *cluster, cu *clusterUser, sessionId
 	if addr, ok := req.Context().Value(http.LocalAddrContextKey).(net.Addr); ok {
 		localAddr = addr.String()
 	}
+	id := req.URL.Query().Get("query_id")
+	if id == "" {
+		id = newScopeID().String()
+	}
 	s := &scope{
 		startTime:      time.Now(),
-		id:             newScopeID(),
+		id:             id,
 		host:           h,
 		cluster:        c,
 		user:           u,
@@ -393,7 +397,7 @@ func (s *scope) decorateRequest(req *http.Request) (*http.Request, url.Values) {
 	}
 
 	// Set query_id as scope_id to have possibility to kill query if needed.
-	params.Set("query_id", s.id.String())
+	params.Set("query_id", s.id)
 	// Set session_timeout an idle timeout for session
 	params.Set("session_timeout", strconv.Itoa(s.sessionTimeout))
 
