@@ -14,19 +14,19 @@ Don't expect breaking changes between 2 releases if they have the same major ver
 * Docker images arm64 & arm64v8 are not available for this version.
 
 #### New Feature
-* Ability to limit throughput for a specific user[#299]
+* Ability to limit throughput for a specific user[#299](https://github.com/ContentSquare/chproxy/pull/299)
 
 #### Improvement
-* New quick start guide in the documentation [#286]
-* Small documentation improvement [#289]
-* Change redis & clickhouse ports in the unit tests to avoid conflicts with an already running clickhouse or redis on the developer's computer [#291]
-* Better documentation about the docker image [#302]
-* Add `curl` in the docker image [#307]
+* New quick start guide in the documentation [#286](https://github.com/ContentSquare/chproxy/pull/286)
+* Small documentation improvement [#289](https://github.com/ContentSquare/chproxy/pull/)
+* Change redis & clickhouse ports in the unit tests to avoid conflicts with an already running clickhouse or redis on the developer's computer [#291](https://github.com/ContentSquare/chproxy/pull/289)
+* Better documentation about the docker image [#302](https://github.com/ContentSquare/chproxy/pull/302)
+* Add `curl` in the docker image [#307](https://github.com/ContentSquare/chproxy/pull/307)
 
 #### Bug Fix
-* Fix an issue in the retry mechanism when chproxy queries clickhouse using  HTTP POSTs [#296]
-* Update redis client library, go-redis, to avoid bugs with redis v7 in cluster mode [#292]
-* add ca-certificates into the docker image to fix issues with https [#301]
+* Fix an issue in the retry mechanism when chproxy queries clickhouse using  HTTP POSTs [#296](https://github.com/ContentSquare/chproxy/pull/296)
+* Update redis client library, go-redis, to avoid bugs with redis v7 in cluster mode [#292](https://github.com/ContentSquare/chproxy/pull/292)
+* add ca-certificates into the docker image to fix issues with https [#301](https://github.com/ContentSquare/chproxy/pull/301)
 
 ### <a id="229"></a> release 1.21.0, 2022-01-05
 
