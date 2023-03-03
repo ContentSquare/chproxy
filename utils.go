@@ -7,6 +7,7 @@ import (
 	"hash/fnv"
 	"io"
 	"net/http"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -171,6 +172,7 @@ var cachableStatements = []string{"SELECT", "WITH"}
 // canCacheQuery returns true if q can be cached.
 func canCacheQuery(q []byte) bool {
 	q = skipLeadingComments(q)
+	q = skipLogComment(q)
 
 	for _, statement := range cachableStatements {
 		if len(q) < len(statement) {
@@ -227,6 +229,12 @@ func skipLeadingComments(q []byte) []byte {
 		}
 	}
 	return nil
+}
+
+var logCommentRegex = regexp.MustCompile(`(\bSETTINGS.*)(\s*log_comment\s*=\s*('('|[^']).*',? *))(.*)`)
+
+func skipLogComment(q []byte) []byte {
+	return logCommentRegex.ReplaceAll(q, []byte("$1$5"))
 }
 
 // splits header string in sorted slice
