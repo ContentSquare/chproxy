@@ -44,7 +44,13 @@ type statResponseWriter struct {
 	bytesWritten prometheus.Counter
 }
 
-func RespondWithData(rw http.ResponseWriter, data io.Reader, metadata cache.ContentMetadata, ttl time.Duration, statusCode int, labels prometheus.Labels) error {
+const (
+	XCacheHit  = "HIT"
+	XCacheMiss = "MISS"
+	XCacheNA   = "N/A"
+)
+
+func RespondWithData(rw http.ResponseWriter, data io.Reader, metadata cache.ContentMetadata, ttl time.Duration, cacheHit string, statusCode int, labels prometheus.Labels) error {
 	h := rw.Header()
 	if len(metadata.Type) > 0 {
 		h.Set("Content-Type", metadata.Type)
@@ -59,6 +65,9 @@ func RespondWithData(rw http.ResponseWriter, data io.Reader, metadata cache.Cont
 		expireSeconds := uint(ttl / time.Second)
 		h.Set("Cache-Control", fmt.Sprintf("max-age=%d", expireSeconds))
 	}
+
+	h.Set("X-Cache", cacheHit)
+
 	rw.WriteHeader(statusCode)
 
 	if _, err := io.Copy(rw, data); err != nil {

@@ -99,6 +99,7 @@ func TestServe(t *testing.T) {
 					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
 				}
 				checkResponse(t, resp.Body, expectedOkResp)
+				checkHeader(t, resp, "X-Cache", "MISS")
 
 				// check cached response
 				credHash, _ := calcCredentialHash("default", "qwerty")
@@ -120,11 +121,12 @@ func TestServe(t *testing.T) {
 				if err != nil {
 					t.Fatalf("unexpected error while getting response from cache: %s", err)
 				}
-				err = RespondWithData(rw, cachedData.Data, cachedData.ContentMetadata, cachedData.Ttl, 200, labels)
+				err = RespondWithData(rw, cachedData.Data, cachedData.ContentMetadata, cachedData.Ttl, XCacheHit, 200, labels)
 				if err != nil {
 					t.Fatalf("unexpected error while getting response from cache: %s", err)
 				}
 				checkResponse(t, rw.Body, expectedOkResp)
+				checkHeader(t, rw.Result(), "X-Cache", XCacheHit)
 			},
 			startTLS,
 		},
@@ -145,6 +147,7 @@ func TestServe(t *testing.T) {
 				}
 
 				checkResponse(t, resp.Body, expectedOkResp)
+				checkHeader(t, resp, "X-Cache", XCacheNA)
 
 				key := &cache.Key{
 					Query:          []byte(q),
@@ -198,7 +201,7 @@ func TestServe(t *testing.T) {
 					t.Fatalf("unexpected error while getting response from cache: %s", err)
 				}
 
-				err = RespondWithData(rw, cachedData.Data, cachedData.ContentMetadata, cachedData.Ttl, 200, labels)
+				err = RespondWithData(rw, cachedData.Data, cachedData.ContentMetadata, cachedData.Ttl, XCacheHit, 200, labels)
 				if err != nil {
 					t.Fatalf("unexpected error while getting response from cache: %s", err)
 				}
@@ -250,7 +253,7 @@ func TestServe(t *testing.T) {
 					t.Fatalf("unexpected error while writing reposnse from cache: %s", err)
 				}
 
-				err = RespondWithData(rw, cachedData.Data, cachedData.ContentMetadata, cachedData.Ttl, 200, labels)
+				err = RespondWithData(rw, cachedData.Data, cachedData.ContentMetadata, cachedData.Ttl, XCacheMiss, 200, labels)
 				if err != nil {
 					t.Fatalf("unexpected error while getting response from cache: %s", err)
 				}
@@ -1181,6 +1184,17 @@ func httpGet(t *testing.T, url string, statusCode int) *http.Response {
 		t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, statusCode)
 	}
 	return resp
+}
+
+func checkHeader(t *testing.T, resp *http.Response, header string, expected string) {
+	t.Helper()
+
+	h := resp.Header
+	v := h.Get(header)
+
+	if v != expected {
+		t.Fatalf("for header: %s got: %s, expected %s", header, v, expected)
+	}
 }
 
 func httpRequest(t *testing.T, request *http.Request, statusCode int) (*http.Response, error) {
