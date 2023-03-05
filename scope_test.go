@@ -38,7 +38,7 @@ func TestRunningQueries(t *testing.T) {
 	u1 := &user{
 		maxConcurrentQueries: 1,
 	}
-	s := &scope{id: newScopeID()}
+	s := &scope{id: newScopeID().String()}
 	s.host = c.getHost()
 	s.cluster = c
 	s.user = u1
@@ -84,7 +84,7 @@ func TestRunningQueries(t *testing.T) {
 	u2 := &user{
 		maxConcurrentQueries: 1,
 	}
-	s = &scope{id: newScopeID()}
+	s = &scope{id: newScopeID().String()}
 	s.host = c.getHost()
 	s.cluster = c
 	s.user = u2
@@ -405,7 +405,7 @@ func TestDecorateRequest(t *testing.T) {
 		}
 		req.Header.Set("Content-Type", tc.contentType)
 		s := &scope{
-			id:          newScopeID(),
+			id:          newScopeID().String(),
 			clusterUser: &clusterUser{},
 			user: &user{
 				params: tc.userParams,
@@ -573,7 +573,7 @@ func testGetUser() *user {
 }
 
 func testGetScope(c *cluster, u *user, cu *clusterUser, sessionId string) *scope {
-	s := &scope{id: newScopeID()}
+	s := &scope{id: newScopeID().String()}
 	s.cluster = c
 	s.host = c.getHost()
 	if sessionId != "" {
