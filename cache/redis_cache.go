@@ -253,8 +253,7 @@ func (r *redisCache) Put(reader io.Reader, contentMetadata ContentMetadata, key 
 	// then it switches the full result to the "real" stringKey available for other goroutines
 	// nolint:gosec // not security sensitve, only used internally.
 	random := strconv.Itoa(rand.Int())
-	stringKeyTmp := stringKey + random + "_tmp"
-
+	stringKeyTmp := "{" + stringKey + "}" + random + "_tmp"
 	ctxSet, cancelFuncSet := context.WithTimeout(context.Background(), putTimeout)
 	defer cancelFuncSet()
 	err := r.client.Set(ctxSet, stringKeyTmp, medatadata, r.expire).Err()
