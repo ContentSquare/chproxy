@@ -253,7 +253,13 @@ func (r *redisCache) Put(reader io.Reader, contentMetadata ContentMetadata, key 
 	// then it switches the full result to the "real" stringKey available for other goroutines
 	// nolint:gosec // not security sensitve, only used internally.
 	random := strconv.Itoa(rand.Int())
-	stringKeyTmp := stringKey + random + "_tmp"
+	// Redis RENAME is considered to be a multikey operation. In Cluster mode, both oldkey and renamedkey must be in the same hash slot,
+	// Refer Redis Documentation here: https://redis.io/commands/rename/
+	// To solve this,we need to force the temporary key to be in the same hash slot. We can do this by adding hashtag to the
+	// actual part of the temporary key. When the key contains a "{...}" pattern, only the substring between the braces, "{" and "},"
+	// is hashed to obtain the hash slot.
+	// Refer the hash tags section of Redis documentation here: https://redis.io/docs/reference/cluster-spec/#hash-tags
+	stringKeyTmp := "{" + stringKey + "}" + random + "_tmp"
 
 	ctxSet, cancelFuncSet := context.WithTimeout(context.Background(), putTimeout)
 	defer cancelFuncSet()
