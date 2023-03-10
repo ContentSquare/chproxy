@@ -62,3 +62,9 @@ User Y will get the cached response from user X's query.
 
 Since 1.20.0, the cache is specific for each user by default since it's better in terms of security.
 It's possible to use the previous behavior by setting the following property of the cache in the config file `shared_with_all_users = true` 
+
+#### Detecting Cache Hits
+
+`Chproxy` will respond with an `X-Cache` header with a value of `HIT` if it returned a response from either the local or the distributed cache. Otherwise `X-Cache` will be set to `MISS`. 
+If the response couldn't be cached due to the configuration (e.g. a payload that is too large), `N/A` will be returned. This can be used for example to determine 
+whether the ClickHouse query stats in the response can be trusted or are cached responses.
