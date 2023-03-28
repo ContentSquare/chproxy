@@ -8,6 +8,15 @@ position: 104
 Since v1.17.1, chproxy follows [semantic versioning](https://semver.org/).
 Don't expect breaking changes between 2 releases if they have the same major version.
 
+
+### <a id="229"></a> release 1.23.0, 2022-03-28
+#### New Feature
+* Ability to know whether a query was cached or not with a new HTTP header [#313](https://github.com/ContentSquare/chproxy/pull/313)
+
+#### Bug Fix
+* Fix Redis Cluster Crossslot Issue [#320](https://github.com/ContentSquare/chproxy/pull/320)
+
+
 ### <a id="229"></a> release 1.22.0, 2022-03-01
 
 #### Release note
@@ -27,6 +36,7 @@ Don't expect breaking changes between 2 releases if they have the same major ver
 * Fix an issue in the retry mechanism when chproxy queries clickhouse using  HTTP POSTs [#296](https://github.com/ContentSquare/chproxy/pull/296)
 * Update redis client library, go-redis, to avoid bugs with redis v7 in cluster mode [#292](https://github.com/ContentSquare/chproxy/pull/292)
 * add ca-certificates into the docker image to fix issues with https [#301](https://github.com/ContentSquare/chproxy/pull/301)
+
 
 ### <a id="229"></a> release 1.21.0, 2022-01-05
 
