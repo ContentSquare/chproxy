@@ -75,6 +75,19 @@ func TestProxyHandler(t *testing.T) {
 			expectedAddr: "10.0.0.1",
 		},
 		{
+			name: "proxy should forward proxy header Forwarded if set and treat a lack of spaces as an equivalent (issue #326).",
+			proxy: &config.Proxy{
+				Enable: true,
+			},
+			r: &http.Request{
+				RemoteAddr: "127.0.0.1:1234",
+				Header: http.Header{
+					"Forwarded": []string{"for=10.0.0.1,for=10.0.0.3"},
+				},
+			},
+			expectedAddr: "10.0.0.1",
+		},
+		{
 			name: "proxy should properly parse Forwarded header",
 			proxy: &config.Proxy{
 				Enable: true,
