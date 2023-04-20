@@ -140,6 +140,11 @@ func (r *redisCache) Get(key *Key) (*CachedData, error) {
 
 		return value, nil
 	}
+
+	return r.readResultsAboveLimit(offset, stringKey, metadata, ttl)
+}
+
+func (r *redisCache) readResultsAboveLimit(offset int, stringKey string, metadata *ContentMetadata, ttl time.Duration) (*CachedData, error) {
 	// since the cached results in redis are too big, we can't fetch all of them because of the memory overhead.
 	// We will create an io.reader that will fetch redis bulk by bulk to reduce the memory usage.
 	redisStreamreader := newRedisStreamReader(uint64(offset), r.client, stringKey, metadata.Length)
@@ -368,27 +373,9 @@ func (r *redisStreamReader) Read(destBuf []byte) (n int, err error) {
 
 	// case 2) the buffer only has already written data, we need to refresh it with redis datas
 	if r.bufferOffset >= bufSize {
-		ctx, cancelFunc := context.WithTimeout(context.Background(), getTimeout)
-		defer cancelFunc()
-		newBuf, err := r.client.GetRange(ctx, r.key, int64(r.redisOffset), int64(r.redisOffset+uint64(bufSize))).Result()
-		r.redisOffset += uint64(len(newBuf))
-		if errors.Is(err, redis.Nil) || len(newBuf) == 0 {
-			r.isRedisEOF = true
+		if err := r.readRangeFromRedis(bufSize); err != nil {
+			return bytesWritten, err
 		}
-		// if redis gave less data than asked it means that it reached the end of the value
-		if len(newBuf) < bufSize {
-			r.isRedisEOF = true
-		}
-
-		// others errors, such as timeouts
-		if err != nil && !errors.Is(err, redis.Nil) {
-			log.Debugf("failed to get key %s with error: %s", r.key, err)
-			err2 := &RedisCacheError{key: r.key, readPayloadSize: r.readPayloadSize,
-				expectedPayloadSize: r.expectedPayloadSize, rootcause: err}
-			return bytesWritten, err2
-		}
-		r.bufferOffset = 0
-		r.buffer = []byte(newBuf)
 	}
 
 	// case 1) the buffer contains data to write into destBuf
@@ -398,6 +385,32 @@ func (r *redisStreamReader) Read(destBuf []byte) (n int, err error) {
 		r.readPayloadSize += bytesWritten
 	}
 	return bytesWritten, nil
+}
+
+func (r *redisStreamReader) readRangeFromRedis(bufSize int) error {
+	ctx, cancelFunc := context.WithTimeout(context.Background(), getTimeout)
+	defer cancelFunc()
+	newBuf, err := r.client.GetRange(ctx, r.key, int64(r.redisOffset), int64(r.redisOffset+uint64(bufSize))).Result()
+	r.redisOffset += uint64(len(newBuf))
+	if errors.Is(err, redis.Nil) || len(newBuf) == 0 {
+		r.isRedisEOF = true
+	}
+	// if redis gave less data than asked it means that it reached the end of the value
+	if len(newBuf) < bufSize {
+		r.isRedisEOF = true
+	}
+
+	// others errors, such as timeouts
+	if err != nil && !errors.Is(err, redis.Nil) {
+		log.Debugf("failed to get key %s with error: %s", r.key, err)
+		err2 := &RedisCacheError{key: r.key, readPayloadSize: r.readPayloadSize,
+			expectedPayloadSize: r.expectedPayloadSize, rootcause: err}
+		return err2
+	}
+
+	r.bufferOffset = 0
+	r.buffer = []byte(newBuf)
+	return nil
 }
 
 type fileWriterReader struct {

@@ -139,38 +139,26 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		rw.Header().Set("X-ClickHouse-Server-Session-Id", s.sessionId)
 	}
 
-	if s.user.cache == nil || s.user.cache.Cache == nil {
-		rp.proxyRequest(s, srw, srw, req)
-	} else {
-		noCache := origParams.Get("no_cache")
-		if noCache == "1" || noCache == "true" {
-			// The response caching is disabled.
-			rp.proxyRequest(s, srw, srw, req)
-		} else {
-			q, err := getFullQuery(req)
-			if err != nil {
-				err = fmt.Errorf("%s: cannot read query: %w", s, err)
-				respondWith(srw, err, http.StatusBadRequest)
-				return
-			}
+	q, shouldReturnFromCache, err := shouldRespondFromCache(s, origParams, req)
+	if err != nil {
+		respondWith(srw, err, http.StatusBadRequest)
+		return
+	}
 
-			if !canCacheQuery(q) {
-				// The query cannot be cached, so just proxy it.
-				rp.proxyRequest(s, srw, srw, req)
-			} else {
-				rp.serveFromCache(s, srw, req, origParams, q)
-			}
-		}
+	if shouldReturnFromCache {
+		rp.serveFromCache(s, srw, req, origParams, q)
+	} else {
+		rp.proxyRequest(s, srw, srw, req)
 	}
 
 	// It is safe calling getQuerySnippet here, since the request
 	// has been already read in proxyRequest or serveFromCache.
-	q := getQuerySnippet(req)
+	query := getQuerySnippet(req)
 	if srw.statusCode == http.StatusOK {
 		requestSuccess.With(s.labels).Inc()
-		log.Debugf("%s: request success; query: %q; Method: %s; URL: %q", s, q, req.Method, req.URL.String())
+		log.Debugf("%s: request success; query: %q; Method: %s; URL: %q", s, query, req.Method, req.URL.String())
 	} else {
-		log.Debugf("%s: request failure: non-200 status code %d; query: %q; Method: %s; URL: %q", s, srw.statusCode, q, req.Method, req.URL.String())
+		log.Debugf("%s: request failure: non-200 status code %d; query: %q; Method: %s; URL: %q", s, srw.statusCode, query, req.Method, req.URL.String())
 	}
 
 	statusCodes.With(
@@ -185,6 +173,24 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	).Inc()
 	since := time.Since(startTime).Seconds()
 	requestDuration.With(s.labels).Observe(since)
+}
+
+func shouldRespondFromCache(s *scope, origParams url.Values, req *http.Request) ([]byte, bool, error) {
+	if s.user.cache == nil || s.user.cache.Cache == nil {
+		return nil, false, nil
+	}
+
+	noCache := origParams.Get("no_cache")
+	if noCache == "1" || noCache == "true" {
+		return nil, false, nil
+	}
+
+	q, err := getFullQuery(req)
+	if err != nil {
+		return nil, false, fmt.Errorf("%s: cannot read query: %w", s, err)
+	}
+
+	return q, canCacheQuery(q), nil
 }
 
 func executeWithRetry(
@@ -287,22 +293,8 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw ResponseWriterWithCode, srw *s
 
 	// Cancel the ctx if client closes the remote connection,
 	// so the proxied query may be killed instantly.
-	ctx, ctxCancel := context.WithCancel(ctx)
+	ctx, ctxCancel := listenToCloseNotify(ctx, rw)
 	defer ctxCancel()
-	// rw must implement http.CloseNotifier.
-	rwc, ok := rw.(http.CloseNotifier)
-	if !ok {
-		panic("BUG: the wrapped ResponseWriter must implement http.CloseNotifier")
-	}
-
-	ch := rwc.CloseNotify()
-	go func() {
-		select {
-		case <-ch:
-			ctxCancel()
-		case <-ctx.Done():
-		}
-	}()
 
 	req = req.WithContext(ctx)
 
@@ -343,6 +335,30 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw ResponseWriterWithCode, srw *s
 	}
 }
 
+func listenToCloseNotify(ctx context.Context, rw ResponseWriterWithCode) (context.Context, context.CancelFunc) {
+	// Cancel the ctx if client closes the remote connection,
+	// so the proxied query may be killed instantly.
+	ctx, ctxCancel := context.WithCancel(ctx)
+
+	// rw must implement http.CloseNotifier.
+	rwc, ok := rw.(http.CloseNotifier)
+	if !ok {
+		panic("BUG: the wrapped ResponseWriter must implement http.CloseNotifier")
+	}
+
+	ch := rwc.CloseNotify()
+	go func() {
+		select {
+		case <-ch:
+			ctxCancel()
+		case <-ctx.Done():
+		}
+	}()
+
+	return ctx, ctxCancel
+}
+
+//nolint:cyclop //TODO refactor this method, most likely requires some work.
 func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *http.Request, origParams url.Values, q []byte) {
 	labels := makeCacheLabels(s)
 	key := newCacheKey(s, origParams, q, req)
@@ -623,27 +639,13 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 		}
 	}
 
-	for _, cc := range cfg.Caches {
-		if _, ok := caches[cc.Name]; ok {
-			return fmt.Errorf("duplicate config for cache %q", cc.Name)
-		}
-
-		tmpCache, err := cache.NewAsyncCache(cc, time.Duration(transactionsTimeout))
-		if err != nil {
-			return err
-		}
-		caches[cc.Name] = tmpCache
+	if err := initTempCaches(caches, transactionsTimeout, cfg.Caches); err != nil {
+		return err
 	}
 
-	params := make(map[string]*paramsRegistry, len(cfg.ParamGroups))
-	for _, p := range cfg.ParamGroups {
-		if _, ok := params[p.Name]; ok {
-			return fmt.Errorf("duplicate config for ParamGroups %q", p.Name)
-		}
-		params[p.Name], err = newParamsRegistry(p.Params)
-		if err != nil {
-			return fmt.Errorf("cannot initialize params %q: %w", p.Name, err)
-		}
+	params, err := paramsFromConfig(cfg.ParamGroups)
+	if err != nil {
+		return err
 	}
 
 	profile := &usersProfile{
@@ -657,11 +659,72 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 		return err
 	}
 
-	for c := range cfg.Clusters {
-		cfgcl := cfg.Clusters[c]
+	if err := validateNoWildcardedUserForHeartbeat(clusters, cfg.Clusters); err != nil {
+		return err
+	}
+
+	// New configs have been successfully prepared.
+	// Restart service goroutines with new configs.
+
+	// Stop the previous service goroutines.
+	close(rp.reloadSignal)
+	rp.reloadWG.Wait()
+	rp.reloadSignal = make(chan struct{})
+	rp.restartWithNewConfig(caches, clusters, users)
+
+	// Substitute old configs with the new configs in rp.
+	// All the currently running requests will continue with old configs,
+	// while all the new requests will use new configs.
+	rp.lock.Lock()
+	rp.clusters = clusters
+	rp.users = users
+	// Swap is needed for deferred closing of old caches.
+	// See the code above where new caches are created.
+	caches, rp.caches = rp.caches, caches
+	rp.lock.Unlock()
+
+	return nil
+}
+
+func initTempCaches(caches map[string]*cache.AsyncCache, transactionsTimeout config.Duration, cfg []config.Cache) error {
+	for _, cc := range cfg {
+		if _, ok := caches[cc.Name]; ok {
+			return fmt.Errorf("duplicate config for cache %q", cc.Name)
+		}
+
+		tmpCache, err := cache.NewAsyncCache(cc, time.Duration(transactionsTimeout))
+		if err != nil {
+			return err
+		}
+		caches[cc.Name] = tmpCache
+	}
+
+	return nil
+}
+
+func paramsFromConfig(cfg []config.ParamGroup) (map[string]*paramsRegistry, error) {
+	params := make(map[string]*paramsRegistry, len(cfg))
+	for _, p := range cfg {
+		if _, ok := params[p.Name]; ok {
+			return nil, fmt.Errorf("duplicate config for ParamGroups %q", p.Name)
+		}
+		registry, err := newParamsRegistry(p.Params)
+		if err != nil {
+			return nil, fmt.Errorf("cannot initialize params %q: %w", p.Name, err)
+		}
+
+		params[p.Name] = registry
+	}
+
+	return params, nil
+}
+
+func validateNoWildcardedUserForHeartbeat(clusters map[string]*cluster, cfg []config.Cluster) error {
+	for c := range cfg {
+		cfgcl := cfg[c]
 		clname := cfgcl.Name
 		cuname := cfgcl.ClusterUsers[0].Name
-		heartbeat := cfg.Clusters[c].HeartBeat
+		heartbeat := cfg[c].HeartBeat
 		cl := clusters[clname]
 		cu := cl.users[cuname]
 
@@ -675,14 +738,10 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 		}
 	}
 
-	// New configs have been successfully prepared.
-	// Restart service goroutines with new configs.
+	return nil
+}
 
-	// Stop the previous service goroutines.
-	close(rp.reloadSignal)
-	rp.reloadWG.Wait()
-	rp.reloadSignal = make(chan struct{})
-
+func (rp *reverseProxy) restartWithNewConfig(caches map[string]*cache.AsyncCache, clusters map[string]*cluster, users map[string]*user) {
 	// Reset metrics from the previous configs, which may become irrelevant
 	// with new configs.
 	// Counters and Summary metrics are always relevant.
@@ -718,19 +777,6 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 			rp.reloadWG.Done()
 		}(u)
 	}
-
-	// Substitute old configs with the new configs in rp.
-	// All the currently running requests will continue with old configs,
-	// while all the new requests will use new configs.
-	rp.lock.Lock()
-	rp.clusters = clusters
-	rp.users = users
-	// Swap is needed for deferred closing of old caches.
-	// See the code above where new caches are created.
-	caches, rp.caches = rp.caches, caches
-	rp.lock.Unlock()
-
-	return nil
 }
 
 // refreshCacheMetrics refreshes cacheSize and cacheItems metrics.

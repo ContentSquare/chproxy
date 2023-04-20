@@ -97,6 +97,7 @@ func (s *scope) String() string {
 		s.remoteAddr, s.localAddr, time.Since(s.startTime).Nanoseconds()/1000.0)
 }
 
+//nolint:cyclop // TODO abstract user queues to reduce complexity here.
 func (s *scope) incQueued() error {
 	if s.user.queueCh == nil && s.clusterUser.queueCh == nil {
 		// Request queues in the current scope are disabled.
@@ -151,15 +152,11 @@ func (s *scope) incQueued() error {
 	defer queueSize.Dec()
 
 	// Try starting the request during the given duration.
-	d := s.maxQueueTime()
-	dSleep := d / 10
-	if dSleep > time.Second {
-		dSleep = time.Second
-	}
-	if dSleep < time.Millisecond {
-		dSleep = time.Millisecond
-	}
-	deadline := time.Now().Add(d)
+	sleep, deadline := s.calculateQueueDeadlineAndSleep()
+	return s.waitUntilAllowStart(sleep, deadline, labels)
+}
+
+func (s *scope) waitUntilAllowStart(sleep time.Duration, deadline time.Time, labels prometheus.Labels) error {
 	for {
 		err := s.inc()
 		if err == nil {
@@ -176,10 +173,10 @@ func (s *scope) incQueued() error {
 
 		// The request has dLeft remaining time to wait in the queue.
 		// Sleep for a bit and try starting it again.
-		if dSleep > dLeft {
+		if sleep > dLeft {
 			time.Sleep(dLeft)
 		} else {
-			time.Sleep(dSleep)
+			time.Sleep(sleep)
 		}
 		var h *host
 		// Choose new host, since the previous one may become obsolete
@@ -197,6 +194,20 @@ func (s *scope) incQueued() error {
 	}
 }
 
+func (s *scope) calculateQueueDeadlineAndSleep() (time.Duration, time.Time) {
+	d := s.maxQueueTime()
+	dSleep := d / 10
+	if dSleep > time.Second {
+		dSleep = time.Second
+	}
+	if dSleep < time.Millisecond {
+		dSleep = time.Millisecond
+	}
+	deadline := time.Now().Add(d)
+
+	return dSleep, deadline
+}
+
 func (s *scope) inc() error {
 	uQueries := s.user.queryCounter.inc()
 	cQueries := s.clusterUser.queryCounter.inc()
@@ -210,6 +221,30 @@ func (s *scope) inc() error {
 		err = fmt.Errorf("limits for cluster user %q are exceeded: max_concurrent_queries limit: %d",
 			s.clusterUser.name, s.clusterUser.maxConcurrentQueries)
 	}
+
+	err2 := s.checkTokenFreeRateLimiters()
+	if err2 != nil {
+		err = err2
+	}
+
+	if err != nil {
+		s.user.queryCounter.dec()
+		s.clusterUser.queryCounter.dec()
+
+		// Decrement rate limiter here, so it doesn't count requests
+		// that didn't start due to limits overflow.
+		s.user.rateLimiter.dec()
+		s.clusterUser.rateLimiter.dec()
+		return err
+	}
+
+	s.host.inc()
+	concurrentQueries.With(s.labels).Inc()
+	return nil
+}
+
+func (s *scope) checkTokenFreeRateLimiters() error {
+	var err error
 
 	uRPM := s.user.rateLimiter.inc()
 	cRPM := s.clusterUser.rateLimiter.inc()
@@ -227,6 +262,16 @@ func (s *scope) inc() error {
 			s.clusterUser.name, s.clusterUser.reqPerMin)
 	}
 
+	err2 := s.checkTokenFreePacketSizeRateLimiters()
+	if err2 != nil {
+		err = err2
+	}
+
+	return err
+}
+
+func (s *scope) checkTokenFreePacketSizeRateLimiters() error {
+	var err error
 	// reserving tokens num s.requestPacketSize
 	if s.user.reqPacketSizeTokensBurst > 0 {
 		tl := s.user.reqPacketSizeTokenLimiter
@@ -245,20 +290,7 @@ func (s *scope) inc() error {
 		}
 	}
 
-	if err != nil {
-		s.user.queryCounter.dec()
-		s.clusterUser.queryCounter.dec()
-
-		// Decrement rate limiter here, so it doesn't count requests
-		// that didn't start due to limits overflow.
-		s.user.rateLimiter.dec()
-		s.clusterUser.rateLimiter.dec()
-		return err
-	}
-
-	s.host.inc()
-	concurrentQueries.With(s.labels).Inc()
-	return nil
+	return err
 }
 
 func (s *scope) dec() {
@@ -378,18 +410,7 @@ func (s *scope) decorateRequest(req *http.Request) (*http.Request, url.Values) {
 
 	// Keep external_data params
 	if req.Method == "POST" {
-		ct := req.Header.Get("Content-Type")
-		if strings.Contains(ct, "multipart/form-data") {
-			for key := range origParams {
-				if externalDataParams.MatchString(key) {
-					params.Set(key, origParams.Get(key))
-				}
-			}
-
-			// disable cache for external_data queries
-			origParams.Set("no_cache", "1")
-			log.Debugf("external data params detected - cache will be disabled")
-		}
+		s.decoratePostRequest(req, origParams, params)
 	}
 
 	// Set query_id as scope_id to have possibility to kill query if needed.
@@ -418,6 +439,21 @@ func (s *scope) decorateRequest(req *http.Request) (*http.Request, url.Values) {
 	req.Header.Set("User-Agent", ua)
 
 	return req, origParams
+}
+
+func (s *scope) decoratePostRequest(req *http.Request, origParams, params url.Values) {
+	ct := req.Header.Get("Content-Type")
+	if strings.Contains(ct, "multipart/form-data") {
+		for key := range origParams {
+			if externalDataParams.MatchString(key) {
+				params.Set(key, origParams.Get(key))
+			}
+		}
+
+		// disable cache for external_data queries
+		origParams.Set("no_cache", "1")
+		log.Debugf("external data params detected - cache will be disabled")
+	}
 }
 
 func (s *scope) getTimeoutWithErrMsg() (time.Duration, error) {

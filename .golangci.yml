@@ -45,10 +45,10 @@ linters:
     - whitespace
     - gosec
     - forcetypeassert
-  disable:
-    # Should be readded in the future with a dedicated PR to do the fix
     - cyclop
     - exhaustive
+  disable:
+    # Should be readded in the future with a dedicated PR to do the fix
     - funlen
     - gocognit
     - gofumpt
