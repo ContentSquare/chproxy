@@ -74,7 +74,7 @@ func extractFirstMatchFromIPList(ipList string) string {
 	if ipList == "" {
 		return ""
 	}
-	s := strings.Index(ipList, ", ")
+	s := strings.Index(ipList, ",")
 	if s == -1 {
 		s = len(ipList)
 	}
@@ -91,7 +91,7 @@ func parseForwardedHeader(fwd string) string {
 	for _, split := range splits {
 		trimmed := strings.TrimSpace(split)
 		if strings.HasPrefix(strings.ToLower(trimmed), "for=") {
-			forSplits := strings.Split(trimmed, ", ")
+			forSplits := strings.Split(trimmed, ",")
 			if len(forSplits) == 0 {
 				return ""
 			}
