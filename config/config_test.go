@@ -3,10 +3,11 @@ package config
 import (
 	"bytes"
 	"fmt"
-	"github.com/contentsquare/chproxy/global/types"
 	"net"
 	"testing"
 	"time"
+
+	"github.com/contentsquare/chproxy/global/types"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -68,9 +69,11 @@ var fullConfig = Config{
 		},
 		HTTPS: HTTPS{
 			ListenAddr: ":443",
-			Autocert: Autocert{
-				CacheDir:     "certs_dir",
-				AllowedHosts: []string{"example.com"},
+			TLS: TLS{
+				Autocert: Autocert{
+					CacheDir:     "certs_dir",
+					AllowedHosts: []string{"example.com"},
+				},
 			},
 			TimeoutCfg: TimeoutCfg{
 				ReadTimeout:  Duration(time.Minute),

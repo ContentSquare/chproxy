@@ -360,7 +360,7 @@ func (r *redisStreamReader) Read(destBuf []byte) (n int, err error) {
 		// Because of the way we fetch from redis, we need to do an extra check because we have no way
 		// to know if redis is really EOF or if the value was expired from cache while reading it
 		if r.readPayloadSize != r.expectedPayloadSize {
-			log.Debugf("error while fetching data from redis payload size doesn't macht")
+			log.Debugf("error while fetching data from redis payload size doesn't match")
 			return 0, &RedisCacheError{key: r.key, readPayloadSize: r.readPayloadSize, expectedPayloadSize: r.expectedPayloadSize}
 		}
 		return 0, io.EOF
