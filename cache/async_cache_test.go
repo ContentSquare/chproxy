@@ -264,6 +264,41 @@ func TestAsyncCache_RedisCache_instantiation(t *testing.T) {
 	}
 }
 
+func TestAsyncCache_RedisCache_TLS(t *testing.T) {
+	cfg := config.TLS{
+		CertFile:           "../testdata/example.com.cert",
+		KeyFile:            "../testdata/example.com.key",
+		InsecureSkipVerify: true,
+	}
+
+	tlsConfig, err := cfg.BuildTLSConfig(nil)
+	if err != nil {
+		t.Fatalf("could not build tls config: %s", err)
+	}
+	s := miniredis.NewMiniRedis()
+	if err := s.StartTLS(tlsConfig); err != nil {
+		t.Fatalf("could not start miniredis: %s", err)
+		// not reached
+	}
+	t.Cleanup(s.Close)
+
+	var redisCfg = config.Cache{
+		Name: "test",
+		Mode: "redis",
+		Redis: config.RedisCacheConfig{
+			TLS:       cfg,
+			Addresses: []string{s.Addr()},
+		},
+		Expire:         config.Duration(cacheTTL),
+		MaxPayloadSize: config.ByteSize(100000000),
+	}
+
+	_, err = NewAsyncCache(redisCfg, 1*time.Second)
+	if err != nil {
+		t.Fatalf("could not instanciate redis async cache because of the following error: %s", err)
+	}
+}
+
 func TestAsyncCache_RedisCache_wrong_instantiation(t *testing.T) {
 	var redisCfg = config.Cache{
 		Name: "test",

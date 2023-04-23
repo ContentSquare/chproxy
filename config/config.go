@@ -224,11 +224,13 @@ func (c *HTTP) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // it can be used for both HTTPS and Redis TLS.
 type TLS struct {
 	// Certificate and key files for client cert authentication to the server
-	CertFile string   `yaml:"cert_file,omitempty"`
-	KeyFile  string   `yaml:"key_file,omitempty"`
-	Autocert Autocert `yaml:"autocert,omitempty"`
+	CertFile           string   `yaml:"cert_file,omitempty"`
+	KeyFile            string   `yaml:"key_file,omitempty"`
+	Autocert           Autocert `yaml:"autocert,omitempty"`
+	InsecureSkipVerify bool     `yaml:"insecure_skip_verify,omitempty"`
 }
 
+// BuildTLSConfig builds tls.Config from TLS configuration.
 func (c *TLS) BuildTLSConfig(acm *autocert.Manager) (*tls.Config, error) {
 	tlsCfg := tls.Config{
 		PreferServerCipherSuites: true,
@@ -237,11 +239,12 @@ func (c *TLS) BuildTLSConfig(acm *autocert.Manager) (*tls.Config, error) {
 			tls.CurveP256,
 			tls.X25519,
 		},
+		InsecureSkipVerify: c.InsecureSkipVerify,
 	}
 	if len(c.KeyFile) > 0 && len(c.CertFile) > 0 {
 		cert, err := tls.LoadX509KeyPair(c.CertFile, c.KeyFile)
 		if err != nil {
-			return nil, fmt.Errorf("cannot load cert for `https.cert_file`=%q, `https.key_file`=%q: %s",
+			return nil, fmt.Errorf("cannot load cert for `cert_file`=%q, `key_file`=%q: %s",
 				c.CertFile, c.KeyFile, err)
 		}
 		tlsCfg.Certificates = []tls.Certificate{cert}
@@ -740,6 +743,8 @@ type FileSystemCacheConfig struct {
 }
 
 type RedisCacheConfig struct {
+	TLS `yaml:",inline"`
+
 	Username  string                 `yaml:"username,omitempty"`
 	Password  string                 `yaml:"password,omitempty"`
 	Addresses []string               `yaml:"addresses"`
