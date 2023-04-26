@@ -277,7 +277,7 @@ func TestAsyncCache_RedisCache_TLS(t *testing.T) {
 	}
 	s := miniredis.NewMiniRedis()
 	if err := s.StartTLS(tlsConfig); err != nil {
-		t.Fatalf("could not start miniredis: %s", err)
+		t.Fatalf("could not start miniredis: %s", err.Error())
 		// not reached
 	}
 	t.Cleanup(s.Close)
@@ -295,7 +295,7 @@ func TestAsyncCache_RedisCache_TLS(t *testing.T) {
 
 	_, err = NewAsyncCache(redisCfg, 1*time.Second)
 	if err != nil {
-		t.Fatalf("could not instanciate redis async cache because of the following error: %s", err)
+		t.Fatalf("could not instanciate redis async cache because of the following error: %s", err.Error())
 	}
 }
 

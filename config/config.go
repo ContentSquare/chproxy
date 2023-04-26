@@ -239,12 +239,12 @@ func (c *TLS) BuildTLSConfig(acm *autocert.Manager) (*tls.Config, error) {
 			tls.CurveP256,
 			tls.X25519,
 		},
-		InsecureSkipVerify: c.InsecureSkipVerify,
+		InsecureSkipVerify: c.InsecureSkipVerify, // nolint: gosec
 	}
 	if len(c.KeyFile) > 0 && len(c.CertFile) > 0 {
 		cert, err := tls.LoadX509KeyPair(c.CertFile, c.KeyFile)
 		if err != nil {
-			return nil, fmt.Errorf("cannot load cert for `cert_file`=%q, `key_file`=%q: %s",
+			return nil, fmt.Errorf("cannot load cert for `cert_file`=%q, `key_file`=%q: %w",
 				c.CertFile, c.KeyFile, err)
 		}
 		tlsCfg.Certificates = []tls.Certificate{cert}
