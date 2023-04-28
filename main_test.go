@@ -907,7 +907,10 @@ func startTLS() (*http.Server, chan struct{}) {
 	if err != nil {
 		panic(fmt.Sprintf("cannot listen for %q: %s", cfg.Server.HTTPS.ListenAddr, err))
 	}
-	tlsCfg := newTLSConfig(cfg.Server.HTTPS)
+	tlsCfg, err := cfg.Server.HTTPS.TLS.BuildTLSConfig(autocertManager)
+	if err != nil {
+		panic(fmt.Sprintf("cannot build TLS config: %s", err))
+	}
 	tln := tls.NewListener(ln, tlsCfg)
 	h := http.HandlerFunc(serveHTTP)
 	s := newServer(tln, h, config.TimeoutCfg{})
@@ -1111,25 +1114,31 @@ func (s *stateCH) sleep() {
 }
 
 func TestNewTLSConfig(t *testing.T) {
-	cfg := config.HTTPS{
+	cfg := &config.TLS{
 		KeyFile:  "testdata/example.com.key",
 		CertFile: "testdata/example.com.cert",
 	}
 
-	tlsCfg := newTLSConfig(cfg)
+	tlsCfg, err := cfg.BuildTLSConfig(autocertManager)
+	if err != nil {
+		panic(fmt.Sprintf("cannot build TLS config: %s", err))
+	}
 	if len(tlsCfg.Certificates) < 1 {
 		t.Fatalf("expected tls certificate; got empty list")
 	}
 
 	certCachePath := fmt.Sprintf("%s/certs_dir", testDir)
-	cfg = config.HTTPS{
+	cfg = &config.TLS{
 		Autocert: config.Autocert{
 			CacheDir:     certCachePath,
 			AllowedHosts: []string{"example.com"},
 		},
 	}
 	autocertManager = newAutocertManager(cfg.Autocert)
-	tlsCfg = newTLSConfig(cfg)
+	if err != nil {
+		panic(fmt.Sprintf("cannot build TLS config: %s", err))
+	}
+	tlsCfg, err = cfg.BuildTLSConfig(autocertManager)
 	if tlsCfg.GetCertificate == nil {
 		t.Fatalf("expected func GetCertificate be set; got nil")
 	}

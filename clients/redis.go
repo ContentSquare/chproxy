@@ -8,15 +8,23 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// TODO Implement TLS Client
 func NewRedisClient(cfg config.RedisCacheConfig) (redis.UniversalClient, error) {
-	r := redis.NewUniversalClient(&redis.UniversalOptions{
+	options := &redis.UniversalOptions{
 		Addrs:      cfg.Addresses,
 		Username:   cfg.Username,
 		Password:   cfg.Password,
-		MaxRetries: 7, // default value = 3, ince MinRetryBackoff = 8 msec & MinRetryBackoff = 512 msec
-		// the redisclient will wait up to 1016 msec btw the 7 tries
-	})
+		MaxRetries: 7, // default value = 3, since MinRetryBackoff = 8 msec & MinRetryBackoff = 512 msec
+		// the redis client will wait up to 1016 msec btw the 7 tries
+	}
+	if len(cfg.CertFile) != 0 || len(cfg.KeyFile) != 0 {
+		tlsConfig, err := cfg.TLS.BuildTLSConfig(nil)
+		if err != nil {
+			return nil, err
+		}
+		options.TLSConfig = tlsConfig
+	}
+
+	r := redis.NewUniversalClient(options)
 
 	err := r.Ping(context.Background()).Err()
 

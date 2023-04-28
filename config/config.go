@@ -1,12 +1,14 @@
 package config
 
 import (
+	"crypto/tls"
 	"fmt"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/mohae/deepcopy"
+	"golang.org/x/crypto/acme/autocert"
 	"gopkg.in/yaml.v2"
 )
 
@@ -218,6 +220,43 @@ func (c *HTTP) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return checkOverflow(c.XXX, "http")
 }
 
+// TLS describes generic configuration for TLS connections,
+// it can be used for both HTTPS and Redis TLS.
+type TLS struct {
+	// Certificate and key files for client cert authentication to the server
+	CertFile           string   `yaml:"cert_file,omitempty"`
+	KeyFile            string   `yaml:"key_file,omitempty"`
+	Autocert           Autocert `yaml:"autocert,omitempty"`
+	InsecureSkipVerify bool     `yaml:"insecure_skip_verify,omitempty"`
+}
+
+// BuildTLSConfig builds tls.Config from TLS configuration.
+func (c *TLS) BuildTLSConfig(acm *autocert.Manager) (*tls.Config, error) {
+	tlsCfg := tls.Config{
+		PreferServerCipherSuites: true,
+		MinVersion:               tls.VersionTLS12,
+		CurvePreferences: []tls.CurveID{
+			tls.CurveP256,
+			tls.X25519,
+		},
+		InsecureSkipVerify: c.InsecureSkipVerify, // nolint: gosec
+	}
+	if len(c.KeyFile) > 0 && len(c.CertFile) > 0 {
+		cert, err := tls.LoadX509KeyPair(c.CertFile, c.KeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("cannot load cert for `cert_file`=%q, `key_file`=%q: %w",
+				c.CertFile, c.KeyFile, err)
+		}
+		tlsCfg.Certificates = []tls.Certificate{cert}
+	} else {
+		if acm == nil {
+			return nil, fmt.Errorf("autocert manager is not configured")
+		}
+		tlsCfg.GetCertificate = acm.GetCertificate
+	}
+	return &tlsCfg, nil
+}
+
 // HTTPS describes configuration for server to listen HTTPS connections
 // It can be autocert with letsencrypt
 // or custom certificate
@@ -226,11 +265,8 @@ type HTTPS struct {
 	// Default is `:443`
 	ListenAddr string `yaml:"listen_addr,omitempty"`
 
-	// Certificate and key files for client cert authentication to the server
-	CertFile string `yaml:"cert_file,omitempty"`
-	KeyFile  string `yaml:"key_file,omitempty"`
-
-	Autocert Autocert `yaml:"autocert,omitempty"`
+	// TLS configuration
+	TLS `yaml:",inline"`
 
 	NetworksOrGroups NetworksOrGroups `yaml:"allowed_networks,omitempty"`
 
@@ -707,6 +743,8 @@ type FileSystemCacheConfig struct {
 }
 
 type RedisCacheConfig struct {
+	TLS `yaml:",inline"`
+
 	Username  string                 `yaml:"username,omitempty"`
 	Password  string                 `yaml:"password,omitempty"`
 	Addresses []string               `yaml:"addresses"`

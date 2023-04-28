@@ -137,7 +137,10 @@ func serveTLS(cfg config.HTTPS) {
 
 	h := http.HandlerFunc(serveHTTP)
 
-	tlsCfg := newTLSConfig(cfg)
+	tlsCfg, err := cfg.TLS.BuildTLSConfig(autocertManager)
+	if err != nil {
+		log.Fatalf("cannot build TLS config: %s", err)
+	}
 	tln := tls.NewListener(ln, tlsCfg)
 	log.Infof("Serving https on %q", cfg.ListenAddr)
 	if err := listenAndServe(tln, h, cfg.TimeoutCfg); err != nil {
@@ -166,31 +169,6 @@ func serve(cfg config.HTTP) {
 	if err := listenAndServe(ln, h, cfg.TimeoutCfg); err != nil {
 		log.Fatalf("HTTP server error on %q: %s", cfg.ListenAddr, err)
 	}
-}
-
-func newTLSConfig(cfg config.HTTPS) *tls.Config {
-	tlsCfg := tls.Config{
-		PreferServerCipherSuites: true,
-		MinVersion:               tls.VersionTLS12,
-		CurvePreferences: []tls.CurveID{
-			tls.CurveP256,
-			tls.X25519,
-		},
-	}
-	if len(cfg.KeyFile) > 0 && len(cfg.CertFile) > 0 {
-		cert, err := tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)
-		if err != nil {
-			log.Fatalf("cannot load cert for `https.cert_file`=%q, `https.key_file`=%q: %s",
-				cfg.CertFile, cfg.KeyFile, err)
-		}
-		tlsCfg.Certificates = []tls.Certificate{cert}
-	} else {
-		if autocertManager == nil {
-			panic("BUG: autocertManager is not inited")
-		}
-		tlsCfg.GetCertificate = autocertManager.GetCertificate
-	}
-	return &tlsCfg
 }
 
 func newServer(ln net.Listener, h http.Handler, cfg config.TimeoutCfg) *http.Server {
