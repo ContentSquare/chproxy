@@ -62,6 +62,14 @@ caches:
     # Applicable for cache mode: redis
     # You should use multiple addresses only if they all belong to the same redis cluster.
     redis:
+      # Paths to TLS cert and key files for the redis server.
+      # If you change the cert & key files while chproxy is running, you have to restart chproxy so that it loads them.
+      # Triggering a SIGHUP signal won't work as for the rest of the configuration.
+      cert_file: "redis tls cert file path"
+      key_file: "redis tls key file apth"
+      # Allow to skip the verification of the redis server certificate.
+      insecure_skip_verify: true
+
       addresses:
         - "localhost:16379"
       username: "user"
