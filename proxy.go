@@ -23,8 +23,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// tmpDir temporary path to store ongoing queries results
-const tmpDir = "/tmp"
+const (
+	tmpDir             = "/tmp"                // tmpDir temporary path to store ongoing queries results
+	defaultHostCounter = uint32((1 << 32) - 1) // default value for Host.Counter; Short-term fix issue #322
+)
 
 // failedTransactionPrefix prefix added to the failed reason for concurrent queries registry
 const failedTransactionPrefix = "[concurrent query failed]"
@@ -698,6 +700,9 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 			for _, h := range r.hosts {
 				rp.reloadWG.Add(1)
 				go func(h *host) {
+					// set default value (max uint32). Short-term fix issue #322
+					h.counter.value = defaultHostCounter
+
 					h.runHeartbeat(rp.reloadSignal)
 					rp.reloadWG.Done()
 				}(h)
