@@ -232,7 +232,8 @@ func executeWithRetry(
 		if rw.StatusCode() == http.StatusBadGateway {
 			log.Debugf("the invalid host is: %s", s.host.addr)
 			s.host.penalize()
-			s.host.dec()
+			// comment s.host.dec() line to avoid double increment; issue #322
+			// s.host.dec()
 			atomic.StoreUint32(&s.host.active, uint32(0))
 			newHost := s.host.replica.cluster.getHost()
 			// The query could be retried if it has no stickiness to a certain server
