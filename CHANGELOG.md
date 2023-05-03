@@ -8,6 +8,13 @@ position: 104
 Since v1.17.1, chproxy follows [semantic versioning](https://semver.org/).
 Don't expect breaking changes between 2 releases if they have the same major version.
 
+### <a id="230"></a> release 1.24.0, 2022-05-03
+#### New Feature
+* Support TLS config in Redis cache [#328](https://github.com/ContentSquare/chproxy/pull/328)
+
+#### Bug fix
+* Fix spaces in x-forwarded-for header [#326](https://github.com/ContentSquare/chproxy/issues/326)
+* Fix Host Counter double decrement [#322](https://github.com/ContentSquare/chproxy/issues/322)
 
 ### <a id="229"></a> release 1.23.0, 2022-03-28
 #### New Feature
