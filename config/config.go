@@ -118,15 +118,27 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
+
+	if err := c.validate(); err != nil {
+		return err
+	}
+
+	return checkOverflow(c.XXX, "config")
+}
+
+func (c *Config) validate() error {
 	if len(c.Users) == 0 {
 		return fmt.Errorf("`users` must contain at least 1 user")
 	}
+
 	if len(c.Clusters) == 0 {
 		return fmt.Errorf("`clusters` must contain at least 1 cluster")
 	}
+
 	if len(c.Server.HTTP.ListenAddr) == 0 && len(c.Server.HTTPS.ListenAddr) == 0 {
 		return fmt.Errorf("neither HTTP nor HTTPS not configured")
 	}
+
 	if len(c.Server.HTTPS.ListenAddr) > 0 {
 		if len(c.Server.HTTPS.Autocert.CacheDir) == 0 && len(c.Server.HTTPS.CertFile) == 0 && len(c.Server.HTTPS.KeyFile) == 0 {
 			return fmt.Errorf("configuration `https` is missing. " +
@@ -137,7 +149,84 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			c.Server.HTTP.ForceAutocertHandler = true
 		}
 	}
-	return checkOverflow(c.XXX, "config")
+	return nil
+}
+
+func (cfg *Config) setDefaults() error {
+	var maxResponseTime time.Duration
+	var err error
+	for i := range cfg.Clusters {
+		c := &cfg.Clusters[i]
+		for j := range c.ClusterUsers {
+			u := &c.ClusterUsers[j]
+			cud := time.Duration(u.MaxExecutionTime + u.MaxQueueTime)
+			if cud > maxResponseTime {
+				maxResponseTime = cud
+			}
+			if u.AllowedNetworks, err = cfg.groupToNetwork(u.NetworksOrGroups); err != nil {
+				return err
+			}
+		}
+	}
+	for i := range cfg.Users {
+		u := &cfg.Users[i]
+		u.setDefaults()
+
+		ud := time.Duration(u.MaxExecutionTime + u.MaxQueueTime)
+		if ud > maxResponseTime {
+			maxResponseTime = ud
+		}
+		if u.AllowedNetworks, err = cfg.groupToNetwork(u.NetworksOrGroups); err != nil {
+			return err
+		}
+	}
+
+	for i := range cfg.Caches {
+		c := &cfg.Caches[i]
+		c.setDefaults()
+	}
+
+	cfg.setServerMaxResponseTime(maxResponseTime)
+
+	return nil
+}
+
+func (cfg *Config) setServerMaxResponseTime(maxResponseTime time.Duration) {
+	if maxResponseTime < 0 {
+		maxResponseTime = 0
+	}
+
+	// Give an additional minute for the maximum response time,
+	// so the response body may be sent to the requester.
+	maxResponseTime += time.Minute
+	if len(cfg.Server.HTTP.ListenAddr) > 0 && cfg.Server.HTTP.WriteTimeout == 0 {
+		cfg.Server.HTTP.WriteTimeout = Duration(maxResponseTime)
+	}
+
+	if len(cfg.Server.HTTPS.ListenAddr) > 0 && cfg.Server.HTTPS.WriteTimeout == 0 {
+		cfg.Server.HTTPS.WriteTimeout = Duration(maxResponseTime)
+	}
+}
+
+func (c *Config) groupToNetwork(src NetworksOrGroups) (Networks, error) {
+	if len(src) == 0 {
+		return nil, nil
+	}
+
+	dst := make(Networks, 0)
+	for _, v := range src {
+		group, ok := c.networkReg[v]
+		if ok {
+			dst = append(dst, group...)
+		} else {
+			ipnet, err := stringToIPnet(v)
+			if err != nil {
+				return nil, err
+			}
+			dst = append(dst, ipnet)
+		}
+	}
+	return dst, nil
 }
 
 // Server describes configuration of proxy server
@@ -211,13 +300,24 @@ func (c *HTTP) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
+
+	if err := c.validate(); err != nil {
+		return err
+	}
+
+	return checkOverflow(c.XXX, "http")
+}
+
+func (c *HTTP) validate() error {
 	if c.ReadTimeout == 0 {
 		c.ReadTimeout = Duration(time.Minute)
 	}
+
 	if c.IdleTimeout == 0 {
 		c.IdleTimeout = Duration(time.Minute * 10)
 	}
-	return checkOverflow(c.XXX, "http")
+
+	return nil
 }
 
 // TLS describes generic configuration for TLS connections,
@@ -287,15 +387,35 @@ func (c *HTTPS) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
+
+	if err := c.validate(); err != nil {
+		return err
+	}
+
+	return checkOverflow(c.XXX, "https")
+}
+
+func (c *HTTPS) validate() error {
 	if c.ReadTimeout == 0 {
 		c.ReadTimeout = Duration(time.Minute)
 	}
+
 	if c.IdleTimeout == 0 {
 		c.IdleTimeout = Duration(time.Minute * 10)
 	}
+
 	if len(c.ListenAddr) == 0 {
 		c.ListenAddr = ":443"
 	}
+
+	if err := c.validateCertConfig(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *HTTPS) validateCertConfig() error {
 	if len(c.Autocert.CacheDir) > 0 {
 		if len(c.CertFile) > 0 || len(c.KeyFile) > 0 {
 			return fmt.Errorf("it is forbidden to specify certificate and `https.autocert` at the same time. Choose one way")
@@ -305,13 +425,16 @@ func (c *HTTPS) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				"Otherwise, certificates will be impossible to generate")
 		}
 	}
+
 	if len(c.CertFile) > 0 && len(c.KeyFile) == 0 {
 		return fmt.Errorf("`https.key_file` must be specified")
 	}
+
 	if len(c.KeyFile) > 0 && len(c.CertFile) == 0 {
 		return fmt.Errorf("`https.cert_file` must be specified")
 	}
-	return checkOverflow(c.XXX, "https")
+
+	return nil
 }
 
 // Autocert configuration via letsencrypt
@@ -439,18 +562,23 @@ func (c *Cluster) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
+
+	if err := c.validate(); err != nil {
+		return err
+	}
+
+	return checkOverflow(c.XXX, fmt.Sprintf("cluster %q", c.Name))
+}
+
+func (c *Cluster) validate() error {
 	if len(c.Name) == 0 {
 		return fmt.Errorf("`cluster.name` cannot be empty")
 	}
-	if len(c.Nodes) == 0 && len(c.Replicas) == 0 {
-		return fmt.Errorf("either `cluster.nodes` or `cluster.replicas` must be set for %q", c.Name)
+
+	if err := c.validateMinimumRequirements(); err != nil {
+		return err
 	}
-	if len(c.Nodes) > 0 && len(c.Replicas) > 0 {
-		return fmt.Errorf("`cluster.nodes` cannot be simultaneously set with `cluster.replicas` for %q", c.Name)
-	}
-	if len(c.ClusterUsers) == 0 {
-		return fmt.Errorf("`cluster.users` must contain at least 1 user for %q", c.Name)
-	}
+
 	if c.Scheme != "http" && c.Scheme != "https" {
 		return fmt.Errorf("`cluster.scheme` must be `http` or `https`, got %q instead for %q", c.Scheme, c.Name)
 	}
@@ -459,7 +587,23 @@ func (c *Cluster) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("`cluster.heartbeat` cannot be unset for %q", c.Name)
 	}
 
-	return checkOverflow(c.XXX, fmt.Sprintf("cluster %q", c.Name))
+	return nil
+}
+
+func (c *Cluster) validateMinimumRequirements() error {
+	if len(c.Nodes) == 0 && len(c.Replicas) == 0 {
+		return fmt.Errorf("either `cluster.nodes` or `cluster.replicas` must be set for %q", c.Name)
+	}
+
+	if len(c.Nodes) > 0 && len(c.Replicas) > 0 {
+		return fmt.Errorf("`cluster.nodes` cannot be simultaneously set with `cluster.replicas` for %q", c.Name)
+	}
+
+	if len(c.ClusterUsers) == 0 {
+		return fmt.Errorf("`cluster.users` must contain at least 1 user for %q", c.Name)
+	}
+
+	return nil
 }
 
 // Replica contains ClickHouse replica configuration.
@@ -633,6 +777,14 @@ func (u *User) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 
+	if err := u.validate(); err != nil {
+		return err
+	}
+
+	return checkOverflow(u.XXX, fmt.Sprintf("user %q", u.Name))
+}
+
+func (u *User) validate() error {
 	if len(u.Name) == 0 {
 		return fmt.Errorf("`user.name` cannot be empty")
 	}
@@ -649,21 +801,62 @@ func (u *User) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("`deny_http` and `deny_https` cannot be simultaneously set to `true` for %q", u.Name)
 	}
 
-	if u.MaxQueueTime > 0 && u.MaxQueueSize == 0 {
-		return fmt.Errorf("`max_queue_size` must be set if `max_queue_time` is set for %q", u.Name)
+	if err := u.validateWildcarded(); err != nil {
+		return err
 	}
 
+	if err := u.validateRateLimitConfig(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (u *User) validateWildcarded() error {
 	if u.IsWildcarded {
 		if s := strings.Split(u.Name, "*"); !(len(s) == 2 && (s[0] == "" || s[1] == "")) {
 			return fmt.Errorf("user name %q marked 'is_wildcared' does not match 'prefix*' or '*suffix' or '*'", u.Name)
 		}
 	}
 
+	return nil
+}
+
+func (u *User) validateRateLimitConfig() error {
+	if u.MaxQueueTime > 0 && u.MaxQueueSize == 0 {
+		return fmt.Errorf("`max_queue_size` must be set if `max_queue_time` is set for %q", u.Name)
+	}
+
 	if u.ReqPacketSizeTokensBurst > 0 && u.ReqPacketSizeTokensRate == 0 {
 		return fmt.Errorf("`request_packet_size_tokens_rate` must be set if `request_packet_size_tokens_burst` is set for %q", u.Name)
 	}
 
-	return checkOverflow(u.XXX, fmt.Sprintf("user %q", u.Name))
+	return nil
+}
+
+func (u *User) validateSecurity(hasHTTP, hasHTTPS bool) error {
+	if len(u.Password) == 0 {
+		if !u.DenyHTTPS && hasHTTPS {
+			return fmt.Errorf("https: user %q has neither password nor `allowed_networks` on `user` or `server.http` level",
+				u.Name)
+		}
+		if !u.DenyHTTP && hasHTTP {
+			return fmt.Errorf("http: user %q has neither password nor `allowed_networks` on `user` or `server.http` level",
+				u.Name)
+		}
+	}
+	if len(u.Password) > 0 && hasHTTP {
+		return fmt.Errorf("http: user %q is allowed to connect via http, but not limited by `allowed_networks` "+
+			"on `user` or `server.http` level - password could be stolen", u.Name)
+	}
+
+	return nil
+}
+
+func (u *User) setDefaults() {
+	if u.MaxExecutionTime == 0 {
+		u.MaxExecutionTime = defaultExecutionTime
+	}
 }
 
 // NetworkGroups describes a named Networks lists
@@ -730,6 +923,12 @@ type Cache struct {
 
 	// Whether a query cached by a user could be used by another user
 	SharedWithAllUsers bool `yaml:"shared_with_all_users,omitempty"`
+}
+
+func (c *Cache) setDefaults() {
+	if c.MaxPayloadSize <= 0 {
+		c.MaxPayloadSize = defaultMaxPayloadSize
+	}
 }
 
 type FileSystemCacheConfig struct {
@@ -952,54 +1151,9 @@ func LoadFile(filename string) (*Config, error) {
 	if cfg.Server.Metrics.AllowedNetworks, err = cfg.groupToNetwork(cfg.Server.Metrics.NetworksOrGroups); err != nil {
 		return nil, err
 	}
-	var maxResponseTime time.Duration
-	for i := range cfg.Clusters {
-		c := &cfg.Clusters[i]
-		for j := range c.ClusterUsers {
-			u := &c.ClusterUsers[j]
-			cud := time.Duration(u.MaxExecutionTime + u.MaxQueueTime)
-			if cud > maxResponseTime {
-				maxResponseTime = cud
-			}
-			if u.AllowedNetworks, err = cfg.groupToNetwork(u.NetworksOrGroups); err != nil {
-				return nil, err
-			}
-		}
-	}
-	for i := range cfg.Users {
-		u := &cfg.Users[i]
-		if u.MaxExecutionTime == 0 {
-			u.MaxExecutionTime = defaultExecutionTime
-		}
 
-		ud := time.Duration(u.MaxExecutionTime + u.MaxQueueTime)
-		if ud > maxResponseTime {
-			maxResponseTime = ud
-		}
-		if u.AllowedNetworks, err = cfg.groupToNetwork(u.NetworksOrGroups); err != nil {
-			return nil, err
-		}
-	}
-
-	for i := range cfg.Caches {
-		c := &cfg.Caches[i]
-		if c.MaxPayloadSize <= 0 {
-			c.MaxPayloadSize = defaultMaxPayloadSize
-		}
-	}
-
-	if maxResponseTime < 0 {
-		maxResponseTime = 0
-	}
-	// Give an additional minute for the maximum response time,
-	// so the response body may be sent to the requester.
-	maxResponseTime += time.Minute
-	if len(cfg.Server.HTTP.ListenAddr) > 0 && cfg.Server.HTTP.WriteTimeout == 0 {
-		cfg.Server.HTTP.WriteTimeout = Duration(maxResponseTime)
-	}
-
-	if len(cfg.Server.HTTPS.ListenAddr) > 0 && cfg.Server.HTTPS.WriteTimeout == 0 {
-		cfg.Server.HTTPS.WriteTimeout = Duration(maxResponseTime)
+	if err := cfg.setDefaults(); err != nil {
+		return nil, err
 	}
 
 	if err := cfg.checkVulnerabilities(); err != nil {
@@ -1008,49 +1162,19 @@ func LoadFile(filename string) (*Config, error) {
 	return cfg, nil
 }
 
-func (c Config) groupToNetwork(src NetworksOrGroups) (Networks, error) {
-	if len(src) == 0 {
-		return nil, nil
-	}
-	dst := make(Networks, 0)
-	for _, v := range src {
-		group, ok := c.networkReg[v]
-		if ok {
-			dst = append(dst, group...)
-		} else {
-			ipnet, err := stringToIPnet(v)
-			if err != nil {
-				return nil, err
-			}
-			dst = append(dst, ipnet)
-		}
-	}
-	return dst, nil
-}
-
 func (c Config) checkVulnerabilities() error {
 	if c.HackMePlease {
 		return nil
 	}
-	httpsVulnerability := len(c.Server.HTTPS.ListenAddr) > 0 && len(c.Server.HTTPS.NetworksOrGroups) == 0
-	httpVulnerability := len(c.Server.HTTP.ListenAddr) > 0 && len(c.Server.HTTP.NetworksOrGroups) == 0
+
+	hasHTTPS := len(c.Server.HTTPS.ListenAddr) > 0 && len(c.Server.HTTPS.NetworksOrGroups) == 0
+	hasHTTP := len(c.Server.HTTP.ListenAddr) > 0 && len(c.Server.HTTP.NetworksOrGroups) == 0
 	for _, u := range c.Users {
 		if len(u.NetworksOrGroups) != 0 {
 			continue
 		}
-		if len(u.Password) == 0 {
-			if !u.DenyHTTPS && httpsVulnerability {
-				return fmt.Errorf("https: user %q has neither password nor `allowed_networks` on `user` or `server.http` level",
-					u.Name)
-			}
-			if !u.DenyHTTP && httpVulnerability {
-				return fmt.Errorf("http: user %q has neither password nor `allowed_networks` on `user` or `server.http` level",
-					u.Name)
-			}
-		}
-		if len(u.Password) > 0 && httpVulnerability {
-			return fmt.Errorf("http: user %q is allowed to connect via http, but not limited by `allowed_networks` "+
-				"on `user` or `server.http` level - password could be stolen", u.Name)
+		if err := u.validateSecurity(hasHTTP, hasHTTPS); err != nil {
+			return err
 		}
 	}
 	return nil

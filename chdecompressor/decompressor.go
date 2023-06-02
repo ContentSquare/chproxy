@@ -74,8 +74,19 @@ func (r *Reader) readNextBlock() error {
 	}
 
 	// Decompress block
+	if err := r.decompressBlock(block, compressionType, decompressedSize); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *Reader) decompressBlock(block []byte, compressionType byte, decompressedSize uint32) error {
+	var err error
+
 	r.data = make([]byte, decompressedSize)
 	var decoder, _ = zstd.NewReader(nil)
+
 	switch compressionType {
 	case noneType:
 		r.data = block
@@ -92,6 +103,7 @@ func (r *Reader) readNextBlock() error {
 	default:
 		return fmt.Errorf("unknown compressionType: %X", compressionType)
 	}
+
 	return nil
 }
 

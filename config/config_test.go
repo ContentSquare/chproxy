@@ -595,7 +595,7 @@ func TestParseDuration(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		v, err := parseDuration(tc.value)
+		v, err := StringToDuration(tc.value)
 		if err != nil {
 			t.Fatalf("unexpected duration conversion error: %s", err)
 		}
@@ -639,7 +639,7 @@ func TestParseDurationNegative(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		_, err := parseDuration(tc.value)
+		_, err := StringToDuration(tc.value)
 		if err == nil {
 			t.Fatalf("expected to get parse error; got: nil")
 		}

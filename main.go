@@ -58,20 +58,7 @@ func main() {
 	configSuccessTime.Set(float64(time.Now().Unix()))
 	log.Infof("Loading config %q: successful", *configFile)
 
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, syscall.SIGHUP)
-	go func() {
-		for {
-			if <-c == syscall.SIGHUP {
-				log.Infof("SIGHUP received. Going to reload config %s ...", *configFile)
-				if err := reloadConfig(); err != nil {
-					log.Errorf("error while reloading config: %s", err)
-					continue
-				}
-				log.Infof("Reloading config %s: successful", *configFile)
-			}
-		}
-	}()
+	setupReloadConfigWatch()
 
 	server := cfg.Server
 	if len(server.HTTP.ListenAddr) == 0 && len(server.HTTPS.ListenAddr) == 0 {
@@ -89,6 +76,23 @@ func main() {
 	}
 
 	select {}
+}
+
+func setupReloadConfigWatch() {
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, syscall.SIGHUP)
+	go func() {
+		for {
+			if <-c == syscall.SIGHUP {
+				log.Infof("SIGHUP received. Going to reload config %s ...", *configFile)
+				if err := reloadConfig(); err != nil {
+					log.Errorf("error while reloading config: %s", err)
+					continue
+				}
+				log.Infof("Reloading config %s: successful", *configFile)
+			}
+		}
+	}()
 }
 
 var autocertManager *autocert.Manager
@@ -192,6 +196,7 @@ func listenAndServe(ln net.Listener, h http.Handler, cfg config.TimeoutCfg) erro
 
 var promHandler = promhttp.Handler()
 
+//nolint:cyclop //TODO reduce complexity here.
 func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet, http.MethodPost:

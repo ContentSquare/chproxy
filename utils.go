@@ -186,6 +186,7 @@ func canCacheQuery(q []byte) bool {
 	return false
 }
 
+//nolint:cyclop // No clean way to split this.
 func skipLeadingComments(q []byte) []byte {
 	for len(q) > 0 {
 		switch q[0] {
