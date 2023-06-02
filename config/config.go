@@ -1,9 +1,11 @@
 package config
 
 import (
+	"bytes"
 	"crypto/tls"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -1131,6 +1133,9 @@ func LoadFile(filename string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	content = findAndReplacePlaceholders(content)
+
 	cfg := &Config{}
 	if err := yaml.Unmarshal(content, cfg); err != nil {
 		return nil, err
@@ -1160,6 +1165,22 @@ func LoadFile(filename string) (*Config, error) {
 		return nil, fmt.Errorf("security breach: %w\nSet option `hack_me_please=true` to disable security errors", err)
 	}
 	return cfg, nil
+}
+
+var envVarRegex = regexp.MustCompile(`\${([a-zA-Z_][a-zA-Z0-9_]*)}`)
+
+// findAndReplacePlaceholders finds all environment variables placeholders in the config.
+// Each placeholder is a string like ${VAR_NAME}. They will be replaced with the value of the
+// corresponding environment variable. It returns the new content with replaced placeholders.
+func findAndReplacePlaceholders(content []byte) []byte {
+	for _, match := range envVarRegex.FindAllSubmatch(content, -1) {
+		envVar := os.Getenv(string(match[1]))
+		if envVar != "" {
+			content = bytes.ReplaceAll(content, match[0], []byte(envVar))
+		}
+	}
+
+	return content
 }
 
 func (c Config) checkVulnerabilities() error {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"net"
+	"os"
 	"testing"
 	"time"
 
@@ -930,5 +931,34 @@ connection_pool:
 		t.Fatalf("the stringify version of fullConfig is not what it's expected: %s",
 			cmp.Diff(tested, expected))
 
+	}
+}
+
+func TestConfigReplaceEnvVars(t *testing.T) {
+	var testCases = []struct {
+		name             string
+		file             string
+		expectedPassword string
+	}{
+		{
+			"replace env vars with the style of ${}",
+			"testdata/envvars.simple.yml",
+			"MyPassword",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			os.Setenv("CHPROXY_PASSWORD", tc.expectedPassword)
+
+			cfg, err := LoadFile(tc.file)
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+			got := cfg.Users[0].Password
+			if got != tc.expectedPassword {
+				t.Fatalf("got password %v; expected to have: %v", got, tc.expectedPassword)
+			}
+		})
 	}
 }
