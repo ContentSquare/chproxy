@@ -61,7 +61,7 @@ services:
     depends_on:
       - zookeeper
   chproxy:
-    image: contentsquareplatform/chproxy:1.17.2
+    image: contentsquareplatform/chproxy:v1.24.0
     volumes:
       - ${PWD}/resources/chproxy/config:/config
       - ${PWD}/resources/chproxy/data:/data
@@ -76,7 +76,7 @@ services:
       - "clickhouse3"
     command: -config /config/config.yml
     healthcheck:
-      test: curl 'http://127.0.0.1:9001/ping'
+      test: curl 'http://127.0.0.1:9001/metrics'
       interval: 2s
       timeout: 20s
       retries: 10
