@@ -15,6 +15,7 @@ import (
 
 	"github.com/contentsquare/chproxy/cache"
 	"github.com/contentsquare/chproxy/config"
+	"github.com/contentsquare/chproxy/internal/heartbeat"
 	"github.com/contentsquare/chproxy/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/time/rate"
@@ -763,7 +764,7 @@ func (h *host) runHeartbeat(done <-chan struct{}) {
 	}
 	hb := h.replica.cluster.heartBeat
 	heartbeat := func() {
-		if err := hb.isHealthy(h.addr.String()); err == nil {
+		if err := hb.IsHealthy(context.Background(), h.addr.String()); err == nil {
 			atomic.StoreUint32(&h.active, uint32(1))
 			hostHealth.With(label).Set(1)
 		} else {
@@ -777,7 +778,7 @@ func (h *host) runHeartbeat(done <-chan struct{}) {
 		select {
 		case <-done:
 			return
-		case <-time.After(hb.interval):
+		case <-time.After(hb.Interval()):
 		}
 	}
 }
@@ -844,7 +845,7 @@ type cluster struct {
 	killQueryUserName     string
 	killQueryUserPassword string
 
-	heartBeat *heartBeat
+	heartBeat heartbeat.HeartBeat
 
 	retryNumber int
 }
@@ -858,7 +859,7 @@ func newCluster(c config.Cluster) (*cluster, error) {
 		clusterUsers[cu.Name] = newClusterUser(cu)
 	}
 
-	heartBeat := newHeartBeat(c.HeartBeat, c.ClusterUsers[0])
+	heartBeat := heartbeat.NewHeartbeat(c.HeartBeat, heartbeat.WithDefaultUser(c.ClusterUsers[0].Name, c.ClusterUsers[0].Password))
 
 	newC := &cluster{
 		name:                  c.Name,
