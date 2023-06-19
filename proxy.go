@@ -218,11 +218,13 @@ func executeWithRetry(
 
 	numRetry := 0
 	for {
-		// update body
-		req.Body = ioutil.NopCloser(bytes.NewBuffer(body))
-		req.Body.Close()
-
 		rp(rw, req)
+
+		// update body
+		// since req.Body is overridden in `rp` function, we need to update the body
+		req.Body = &cachedReadCloser{
+			ReadCloser: ioutil.NopCloser(bytes.NewReader(body)),
+		}
 
 		err := ctx.Err()
 		if err != nil {
