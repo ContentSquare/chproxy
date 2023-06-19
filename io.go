@@ -177,3 +177,8 @@ func (crc *cachedReadCloser) String() string {
 	crc.bLock.Unlock()
 	return s
 }
+
+func (crc *cachedReadCloser) Close() error {
+	crc.b = nil
+	return crc.ReadCloser.Close()
+}
