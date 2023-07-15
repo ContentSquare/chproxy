@@ -47,23 +47,23 @@ linters:
     - forcetypeassert
     - cyclop
     - exhaustive
+    - govet
+    - nilerr
+    - wastedassign
   disable:
     # Should be readded in the future with a dedicated PR to do the fix
     - funlen
     - gocognit
     - gofumpt
-    - govet
     - ifshort
     - ineffassign
     - nestif
-    - nilerr
     - nolintlint
     - revive
     - staticcheck
     - stylecheck
     - unconvert
     - unparam
-    - wastedassign
 
     # Disabled with a reason
     - gochecknoglobals # incompatible with the way we define our flags currently
