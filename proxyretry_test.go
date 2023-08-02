@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -140,6 +139,8 @@ func TestQueryWithRetrySuccess(t *testing.T) {
 
 	retryNum := 1
 
+	erroredHost := s.host
+
 	_, err := executeWithRetry(
 		context.Background(),
 		s,
@@ -154,7 +155,17 @@ func TestQueryWithRetrySuccess(t *testing.T) {
 	if err != nil {
 		t.Errorf("The execution with retry failed, %v", err)
 	}
-	assert.Equal(t, srw.statusCode, 200)
+	assert.Equal(t, 200, srw.statusCode)
+	assert.Equal(t, 1, int(s.host.counter.load()))
+	assert.Equal(t, 0, int(s.host.penalty))
+	// should be counter + penalty
+	assert.Equal(t, 1, int(s.host.load()))
+
+	assert.Equal(t, 0, int(erroredHost.counter.load()))
+	assert.Equal(t, 5, int(erroredHost.penalty))
+	// should be counter + penalty
+	assert.Equal(t, 5, int(erroredHost.load()))
+
 	assert.Equal(t, mhs.hs, mhs.hst)
 }
 
@@ -187,55 +198,48 @@ func newRequest(host, body string) *http.Request {
 	return req
 }
 
-func newHostsCluster(hs []string) ([]*host, *cluster) {
+func newHostsCluster(hs []string) *cluster {
 	// set up cluster, replicas, hosts
 	cluster1 := &cluster{
 		name: "cluster1",
 	}
 
-	var urls []*url.URL
-
-	var replicas []*replica
-
 	var hosts []*host
 
+	replica1 := &replica{
+		cluster:     cluster1,
+		name:        "replica1",
+		nextHostIdx: 0,
+	}
+
+	cluster1.replicas = []*replica{replica1}
+
 	for i := 0; i < len(hs); i++ {
-		urli := &url.URL{
+		url1 := &url.URL{
 			Scheme: "http",
 			Host:   hs[i],
 		}
-		replicai := &replica{
-			cluster:     cluster1,
-			name:        fmt.Sprintf("replica%d", i+1),
-			nextHostIdx: 0,
-		}
-		urls = append(urls, urli)
-		replicas = append(replicas, replicai)
-	}
-
-	cluster1.replicas = replicas
-
-	for i := 0; i < len(hs); i++ {
 		hosti := &host{
-			replica: replicas[i],
-			penalty: 1000,
+			replica: replica1,
+			penalty: 0,
 			active:  1,
-			addr:    urls[i],
+			addr:    url1,
 		}
 		hosts = append(hosts, hosti)
 	}
+	replica1.hosts = hosts
 
-	replicas[0].hosts = hosts
-
-	return hosts, cluster1
+	return cluster1
 }
 
 func newMockScope(hs []string) *scope {
-	hosts, c := newHostsCluster(hs)
+	c := newHostsCluster(hs)
+	scopedHost := c.replicas[0].hosts[0]
+	scopedHost.inc()
 
 	return &scope{
 		startTime: time.Now(),
-		host:      hosts[0],
+		host:      scopedHost,
 		cluster:   c,
 		labels: prometheus.Labels{
 			"user":         "default",

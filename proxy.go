@@ -241,14 +241,22 @@ func executeWithRetry(
 			// comment s.host.dec() line to avoid double increment; issue #322
 			// s.host.dec()
 			atomic.StoreUint32(&s.host.active, uint32(0))
-			newHost := s.host.replica.cluster.getHost()
+			nextHost := s.host.replica.cluster.getHost()
 			// The query could be retried if it has no stickiness to a certain server
-			if numRetry < maxRetry && newHost.isActive() && s.sessionId == "" {
+			if numRetry < maxRetry && nextHost.isActive() && s.sessionId == "" {
 				// the query execution has been failed
 				monitorRetryRequestInc(s.labels)
+				currentHost := s.host
 
+				// decrement the current failed host counter and increment the new host
+				// as for the end of the requests we will close the scope and in that closed scope
+				// decrement the new host
+				if currentHost != nextHost {
+					currentHost.dec()
+					nextHost.inc()
+				}
 				// update host
-				s.host = newHost
+				s.host = nextHost
 
 				req.URL.Host = s.host.addr.Host
 				req.URL.Scheme = s.host.addr.Scheme
