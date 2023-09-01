@@ -162,9 +162,9 @@ func TestQueryWithRetrySuccess(t *testing.T) {
 	assert.Equal(t, 1, int(s.host.load()))
 
 	assert.Equal(t, 0, int(erroredHost.counter.load()))
-	assert.Equal(t, 5, int(erroredHost.penalty))
+	assert.Equal(t, penaltySize, int(erroredHost.penalty))
 	// should be counter + penalty
-	assert.Equal(t, 5, int(erroredHost.load()))
+	assert.Equal(t, penaltySize, int(erroredHost.load()))
 
 	assert.Equal(t, mhs.hs, mhs.hst)
 }

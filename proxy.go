@@ -238,8 +238,6 @@ func executeWithRetry(
 		if rw.StatusCode() == http.StatusBadGateway {
 			log.Debugf("the invalid host is: %s", s.host.addr)
 			s.host.penalize()
-			// comment s.host.dec() line to avoid double increment; issue #322
-			// s.host.dec()
 			atomic.StoreUint32(&s.host.active, uint32(0))
 			nextHost := s.host.replica.cluster.getHost()
 			// The query could be retried if it has no stickiness to a certain server
@@ -250,7 +248,7 @@ func executeWithRetry(
 
 				// decrement the current failed host counter and increment the new host
 				// as for the end of the requests we will close the scope and in that closed scope
-				// decrement the new host
+				// decrement the new host PR - https://github.com/ContentSquare/chproxy/pull/357
 				if currentHost != nextHost {
 					currentHost.dec()
 					nextHost.inc()
