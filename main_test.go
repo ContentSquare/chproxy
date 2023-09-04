@@ -518,10 +518,10 @@ func TestServe(t *testing.T) {
 				var buf bytes.Buffer
 				var err error
 				var resp *http.Response
-				var maxRetries = 10
+				var maxRetries = 1
 				// cf https://github.com/ContentSquare/chproxy/issues/341, this test sometimes failed on github action for an unknown reason
 				// we added a retry mecanism as a quick & dirty fix to make the CI stable
-				for i := 0; i <= maxRetries; i++ {
+				for i := 0; i < maxRetries; i++ {
 					if err != nil {
 						t.Logf("an error happened during the http gzipped POST request test, retrying it, error: %s", err)
 						time.Sleep(20 * time.Millisecond)
