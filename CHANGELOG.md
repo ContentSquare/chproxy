@@ -8,6 +8,19 @@ position: 104
 Since v1.17.1, chproxy follows [semantic versioning](https://semver.org/).
 Don't expect breaking changes between 2 releases if they have the same major version.
 
+### <a id="230"></a> release 1.25.0, 2022-09-04
+
+#### New Feature
+* Ability to use environment variable in config [#343](https://github.com/ContentSquare/chproxy/pull/343)
+
+#### Bug fix
+* Fix issue creating an uneven load among clickhouse shards (introduced in 1.20.0) [#357](https://github.com/ContentSquare/chproxy/pull/357)
+
+#### Improvement
+* Better documentation about the docker image [#345](https://github.com/ContentSquare/chproxy/pull/345)
+* [code quality] strengthen linter rules [#330](https://github.com/ContentSquare/chproxy/pull/330) [#355](https://github.com/ContentSquare/chproxy/pull/355)
+* [code quality] refactoring to make the code of heartbeat more modular [#344](https://github.com/ContentSquare/chproxy/pull/344)
+
 ### <a id="230"></a> release 1.24.0, 2022-05-03
 #### New Feature
 * Support TLS config in Redis cache [#328](https://github.com/ContentSquare/chproxy/pull/328)
