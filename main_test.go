@@ -1176,12 +1176,14 @@ func TestReloadConfig(t *testing.T) {
 }
 
 func checkErr(t *testing.T, err error) {
+	t.Helper()
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }
 
 func getStringFromResponse(t *testing.T, r io.Reader) string {
+	t.Helper()
 	if r == nil {
 		t.Fatalf("unexpected nil reader")
 	}
@@ -1193,6 +1195,7 @@ func getStringFromResponse(t *testing.T, r io.Reader) string {
 }
 
 func checkResponse(t *testing.T, r io.Reader, expected string) {
+	t.Helper()
 	got := getStringFromResponse(t, r)
 	if !strings.Contains(got, expected) {
 		t.Fatalf("got: %q; expected: %q", got, expected)
@@ -1200,6 +1203,7 @@ func checkResponse(t *testing.T, r io.Reader, expected string) {
 }
 
 func httpGet(t *testing.T, url string, statusCode int) *http.Response {
+	t.Helper()
 	resp, err := http.Get(url)
 	if err != nil {
 		t.Fatalf("unexpected erorr while doing GET request: %s", err)
