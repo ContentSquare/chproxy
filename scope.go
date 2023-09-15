@@ -16,6 +16,7 @@ import (
 	"github.com/contentsquare/chproxy/cache"
 	"github.com/contentsquare/chproxy/config"
 	"github.com/contentsquare/chproxy/internal/heartbeat"
+	"github.com/contentsquare/chproxy/internal/topology"
 	"github.com/contentsquare/chproxy/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/time/rate"
@@ -37,7 +38,7 @@ var nextScopeID = uint64(time.Now().UnixNano())
 type scope struct {
 	startTime   time.Time
 	id          scopeID
-	host        *host
+	host        *topology.Node
 	cluster     *cluster
 	user        *user
 	clusterUser *clusterUser
@@ -82,8 +83,8 @@ func newScope(req *http.Request, u *user, c *cluster, cu *clusterUser, sessionId
 			"user":         u.name,
 			"cluster":      c.name,
 			"cluster_user": cu.name,
-			"replica":      h.replica.name,
-			"cluster_node": h.addr.Host,
+			"replica":      h.ReplicaName(),
+			"cluster_node": h.Host(),
 		},
 	}
 	return s
@@ -94,7 +95,7 @@ func (s *scope) String() string {
 		s.id,
 		s.user.name, s.user.queryCounter.load(),
 		s.clusterUser.name, s.clusterUser.queryCounter.load(),
-		s.host.addr.Host, s.host.load(),
+		s.host.Host(), s.host.CurrentLoad(),
 		s.remoteAddr, s.localAddr, time.Since(s.startTime).Nanoseconds()/1000.0)
 }
 
@@ -179,7 +180,7 @@ func (s *scope) waitUntilAllowStart(sleep time.Duration, deadline time.Time, lab
 		} else {
 			time.Sleep(sleep)
 		}
-		var h *host
+		var h *topology.Node
 		// Choose new host, since the previous one may become obsolete
 		// after sleeping.
 		if s.sessionId == "" {
@@ -190,8 +191,8 @@ func (s *scope) waitUntilAllowStart(sleep time.Duration, deadline time.Time, lab
 		}
 
 		s.host = h
-		s.labels["replica"] = h.replica.name
-		s.labels["cluster_node"] = h.addr.Host
+		s.labels["replica"] = h.ReplicaName()
+		s.labels["cluster_node"] = h.Host()
 	}
 }
 
@@ -239,7 +240,7 @@ func (s *scope) inc() error {
 		return err
 	}
 
-	s.host.inc()
+	s.host.IncrementConnections()
 	concurrentQueries.With(s.labels).Inc()
 	return nil
 }
@@ -300,7 +301,7 @@ func (s *scope) dec() {
 
 	s.user.queryCounter.dec()
 	s.clusterUser.queryCounter.dec()
-	s.host.dec()
+	s.host.DecrementConnections()
 	concurrentQueries.With(s.labels).Dec()
 }
 
@@ -313,7 +314,7 @@ func (s *scope) killQuery() error {
 
 	query := fmt.Sprintf("KILL QUERY WHERE query_id = '%s'", s.id)
 	r := strings.NewReader(query)
-	addr := s.host.addr.String()
+	addr := s.host.String()
 	req, err := http.NewRequest("POST", addr, r)
 	if err != nil {
 		return fmt.Errorf("error while creating kill query request to %s: %w", addr, err)
@@ -430,8 +431,8 @@ func (s *scope) decorateRequest(req *http.Request) (*http.Request, url.Values) {
 	req.Header.Del("X-ClickHouse-Key")
 
 	// Send request to the chosen host from cluster.
-	req.URL.Scheme = s.host.addr.Scheme
-	req.URL.Host = s.host.addr.Host
+	req.URL.Scheme = s.host.Scheme()
+	req.URL.Host = s.host.Host()
 
 	// Extend ua with additional info, so it may be queried
 	// via system.query_log.http_user_agent.
@@ -685,27 +686,12 @@ func newClusterUser(cu config.ClusterUser) *clusterUser {
 	}
 }
 
-type host struct {
-	replica *replica
-
-	// Counter of unsuccessful requests to decrease host priority.
-	penalty uint32
-
-	// Either the current host is alive.
-	active uint32
-
-	// Host address.
-	addr *url.URL
-
-	counter
-}
-
 type replica struct {
 	cluster *cluster
 
 	name string
 
-	hosts       []*host
+	hosts       []*topology.Node
 	nextHostIdx uint32
 }
 
@@ -741,95 +727,32 @@ func newReplicas(replicasCfg []config.Replica, nodes []string, scheme string, c 
 	return replicas, nil
 }
 
-func newNodes(nodes []string, scheme string, r *replica) ([]*host, error) {
-	hosts := make([]*host, len(nodes))
+func newNodes(nodes []string, scheme string, r *replica) ([]*topology.Node, error) {
+	hosts := make([]*topology.Node, len(nodes))
 	for i, node := range nodes {
 		addr, err := url.Parse(fmt.Sprintf("%s://%s", scheme, node))
 		if err != nil {
 			return nil, fmt.Errorf("cannot parse `node` %q with `scheme` %q: %w", node, scheme, err)
 		}
-		hosts[i] = &host{
-			replica: r,
-			addr:    addr,
-		}
+		hosts[i] = topology.NewNode(addr, r.cluster.heartBeat, r.cluster.name, r.name)
 	}
 	return hosts, nil
 }
 
-func (h *host) runHeartbeat(done <-chan struct{}) {
-	label := prometheus.Labels{
-		"cluster":      h.replica.cluster.name,
-		"replica":      h.replica.name,
-		"cluster_node": h.addr.Host,
-	}
-	hb := h.replica.cluster.heartBeat
-	heartbeat := func() {
-		if err := hb.IsHealthy(context.Background(), h.addr.String()); err == nil {
-			atomic.StoreUint32(&h.active, uint32(1))
-			hostHealth.With(label).Set(1)
-		} else {
-			log.Errorf("error while health-checking %q host: %s", h.addr.Host, err)
-			atomic.StoreUint32(&h.active, uint32(0))
-			hostHealth.With(label).Set(0)
-		}
-	}
-	for {
-		heartbeat()
-		select {
-		case <-done:
-			return
-		case <-time.After(hb.Interval()):
-		}
-	}
-}
-
-func (h *host) isActive() bool { return atomic.LoadUint32(&h.active) == 1 }
-
 func (r *replica) isActive() bool {
 	// The replica is active if at least a single host is active.
 	for _, h := range r.hosts {
-		if h.isActive() {
+		if h.IsActive() {
 			return true
 		}
 	}
 	return false
 }
 
-const (
-	// prevents excess goroutine creating while penalizing overloaded host
-	penaltySize     = 5
-	penaltyMaxSize  = 300
-	penaltyDuration = time.Second * 10
-)
-
-// decrease host priority for next requests
-func (h *host) penalize() {
-	p := atomic.LoadUint32(&h.penalty)
-	if p >= penaltyMaxSize {
-		return
-	}
-	hostPenalties.With(prometheus.Labels{
-		"cluster":      h.replica.cluster.name,
-		"replica":      h.replica.name,
-		"cluster_node": h.addr.Host,
-	}).Inc()
-	atomic.AddUint32(&h.penalty, penaltySize)
-	time.AfterFunc(penaltyDuration, func() {
-		atomic.AddUint32(&h.penalty, ^uint32(penaltySize-1))
-	})
-}
-
-// overload runningQueries to take penalty into consideration
-func (h *host) load() uint32 {
-	c := h.counter.load()
-	p := atomic.LoadUint32(&h.penalty)
-	return c + p
-}
-
 func (r *replica) load() uint32 {
 	var reqs uint32
 	for _, h := range r.hosts {
-		reqs += h.load()
+		reqs += h.CurrentLoad()
 	}
 	return reqs
 }
@@ -972,7 +895,7 @@ func (c *cluster) getReplicaSticky(sessionId string) *replica {
 // getHostSticky returns host by stickiness from replica.
 //
 // Always returns non-nil.
-func (r *replica) getHostSticky(sessionId string) *host {
+func (r *replica) getHostSticky(sessionId string) *topology.Node {
 	idx := atomic.AddUint32(&r.nextHostIdx, 1)
 	n := uint32(len(r.hosts))
 	if n == 1 {
@@ -990,12 +913,12 @@ func (r *replica) getHostSticky(sessionId string) *host {
 		sessionId := hash(sessionId)
 		tmpIdx = (sessionId) % n
 		tmpHSticky := r.hosts[tmpIdx]
-		log.Debugf("Sticky server candidate is: %s", tmpHSticky.addr)
-		if !tmpHSticky.isActive() {
+		log.Debugf("Sticky server candidate is: %s", tmpHSticky)
+		if !tmpHSticky.IsActive() {
 			log.Debugf("Sticky session server has been picked up, but it is not available")
 			continue
 		}
-		log.Debugf("Sticky session server is: %s, session_id: %d, server_idx: %d, max nodes in pool: %d", tmpHSticky.addr, sessionId, tmpIdx, n)
+		log.Debugf("Sticky session server is: %s, session_id: %d, server_idx: %d, max nodes in pool: %d", tmpHSticky, sessionId, tmpIdx, n)
 		return tmpHSticky
 	}
 
@@ -1008,7 +931,7 @@ func (r *replica) getHostSticky(sessionId string) *host {
 // getHost returns least loaded + round-robin host from replica.
 //
 // Always returns non-nil.
-func (r *replica) getHost() *host {
+func (r *replica) getHost() *topology.Node {
 	idx := atomic.AddUint32(&r.nextHostIdx, 1)
 	n := uint32(len(r.hosts))
 	if n == 1 {
@@ -1017,10 +940,10 @@ func (r *replica) getHost() *host {
 
 	idx %= n
 	h := r.hosts[idx]
-	reqs := h.load()
+	reqs := h.CurrentLoad()
 
 	// Set least priority to inactive host.
-	if !h.isActive() {
+	if !h.IsActive() {
 		reqs = ^uint32(0)
 	}
 
@@ -1032,10 +955,10 @@ func (r *replica) getHost() *host {
 	for i := uint32(1); i < n; i++ {
 		tmpIdx := (idx + i) % n
 		tmpH := r.hosts[tmpIdx]
-		if !tmpH.isActive() {
+		if !tmpH.IsActive() {
 			continue
 		}
-		tmpReqs := tmpH.load()
+		tmpReqs := tmpH.CurrentLoad()
 		if tmpReqs == 0 {
 			return tmpH
 		}
@@ -1054,7 +977,7 @@ func (r *replica) getHost() *host {
 // getHostSticky returns host based on stickiness from cluster.
 //
 // Always returns non-nil.
-func (c *cluster) getHostSticky(sessionId string) *host {
+func (c *cluster) getHostSticky(sessionId string) *topology.Node {
 	r := c.getReplicaSticky(sessionId)
 	return r.getHostSticky(sessionId)
 }
@@ -1062,7 +985,7 @@ func (c *cluster) getHostSticky(sessionId string) *host {
 // getHost returns least loaded + round-robin host from cluster.
 //
 // Always returns non-nil.
-func (c *cluster) getHost() *host {
+func (c *cluster) getHost() *topology.Node {
 	r := c.getReplica()
 	return r.getHost()
 }

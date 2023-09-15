@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/contentsquare/chproxy/config"
+	"github.com/contentsquare/chproxy/internal/topology"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -10,8 +11,6 @@ var (
 	requestSum                     *prometheus.CounterVec
 	requestSuccess                 *prometheus.CounterVec
 	limitExcess                    *prometheus.CounterVec
-	hostPenalties                  *prometheus.CounterVec
-	hostHealth                     *prometheus.GaugeVec
 	concurrentQueries              *prometheus.GaugeVec
 	requestQueueSize               *prometheus.GaugeVec
 	userQueueOverflow              *prometheus.CounterVec
@@ -72,22 +71,6 @@ func initMetrics(cfg *config.Config) {
 			Help:      "Total number of max_concurrent_queries excess",
 		},
 		[]string{"user", "cluster", "cluster_user", "replica", "cluster_node"},
-	)
-	hostPenalties = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: namespace,
-			Name:      "host_penalties_total",
-			Help:      "Total number of given penalties by host",
-		},
-		[]string{"cluster", "replica", "cluster_node"},
-	)
-	hostHealth = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: namespace,
-			Name:      "host_health",
-			Help:      "Health state of hosts by clusters",
-		},
-		[]string{"cluster", "replica", "cluster_node"},
 	)
 	concurrentQueries = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -287,9 +270,11 @@ func initMetrics(cfg *config.Config) {
 }
 
 func registerMetrics(cfg *config.Config) {
+	topology.RegisterMetrics(cfg)
+
 	initMetrics(cfg)
 	prometheus.MustRegister(statusCodes, requestSum, requestSuccess,
-		limitExcess, hostPenalties, hostHealth, concurrentQueries,
+		limitExcess, concurrentQueries,
 		requestQueueSize, userQueueOverflow, clusterUserQueueOverflow,
 		requestBodyBytes, responseBodyBytes, cacheFailedInsert, cacheCorruptedFetch,
 		cacheHit, cacheMiss, cacheSize, cacheItems, cacheSkipped,

@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/contentsquare/chproxy/internal/topology"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 )
@@ -156,15 +157,15 @@ func TestQueryWithRetrySuccess(t *testing.T) {
 		t.Errorf("The execution with retry failed, %v", err)
 	}
 	assert.Equal(t, 200, srw.statusCode)
-	assert.Equal(t, 1, int(s.host.counter.load()))
-	assert.Equal(t, 0, int(s.host.penalty))
+	assert.Equal(t, 1, int(s.host.CurrentConnections()))
+	assert.Equal(t, 0, int(s.host.CurrentPenalty()))
 	// should be counter + penalty
-	assert.Equal(t, 1, int(s.host.load()))
+	assert.Equal(t, 1, int(s.host.CurrentLoad()))
 
-	assert.Equal(t, 0, int(erroredHost.counter.load()))
-	assert.Equal(t, penaltySize, int(erroredHost.penalty))
+	assert.Equal(t, 0, int(erroredHost.CurrentConnections()))
+	assert.Equal(t, topology.DefaultPenaltySize, int(erroredHost.CurrentPenalty()))
 	// should be counter + penalty
-	assert.Equal(t, penaltySize, int(erroredHost.load()))
+	assert.Equal(t, topology.DefaultPenaltySize, int(erroredHost.CurrentLoad()))
 
 	assert.Equal(t, mhs.hs, mhs.hst)
 }
@@ -204,7 +205,7 @@ func newHostsCluster(hs []string) *cluster {
 		name: "cluster1",
 	}
 
-	var hosts []*host
+	var hosts []*topology.Node
 
 	replica1 := &replica{
 		cluster:     cluster1,
@@ -219,14 +220,12 @@ func newHostsCluster(hs []string) *cluster {
 			Scheme: "http",
 			Host:   hs[i],
 		}
-		hosti := &host{
-			replica: replica1,
-			penalty: 0,
-			active:  1,
-			addr:    url1,
-		}
+		hosti := topology.NewNode(url1, nil, "", replica1.name)
+		hosti.SetIsActive(true)
+
 		hosts = append(hosts, hosti)
 	}
+
 	replica1.hosts = hosts
 
 	return cluster1
@@ -235,7 +234,7 @@ func newHostsCluster(hs []string) *cluster {
 func newMockScope(hs []string) *scope {
 	c := newHostsCluster(hs)
 	scopedHost := c.replicas[0].hosts[0]
-	scopedHost.inc()
+	scopedHost.IncrementConnections()
 
 	return &scope{
 		startTime: time.Now(),

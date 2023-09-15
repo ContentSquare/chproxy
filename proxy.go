@@ -14,11 +14,11 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/contentsquare/chproxy/cache"
 	"github.com/contentsquare/chproxy/config"
+	"github.com/contentsquare/chproxy/internal/topology"
 	"github.com/contentsquare/chproxy/log"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -166,8 +166,8 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			"user":         s.user.name,
 			"cluster":      s.cluster.name,
 			"cluster_user": s.clusterUser.name,
-			"replica":      s.host.replica.name,
-			"cluster_node": s.host.addr.Host,
+			"replica":      s.host.ReplicaName(),
+			"cluster_node": s.host.Host(),
 			"code":         strconv.Itoa(srw.statusCode),
 		},
 	).Inc()
@@ -236,12 +236,14 @@ func executeWithRetry(
 		// StatusBadGateway response is returned by http.ReverseProxy when
 		// it cannot establish connection to remote host.
 		if rw.StatusCode() == http.StatusBadGateway {
-			log.Debugf("the invalid host is: %s", s.host.addr)
-			s.host.penalize()
-			atomic.StoreUint32(&s.host.active, uint32(0))
-			nextHost := s.host.replica.cluster.getHost()
+			log.Debugf("the invalid host is: %s", s.host)
+			s.host.Penalize()
+			// comment s.host.dec() line to avoid double increment; issue #322
+			// s.host.dec()
+			s.host.SetIsActive(false)
+			nextHost := s.cluster.getHost()
 			// The query could be retried if it has no stickiness to a certain server
-			if numRetry < maxRetry && nextHost.isActive() && s.sessionId == "" {
+			if numRetry < maxRetry && nextHost.IsActive() && s.sessionId == "" {
 				// the query execution has been failed
 				monitorRetryRequestInc(s.labels)
 				currentHost := s.host
@@ -250,20 +252,20 @@ func executeWithRetry(
 				// as for the end of the requests we will close the scope and in that closed scope
 				// decrement the new host PR - https://github.com/ContentSquare/chproxy/pull/357
 				if currentHost != nextHost {
-					currentHost.dec()
-					nextHost.inc()
+					currentHost.DecrementConnections()
+					nextHost.IncrementConnections()
 				}
 				// update host
 				s.host = nextHost
 
-				req.URL.Host = s.host.addr.Host
-				req.URL.Scheme = s.host.addr.Scheme
-				log.Debugf("the valid host is: %s", s.host.addr)
+				req.URL.Host = s.host.Host()
+				req.URL.Scheme = s.host.Scheme()
+				log.Debugf("the valid host is: %s", s.host)
 			} else {
 				since = time.Since(startTime).Seconds()
 				monitorDuration(since)
 				q := getQuerySnippet(req)
-				err1 := fmt.Errorf("%s: cannot reach %s; query: %q", s, s.host.addr.Host, q)
+				err1 := fmt.Errorf("%s: cannot reach %s; query: %q", s, s.host.Host(), q)
 				respondWith(srw, err1, srw.StatusCode())
 				break
 			}
@@ -327,7 +329,7 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw ResponseWriterWithCode, srw *s
 		timeoutRequest.With(s.labels).Inc()
 
 		// Penalize host with the timed out query, because it may be overloaded.
-		s.host.penalize()
+		s.host.Penalize()
 
 		q := getQuerySnippet(req)
 		log.Debugf("%s: query timeout in %f; query: %q", s, executeDuration, q)
@@ -754,7 +756,7 @@ func (rp *reverseProxy) restartWithNewConfig(caches map[string]*cache.AsyncCache
 	// Counters and Summary metrics are always relevant.
 	// Gauge metrics may become irrelevant if they may freeze at non-zero
 	// value after config reload.
-	hostHealth.Reset()
+	topology.HostHealth.Reset()
 	cacheSize.Reset()
 	cacheItems.Reset()
 
@@ -763,8 +765,8 @@ func (rp *reverseProxy) restartWithNewConfig(caches map[string]*cache.AsyncCache
 		for _, r := range c.replicas {
 			for _, h := range r.hosts {
 				rp.reloadWG.Add(1)
-				go func(h *host) {
-					h.runHeartbeat(rp.reloadSignal)
+				go func(h *topology.Node) {
+					h.StartHeartbeat(rp.reloadSignal)
 					rp.reloadWG.Done()
 				}(h)
 			}
