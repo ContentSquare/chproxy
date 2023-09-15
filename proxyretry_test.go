@@ -222,7 +222,6 @@ func newHostsCluster(hs []string) *cluster {
 		}
 		hosti := topology.NewNode(url1, nil, "", replica1.name)
 		hosti.SetIsActive(true)
-		hosti.UnsafeSetPenalty(1000)
 
 		hosts = append(hosts, hosti)
 	}

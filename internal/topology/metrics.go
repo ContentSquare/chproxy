@@ -35,3 +35,27 @@ func RegisterMetrics(cfg *config.Config) {
 	initMetrics(cfg)
 	prometheus.MustRegister(HostHealth, HostPenalties)
 }
+
+func reportNodeHealthMetric(clusterName, replicaName, nodeName string, active bool) {
+	label := prometheus.Labels{
+		"cluster":      clusterName,
+		"replica":      replicaName,
+		"cluster_node": nodeName,
+	}
+
+	if active {
+		HostHealth.With(label).Set(1)
+	} else {
+		HostHealth.With(label).Set(0)
+	}
+}
+
+func incrementPenaltiesMetric(clusterName, replicaName, nodeName string) {
+	label := prometheus.Labels{
+		"cluster":      clusterName,
+		"replica":      replicaName,
+		"cluster_node": nodeName,
+	}
+
+	HostPenalties.With(label).Inc()
+}

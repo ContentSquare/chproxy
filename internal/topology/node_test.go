@@ -52,7 +52,7 @@ func TestPenalize(t *testing.T) {
 
 func TestStartHeartbeat(t *testing.T) {
 	hb := &mockHeartbeat{
-		interval: 100 * time.Millisecond,
+		interval: 10 * time.Millisecond,
 		err:      nil,
 	}
 

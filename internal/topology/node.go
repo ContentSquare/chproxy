@@ -9,7 +9,6 @@ import (
 	"github.com/contentsquare/chproxy/internal/counter"
 	"github.com/contentsquare/chproxy/internal/heartbeat"
 	"github.com/contentsquare/chproxy/log"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -36,26 +35,6 @@ func defaultNodeOpts() nodeOpts {
 
 type NodeOption interface {
 	apply(*nodeOpts)
-}
-
-type penalty struct {
-	penaltySize     uint32
-	penaltyMaxSize  uint32
-	penaltyDuration time.Duration
-}
-
-func (o penalty) apply(opts *nodeOpts) {
-	opts.penaltySize = o.penaltySize
-	opts.penaltyMaxSize = o.penaltyMaxSize
-	opts.penaltyDuration = o.penaltyDuration
-}
-
-func WithPenalty(size, max uint32, duration time.Duration) NodeOption {
-	return penalty{
-		penaltySize:     size,
-		penaltyMaxSize:  max,
-		penaltyDuration: duration,
-	}
 }
 
 type defaultActive struct {
@@ -88,6 +67,7 @@ type Node struct {
 	// Heartbeat function
 	hb heartbeat.HeartBeat
 
+	// TODO These fields are only used for labels in prometheus. We should have a different way to pass the labels.
 	// For metrics only
 	clusterName string
 	replicaName string
@@ -143,19 +123,13 @@ func (n *Node) StartHeartbeat(done <-chan struct{}) {
 }
 
 func (n *Node) heartbeat(ctx context.Context) {
-	label := prometheus.Labels{
-		"cluster":      n.clusterName,
-		"replica":      n.replicaName,
-		"cluster_node": n.Host(),
-	}
-
 	if err := n.hb.IsHealthy(ctx, n.addr.String()); err == nil {
 		n.active.Store(true)
-		HostHealth.With(label).Set(1)
+		reportNodeHealthMetric(n.clusterName, n.replicaName, n.Host(), true)
 	} else {
 		log.Errorf("error while health-checking %q host: %s", n.Host(), err)
 		n.active.Store(false)
-		HostHealth.With(label).Set(0)
+		reportNodeHealthMetric(n.clusterName, n.replicaName, n.Host(), false)
 	}
 }
 
@@ -170,23 +144,13 @@ func (n *Node) Penalize() {
 		return
 	}
 
-	HostPenalties.With(prometheus.Labels{
-		"cluster":      n.clusterName,
-		"replica":      n.replicaName,
-		"cluster_node": n.Host(),
-	}).Inc()
+	incrementPenaltiesMetric(n.clusterName, n.replicaName, n.Host())
 
 	n.penalty.Add(n.opts.penaltySize)
 
 	time.AfterFunc(n.opts.penaltyDuration, func() {
 		n.penalty.Add(^uint32(n.opts.penaltySize - 1))
 	})
-}
-
-// UnsafeSetPenalty should only be used for testing as it removes the penalty
-// out of control of the node.
-func (n *Node) UnsafeSetPenalty(penalty uint32) {
-	n.penalty.Store(penalty)
 }
 
 // CurrentLoad returns the current node returns the number of open connections
