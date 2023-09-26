@@ -79,7 +79,7 @@ func init() {
 	// we need to initiliaze prometheus metrics
 	// otherwise the calls the proxy.applyConfig will fail
 	// due to memory issues if someone only runs proxy_test
-	initMetrics(goodCfg)
+	registerMetrics(goodCfg)
 }
 
 func TestNewReverseProxy(t *testing.T) {
