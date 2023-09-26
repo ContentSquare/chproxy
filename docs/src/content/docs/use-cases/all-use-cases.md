@@ -1,8 +1,8 @@
 ---
 title: All the above configs combined
-menuTitle: All of the above
-category: Use Cases
-position: 304
+sidebar:
+  label: All of the above
+  order: 4
 ---
 
 

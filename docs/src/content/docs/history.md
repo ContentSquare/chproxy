@@ -1,7 +1,5 @@
 ---
 title: History
-category: Community
-position: 401
 ---
 
 ## Why it was created

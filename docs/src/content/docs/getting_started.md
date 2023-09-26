@@ -1,8 +1,5 @@
 ---
 title: Chproxy quick start
-menuTitle: Quick start
-category: Guides
-position: 103
 ---
 
 This quick start guide will walk you through an example of chproxy usage. After this guide, you will have seen how chproxy can be used to spread SELECT queries over a multi-node ClickHouse cluster.

@@ -1,8 +1,8 @@
 ---
 title: Spread INSERTs among cluster shards
-menuTitle: Spreading INSERTs
-category: Use Cases
-position: 301
+sidebar:
+  label: Spreading INSERTs
+  order: 1
 ---
 
 Usually `INSERT`s are sent from app servers located in a limited number of subnetworks. `INSERT`s from other subnetworks must be denied.

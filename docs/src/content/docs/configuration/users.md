@@ -1,7 +1,7 @@
 ---
 title: Users
-category: Configuration
-position: 202
+sidebar:
+    order: 2
 ---
 
 There are two types of users: `in-users` (in global section) and `out-users` (in cluster section).

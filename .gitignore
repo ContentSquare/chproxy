@@ -4,13 +4,10 @@
 /tags
 /dist
 
-# Documentation dependencies and artefacts
-/docs/dist
-/docs/node_modules
-/docs/.output
-/docs/.nuxt
-/docs/static/sw.js
+/docs/src/content/docs/changelog.md
+
 .idea
+.vscode
 
 # Examples data directories
 examples/*/resources/chproxy/data

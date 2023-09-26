@@ -1,7 +1,7 @@
 ---
 title: Security
-category: Configuration
-position: 204
+sidebar:
+    order: 4
 ---
 
 `Chproxy` removes all the query params from input requests (except the user's [params](https://github.com/ContentSquare/chproxy/blob/master/config#param_groups_config) and listed [here](https://github.com/ContentSquare/chproxy/blob/master/scope.go#L292))

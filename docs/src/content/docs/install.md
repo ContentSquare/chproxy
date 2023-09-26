@@ -1,7 +1,5 @@
 ---
 title: Installation
-category: Guides
-position: 102
 ---
 ### Precompiled binaries
 

@@ -1,7 +1,7 @@
 ---
 title: Caching
-category: Configuration
-position: 203
+sidebar:
+    order: 3
 ---
 
 `Chproxy` may be configured to cache responses. It is possible to create multiple

@@ -1,7 +1,7 @@
 ---
 title: Server
-category: Configuration
-position: 201
+sidebar:
+    order: 1
 ---
 
 `Chproxy` may accept requests over `HTTP` and `HTTPS` protocols. [HTTPS](https://github.com/ContentSquare/chproxy/blob/master/config#https_config) must be configured with custom certificate or with automated [Let's Encrypt](https://letsencrypt.org/) certificates.

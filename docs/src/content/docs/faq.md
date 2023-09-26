@@ -1,8 +1,5 @@
 ---
 title: Frequently Asked Questions
-menuTitle: FAQ
-category: Guides
-position: 105
 ---
 
 * *Is `chproxy` production ready?*
