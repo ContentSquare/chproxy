@@ -1,7 +1,7 @@
 ---
 title: Network Proxy
-category: Configuration
-position: 207
+sidebar:
+    order: 7
 ---
 
 By default, `Chproxy` extracts the HTTP requests remote address. `Chproxy` can be configured to run behind another network proxy as well, by including the following configuration:

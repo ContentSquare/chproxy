@@ -1,8 +1,8 @@
 ---
 title: Spread SELECTs from reporting apps among cluster nodes
-menuTitle: Spreading SELECTs
-category: Use Cases
-position: 302
+sidebar:
+  label: Spreading SELECTs
+  order: 2
 ---
 
 Reporting apps usually generate various customer reports from `SELECT` query results.

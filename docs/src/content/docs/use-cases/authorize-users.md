@@ -1,8 +1,8 @@
 ---
 title: Authorize users by passwords via HTTPS
-menuTitle: Authorizing users
-category: Use Cases
-position: 303
+sidebar:
+  label: Authorizing users
+  order: 3
 ---
 
 Suppose you need to access `ClickHouse` cluster from anywhere by username/password.

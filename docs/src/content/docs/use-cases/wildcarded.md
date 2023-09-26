@@ -1,8 +1,8 @@
 ---
 title: Pass user names and passwords as is
-menuTitle: Wildcarded users
-category: Use Cases
-position: 305
+sidebar:
+  label: Wildcarded users
+  order: 5
 ---
 
 Suppose you need to use `ClickHouse` LDAP facilities. It is more secure and more flexible than having credentials hardcoded in ClickHouse or a `chproxy` configuration files.

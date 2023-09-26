@@ -1,31 +1,18 @@
 {
   "name": "chproxy-docs",
-  "version": "0.0.1",
   "description": "Documentation website for Chproxy",
-  "main": "index.js",
+  "type": "module",
+  "version": "0.0.2",
   "scripts": {
-    "dev": "nuxt",
-    "build": "nuxt build",
-    "start": "nuxt start",
-    "generate": "nuxt generate"
+    "dev": "cp ../CHANGELOG.md src/content/docs/changelog.md && astro dev",
+    "start": "astro dev",
+    "build": "cp ../CHANGELOG.md src/content/docs/changelog.md && astro build",
+    "preview": "astro preview",
+    "astro": "astro"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+ssh://git@github.com/ContentSquare/chproxy.git"
-  },
-  "keywords": [
-    "ClickHouse",
-    "chproxy",
-    "proxy"
-  ],
-  "author": "Tim Carry <tim@pixelastic.com> (https://www.pixelastic.com/)",
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/ContentSquare/chproxy/issues"
-  },
-  "homepage": "https://github.com/ContentSquare/chproxy#readme",
   "dependencies": {
-    "@nuxt/content-theme-docs": "^0.11.1",
-    "nuxt": "^3.4.3"
+    "@astrojs/starlight": "^0.10.2",
+    "astro": "^3.0.6",
+    "sharp": "^0.32.5"
   }
 }

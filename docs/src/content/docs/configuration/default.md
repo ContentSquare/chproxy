@@ -1,8 +1,8 @@
 ---
 title: Default configuration
-menuTitle: Default
-category: Configuration
-position: 206
+sidebar:
+  label: Default
+  order: 6
 ---
 
 

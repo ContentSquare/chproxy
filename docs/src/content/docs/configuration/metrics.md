@@ -1,7 +1,7 @@
 ---
 title: Metrics
-category: Configuration
-position: 205
+sidebar:
+    order: 5
 ---
 
 Metrics are exposed in [Prometheus text format](https://prometheus.io/docs/instrumenting/exposition_formats/) at `/metrics` path.
