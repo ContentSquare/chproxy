@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"crypto/tls"
 	"fmt"
-	"golang.org/x/time/rate"
 	"io"
 	"math/rand"
 	"net"
+	"os"
 	"regexp"
 	"runtime"
 	"strings"
@@ -15,6 +15,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"golang.org/x/time/rate"
 
 	"github.com/contentsquare/chproxy/cache"
 
@@ -36,10 +38,16 @@ const max_concurrent_goroutines = 256
 const heavyRequestDuration = time.Millisecond * 512
 const defaultUsername = "default"
 const (
-	okResponse = "1"
+	okResponse         = "1"
+	badGatewayResponse = "]: cannot reach 127.0.0.1:"
 )
+const testCacheDir = "./test-cache-data"
 
 var goodCfg = &config.Config{
+	Server: config.Server{
+		Metrics: config.Metrics{
+			Namespace: "proxy_test"},
+	},
 	Clusters: []config.Cluster{
 		{
 			Name:   "cluster",
@@ -67,6 +75,46 @@ var goodCfg = &config.Config{
 		{Name: "param_test", Params: []config.Param{{Key: "param_key", Value: "param_value"}}},
 	},
 }
+var goodCfgWithCache = &config.Config{
+	Clusters: []config.Cluster{
+		{
+			Name:   "cluster",
+			Scheme: "http",
+			Replicas: []config.Replica{
+				{
+					Nodes: []string{"localhost:8123"},
+				},
+			},
+			ClusterUsers: []config.ClusterUser{
+				{
+					Name: "web",
+				},
+			},
+		},
+	},
+	Users: []config.User{
+		{
+			Name:      defaultUsername,
+			ToCluster: "cluster",
+			ToUser:    "web",
+			Cache:     "file_system_cache",
+		},
+	},
+	ParamGroups: []config.ParamGroup{
+		{Name: "param_test", Params: []config.Param{{Key: "param_key", Value: "param_value"}}},
+	},
+	Caches: []config.Cache{
+		{
+			Name: "file_system_cache",
+			Mode: "file_system",
+			FileSystem: config.FileSystemCacheConfig{
+				Dir:     testCacheDir,
+				MaxSize: config.ByteSize(1024 * 1024),
+			},
+			Expire: config.Duration(1000 * 60 * 60),
+		},
+	},
+}
 
 func newConfiguredProxy(cfg *config.Config) (*reverseProxy, error) {
 	p := newReverseProxy(&cfg.ConnectionPool)
@@ -79,7 +127,7 @@ func init() {
 	// we need to initiliaze prometheus metrics
 	// otherwise the calls the proxy.applyConfig will fail
 	// due to memory issues if someone only runs proxy_test
-	initMetrics(goodCfg)
+	registerMetrics(goodCfg)
 }
 
 func TestNewReverseProxy(t *testing.T) {
@@ -270,6 +318,28 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 		expStatusCode int
 		f             func(p *reverseProxy) *http.Response
 	}{
+		{
+			cfg:           goodCfg,
+			name:          "Bad gatway response without cache",
+			expResponse:   badGatewayResponse,
+			expStatusCode: http.StatusBadGateway,
+			f: func(p *reverseProxy) *http.Response {
+				req := httptest.NewRequest("GET", fmt.Sprintf("%s/badGateway?query=SELECT123456", fakeServer.URL), nil)
+				return makeCustomRequest(p, req)
+			},
+		},
+		{
+			cfg:           goodCfgWithCache,
+			name:          "Bad gatway response with cache",
+			expResponse:   badGatewayResponse,
+			expStatusCode: http.StatusBadGateway,
+			f: func(p *reverseProxy) *http.Response {
+				req := httptest.NewRequest("GET", fmt.Sprintf("%s/badGateway?query=SELECT123456", fakeServer.URL), nil)
+				// cleaning the cache to be sure it will be a cache miss although the query isn't supposed to be cached
+				os.RemoveAll(testCacheDir)
+				return makeCustomRequest(p, req)
+			},
+		},
 		{
 			cfg:           goodCfg,
 			name:          "Ok response",
@@ -898,6 +968,10 @@ var (
 		defer atomic.AddInt64(&nbRequestsInflight, -1)
 		if r.URL.Path == "/fast" {
 			fmt.Fprintln(w, okResponse)
+			return
+		}
+		if r.URL.Path == "/badGateway" {
+			w.WriteHeader(http.StatusBadGateway)
 			return
 		}
 
