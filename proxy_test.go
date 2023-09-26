@@ -44,6 +44,10 @@ const (
 const testCacheDir = "./test-cache-data"
 
 var goodCfg = &config.Config{
+	Server: config.Server{
+		Metrics: config.Metrics{
+			Namespace: "proxy_test"},
+	},
 	Clusters: []config.Cluster{
 		{
 			Name:   "cluster",
