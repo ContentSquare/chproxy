@@ -8,7 +8,7 @@ position: 104
 Since v1.17.1, chproxy follows [semantic versioning](https://semver.org/).
 Don't expect breaking changes between 2 releases if they have the same major version.
 
-### <a id="230"></a> release 1.25.0, 2022-09-04
+### <a id="230"></a> release 1.25.0, 2023-09-04
 
 #### New Feature
 * Ability to use environment variable in config [#343](https://github.com/ContentSquare/chproxy/pull/343)
@@ -21,7 +21,7 @@ Don't expect breaking changes between 2 releases if they have the same major ver
 * [code quality] strengthen linter rules [#330](https://github.com/ContentSquare/chproxy/pull/330) [#355](https://github.com/ContentSquare/chproxy/pull/355)
 * [code quality] refactoring to make the code of heartbeat more modular [#344](https://github.com/ContentSquare/chproxy/pull/344)
 
-### <a id="230"></a> release 1.24.0, 2022-05-03
+### <a id="230"></a> release 1.24.0, 2023-05-03
 #### New Feature
 * Support TLS config in Redis cache [#328](https://github.com/ContentSquare/chproxy/pull/328)
 
@@ -29,7 +29,7 @@ Don't expect breaking changes between 2 releases if they have the same major ver
 * Fix spaces in x-forwarded-for header [#326](https://github.com/ContentSquare/chproxy/issues/326)
 * Fix Host Counter double decrement [#322](https://github.com/ContentSquare/chproxy/issues/322)
 
-### <a id="229"></a> release 1.23.0, 2022-03-28
+### <a id="229"></a> release 1.23.0, 2023-03-28
 #### New Feature
 * Ability to know whether a query was cached or not with a new HTTP header [#313](https://github.com/ContentSquare/chproxy/pull/313)
 
@@ -37,7 +37,7 @@ Don't expect breaking changes between 2 releases if they have the same major ver
 * Fix Redis Cluster Crossslot Issue [#320](https://github.com/ContentSquare/chproxy/pull/320)
 
 
-### <a id="229"></a> release 1.22.0, 2022-03-01
+### <a id="229"></a> release 1.22.0, 2023-03-01
 
 #### Release note
 * Docker images arm64 & arm64v8 are not available for this version.
@@ -58,7 +58,7 @@ Don't expect breaking changes between 2 releases if they have the same major ver
 * add ca-certificates into the docker image to fix issues with https [#301](https://github.com/ContentSquare/chproxy/pull/301)
 
 
-### <a id="229"></a> release 1.21.0, 2022-01-05
+### <a id="229"></a> release 1.21.0, 2023-01-05
 
 #### New Feature
 * Ability to change the maximum number of idle TCP connections to clickhouse to avoid issues in edge case scenarios [#275](https://github.com/ContentSquare/chproxy/pull/275)
