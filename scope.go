@@ -906,7 +906,6 @@ func (r *replica) getHostSticky(sessionId string) *topology.Node {
 
 	// Scan all the hosts for the least loaded host.
 	for i := uint32(1); i < n; i++ {
-
 		// handling sticky session
 		sessionId := hash(sessionId)
 		tmpIdx := (sessionId) % n
