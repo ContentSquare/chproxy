@@ -24,5 +24,8 @@ jobs:
     - name: Test
       run: go test -v ./...
 
-    - name: Update coverage badge
-      uses: ncruces/go-coverage-report@main
+    - name: Update coverage report
+      uses: ncruces/go-coverage-report@v0.2.3
+      with:
+        report: 'true'
+        chart: 'true'
