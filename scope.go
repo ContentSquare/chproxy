@@ -873,10 +873,9 @@ func (c *cluster) getReplicaSticky(sessionId string) *replica {
 	r := c.replicas[idx]
 
 	for i := uint32(1); i < n; i++ {
-		tmpIdx := (idx + i) % n
 		// handling sticky session
 		sessionId := hash(sessionId)
-		tmpIdx = (sessionId) % n
+		tmpIdx := (sessionId) % n
 		tmpRSticky := c.replicas[tmpIdx]
 		log.Debugf("Sticky replica candidate is: %s", tmpRSticky.name)
 		if !tmpRSticky.isActive() {
@@ -907,11 +906,10 @@ func (r *replica) getHostSticky(sessionId string) *topology.Node {
 
 	// Scan all the hosts for the least loaded host.
 	for i := uint32(1); i < n; i++ {
-		tmpIdx := (idx + i) % n
 
 		// handling sticky session
 		sessionId := hash(sessionId)
-		tmpIdx = (sessionId) % n
+		tmpIdx := (sessionId) % n
 		tmpHSticky := r.hosts[tmpIdx]
 		log.Debugf("Sticky server candidate is: %s", tmpHSticky)
 		if !tmpHSticky.IsActive() {

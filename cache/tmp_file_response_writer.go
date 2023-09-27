@@ -7,6 +7,8 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+
+	"github.com/contentsquare/chproxy/log"
 )
 
 // TmpFileResponseWriter caches Clickhouse response.
@@ -50,8 +52,14 @@ func (rw *TmpFileResponseWriter) Close() error {
 func (rw *TmpFileResponseWriter) GetFile() (*os.File, error) {
 	if err := rw.bw.Flush(); err != nil {
 		fn := rw.tmpFile.Name()
-		err = rw.tmpFile.Close()
-		err = os.Remove(fn)
+		errTmp := rw.tmpFile.Close()
+		if errTmp != nil {
+			log.Errorf("cannot close tmpFile: %s, error: %s", fn, errTmp)
+		}
+		errTmp = os.Remove(fn)
+		if errTmp != nil {
+			log.Errorf("cannot remove tmpFile: %s, error: %s", fn, errTmp)
+		}
 		return nil, fmt.Errorf("cannot flush data into %q: %w", fn, err)
 	}
 
