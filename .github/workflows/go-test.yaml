@@ -23,3 +23,6 @@ jobs:
 
     - name: Test
       run: go test -v ./...
+
+    - name: Update coverage badge
+      uses: ncruces/go-coverage-report@main
