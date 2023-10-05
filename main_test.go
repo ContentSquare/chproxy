@@ -1138,7 +1138,7 @@ func TestNewTLSConfig(t *testing.T) {
 	if err != nil {
 		panic(fmt.Sprintf("cannot build TLS config: %s", err))
 	}
-	tlsCfg, err = cfg.BuildTLSConfig(autocertManager)
+	tlsCfg, _ = cfg.BuildTLSConfig(autocertManager)
 	if tlsCfg.GetCertificate == nil {
 		t.Fatalf("expected func GetCertificate be set; got nil")
 	}

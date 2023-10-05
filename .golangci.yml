@@ -50,13 +50,13 @@ linters:
     - govet
     - nilerr
     - wastedassign
+    - ineffassign
   disable:
     # Should be readded in the future with a dedicated PR to do the fix
     - funlen
     - gocognit
     - gofumpt
     - ifshort
-    - ineffassign
     - nestif
     - nolintlint
     - revive
