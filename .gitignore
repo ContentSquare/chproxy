@@ -13,3 +13,4 @@
 examples/*/resources/chproxy/data
 examples/*/resources/clickhouse/data
 examples/*/resources/clickhouse/config/*-preprocessed.xml
+/config.yml
