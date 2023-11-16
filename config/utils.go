@@ -19,7 +19,7 @@ func stringToIPnet(s string) (*net.IPNet, error) {
 	}
 	_, ipnet, err := net.ParseCIDR(ip)
 	if err != nil {
-		return nil, fmt.Errorf("wrong network group name or address %q: %s", s, err)
+		return nil, fmt.Errorf("wrong network group name or address %q: %w", s, err)
 	}
 	return ipnet, nil
 }

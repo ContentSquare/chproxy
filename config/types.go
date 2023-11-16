@@ -25,21 +25,17 @@ func (bs *ByteSize) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 	s = strings.ToUpper(s)
 
-	parts := byteSizeRegexp.FindStringSubmatch(strings.TrimSpace(s))
-	if len(parts) < 3 {
-		return fmt.Errorf("cannot parse byte size %q: it must be positive float followed by optional units. For example, 1.5Gb, 3T", s)
+	value, unit, err := parseStringParts(s)
+	if err != nil {
+		return err
 	}
 
-	value, err := strconv.ParseFloat(parts[1], 64)
-	if err != nil {
-		return fmt.Errorf("cannot parse byte size %q: it must be positive float followed by optional units. For example, 1.5Gb, 3T; err: %s", s, err)
-	}
 	if value <= 0 {
 		return fmt.Errorf("byte size %q must be positive", s)
 	}
 
 	k := float64(1)
-	unit := parts[2]
+
 	switch unit {
 	case "P":
 		k = 1 << 50
@@ -63,6 +59,23 @@ func (bs *ByteSize) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	return nil
+}
+
+func parseStringParts(s string) (float64, string, error) {
+	s = strings.ToUpper(s)
+	parts := byteSizeRegexp.FindStringSubmatch(strings.TrimSpace(s))
+	if len(parts) < 3 {
+		return -1, "", fmt.Errorf("cannot parse byte size %q: it must be positive float followed by optional units. For example, 1.5Gb, 3T", s)
+	}
+
+	value, err := strconv.ParseFloat(parts[1], 64)
+	if err != nil {
+		return -1, "", fmt.Errorf("cannot parse byte size %q: it must be positive float followed by optional units. For example, 1.5Gb, 3T; err: %w", s, err)
+	}
+
+	unit := parts[2]
+
+	return value, unit, nil
 }
 
 // Networks is a list of IPNet entities
@@ -105,7 +118,8 @@ func (n Networks) Contains(addr string) bool {
 
 	h, _, err := net.SplitHostPort(addr)
 	if err != nil {
-		panic(fmt.Sprintf("BUG: unexpected error while parsing RemoteAddr: %s", err))
+		// If we only have an IP address. This happens when the proxy middleware is enabled.
+		h = addr
 	}
 
 	ip := net.ParseIP(h)
@@ -131,7 +145,7 @@ func (d *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal(&s); err != nil {
 		return err
 	}
-	dur, err := parseDuration(s)
+	dur, err := StringToDuration(s)
 	if err != nil {
 		return err
 	}
@@ -154,6 +168,7 @@ func (d Duration) String() string {
 
 	var t = time.Duration(d)
 	unit := "ns"
+	//nolint:exhaustive // Custom duration counter that doesn't switch on the duration.
 	switch time.Duration(0) {
 	case t % factors["w"]:
 		unit = "w"
@@ -183,14 +198,34 @@ var durationRE = regexp.MustCompile("^([0-9]+)(w|d|h|m|s|ms|µs|ns)$")
 
 // StringToDuration parses a string into a time.Duration,
 // assuming that a week always has 7d, and a day always has 24h.
-func parseDuration(durationStr string) (Duration, error) {
-	matches := durationRE.FindStringSubmatch(durationStr)
-	if len(matches) != 3 {
-		return 0, fmt.Errorf("not a valid duration string: %q", durationStr)
+func StringToDuration(durationStr string) (Duration, error) {
+	n, unit, err := parseDurationParts(durationStr)
+	if err != nil {
+		return 0, err
 	}
-	var n, _ = strconv.Atoi(matches[1])
-	var dur = time.Duration(n)
-	switch unit := matches[2]; unit {
+
+	return calculateDuration(n, unit)
+}
+
+func parseDurationParts(s string) (int, string, error) {
+	matches := durationRE.FindStringSubmatch(s)
+	if len(matches) != 3 {
+		return 0, "", fmt.Errorf("not a valid duration string: %q", s)
+	}
+
+	n, err := strconv.Atoi(matches[1])
+	if err != nil {
+		return 0, "", fmt.Errorf("duration too long: %q", matches[1])
+	}
+
+	unit := matches[2]
+
+	return n, unit, nil
+}
+
+func calculateDuration(n int, unit string) (Duration, error) {
+	dur := time.Duration(n)
+	switch unit {
 	case "w":
 		dur *= time.Hour * 24 * 7
 	case "d":
@@ -209,5 +244,6 @@ func parseDuration(durationStr string) (Duration, error) {
 	default:
 		return 0, fmt.Errorf("invalid time unit in duration string: %q", unit)
 	}
+
 	return Duration(dur), nil
 }

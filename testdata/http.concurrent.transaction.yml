@@ -1,0 +1,24 @@
+caches:
+  - name: "concurrent_cache"
+    mode: "file_system"
+    file_system:
+      dir: "temp-test-data/concurrent_cache"
+      max_size: "10M"
+    expire: "1m"
+    grace_time: "160ms"
+
+server:
+  http:
+      listen_addr: ":9090"
+      allowed_networks: ["127.0.0.1/24"]
+
+users:
+  - name: "concurrent_user"
+    cache: "concurrent_cache"
+    to_cluster: "default"
+    to_user: "default"
+    max_execution_time: "300ms"
+
+clusters:
+  - name: "default"
+    nodes: ["127.0.0.1:18124"]

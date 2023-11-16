@@ -2,7 +2,7 @@ package main
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"net/http/httptest"
 	"testing"
 )
@@ -10,10 +10,10 @@ import (
 func TestCachedReadCloser(t *testing.T) {
 	b := makeQuery(1000)
 	crc := &cachedReadCloser{
-		ReadCloser: ioutil.NopCloser(bytes.NewReader(b)),
+		ReadCloser: io.NopCloser(bytes.NewReader(b)),
 	}
 	req := httptest.NewRequest("POST", "http://localhost", crc)
-	res, err := ioutil.ReadAll(req.Body)
+	res, err := io.ReadAll(req.Body)
 	if err != nil {
 		t.Fatalf("cannot obtain response: %s", err)
 	}

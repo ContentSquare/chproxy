@@ -5,27 +5,49 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net"
+	"os"
 	"regexp"
+	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"golang.org/x/time/rate"
+
+	"github.com/contentsquare/chproxy/cache"
 
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 
-	"github.com/Vertamedia/chproxy/config"
+	"github.com/contentsquare/chproxy/config"
+	"github.com/stretchr/testify/assert"
 )
 
+var nbHeavyRequestsInflight int64 = 0
+var nbRequestsInflight int64 = 0
+var totalNbOfRequests uint64 = 0
+var shouldStop uint64 = 0
+
+const max_concurrent_goroutines = 256
+
+const heavyRequestDuration = time.Millisecond * 512
+const defaultUsername = "default"
 const (
-	okResponse = "1\n"
+	okResponse         = "1"
+	badGatewayResponse = "]: cannot reach 127.0.0.1:"
 )
+const testCacheDir = "./test-cache-data"
 
 var goodCfg = &config.Config{
+	Server: config.Server{
+		Metrics: config.Metrics{
+			Namespace: "proxy_test"},
+	},
 	Clusters: []config.Cluster{
 		{
 			Name:   "cluster",
@@ -40,28 +62,76 @@ var goodCfg = &config.Config{
 					Name: "web",
 				},
 			},
-			HeartBeatInterval: config.Duration(time.Second * 5),
 		},
 	},
 	Users: []config.User{
 		{
-			Name:      "default",
+			Name:      defaultUsername,
 			ToCluster: "cluster",
 			ToUser:    "web",
+		},
+	},
+	ParamGroups: []config.ParamGroup{
+		{Name: "param_test", Params: []config.Param{{Key: "param_key", Value: "param_value"}}},
+	},
+}
+var goodCfgWithCache = &config.Config{
+	Clusters: []config.Cluster{
+		{
+			Name:   "cluster",
+			Scheme: "http",
+			Replicas: []config.Replica{
+				{
+					Nodes: []string{"localhost:8123"},
+				},
+			},
+			ClusterUsers: []config.ClusterUser{
+				{
+					Name: "web",
+				},
+			},
+		},
+	},
+	Users: []config.User{
+		{
+			Name:      defaultUsername,
+			ToCluster: "cluster",
+			ToUser:    "web",
+			Cache:     "file_system_cache",
+		},
+	},
+	ParamGroups: []config.ParamGroup{
+		{Name: "param_test", Params: []config.Param{{Key: "param_key", Value: "param_value"}}},
+	},
+	Caches: []config.Cache{
+		{
+			Name: "file_system_cache",
+			Mode: "file_system",
+			FileSystem: config.FileSystemCacheConfig{
+				Dir:     testCacheDir,
+				MaxSize: config.ByteSize(1024 * 1024),
+			},
+			Expire: config.Duration(1000 * 60 * 60),
 		},
 	},
 }
 
 func newConfiguredProxy(cfg *config.Config) (*reverseProxy, error) {
-	p := newReverseProxy()
+	p := newReverseProxy(&cfg.ConnectionPool)
 	if err := p.applyConfig(cfg); err != nil {
 		return p, fmt.Errorf("error while loading config: %s", err)
 	}
 	return p, nil
 }
+func init() {
+	// we need to initiliaze prometheus metrics
+	// otherwise the calls the proxy.applyConfig will fail
+	// due to memory issues if someone only runs proxy_test
+	registerMetrics(goodCfg)
+}
 
 func TestNewReverseProxy(t *testing.T) {
-	proxy := newReverseProxy()
+	proxy := newReverseProxy(&goodCfg.ConnectionPool)
 	if err := proxy.applyConfig(goodCfg); err != nil {
 		t.Fatalf("error while loading config: %s", err)
 	}
@@ -73,14 +143,14 @@ func TestNewReverseProxy(t *testing.T) {
 	if len(r.hosts) != 1 {
 		t.Fatalf("got %d hosts; expResponse: %d", len(r.hosts), 1)
 	}
-	if r.hosts[0].addr.Host != "localhost:8123" {
-		t.Fatalf("got %s host; expResponse: %s", r.hosts[0].addr.Host, "localhost:8123")
+	if r.hosts[0].Host() != "localhost:8123" {
+		t.Fatalf("got %s host; expResponse: %s", r.hosts[0].Host(), "localhost:8123")
 	}
 	if len(proxy.users) != 1 {
 		t.Fatalf("got %d users; expResponse: %d", len(proxy.users), 1)
 	}
-	if _, ok := proxy.users["default"]; !ok {
-		t.Fatalf("expected user %q to be present in users", "default")
+	if _, ok := proxy.users[defaultUsername]; !ok {
+		t.Fatalf("expected user %q to be present in users", defaultUsername)
 	}
 }
 
@@ -92,17 +162,42 @@ var badCfg = &config.Config{
 			Nodes:  []string{"localhost:8123"},
 			ClusterUsers: []config.ClusterUser{
 				{
-					Name: "default",
+					Name: defaultUsername,
 				},
 			},
-			HeartBeatInterval: config.Duration(time.Second * 5),
 		},
 	},
 	Users: []config.User{
 		{
-			Name:      "default",
+			Name:      defaultUsername,
 			ToCluster: "cluster",
 			ToUser:    "foo",
+		},
+	},
+}
+
+var badCfgWithNoHeartBeatUser = &config.Config{
+	Clusters: []config.Cluster{
+		{
+			Name:   "badCfgWithNoHeartBeatUser",
+			Scheme: "http",
+			Nodes:  []string{"localhost:8123"},
+			ClusterUsers: []config.ClusterUser{
+				{
+					Name: defaultUsername,
+				},
+			},
+			HeartBeat: config.HeartBeat{
+				Request: "/not_ping",
+			},
+		},
+	},
+	Users: []config.User{
+		{
+			Name:         "analyst_*",
+			IsWildcarded: true,
+			ToCluster:    "badCfgWithNoHeartBeatUser",
+			ToUser:       defaultUsername,
 		},
 	},
 }
@@ -116,6 +211,14 @@ func TestApplyConfig(t *testing.T) {
 		t.Fatalf("error expected; got nil")
 	}
 	if _, ok := proxy.clusters["badCfg"]; ok {
+		t.Fatalf("bad config applied; expected previous config")
+	}
+	if err := proxy.applyConfig(badCfgWithNoHeartBeatUser); err == nil {
+		t.Fatalf("error expected; got nil")
+	} else if err.Error() != "`cluster.heartbeat.user ` cannot be unset for \"badCfgWithNoHeartBeatUser\" because a wildcarded user cannot send heartbeat" {
+		t.Fatalf("unexpected error %s", err.Error())
+	}
+	if _, ok := proxy.clusters["badCfgWithNoHeartBeatUser"]; ok {
 		t.Fatalf("bad config applied; expected previous config")
 	}
 }
@@ -132,7 +235,6 @@ var authCfg = &config.Config{
 					Password: "webpass",
 				},
 			},
-			HeartBeatInterval: config.Duration(time.Second * 5),
 		},
 	},
 	Users: []config.User{
@@ -141,6 +243,69 @@ var authCfg = &config.Config{
 			Password:  "bar",
 			ToCluster: "cluster",
 			ToUser:    "web",
+		},
+	},
+}
+
+var wildcardedCfg = &config.Config{
+	Clusters: []config.Cluster{
+		{
+			Name:   "cluster",
+			Scheme: "http",
+			Nodes:  []string{"localhost:8123"},
+			ClusterUsers: []config.ClusterUser{
+				{
+					Name:     "web",
+					Password: "webpass",
+				},
+				{
+					Name: "analyst_*",
+				},
+				{
+					Name: "*-UK",
+				},
+			},
+		},
+	},
+	Users: []config.User{
+		{
+			Name:         "analyst_*",
+			ToCluster:    "cluster",
+			ToUser:       "analyst_*",
+			IsWildcarded: true,
+		},
+		{
+			Name:         "*-UK",
+			ToCluster:    "cluster",
+			ToUser:       "*-UK",
+			IsWildcarded: true,
+		},
+	},
+}
+
+var fullWildcardedCfg = &config.Config{
+	Clusters: []config.Cluster{
+		{
+			Name:   "cluster",
+			Scheme: "http",
+			Nodes:  []string{"localhost:8123"},
+			ClusterUsers: []config.ClusterUser{
+				{
+					Name:     "web",
+					Password: "webpass",
+				},
+				{
+					Name: "*",
+				},
+			},
+		},
+	},
+	Users: []config.User{
+		{
+			Name:         "*",
+			ToCluster:    "cluster",
+			ToUser:       "*",
+			IsWildcarded: true,
 		},
 	},
 }
@@ -155,6 +320,28 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 	}{
 		{
 			cfg:           goodCfg,
+			name:          "Bad gatway response without cache",
+			expResponse:   badGatewayResponse,
+			expStatusCode: http.StatusBadGateway,
+			f: func(p *reverseProxy) *http.Response {
+				req := httptest.NewRequest("GET", fmt.Sprintf("%s/badGateway?query=SELECT123456", fakeServer.URL), nil)
+				return makeCustomRequest(p, req)
+			},
+		},
+		{
+			cfg:           goodCfgWithCache,
+			name:          "Bad gatway response with cache",
+			expResponse:   badGatewayResponse,
+			expStatusCode: http.StatusBadGateway,
+			f: func(p *reverseProxy) *http.Response {
+				req := httptest.NewRequest("GET", fmt.Sprintf("%s/badGateway?query=SELECT123456", fakeServer.URL), nil)
+				// cleaning the cache to be sure it will be a cache miss although the query isn't supposed to be cached
+				os.RemoveAll(testCacheDir)
+				return makeCustomRequest(p, req)
+			},
+		},
+		{
+			cfg:           goodCfg,
 			name:          "Ok response",
 			expResponse:   okResponse,
 			expStatusCode: http.StatusOK,
@@ -167,8 +354,7 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 			expStatusCode: http.StatusTooManyRequests,
 			f: func(p *reverseProxy) *http.Response {
 				p.clusters["cluster"].users["web"].maxConcurrentQueries = 1
-				go makeHeavyRequest(p, time.Millisecond*20)
-				time.Sleep(time.Millisecond * 10)
+				runHeavyRequestInGoroutine(p, 1, true)
 				return makeRequest(p)
 			},
 		},
@@ -185,10 +371,10 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 		{
 			cfg:           goodCfg,
 			name:          "choose max time between users",
-			expResponse:   "timeout for user \"default\" exceeded: 10ms",
+			expResponse:   fmt.Sprintf("timeout for user \"%s\" exceeded: 10ms", defaultUsername),
 			expStatusCode: http.StatusGatewayTimeout,
 			f: func(p *reverseProxy) *http.Response {
-				p.users["default"].maxExecutionTime = time.Millisecond * 10
+				p.users[defaultUsername].maxExecutionTime = time.Millisecond * 10
 				p.clusters["cluster"].users["web"].maxExecutionTime = time.Millisecond * 15
 				return makeHeavyRequest(p, time.Millisecond*20)
 			},
@@ -199,7 +385,7 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 			expResponse:   "timeout for cluster user \"web\" exceeded: 10ms",
 			expStatusCode: http.StatusGatewayTimeout,
 			f: func(p *reverseProxy) *http.Response {
-				p.users["default"].maxExecutionTime = time.Millisecond * 15
+				p.users[defaultUsername].maxExecutionTime = time.Millisecond * 15
 				p.clusters["cluster"].users["web"].maxExecutionTime = time.Millisecond * 10
 				return makeHeavyRequest(p, time.Millisecond*20)
 			},
@@ -207,12 +393,11 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 		{
 			cfg:           goodCfg,
 			name:          "max concurrent queries for user",
-			expResponse:   "limits for user \"default\" are exceeded: max_concurrent_queries limit: 1;",
+			expResponse:   fmt.Sprintf("limits for user \"%s\" are exceeded: max_concurrent_queries limit: 1;", defaultUsername),
 			expStatusCode: http.StatusTooManyRequests,
 			f: func(p *reverseProxy) *http.Response {
-				p.users["default"].maxConcurrentQueries = 1
-				go makeHeavyRequest(p, time.Millisecond*20)
-				time.Sleep(time.Millisecond * 10)
+				p.users[defaultUsername].maxConcurrentQueries = 1
+				runHeavyRequestInGoroutine(p, 1, true)
 				return makeRequest(p)
 			},
 		},
@@ -222,11 +407,10 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 			expResponse:   okResponse,
 			expStatusCode: http.StatusOK,
 			f: func(p *reverseProxy) *http.Response {
-				p.users["default"].maxConcurrentQueries = 1
-				p.users["default"].queueCh = make(chan struct{}, 2)
-				go makeHeavyRequest(p, time.Millisecond*20)
-				time.Sleep(time.Millisecond * 10)
-				return makeHeavyRequest(p, time.Millisecond*20)
+				p.users[defaultUsername].maxConcurrentQueries = 1
+				p.users[defaultUsername].queueCh = make(chan struct{}, 2)
+				runHeavyRequestInGoroutine(p, 1, true)
+				return makeRequest(p)
 			},
 		},
 		{
@@ -235,26 +419,43 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 			expResponse:   okResponse,
 			expStatusCode: http.StatusOK,
 			f: func(p *reverseProxy) *http.Response {
-				p.users["default"].maxConcurrentQueries = 1
+				p.users[defaultUsername].maxConcurrentQueries = 1
 				p.clusters["cluster"].users["web"].queueCh = make(chan struct{}, 2)
-				go makeHeavyRequest(p, time.Millisecond*20)
-				time.Sleep(time.Millisecond * 10)
-				return makeHeavyRequest(p, time.Millisecond*20)
+				runHeavyRequestInGoroutine(p, 1, true)
+				return makeRequest(p)
+			},
+		},
+		{
+			cfg:           goodCfg,
+			name:          "max payload size limit",
+			expResponse:   okResponse,
+			expStatusCode: http.StatusOK,
+			f: func(p *reverseProxy) *http.Response {
+				p.caches["max_payload_size"] = &cache.AsyncCache{
+					MaxPayloadSize: 8 * 1024 * 1024,
+				}
+				p.users[defaultUsername].cache = p.caches["max_payload_size"]
+				return makeRequest(p)
 			},
 		},
 		{
 			cfg:           goodCfg,
 			name:          "queue overflow for user",
-			expResponse:   "limits for user \"default\" are exceeded: max_concurrent_queries limit: 1",
+			expResponse:   fmt.Sprintf("limits for user \"%s\" are exceeded: max_concurrent_queries limit: 1", defaultUsername),
 			expStatusCode: http.StatusTooManyRequests,
 			f: func(p *reverseProxy) *http.Response {
-				p.users["default"].maxConcurrentQueries = 1
-				p.users["default"].queueCh = make(chan struct{}, 1)
-				go makeHeavyRequest(p, time.Millisecond*20)
-				time.Sleep(time.Millisecond * 5)
-				go makeHeavyRequest(p, time.Millisecond*20)
-				time.Sleep(time.Millisecond * 5)
-				return makeHeavyRequest(p, time.Millisecond*20)
+				p.users[defaultUsername].maxConcurrentQueries = 1
+				p.users[defaultUsername].queueCh = make(chan struct{}, 1)
+				// we don't wait the requests to be handled by the fakeServer because one of them will be enqueued and not handled
+				// this is why we handle this part manually
+				nbRequest := atomic.LoadUint64(&totalNbOfRequests)
+				runHeavyRequestInGoroutine(p, 2, false)
+				counter := 0
+				for atomic.LoadUint64(&totalNbOfRequests) < nbRequest+2 && counter < 200 {
+					time.Sleep(1 * time.Millisecond)
+					counter++
+				}
+				return makeRequest(p)
 			},
 		},
 		{
@@ -287,10 +488,10 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 		{
 			cfg:           goodCfg,
 			name:          "disallow http",
-			expResponse:   "user \"default\" is not allowed to access via http",
+			expResponse:   fmt.Sprintf("user \"%s\" is not allowed to access via http", defaultUsername),
 			expStatusCode: http.StatusForbidden,
 			f: func(p *reverseProxy) *http.Response {
-				p.users["default"].denyHTTP = true
+				p.users[defaultUsername].denyHTTP = true
 				return makeRequest(p)
 			},
 		},
@@ -385,22 +586,142 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 				return makeCustomRequest(p, req)
 			},
 		},
+		{
+			cfg:           authCfg,
+			name:          "post request max payload size",
+			expResponse:   okResponse,
+			expStatusCode: http.StatusOK,
+			f: func(p *reverseProxy) *http.Response {
+				uri := fmt.Sprintf("%s?user=foo&password=bar", fakeServer.URL)
+				req := httptest.NewRequest("POST", uri, nil)
+				p.caches["max_payload_size"] = &cache.AsyncCache{
+					MaxPayloadSize: 8 * 1024 * 1024,
+				}
+				p.users["foo"].cache = p.caches["max_payload_size"]
+				return makeCustomRequest(p, req)
+			},
+		},
+		{
+			cfg:           wildcardedCfg,
+			name:          "wildcarded Ok1",
+			expResponse:   "user: analyst_jane, password: jane_pass\n" + okResponse,
+			expStatusCode: http.StatusOK,
+			f: func(p *reverseProxy) *http.Response {
+				req := httptest.NewRequest("POST", fakeServer.URL, nil)
+				req.Header.Set("X-ClickHouse-User", "analyst_jane")
+				req.Header.Set("X-ClickHouse-Key", "jane_pass")
+				return makeCustomRequest(p, req)
+			},
+		},
+		{
+			cfg:           wildcardedCfg,
+			name:          "wildcarded Ok2",
+			expResponse:   "user: john-UK, password: john_pass\n" + okResponse,
+			expStatusCode: http.StatusOK,
+			f: func(p *reverseProxy) *http.Response {
+				req := httptest.NewRequest("POST", fakeServer.URL, nil)
+				req.Header.Set("X-ClickHouse-User", "john-UK")
+				req.Header.Set("X-ClickHouse-Key", "john_pass")
+				return makeCustomRequest(p, req)
+			},
+		},
+		{
+			cfg:           fullWildcardedCfg,
+			name:          "wildcarded Ok3",
+			expResponse:   "user: toto, password: titi\n" + okResponse,
+			expStatusCode: http.StatusOK,
+			f: func(p *reverseProxy) *http.Response {
+				req := httptest.NewRequest("POST", fakeServer.URL, nil)
+				req.Header.Set("X-ClickHouse-User", "toto")
+				req.Header.Set("X-ClickHouse-Key", "titi")
+				return makeCustomRequest(p, req)
+			},
+		},
+		{
+			cfg:           fullWildcardedCfg,
+			name:          "wildcarded Ko for default user",
+			expResponse:   fmt.Sprintf("invalid username or password for user \"%s\"", defaultUsername),
+			expStatusCode: http.StatusUnauthorized,
+			f: func(p *reverseProxy) *http.Response {
+				req := httptest.NewRequest("POST", fakeServer.URL, nil)
+				req.Header.Set("X-ClickHouse-User", defaultUsername)
+				req.Header.Set("X-ClickHouse-Key", "")
+				return makeCustomRequest(p, req)
+			},
+		},
+		{
+			cfg:           goodCfg,
+			name:          "request packet size token limit for user",
+			expResponse:   "limits for user \"default\" is exceeded: request_packet_size_tokens_burst limit: 4",
+			expStatusCode: http.StatusTooManyRequests,
+			f: func(p *reverseProxy) *http.Response {
+				p.users[defaultUsername].reqPacketSizeTokensBurst = 4
+				p.users[defaultUsername].reqPacketSizeTokenLimiter = rate.NewLimiter(
+					rate.Limit(1), 4)
+				go makeHeavyRequest(p, time.Millisecond*20)
+				return makeHeavyRequest(p, time.Millisecond*200)
+			},
+		},
+		{
+			cfg:           goodCfg,
+			name:          "request packet size token limit for cluster user",
+			expResponse:   "limits for cluster user \"web\" is exceeded: request_packet_size_tokens_burst limit: 4",
+			expStatusCode: http.StatusTooManyRequests,
+			f: func(p *reverseProxy) *http.Response {
+				p.clusters["cluster"].users["web"].reqPacketSizeTokensBurst = 4
+				p.clusters["cluster"].users["web"].reqPacketSizeTokenLimiter = rate.NewLimiter(
+					rate.Limit(1), 4)
+				go makeHeavyRequest(p, time.Millisecond*20)
+				return makeHeavyRequest(p, time.Millisecond*200)
+			},
+		},
+		{
+			cfg:           goodCfg,
+			name:          "queuing request packet size token limit for user",
+			expResponse:   okResponse,
+			expStatusCode: http.StatusOK,
+			f: func(p *reverseProxy) *http.Response {
+				p.users[defaultUsername].reqPacketSizeTokensBurst = 5
+				p.users[defaultUsername].reqPacketSizeTokenLimiter = rate.NewLimiter(
+					rate.Limit(1), 5)
+				p.users[defaultUsername].queueCh = make(chan struct{}, 2)
+				p.users[defaultUsername].maxQueueTime = 10 * time.Second
+				runHeavyRequestInGoroutine(p, 1, true)
+				return makeHeavyRequest(p, time.Millisecond*200)
+			},
+		},
+		{
+			cfg:           goodCfg,
+			name:          "queuing request with packet size token limit for cluster user",
+			expResponse:   okResponse,
+			expStatusCode: http.StatusOK,
+			f: func(p *reverseProxy) *http.Response {
+				p.clusters["cluster"].users["web"].reqPacketSizeTokensBurst = 5
+				p.clusters["cluster"].users["web"].reqPacketSizeTokenLimiter = rate.NewLimiter(
+					rate.Limit(1), 5)
+				p.clusters["cluster"].users["web"].queueCh = make(chan struct{}, 2)
+				p.clusters["cluster"].users["web"].maxQueueTime = 10 * time.Second
+				runHeavyRequestInGoroutine(p, 1, true)
+				return makeHeavyRequest(p, time.Millisecond*200)
+			},
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			stopAllRequestsInFlight()
 			proxy, err := getProxy(tc.cfg)
 			if err != nil {
-				t.Fatalf("unexpected error: %s", err)
+				t.Fatalf("unexpected error: %s for %q", err, tc.name)
 			}
 			resp := tc.f(proxy)
 			b := bbToString(t, resp.Body)
 			resp.Body.Close()
 			if !strings.Contains(b, tc.expResponse) {
-				t.Fatalf("expected response: %q; got: %q", tc.expResponse, b)
+				t.Fatalf("expected response: %q; got: %q for %q", tc.expResponse, b, tc.name)
 			}
 			if tc.expStatusCode != resp.StatusCode {
-				t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, tc.expStatusCode)
+				t.Fatalf("unexpected status code: %d; expected: %d for %q", resp.StatusCode, tc.expStatusCode, tc.name)
 			}
 		})
 	}
@@ -465,15 +786,15 @@ func TestKillQuery(t *testing.T) {
 		{
 			name: "timeout user",
 			f: func(p *reverseProxy) *http.Response {
-				p.users["default"].maxExecutionTime = time.Millisecond * 10
-				return makeHeavyRequest(p, time.Millisecond*20)
+				p.users[defaultUsername].maxExecutionTime = time.Millisecond * 5
+				return makeHeavyRequest(p, time.Millisecond*40)
 			},
 		},
 		{
 			name: "timeout cluster user",
 			f: func(p *reverseProxy) *http.Response {
-				p.clusters["cluster"].users["web"].maxExecutionTime = time.Millisecond * 10
-				return makeHeavyRequest(p, time.Millisecond*20)
+				p.clusters["cluster"].users["web"].maxExecutionTime = time.Millisecond * 5
+				return makeHeavyRequest(p, time.Millisecond*40)
 			},
 		},
 	}
@@ -490,8 +811,21 @@ func TestKillQuery(t *testing.T) {
 			if len(id) == 0 {
 				t.Fatalf("expected Id to be extracted from %q", b)
 			}
+			// waiting btw 5 and 200 msec to get the answer from CHProxy
+			// because this code on github is unstable due to the poor performances
+			// of the server running the CI.
+			loop := true
+			counter := 0
+			for loop {
+				time.Sleep(time.Millisecond * 5)
+				counter++
 
-			time.Sleep(time.Millisecond * 30)
+				_, err := registry.get(id)
+				if err == nil || counter > 40 {
+					loop = false
+				}
+			}
+
 			state, err := registry.get(id)
 			if err != nil {
 				t.Fatalf("unexpected requestRegistry err for key %q: %s", id, err)
@@ -600,7 +934,7 @@ func TestReverseProxy_ServeHTTP2(t *testing.T) {
 			t.Fatalf("unexpected error: %s", err)
 		}
 		resp := makeRequest(proxy)
-		expected := "user \"default\" is not allowed to access"
+		expected := fmt.Sprintf("user \"%s\" is not allowed to access", defaultUsername)
 		b := bbToString(t, resp.Body)
 		resp.Body.Close()
 		if !strings.Contains(b, expected) {
@@ -620,19 +954,37 @@ func getNetwork(s string) *net.IPNet {
 const killQueryPattern = "KILL QUERY WHERE query_id"
 
 var (
+	// quick fix until the test file is refactored.
+	// Many tests rely on concurrency of goroutines.
+	// But, because of the use of sleep, only a few goroutine can run in concurrence and the other are blocked
+	// cf: https://stackoverflow.com/questions/62527705/will-time-sleep-block-goroutine
+	// Because of that, on most tests the goroutines are running sequencially
+	// This id why we increase the number concurrent goroutines (the default number is the number of cpu of the computer running the tests, which is quite low on github actions)
+	// we must increase this number before the instanciation of the fakeServer, otherwise it's not taken into account during the tests
+	_        = increaseMaxConccurentGoroutine()
 	registry = newRequestRegistry()
 	handler  = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt64(&nbRequestsInflight, 1)
+		defer atomic.AddInt64(&nbRequestsInflight, -1)
 		if r.URL.Path == "/fast" {
 			fmt.Fprintln(w, okResponse)
 			return
 		}
+		if r.URL.Path == "/badGateway" {
+			w.WriteHeader(http.StatusBadGateway)
+			return
+		}
 
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			panic(err)
 		}
 		b := string(body)
 		r.Body.Close()
+
+		if n, p, found := r.BasicAuth(); found {
+			fmt.Fprintf(w, "user: %s, password: %s\n", n, p)
+		}
 
 		qid := r.URL.Query().Get("query_id")
 		if len(qid) == 0 && len(b) == 0 {
@@ -650,7 +1002,19 @@ var (
 				if err != nil {
 					panic(fmt.Sprintf("error while imitating delay at fakeServer handler: %s", err))
 				}
-				time.Sleep(d)
+
+				// at this step the query is really processed by the server
+				// we're only interested by long queries, i.e the one taking more than 0 msec
+				if d == heavyRequestDuration {
+					atomic.AddInt64(&nbHeavyRequestsInflight, 1)
+				}
+
+				// instead of sleeping for the whole duration, we sleep msec per msec so that the query can be
+				// cancel once it's associated test is over because this test suite generate a lot of goroutines,
+				// which can be an issue on small cpu like github actions
+				for i := int64(0); i < d.Milliseconds() && atomic.LoadUint64(&shouldStop) == 0; i++ {
+					time.Sleep(time.Millisecond)
+				}
 			}
 		}
 
@@ -677,6 +1041,7 @@ func (tcn *testCloseNotifier) CloseNotify() <-chan bool {
 }
 
 func makeCustomRequest(p *reverseProxy, req *http.Request) *http.Response {
+	atomic.AddUint64(&totalNbOfRequests, 1)
 	rw := httptest.NewRecorder()
 	cn := &testCloseNotifier{rw}
 	p.ServeHTTP(cn, req)
@@ -697,8 +1062,6 @@ func getProxy(c *config.Config) (*reverseProxy, error) {
 		return nil, err
 	}
 
-	// wait till all hosts will do health-checking
-	time.Sleep(time.Millisecond * 50)
 	return proxy, nil
 }
 
@@ -706,7 +1069,7 @@ func newConfig() *config.Config {
 	newCfg := *goodCfg
 	newCfg.Users = []config.User{
 		{
-			Name:                 "default",
+			Name:                 defaultUsername,
 			MaxConcurrentQueries: rand.Uint32(),
 		},
 	}
@@ -714,7 +1077,7 @@ func newConfig() *config.Config {
 }
 
 func bbToString(t *testing.T, r io.Reader) string {
-	response, err := ioutil.ReadAll(r)
+	response, err := io.ReadAll(r)
 	if err != nil {
 		t.Fatalf("unexpected err while reading: %s", err)
 	}
@@ -741,6 +1104,10 @@ type requestRegistry struct {
 	r map[string]bool
 }
 
+func increaseMaxConccurentGoroutine() int {
+	nb := runtime.GOMAXPROCS(max_concurrent_goroutines)
+	return nb
+}
 func newRequestRegistry() *requestRegistry {
 	return &requestRegistry{
 		r: make(map[string]bool),
@@ -760,4 +1127,84 @@ func (r *requestRegistry) get(key string) (bool, error) {
 		return false, fmt.Errorf("no such key")
 	}
 	return v, nil
+}
+
+func TestCalcQueryParamsHash(t *testing.T) {
+	testCases := []struct {
+		name           string
+		input          url.Values
+		expectedResult uint32
+	}{
+		{
+			"nil Value",
+			nil,
+			0,
+		},
+		{
+			"empty calcQueryParamsHash",
+			url.Values{},
+			0,
+		},
+		{
+			"map with non param_ value",
+			url.Values{"session_id": {"foo", "bar"}},
+			0,
+		},
+		{
+			"map with only param_ value",
+			url.Values{"param_limit": {"1"}},
+			0x94a386,
+		},
+		{
+			"map with only param_ value. value affects result",
+			url.Values{"param_limit": {"2"}},
+			0x329bae01,
+		},
+		{
+			"map with mix of param_ and non-param_ value",
+			url.Values{"param_limit": {"1"}, "session_id": {"foo", "bar"}},
+			0x94a386,
+		},
+		{
+			"map with multiple param_ values",
+			url.Values{"param_limit": {"1", "2"}, "param_table": {"foo"}},
+			0x3a8a5c31,
+		},
+		{
+			"map with multiple param_ values and only first value in array affects result",
+			url.Values{"param_limit": {"1"}, "param_table": {"foo", "bar"}},
+			0x3a8a5c31,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := calcQueryParamsHash(tc.input)
+			assert.Equal(t, r, tc.expectedResult)
+		})
+	}
+}
+
+// this function runs an number of heavyRequests using goroutines
+// then waits that all the requests are currently handled by the fakeServer
+func runHeavyRequestInGoroutine(p *reverseProxy, nbHeavyRequest int64, shouldWait bool) {
+	atomic.StoreInt64(&nbHeavyRequestsInflight, 0)
+	for i := 0; i < int(nbHeavyRequest); i++ {
+		go makeHeavyRequest(p, heavyRequestDuration)
+	}
+	counter := 0
+	//we wait up to 200 msec for the requests to be handled by the fakeServer because
+	// the code on github actions can be very slow
+	for shouldWait && atomic.LoadInt64(&nbHeavyRequestsInflight) < nbHeavyRequest && counter < 200 {
+		time.Sleep(time.Millisecond)
+		counter++
+	}
+}
+
+func stopAllRequestsInFlight() {
+	atomic.StoreUint64(&shouldStop, 1)
+	for atomic.LoadInt64(&nbRequestsInflight) > 0 {
+		time.Sleep(time.Millisecond)
+	}
+	atomic.StoreUint64(&shouldStop, 0)
 }

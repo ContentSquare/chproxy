@@ -17,12 +17,16 @@ caches:
     # Multiple users may share the same cache.
   - name: "longterm"
 
-    # Path to directory where cached responses will be stored.
-    dir: "/path/to/longterm/cachedir"
+    mode: "file_system"
+    file_system:
+      # Maximum cache size.
+      # `Kb`, `Mb`, `Gb` and `Tb` suffixes may be used.
+      max_size: 100Gb
 
-    # Maximum cache size.
-    # `Kb`, `Mb`, `Gb` and `Tb` suffixes may be used.
-    max_size: 100Gb
+      # Path to directory where cached responses will be stored.
+      dir: "/path/to/longterm/cachedir"
+
+    max_payload_size: 100Gb
 
     # Expiration time for cached responses.
     expire: 1h
@@ -38,9 +42,23 @@ caches:
     grace_time: 20s
 
   - name: "shortterm"
-    dir: "/path/to/shortterm/cachedir"
-    max_size: 100Mb
+    mode: "file_system"
+    file_system:
+      max_size: 100Mb
+      dir: "/path/to/shortterm/cachedir"
+    max_payload_size: 100Mb
+    shared_with_all_users: true
     expire: 10s
+  - name: redis-cache
+    mode: redis
+    expire: 10s
+    redis:
+      username: chproxy
+      password: password
+      addresses:
+        - 127.0.0.1:16379
+    max_payload_size: 107374182400
+    shared_with_all_users: true
 
 # Optional network lists, might be used as values for `allowed_networks`.
 network_groups:
@@ -74,6 +92,17 @@ param_groups:
 
       - key: "max_execution_time"
         value: "30"
+
+# Settings for `chproxy` connection pool to ClickHouse.
+connection_pool:
+  # Total number of connections to keep open
+  # when they are not needed for clients.
+  # Consider increasing if many sessions in TIME_WAIT and Bad Gateway is
+  # often returned by chporxy.
+  max_idle_conns: 100
+  # Number of connections per ClickHouse host to keep open
+  # when they are not needed for clients.
+  max_idle_conns_per_host: 2
 
 # Settings for `chproxy` input interfaces.
 server:
@@ -131,6 +160,13 @@ server:
   # By default access to `/metrics` is unrestricted.
   metrics:
     allowed_networks: ["office"]
+    namespace: ""
+
+  # Proxy settings enable parsing proxy headers in cases where
+  # CHProxy is run behind another proxy.
+  proxy:
+    enable: true
+    header: CF-Connecting-IP
 
 # Configs for input users.
 users:
@@ -200,7 +236,7 @@ users:
     # The maximum query duration for the user.
     # Timed out queries are forcibly killed via `KILL QUERY`.
     #
-    # By default there is no limit on the query duration.
+    # By default set to 120s.
     max_execution_time: 1m
 
     # Whether to deny input requests over HTTPS.
@@ -220,16 +256,15 @@ clusters:
     # Requests are evenly distributed among them.
     nodes: ["127.0.0.1:8123", "shard2:8123"]
 
-    # DEPRECATED: Each cluster node is checked for availability using this interval.
-    # By default each node is checked for every 5 seconds.
-    # Use `heartbeat.interval`.
-    heartbeat_interval: 1m
-
     # Timed out queries are killed using this user.
     # By default `default` user is used.
     kill_query_user:
       name: "default"
       password: "***"
+
+    # Retry query when it cannot be run by the current node.
+    # By default 0 is used.
+    retry_number: 1
 
     # Configuration for cluster users.
     users:
@@ -251,6 +286,10 @@ clusters:
       - name: "replica2"
         nodes: ["127.0.2.1:8443", "127.0.2.2:8443"]
 
+    # Retry query when it cannot be run by the current node.
+    # By default 0 is used.
+    retry_number: 2
+
     users:
       - name: "default"
         max_concurrent_queries: 4
@@ -264,8 +303,24 @@ clusters:
         max_queue_time: 70s
         allowed_networks: ["office"]
 
-  - name: "thrid cluster"
-    nodes: ["thrid1:8123", "thrid2:8123"]
+    heartbeat:
+      # Username for heartbeats
+      # No default value
+      # If ommited (by default),
+      # credentials of the first user in clusters.users will be used for heart beat requests to clickhouse.
+      # Note, that credentials of a wildcarded user cannot be used for heat beat
+      user: "hbuser"
+
+      # Password for heartbeats
+      # No default value
+      password: "hbpassword"
+
+  - name: "third cluster"
+    nodes: ["third1:8123", "third2:8123"]
+
+    # Retry query when it cannot be run by the current node.
+    # By default 0 is used.
+    retry_number: 3
 
     # User configuration for heart beat requests.
     # Credentials of the first user in clusters.users will be used for heart beat requests to clickhouse.
@@ -279,9 +334,9 @@ clusters:
       timeout: 10s
 
       # The parameter to set the URI to request in a health check
-      # By default "/?query=SELECT%201"
-      request: "/ping"
+      # By default "/ping"
+      request: "/?query=SELECT%201"
 
       # Reference response from clickhouse on health check request
-      # By default "1\n"
+      # By default "Ok.\n"
       response: "Ok.\n"

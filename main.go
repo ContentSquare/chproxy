@@ -14,8 +14,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Vertamedia/chproxy/config"
-	"github.com/Vertamedia/chproxy/log"
+	"github.com/contentsquare/chproxy/config"
+	"github.com/contentsquare/chproxy/log"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/crypto/acme/autocert"
 )
@@ -23,15 +23,18 @@ import (
 var (
 	configFile = flag.String("config", "", "Proxy configuration filename")
 	version    = flag.Bool("version", false, "Prints current version and exits")
+	enableTCP6 = flag.Bool("enableTCP6", false, "Whether to enable listening for IPv6 TCP ports. "+
+		"By default only IPv4 TCP ports are listened")
 )
 
 var (
-	proxy = newReverseProxy()
+	proxy *reverseProxy
 
 	// networks allow lists
 	allowedNetworksHTTP    atomic.Value
 	allowedNetworksHTTPS   atomic.Value
 	allowedNetworksMetrics atomic.Value
+	proxyHandler           atomic.Value
 )
 
 func main() {
@@ -47,26 +50,15 @@ func main() {
 	if err != nil {
 		log.Fatalf("error while loading config: %s", err)
 	}
+	registerMetrics(cfg)
 	if err = applyConfig(cfg); err != nil {
 		log.Fatalf("error while applying config: %s", err)
 	}
+	configSuccess.Set(1)
+	configSuccessTime.Set(float64(time.Now().Unix()))
 	log.Infof("Loading config %q: successful", *configFile)
 
-	c := make(chan os.Signal)
-	signal.Notify(c, syscall.SIGHUP)
-	go func() {
-		for {
-			switch <-c {
-			case syscall.SIGHUP:
-				log.Infof("SIGHUP received. Going to reload config %s ...", *configFile)
-				if err := reloadConfig(); err != nil {
-					log.Errorf("error while reloading config: %s", err)
-					continue
-				}
-				log.Infof("Reloading config %s: successful", *configFile)
-			}
-		}
-	}()
+	setupReloadConfigWatch()
 
 	server := cfg.Server
 	if len(server.HTTP.ListenAddr) == 0 && len(server.HTTPS.ListenAddr) == 0 {
@@ -86,11 +78,28 @@ func main() {
 	select {}
 }
 
+func setupReloadConfigWatch() {
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, syscall.SIGHUP)
+	go func() {
+		for {
+			if <-c == syscall.SIGHUP {
+				log.Infof("SIGHUP received. Going to reload config %s ...", *configFile)
+				if err := reloadConfig(); err != nil {
+					log.Errorf("error while reloading config: %s", err)
+					continue
+				}
+				log.Infof("Reloading config %s: successful", *configFile)
+			}
+		}
+	}()
+}
+
 var autocertManager *autocert.Manager
 
 func newAutocertManager(cfg config.Autocert) *autocert.Manager {
 	if len(cfg.CacheDir) > 0 {
-		if err := os.MkdirAll(cfg.CacheDir, 0700); err != nil {
+		if err := os.MkdirAll(cfg.CacheDir, 0o700); err != nil {
 			log.Fatalf("error while creating folder %q: %s", cfg.CacheDir, err)
 		}
 	}
@@ -115,7 +124,12 @@ func newAutocertManager(cfg config.Autocert) *autocert.Manager {
 }
 
 func newListener(listenAddr string) net.Listener {
-	ln, err := net.Listen("tcp4", listenAddr)
+	network := "tcp4"
+	if *enableTCP6 {
+		// Enable listening on both tcp4 and tcp6
+		network = "tcp"
+	}
+	ln, err := net.Listen(network, listenAddr)
 	if err != nil {
 		log.Fatalf("cannot listen for %q: %s", listenAddr, err)
 	}
@@ -124,8 +138,13 @@ func newListener(listenAddr string) net.Listener {
 
 func serveTLS(cfg config.HTTPS) {
 	ln := newListener(cfg.ListenAddr)
+
 	h := http.HandlerFunc(serveHTTP)
-	tlsCfg := newTLSConfig(cfg)
+
+	tlsCfg, err := cfg.TLS.BuildTLSConfig(autocertManager)
+	if err != nil {
+		log.Fatalf("cannot build TLS config: %s", err)
+	}
 	tln := tls.NewListener(ln, tlsCfg)
 	log.Infof("Serving https on %q", cfg.ListenAddr)
 	if err := listenAndServe(tln, h, cfg.TimeoutCfg); err != nil {
@@ -136,6 +155,7 @@ func serveTLS(cfg config.HTTPS) {
 func serve(cfg config.HTTP) {
 	var h http.Handler
 	ln := newListener(cfg.ListenAddr)
+
 	h = http.HandlerFunc(serveHTTP)
 	if cfg.ForceAutocertHandler {
 		if autocertManager == nil {
@@ -155,47 +175,28 @@ func serve(cfg config.HTTP) {
 	}
 }
 
-func newTLSConfig(cfg config.HTTPS) *tls.Config {
-	tlsCfg := tls.Config{
-		PreferServerCipherSuites: true,
-		CurvePreferences: []tls.CurveID{
-			tls.CurveP256,
-			tls.X25519,
-		},
-	}
-	if len(cfg.KeyFile) > 0 && len(cfg.CertFile) > 0 {
-		cert, err := tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)
-		if err != nil {
-			log.Fatalf("cannot load cert for `https.cert_file`=%q, `https.key_file`=%q: %s",
-				cfg.CertFile, cfg.KeyFile, err)
-		}
-		tlsCfg.Certificates = []tls.Certificate{cert}
-	} else {
-		if autocertManager == nil {
-			panic("BUG: autocertManager is not inited")
-		}
-		tlsCfg.GetCertificate = autocertManager.GetCertificate
-	}
-	return &tlsCfg
-}
-
-func listenAndServe(ln net.Listener, h http.Handler, cfg config.TimeoutCfg) error {
-	s := &http.Server{
+func newServer(ln net.Listener, h http.Handler, cfg config.TimeoutCfg) *http.Server {
+	// nolint:gosec // We already configured ReadTimeout, so no need to set ReadHeaderTimeout as well.
+	return &http.Server{
 		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 		Handler:      h,
 		ReadTimeout:  time.Duration(cfg.ReadTimeout),
 		WriteTimeout: time.Duration(cfg.WriteTimeout),
 		IdleTimeout:  time.Duration(cfg.IdleTimeout),
-
 		// Suppress error logging from the server, since chproxy
 		// must handle all these errors in the code.
 		ErrorLog: log.NilLogger,
 	}
+}
+
+func listenAndServe(ln net.Listener, h http.Handler, cfg config.TimeoutCfg) error {
+	s := newServer(ln, h, cfg)
 	return s.Serve(ln)
 }
 
 var promHandler = promhttp.Handler()
 
+//nolint:cyclop //TODO reduce complexity here.
 func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet, http.MethodPost:
@@ -214,6 +215,7 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
 	case "/favicon.ico":
 	case "/metrics":
+		// nolint:forcetypeassert // We will cover this by tests as we control what is stored.
 		an := allowedNetworksMetrics.Load().(*config.Networks)
 		if !an.Contains(r.RemoteAddr) {
 			err := fmt.Errorf("connections to /metrics are not allowed from %s", r.RemoteAddr)
@@ -225,11 +227,17 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 		promHandler.ServeHTTP(rw, r)
 	case "/", "/query":
 		var err error
+		// nolint:forcetypeassert // We will cover this by tests as we control what is stored.
+		proxyHandler := proxyHandler.Load().(*ProxyHandler)
+		r.RemoteAddr = proxyHandler.GetRemoteAddr(r)
+
 		var an *config.Networks
 		if r.TLS != nil {
+			// nolint:forcetypeassert // We will cover this by tests as we control what is stored.
 			an = allowedNetworksHTTPS.Load().(*config.Networks)
 			err = fmt.Errorf("https connections are not allowed from %s", r.RemoteAddr)
 		} else {
+			// nolint:forcetypeassert // We will cover this by tests as we control what is stored.
 			an = allowedNetworksHTTP.Load().(*config.Networks)
 			err = fmt.Errorf("http connections are not allowed from %s", r.RemoteAddr)
 		}
@@ -253,21 +261,29 @@ func loadConfig() (*config.Config, error) {
 	}
 	cfg, err := config.LoadFile(*configFile)
 	if err != nil {
-		configSuccess.Set(0)
-		return nil, fmt.Errorf("can't load config %q: %s", *configFile, err)
+		return nil, fmt.Errorf("can't load config %q: %w", *configFile, err)
 	}
-	configSuccess.Set(1)
-	configSuccessTime.Set(float64(time.Now().Unix()))
 	return cfg, nil
 }
 
+// a configuration parameter value that is used in proxy initialization
+// changed
+func proxyConfigChanged(cfgCp *config.ConnectionPool, rp *reverseProxy) bool {
+	return cfgCp.MaxIdleConns != proxy.maxIdleConns ||
+		cfgCp.MaxIdleConnsPerHost != proxy.maxIdleConnsPerHost
+}
+
 func applyConfig(cfg *config.Config) error {
+	if proxy == nil || proxyConfigChanged(&cfg.ConnectionPool, proxy) {
+		proxy = newReverseProxy(&cfg.ConnectionPool)
+	}
 	if err := proxy.applyConfig(cfg); err != nil {
 		return err
 	}
 	allowedNetworksHTTP.Store(&cfg.Server.HTTP.AllowedNetworks)
 	allowedNetworksHTTPS.Store(&cfg.Server.HTTPS.AllowedNetworks)
 	allowedNetworksMetrics.Store(&cfg.Server.Metrics.AllowedNetworks)
+	proxyHandler.Store(NewProxyHandler(&cfg.Server.Proxy))
 	log.SetDebug(cfg.LogDebug)
 	log.Infof("Loaded config:\n%s", cfg)
 

@@ -4,7 +4,7 @@
  - `<addr>`: string value consisting of a hostname or IP followed by an optional port number
  - `<scheme>`: a string that can take the values `http` or `https`
  - `<duration>`: a duration matching the regular expression `^([0-9]+)(w|d|h|m|s|ms|µs|ns)`
- - `<networks>`: string value consisting of IP, IP mask or named group, for example `"127.0.0.1"` or `"127.0.0.1/24"`. 
+ - `<networks>`: string value consisting of IP, IP mask or named group, for example `"127.0.0.1"` or `"127.0.0.1/24"`.
  - `<host_name>`: string value consisting of host name, for example `"example.com"`
  - `<byte_size>`: string value matching the regular expression `/^\d+(\.\d+)?[KMGTP]?B?$/i`, for example `"100MB"`
 
@@ -14,7 +14,7 @@
 log_debug: <bool> | default = false [optional]
 
 # Whether to ignore security warnings
-hack_me_please <bool> | default = false [optional]
+hack_me_please: <bool> | default = false [optional]
 
 # Named list of cache configurations
 caches:
@@ -26,6 +26,11 @@ param_groups:
 
 # Named network lists
 network_groups: <network_groups_config> ... [optional]
+
+# Settings for connection pool to ClickHouse
+connection_pool:
+  max_idle_conns: 100
+  max_idle_conns_per_host: 2
 
 server:
   <server_config> [optional]
@@ -49,22 +54,27 @@ name: "office"
 networks: <networks> ...
 ```
 
-### <cache_config>
+### <file_system_cache_config>
 ```yml
 # Cache name, which may be passed into `cache` option on the `user` level.
 #
 # Multiple users may share the same cache.
 name: <string>
 
-# Path to directory where cached responses will be stored.
-dir: <string>
+mode: "file_system"
 
-# Maximum cache size.
-max_size: <byte_size>
+file_system:
+    # Path to directory where cached responses will be stored.
+    dir: <string>
+
+    # Maximum cache size.
+    max_size: <byte_size>
 
 # Expiration time for cached responses.
 expire: <duration>
 
+# DEPRECATED: default value equal to `max_execution_time` should be used.
+#             New configuration parameter will be provided to disable the protection at will.
 # When multiple requests with identical query simultaneously hit `chproxy`
 # and there is no cached response for the query, then only a single
 # request will be proxied to clickhouse. Other requests will wait
@@ -74,6 +84,56 @@ expire: <duration>
 # By default `grace_time` is 5s. Negative value disables the protection
 # from `thundering herd` problem.
 grace_time: <duration>
+
+# Maximum total size of request payload for caching. The default value
+# is set to 1 Petabyte.
+# The default value set so high is to allow users who do not use response size limitations virtually unlimited cache.
+max_payload_size: <byte_size>
+
+# Whether a query cached by a user can be used by another user
+shared_with_all_users: <bool> | default = false [optional]
+```
+
+### <distributed_cache_config>
+```yml
+# Cache name, which may be passed into `cache` option on the `user` level.
+#
+# Multiple users may share the same cache.
+name: <string>
+
+mode: "redis"
+
+# Applicable for cache mode: redis
+redis:
+  # list of addresses to redis nodes
+  # you should use multiple addresses only if they all belong to the same redis cluster.
+  addresses:
+    - <string> # example "localhost:6379"
+  username: <string>
+  password: <string>
+
+# Expiration time for cached responses.
+expire: <duration>
+
+# DEPRECATED: default value equal to `max_execution_time` should be used.
+#             New configuration parameter will be provided to disable the protection at will.
+# When multiple requests with identical query simultaneously hit `chproxy`
+# and there is no cached response for the query, then only a single
+# request will be proxied to clickhouse. Other requests will wait
+# for the cached response during this grace duration.
+# This is known as protection from `thundering herd` problem.
+#
+# By default `grace_time` is 5s. Negative value disables the protection
+# from `thundering herd` problem.
+grace_time: <duration>
+
+# Maximum total size of request payload for caching. The default value
+# is set to 1 Petabyte.
+# The default value set so high is to allow users who do not use response size limitations virtually unlimited cache.
+max_payload_size: <byte_size>
+
+# Whether a query cached by a user can be used by another user
+shared_with_all_users: <bool> | default = false [optional]
 ```
 
 ### <param_groups_config>
@@ -140,6 +200,8 @@ write_timeout: <duration> | optional
 idle_timeout: <duration> | optional | default = 10m
 
 # Certificate and key files for client cert authentication to the server
+# If you change the cert & key files while chproxy is running, you have to restart chproxy so that it loads them.
+# Triggering a SIGHUP signal won't work as for the rest of the configuration.
 cert_file: <string> | optional
 key_file: <string> | optional
 
@@ -162,6 +224,9 @@ allowed_hosts: <host_name> ... | optional
 # List of networks or network_groups access is allowed from
 # Each list item could be IP address or subnet mask
 allowed_networks: <network_groups>, <networks> ... | optional
+
+# Prometheus metric namespace
+namespace: <string> | optional
 ```
 
 ### <user_config>
@@ -193,6 +258,14 @@ max_execution_time: <duration> | optional | default = 0
 # By default there are no per-minute limits
 requests_per_minute: <int> | optional | default = 0
 
+# The burst of request packet size token bucket for user
+# By default there are no request packet size limits
+request_packet_size_tokens_burst: <byte_size> | optional | default = 0
+
+# The request packet size tokens produced rate per second for user
+# By default there are no request packet size limits
+request_packet_size_tokens_rate: <byte_size> | optional | default = 0
+
 # Maximum number of requests waiting for execution in the queue.
 # By default requests are executed without waiting in the queue
 max_queue_size: <int> | optional | default = 0
@@ -222,6 +295,12 @@ cache: <string> | optional
 # Optional group of params name to send to ClickHouse with each proxied request from <param_groups_config>
 # By default no additional params are sent to ClickHouse.
 params: <string> | optional
+
+# The user is wildcarded
+# Name matches prefix* or *suffix or *
+# Name and password to ClickHouse are obtained
+# from original request, not from cluster user
+is_wildcarded: <bool> | optional | default = false
 ```
 
 ### <cluster_config>
@@ -253,12 +332,12 @@ users:
 # By default timed out queries are killed from `default` user.
 kill_query_user: <kill_query_user_config> | optional
 
-# DEPRECATED: An interval for checking all cluster nodes for availability
-# Use `heartbeat.interval`.
-heartbeat_interval: <duration> | optional | default = 5s
-
 # HeartBeat - user configuration for heart beat requests.
 heartbeat: <heartbeat_config> | optional
+
+# RetryNumber - user configuration for query retry when one host cannot respond.
+retry_number: 0
+
 ```
 
 ### <replica_config>
@@ -276,7 +355,7 @@ nodes: <addr> ...
 name: <string>
 
 # User password in ClickHouse `users.xml` config
-password: <string> | optional 
+password: <string> | optional
 
 # Maximum number of concurrently running queries for user
 # By default there is no limit on the number of concurrently
@@ -290,6 +369,14 @@ max_execution_time: <duration> | optional | default = 0
 # Maximum number of requests per minute for user.
 # By default there are no per-minute limits
 requests_per_minute: <int> | optional | default = 0
+
+# The burst of request packet size token bucket for user
+# By default there are no request packet size limits
+request_packet_size_tokens_burst: <byte_size> | optional | default = 0
+
+# The request packet size tokens produced rate per second for user
+# By default there are no request packet size limits
+request_packet_size_tokens_rate: <byte_size> | optional | default = 0
 
 # Maximum number of requests waiting for execution in the queue.
 # By default requests are executed without waiting in the queue
@@ -322,4 +409,10 @@ request: <string> | optional | default = `/?query=SELECT%201`
 
 # Reference response from clickhouse on health check request
 response: <string> | optional | default = `1\n`
+
+# Credentials to send heartbeat requests
+# for anything except '/ping'.
+# If not specified, the first cluster user' creadentials are used
+user: <string> | optional
+password: <string> | optional
 ```

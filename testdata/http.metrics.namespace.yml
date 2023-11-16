@@ -1,0 +1,16 @@
+server:
+  http:
+    listen_addr: ":9090"
+    allowed_networks: ["127.0.0.1/32"]
+  metrics:
+    allowed_networks: ["127.0.0.1/32"]
+    namespace: "chproxy"
+
+users:
+  - name: "default"
+    to_cluster: "default"
+    to_user: "default"
+
+clusters:
+  - name: "default"
+    nodes: ["127.0.0.1:18124"]

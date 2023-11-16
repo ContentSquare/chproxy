@@ -1,8 +1,10 @@
 # cache configuration
 caches:
   - name: "https_cache"
-    dir: "temp-test-data/cache"
-    max_size: "10M"
+    mode: "file_system"
+    file_system:
+      dir: "temp-test-data/cache"
+      max_size: "10M"
     expire: "1m"
 
 server:
@@ -20,4 +22,7 @@ users:
 
 clusters:
   - name: "default"
-    nodes: ["127.0.0.1:8124"]
+    nodes: ["127.0.0.1:18124"]
+    users:
+    - name: "default"
+      password: "qwerty"

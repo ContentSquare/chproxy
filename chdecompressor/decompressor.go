@@ -1,10 +1,11 @@
 package chdecompressor
 
 import (
+	"errors"
 	"fmt"
 	"io"
 
-	"github.com/DataDog/zstd"
+	"github.com/klauspost/compress/zstd"
 	"github.com/pierrec/lz4"
 )
 
@@ -41,54 +42,68 @@ func (r *Reader) Read(buf []byte) (int, error) {
 func (r *Reader) readNextBlock() error {
 	// Skip checksum
 	if _, err := io.ReadFull(r.src, r.scratch[:16]); err != nil {
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return io.EOF
 		}
-		return fmt.Errorf("cannot read checksum: %s", err)
+		return fmt.Errorf("cannot read checksum: %w", err)
 	}
 
 	// Read compression type
 	if _, err := io.ReadFull(r.src, r.scratch[:1]); err != nil {
-		return fmt.Errorf("cannot read compression type: %s", err)
+		return fmt.Errorf("cannot read compression type: %w", err)
 	}
 	compressionType := r.scratch[0]
 
 	// Read compressed size
 	compressedSize, err := r.readUint32()
 	if err != nil {
-		return fmt.Errorf("cannot read compressed size: %s", err)
+		return fmt.Errorf("cannot read compressed size: %w", err)
 	}
 	compressedSize -= 9 // minus header length
 
 	// Read decompressed size
 	decompressedSize, err := r.readUint32()
 	if err != nil {
-		return fmt.Errorf("cannot read decompressed size: %s", err)
+		return fmt.Errorf("cannot read decompressed size: %w", err)
 	}
 
 	// Read compressed block
 	block := make([]byte, compressedSize)
 	if _, err = io.ReadFull(r.src, block); err != nil {
-		return fmt.Errorf("cannot read compressed block: %s", err)
+		return fmt.Errorf("cannot read compressed block: %w", err)
 	}
 
 	// Decompress block
+	if err := r.decompressBlock(block, compressionType, decompressedSize); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *Reader) decompressBlock(block []byte, compressionType byte, decompressedSize uint32) error {
+	var err error
+
 	r.data = make([]byte, decompressedSize)
+	var decoder, _ = zstd.NewReader(nil)
+
 	switch compressionType {
 	case noneType:
 		r.data = block
 	case lz4Type:
 		if _, err := lz4.UncompressBlock(block, r.data); err != nil {
-			return fmt.Errorf("cannot decompress lz4 block: %s", err)
+			return fmt.Errorf("cannot decompress lz4 block: %w", err)
 		}
 	case zstdType:
-		r.data, err = zstd.Decompress(r.data, block)
+		r.data = r.data[:0] // Wipe the slice but keep allocated memory
+		r.data, err = decoder.DecodeAll(block, r.data)
 		if err != nil {
-			return fmt.Errorf("cannot decompress zstd block: %s", err)
+			return fmt.Errorf("cannot decompress zstd block: %w", err)
 		}
 	default:
 		return fmt.Errorf("unknown compressionType: %X", compressionType)
 	}
+
 	return nil
 }
 

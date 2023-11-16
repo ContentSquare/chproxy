@@ -1,2 +1,15 @@
+.DS_Store
+
 /chproxy
 /tags
+/dist
+
+/docs/src/content/docs/changelog.md
+
+.idea
+.vscode
+
+# Examples data directories
+examples/*/resources/chproxy/data
+examples/*/resources/clickhouse/data
+examples/*/resources/clickhouse/config/*-preprocessed.xml

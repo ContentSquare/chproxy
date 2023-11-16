@@ -2,7 +2,7 @@ package log
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 	"sync/atomic"
@@ -18,16 +18,16 @@ var (
 	fatalLogger = log.New(os.Stderr, "FATAL: ", stdLogFlags)
 
 	// NilLogger suppresses all the log messages.
-	NilLogger = log.New(ioutil.Discard, "", stdLogFlags)
+	NilLogger = log.New(io.Discard, "", stdLogFlags)
 )
 
 // SuppressOutput suppresses all output from logs if `suppress` is true
 // used while testing
 func SuppressOutput(suppress bool) {
 	if suppress {
-		debugLogger.SetOutput(ioutil.Discard)
-		infoLogger.SetOutput(ioutil.Discard)
-		errorLogger.SetOutput(ioutil.Discard)
+		debugLogger.SetOutput(io.Discard)
+		infoLogger.SetOutput(io.Discard)
+		errorLogger.SetOutput(io.Discard)
 	} else {
 		debugLogger.SetOutput(os.Stderr)
 		infoLogger.SetOutput(os.Stderr)
@@ -52,30 +52,30 @@ func Debugf(format string, args ...interface{}) {
 		return
 	}
 	s := fmt.Sprintf(format, args...)
-	debugLogger.Output(outputCallDepth, s)
+	debugLogger.Output(outputCallDepth, s) // nolint
 }
 
 // Infof prints info message according to a format
 func Infof(format string, args ...interface{}) {
 	s := fmt.Sprintf(format, args...)
-	infoLogger.Output(outputCallDepth, s)
+	infoLogger.Output(outputCallDepth, s) // nolint
 }
 
 // Errorf prints warning message according to a format
 func Errorf(format string, args ...interface{}) {
 	s := fmt.Sprintf(format, args...)
-	errorLogger.Output(outputCallDepth, s)
+	errorLogger.Output(outputCallDepth, s) // nolint
 }
 
 // ErrorWithCallDepth prints err into error log using the given callDepth.
 func ErrorWithCallDepth(err error, callDepth int) {
 	s := err.Error()
-	errorLogger.Output(outputCallDepth+callDepth, s)
+	errorLogger.Output(outputCallDepth+callDepth, s) //nolint
 }
 
 // Fatalf prints fatal message according to a format and exits program
 func Fatalf(format string, args ...interface{}) {
 	s := fmt.Sprintf(format, args...)
-	fatalLogger.Output(outputCallDepth, s)
+	fatalLogger.Output(outputCallDepth, s) // nolint
 	os.Exit(1)
 }

@@ -1,0 +1,26 @@
+log_debug: true
+
+caches:
+  - name: "http_cache_max_payload_size"
+    mode: "file_system"
+    max_payload_size: "8M"
+    file_system:
+      dir: "temp-test-data/cache"
+      max_size: "100M"
+    expire: "1m"
+
+server:
+  http:
+    listen_addr: ":9090"
+    allowed_networks: [ "127.0.0.1/24" ]
+
+users:
+  - name: "default"
+    password: "qwerty"
+    to_cluster: "default"
+    to_user: "default"
+    cache: "http_cache_max_payload_size"
+
+clusters:
+  - name: "default"
+    nodes: ["127.0.0.1:18124"]

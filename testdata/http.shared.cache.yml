@@ -1,8 +1,50 @@
 caches:
-  - name: "shared_cache"
-    dir: "temp-test-data/shared_cache"
-    max_size: "10M"
+  - name: "shared_cache1"
+    mode: "file_system"
+    file_system:
+      dir: "temp-test-data/shared_cache1"
+      max_size: "10M"
     expire: "1m"
+
+  - name: "shared_cache2"
+    mode: "file_system"
+    file_system:
+      dir: "temp-test-data/shared_cache2"
+      max_size: "10M"
+    expire: "1m"
+
+  - name: "shared_cache3"
+    mode: "file_system"
+    file_system:
+      dir: "temp-test-data/shared_cache3"
+      max_size: "10M"
+    expire: "1m"
+
+  - name: "shared_cache4"
+    mode: "file_system"
+    file_system:
+      dir: "temp-test-data/shared_cache4"
+      max_size: "10M"
+    expire: "1m"
+    shared_with_all_users: true
+    max_payload_size: "50M"
+
+  - name: "shared_cache5"
+    mode: "file_system"
+    file_system:
+      dir: "temp-test-data/shared_cache5"
+      max_size: "10M"
+    expire: "1m"
+    shared_with_all_users: true
+    max_payload_size: "150M"
+
+  - name: "shared_cache6"
+    mode: "file_system"
+    file_system:
+      dir: "temp-test-data/shared_cache6"
+      max_size: "10M"
+    expire: "1m"
+    max_payload_size: "5M"
 
 server:
   http:
@@ -10,15 +52,76 @@ server:
       allowed_networks: ["127.0.0.1/24"]
 
 users:
-  - name: "user1"
-    cache: "shared_cache"
+  - name: "user1_test1"
+    cache: "shared_cache1"
     to_cluster: "default"
-    to_user: "default"
-  - name: "user2"
-    cache: "shared_cache"
-    to_cluster: "default"
-    to_user: "default"
+    to_user: "user1_test1"
 
+  - name: "user1_test2"
+    password: "toto"
+    cache: "shared_cache2"
+    to_cluster: "default"
+    to_user: "user1_test2"
+  - name: "user2_test2"
+    password: "titi"
+    cache: "shared_cache2"
+    to_cluster: "default"
+    to_user: "user2_test2"
+
+  - name: "user1_test3"
+    cache: "shared_cache3"
+    to_cluster: "default"
+    to_user: "user1_test3"
+  - name: "user2_test3"
+    cache: "shared_cache3"
+    to_cluster: "default"
+    to_user: "user2_test3"
+
+  - name: "user1_test4"
+    password: "toto"
+    cache: "shared_cache4"
+    to_cluster: "default"
+    to_user: "user1_test4"
+  - name: "user2_test4"
+    password: "titi"
+    cache: "shared_cache4"
+    to_cluster: "default"
+    to_user: "user2_test4"
+
+  - name: "user1_test5"
+    cache: "shared_cache5"
+    to_cluster: "default"
+    to_user: "user1_test5"
+  - name: "user2_test5"
+    cache: "shared_cache5"
+    to_cluster: "default"
+    to_user: "user2_test5"
+
+  - name: "*_test6"
+    cache: "shared_cache6"
+    to_cluster: "default"
+    to_user: "default"
+    is_wildcarded: true
 clusters:
   - name: "default"
-    nodes: ["127.0.0.1:8124"]
+    nodes: ["127.0.0.1:18124"]
+    users:
+    - name: "default"
+    - name: "user1_test1"
+      password: "password"
+    - name: "user1_test2"
+      password: "password"
+    - name: "user2_test2"
+      password: "password"
+    - name: "user1_test3"
+      password: "password"
+    - name: "user2_test3"
+      password: "password"
+    - name: "user1_test4"
+      password: "toto"
+    - name: "user2_test4"
+      password: "titi"
+    - name: "user1_test5"
+      password: "password"
+    - name: "user2_test5"
+      password: "password"

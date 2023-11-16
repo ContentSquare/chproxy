@@ -11,4 +11,4 @@ users:
 
 clusters:
   - name: "default"
-    nodes: ["127.0.0.1:8124"]
+    nodes: ["127.0.0.1:18124"]

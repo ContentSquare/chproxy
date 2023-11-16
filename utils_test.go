@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/url"
 	"testing"
@@ -279,6 +280,40 @@ func TestDecompression(t *testing.T) {
 	}
 }
 
+func TestGetSessionTimeout(t *testing.T) {
+	req, err := http.NewRequest(http.MethodPost, "http://127.0.0.1:9090", nil)
+	if err != nil {
+		panic(err)
+	}
+	params := make(url.Values)
+	// uint str return self
+	firstSessionTimeout := "888"
+	// invalid str return 60
+	secondSessionTimeout := "600s"
+	thirdSessionTimeout := "aaa"
+	params.Add("query", "SELECT 1")
+	params.Set("session_timeout", firstSessionTimeout)
+	req.URL.RawQuery = params.Encode()
+	if getSessionTimeout(req) != 888 {
+		t.Fatalf("user set session_timeout %q; get %q , expected %q ", firstSessionTimeout, getSessionTimeout(req), 888)
+	}
+	params.Set("session_timeout", secondSessionTimeout)
+	req.URL.RawQuery = params.Encode()
+	if getSessionTimeout(req) != 60 {
+		t.Fatalf("user set session_timeout %q; get %q , expected %q", secondSessionTimeout, getSessionTimeout(req), 60)
+	}
+	params.Set("session_timeout", thirdSessionTimeout)
+	req.URL.RawQuery = params.Encode()
+	if getSessionTimeout(req) != 60 {
+		t.Fatalf("user set session_timeout %q; get %q , expected %q", thirdSessionTimeout, getSessionTimeout(req), 60)
+	}
+	params.Del("session_timeout")
+	req.URL.RawQuery = params.Encode()
+	if getSessionTimeout(req) != 60 {
+		t.Fatalf("user not set session_timeout ,get %q , expected %q", getSessionTimeout(req), 60)
+	}
+}
+
 func makeQuery(n int) []byte {
 	q1 := "SELECT column "
 	q2 := "WHERE Date=today()"
@@ -290,4 +325,52 @@ func makeQuery(n int) []byte {
 	}
 	b = append(b, q2...)
 	return b
+}
+
+func TestCalcMapHash(t *testing.T) {
+	testCases := []struct {
+		name           string
+		input          map[string]string
+		expectedResult uint32
+		expectedError  error
+	}{
+		{
+			"nil map",
+			nil,
+			0,
+			nil,
+		},
+		{
+			"empty map",
+			map[string]string{},
+			0,
+			nil,
+		},
+		{
+			"map with value",
+			map[string]string{"param_table_name": "clients"},
+			0x40802c7a, // write whatever to buf to make the data partially invalid
+			nil,
+		},
+		{
+			"map with multiple value",
+			map[string]string{"param_table_name": "clients", "param_database": "default"},
+			0x6fddf04d,
+			nil,
+		},
+		{
+			"map with exchange value",
+			map[string]string{"param_database": "default", "param_table_name": "clients"},
+			0x6fddf04d,
+			nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			r, err := calcMapHash(tc.input)
+			assert.Equal(t, r, tc.expectedResult)
+			assert.Equal(t, err, tc.expectedError)
+		})
+	}
 }

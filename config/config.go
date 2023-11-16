@@ -1,11 +1,16 @@
 package config
 
 import (
+	"bytes"
+	"crypto/tls"
 	"fmt"
-	"io/ioutil"
+	"os"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/mohae/deepcopy"
+	"golang.org/x/crypto/acme/autocert"
 	"gopkg.in/yaml.v2"
 )
 
@@ -18,6 +23,7 @@ var (
 		Scheme:       "http",
 		ClusterUsers: []ClusterUser{defaultClusterUser},
 		HeartBeat:    defaultHeartBeat,
+		RetryNumber:  defaultRetryNumber,
 	}
 
 	defaultClusterUser = ClusterUser{
@@ -27,9 +33,22 @@ var (
 	defaultHeartBeat = HeartBeat{
 		Interval: Duration(time.Second * 5),
 		Timeout:  Duration(time.Second * 3),
-		Request:  "/?query=SELECT%201",
-		Response: "1\n",
+		Request:  "/ping",
+		Response: "Ok.\n",
+		User:     "",
+		Password: "",
 	}
+
+	defaultConnectionPool = ConnectionPool{
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 2,
+	}
+
+	defaultExecutionTime = Duration(120 * time.Second)
+
+	defaultMaxPayloadSize = ByteSize(1 << 50)
+
+	defaultRetryNumber = 0
 )
 
 // Config describes server configuration, access and proxy rules
@@ -52,10 +71,12 @@ type Config struct {
 
 	ParamGroups []ParamGroup `yaml:"param_groups,omitempty"`
 
-	// Catches all undefined fields
-	XXX map[string]interface{} `yaml:",inline"`
+	ConnectionPool ConnectionPool `yaml:"connection_pool,omitempty"`
 
 	networkReg map[string]Networks
+
+	// Catches all undefined fields
+	XXX map[string]interface{} `yaml:",inline"`
 }
 
 // String implements the Stringer interface
@@ -69,6 +90,8 @@ func (c *Config) String() string {
 
 func withoutSensitiveInfo(config *Config) *Config {
 	const pswPlaceHolder = "XXX"
+
+	// nolint: forcetypeassert // no need to check type, it is specified by function.
 	c := deepcopy.Copy(config).(*Config)
 	for i := range c.Users {
 		c.Users[i].Password = pswPlaceHolder
@@ -79,6 +102,11 @@ func withoutSensitiveInfo(config *Config) *Config {
 		}
 		for j := range c.Clusters[i].ClusterUsers {
 			c.Clusters[i].ClusterUsers[j].Password = pswPlaceHolder
+		}
+	}
+	for i := range c.Caches {
+		if len(c.Caches[i].Redis.Username) > 0 {
+			c.Caches[i].Redis.Password = pswPlaceHolder
 		}
 	}
 	return c
@@ -92,15 +120,27 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
+
+	if err := c.validate(); err != nil {
+		return err
+	}
+
+	return checkOverflow(c.XXX, "config")
+}
+
+func (c *Config) validate() error {
 	if len(c.Users) == 0 {
 		return fmt.Errorf("`users` must contain at least 1 user")
 	}
+
 	if len(c.Clusters) == 0 {
 		return fmt.Errorf("`clusters` must contain at least 1 cluster")
 	}
+
 	if len(c.Server.HTTP.ListenAddr) == 0 && len(c.Server.HTTPS.ListenAddr) == 0 {
 		return fmt.Errorf("neither HTTP nor HTTPS not configured")
 	}
+
 	if len(c.Server.HTTPS.ListenAddr) > 0 {
 		if len(c.Server.HTTPS.Autocert.CacheDir) == 0 && len(c.Server.HTTPS.CertFile) == 0 && len(c.Server.HTTPS.KeyFile) == 0 {
 			return fmt.Errorf("configuration `https` is missing. " +
@@ -111,7 +151,84 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			c.Server.HTTP.ForceAutocertHandler = true
 		}
 	}
-	return checkOverflow(c.XXX, "config")
+	return nil
+}
+
+func (cfg *Config) setDefaults() error {
+	var maxResponseTime time.Duration
+	var err error
+	for i := range cfg.Clusters {
+		c := &cfg.Clusters[i]
+		for j := range c.ClusterUsers {
+			u := &c.ClusterUsers[j]
+			cud := time.Duration(u.MaxExecutionTime + u.MaxQueueTime)
+			if cud > maxResponseTime {
+				maxResponseTime = cud
+			}
+			if u.AllowedNetworks, err = cfg.groupToNetwork(u.NetworksOrGroups); err != nil {
+				return err
+			}
+		}
+	}
+	for i := range cfg.Users {
+		u := &cfg.Users[i]
+		u.setDefaults()
+
+		ud := time.Duration(u.MaxExecutionTime + u.MaxQueueTime)
+		if ud > maxResponseTime {
+			maxResponseTime = ud
+		}
+		if u.AllowedNetworks, err = cfg.groupToNetwork(u.NetworksOrGroups); err != nil {
+			return err
+		}
+	}
+
+	for i := range cfg.Caches {
+		c := &cfg.Caches[i]
+		c.setDefaults()
+	}
+
+	cfg.setServerMaxResponseTime(maxResponseTime)
+
+	return nil
+}
+
+func (cfg *Config) setServerMaxResponseTime(maxResponseTime time.Duration) {
+	if maxResponseTime < 0 {
+		maxResponseTime = 0
+	}
+
+	// Give an additional minute for the maximum response time,
+	// so the response body may be sent to the requester.
+	maxResponseTime += time.Minute
+	if len(cfg.Server.HTTP.ListenAddr) > 0 && cfg.Server.HTTP.WriteTimeout == 0 {
+		cfg.Server.HTTP.WriteTimeout = Duration(maxResponseTime)
+	}
+
+	if len(cfg.Server.HTTPS.ListenAddr) > 0 && cfg.Server.HTTPS.WriteTimeout == 0 {
+		cfg.Server.HTTPS.WriteTimeout = Duration(maxResponseTime)
+	}
+}
+
+func (c *Config) groupToNetwork(src NetworksOrGroups) (Networks, error) {
+	if len(src) == 0 {
+		return nil, nil
+	}
+
+	dst := make(Networks, 0)
+	for _, v := range src {
+		group, ok := c.networkReg[v]
+		if ok {
+			dst = append(dst, group...)
+		} else {
+			ipnet, err := stringToIPnet(v)
+			if err != nil {
+				return nil, err
+			}
+			dst = append(dst, ipnet)
+		}
+	}
+	return dst, nil
 }
 
 // Server describes configuration of proxy server
@@ -125,6 +242,9 @@ type Server struct {
 
 	// Optional metrics handler configuration
 	Metrics Metrics `yaml:"metrics,omitempty"`
+
+	// Optional Proxy configuration
+	Proxy Proxy `yaml:"proxy,omitempty"`
 
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
@@ -182,13 +302,61 @@ func (c *HTTP) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
+
+	if err := c.validate(); err != nil {
+		return err
+	}
+
+	return checkOverflow(c.XXX, "http")
+}
+
+func (c *HTTP) validate() error {
 	if c.ReadTimeout == 0 {
 		c.ReadTimeout = Duration(time.Minute)
 	}
+
 	if c.IdleTimeout == 0 {
 		c.IdleTimeout = Duration(time.Minute * 10)
 	}
-	return checkOverflow(c.XXX, "http")
+
+	return nil
+}
+
+// TLS describes generic configuration for TLS connections,
+// it can be used for both HTTPS and Redis TLS.
+type TLS struct {
+	// Certificate and key files for client cert authentication to the server
+	CertFile           string   `yaml:"cert_file,omitempty"`
+	KeyFile            string   `yaml:"key_file,omitempty"`
+	Autocert           Autocert `yaml:"autocert,omitempty"`
+	InsecureSkipVerify bool     `yaml:"insecure_skip_verify,omitempty"`
+}
+
+// BuildTLSConfig builds tls.Config from TLS configuration.
+func (c *TLS) BuildTLSConfig(acm *autocert.Manager) (*tls.Config, error) {
+	tlsCfg := tls.Config{
+		PreferServerCipherSuites: true,
+		MinVersion:               tls.VersionTLS12,
+		CurvePreferences: []tls.CurveID{
+			tls.CurveP256,
+			tls.X25519,
+		},
+		InsecureSkipVerify: c.InsecureSkipVerify, // nolint: gosec
+	}
+	if len(c.KeyFile) > 0 && len(c.CertFile) > 0 {
+		cert, err := tls.LoadX509KeyPair(c.CertFile, c.KeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("cannot load cert for `cert_file`=%q, `key_file`=%q: %w",
+				c.CertFile, c.KeyFile, err)
+		}
+		tlsCfg.Certificates = []tls.Certificate{cert}
+	} else {
+		if acm == nil {
+			return nil, fmt.Errorf("autocert manager is not configured")
+		}
+		tlsCfg.GetCertificate = acm.GetCertificate
+	}
+	return &tlsCfg, nil
 }
 
 // HTTPS describes configuration for server to listen HTTPS connections
@@ -199,11 +367,8 @@ type HTTPS struct {
 	// Default is `:443`
 	ListenAddr string `yaml:"listen_addr,omitempty"`
 
-	// Certificate and key files for client cert authentication to the server
-	CertFile string `yaml:"cert_file,omitempty"`
-	KeyFile  string `yaml:"key_file,omitempty"`
-
-	Autocert Autocert `yaml:"autocert,omitempty"`
+	// TLS configuration
+	TLS `yaml:",inline"`
 
 	NetworksOrGroups NetworksOrGroups `yaml:"allowed_networks,omitempty"`
 
@@ -224,15 +389,35 @@ func (c *HTTPS) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
+
+	if err := c.validate(); err != nil {
+		return err
+	}
+
+	return checkOverflow(c.XXX, "https")
+}
+
+func (c *HTTPS) validate() error {
 	if c.ReadTimeout == 0 {
 		c.ReadTimeout = Duration(time.Minute)
 	}
+
 	if c.IdleTimeout == 0 {
 		c.IdleTimeout = Duration(time.Minute * 10)
 	}
+
 	if len(c.ListenAddr) == 0 {
 		c.ListenAddr = ":443"
 	}
+
+	if err := c.validateCertConfig(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *HTTPS) validateCertConfig() error {
 	if len(c.Autocert.CacheDir) > 0 {
 		if len(c.CertFile) > 0 || len(c.KeyFile) > 0 {
 			return fmt.Errorf("it is forbidden to specify certificate and `https.autocert` at the same time. Choose one way")
@@ -242,13 +427,16 @@ func (c *HTTPS) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				"Otherwise, certificates will be impossible to generate")
 		}
 	}
+
 	if len(c.CertFile) > 0 && len(c.KeyFile) == 0 {
 		return fmt.Errorf("`https.key_file` must be specified")
 	}
+
 	if len(c.KeyFile) > 0 && len(c.CertFile) == 0 {
 		return fmt.Errorf("`https.cert_file` must be specified")
 	}
-	return checkOverflow(c.XXX, "https")
+
+	return nil
 }
 
 // Autocert configuration via letsencrypt
@@ -284,6 +472,9 @@ type Metrics struct {
 	// if omitted or zero - no limits would be applied
 	AllowedNetworks Networks `yaml:"-"`
 
+	// Prometheus metric namespace
+	Namespace string `yaml:"namespace,omitempty"`
+
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
 }
@@ -297,10 +488,40 @@ func (c *Metrics) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return checkOverflow(c.XXX, "metrics")
 }
 
+type Proxy struct {
+	// Enable enables parsing proxy headers. In proxy mode, CHProxy will try to
+	// parse the X-Forwarded-For, X-Real-IP or Forwarded header to extract the IP. If an other header is configured
+	// in the proxy settings, CHProxy will  use that header instead.
+	Enable bool `yaml:"enable,omitempty"`
+
+	// Header allows for configuring an alternative header to parse the remote IP from, e.g.
+	// CF-Connecting-IP. If this is set, Enable must be set to true otherwise this setting
+	// will be ignored.
+	Header string `yaml:"header,omitempty"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *Proxy) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain Proxy
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+
+	if !c.Enable && c.Header != "" {
+		return fmt.Errorf("`proxy_header` cannot be set without enabling proxy settings")
+	}
+
+	return checkOverflow(c.XXX, "proxy")
+}
+
 // Cluster describes CH cluster configuration
 // The simplest configuration consists of:
-// 	 cluster description - see <remote_servers> section in CH config.xml
-// 	 and users - see <users> section in CH users.xml
+//
+//	cluster description - see <remote_servers> section in CH config.xml
+//	and users - see <users> section in CH users.xml
 type Cluster struct {
 	// Name of ClickHouse cluster
 	Name string `yaml:"name"`
@@ -326,16 +547,14 @@ type Cluster struct {
 	// By default timed out queries are killed under `default` user.
 	KillQueryUser KillQueryUser `yaml:"kill_query_user,omitempty"`
 
-	// DEPRECATED: HeartBeatInterval is an interval of checking
-	// all cluster nodes for availability
-	// if omitted or zero - interval will be set to 5s
-	HeartBeatInterval Duration `yaml:"heartbeat_interval,omitempty"`
-
 	// HeartBeat - user configuration for heart beat requests
 	HeartBeat HeartBeat `yaml:"heartbeat,omitempty"`
 
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
+
+	// Retry number for query - how many times a query can retry after receiving a recoverable but failed response from Clickhouse node
+	RetryNumber int `yaml:"retry_number,omitempty"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -345,31 +564,48 @@ func (c *Cluster) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
+
+	if err := c.validate(); err != nil {
+		return err
+	}
+
+	return checkOverflow(c.XXX, fmt.Sprintf("cluster %q", c.Name))
+}
+
+func (c *Cluster) validate() error {
 	if len(c.Name) == 0 {
 		return fmt.Errorf("`cluster.name` cannot be empty")
 	}
-	if len(c.Nodes) == 0 && len(c.Replicas) == 0 {
-		return fmt.Errorf("either `cluster.nodes` or `cluster.replicas` must be set for %q", c.Name)
+
+	if err := c.validateMinimumRequirements(); err != nil {
+		return err
 	}
-	if len(c.Nodes) > 0 && len(c.Replicas) > 0 {
-		return fmt.Errorf("`cluster.nodes` cannot be simultaneously set with `cluster.replicas` for %q", c.Name)
-	}
-	if len(c.ClusterUsers) == 0 {
-		return fmt.Errorf("`cluster.users` must contain at least 1 user for %q", c.Name)
-	}
+
 	if c.Scheme != "http" && c.Scheme != "https" {
 		return fmt.Errorf("`cluster.scheme` must be `http` or `https`, got %q instead for %q", c.Scheme, c.Name)
 	}
-	if c.HeartBeatInterval != 0 && c.HeartBeat.Interval != defaultHeartBeat.Interval {
-		return fmt.Errorf("cannot be use `heartbeat_interval` with `heartbeat` section")
-	}
+
 	if c.HeartBeat.Interval == 0 && c.HeartBeat.Timeout == 0 && c.HeartBeat.Response == "" {
 		return fmt.Errorf("`cluster.heartbeat` cannot be unset for %q", c.Name)
 	}
-	if c.HeartBeatInterval != 0 && c.HeartBeat.Interval == defaultHeartBeat.Interval {
-		c.HeartBeat.Interval = c.HeartBeatInterval
+
+	return nil
+}
+
+func (c *Cluster) validateMinimumRequirements() error {
+	if len(c.Nodes) == 0 && len(c.Replicas) == 0 {
+		return fmt.Errorf("either `cluster.nodes` or `cluster.replicas` must be set for %q", c.Name)
 	}
-	return checkOverflow(c.XXX, fmt.Sprintf("cluster %q", c.Name))
+
+	if len(c.Nodes) > 0 && len(c.Replicas) > 0 {
+		return fmt.Errorf("`cluster.nodes` cannot be simultaneously set with `cluster.replicas` for %q", c.Name)
+	}
+
+	if len(c.ClusterUsers) == 0 {
+		return fmt.Errorf("`cluster.users` must contain at least 1 user for %q", c.Name)
+	}
+
+	return nil
 }
 
 // Replica contains ClickHouse replica configuration.
@@ -442,6 +678,12 @@ type HeartBeat struct {
 	// default value is `Ok.\n`
 	Response string `yaml:"response,omitempty"`
 
+	// Credentials to send heartbeat requests
+	// for anything except '/ping'.
+	// If not specified, the first cluster user' creadentials are used
+	User     string `yaml:"user,omitempty"`
+	Password string `yaml:"password,omitempty"`
+
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
 }
@@ -477,12 +719,20 @@ type User struct {
 	MaxConcurrentQueries uint32 `yaml:"max_concurrent_queries,omitempty"`
 
 	// Maximum duration of query execution for user
-	// if omitted or zero - no limits would be applied
+	// if omitted or zero - limit is set to 120 seconds
 	MaxExecutionTime Duration `yaml:"max_execution_time,omitempty"`
 
 	// Maximum number of requests per minute for user
 	// if omitted or zero - no limits would be applied
 	ReqPerMin uint32 `yaml:"requests_per_minute,omitempty"`
+
+	// The burst of request packet size token bucket for user
+	// if omitted or zero - no limits would be applied
+	ReqPacketSizeTokensBurst ByteSize `yaml:"request_packet_size_tokens_burst,omitempty"`
+
+	// The request packet size tokens produced rate per second for user
+	// if omitted or zero - no limits would be applied
+	ReqPacketSizeTokensRate ByteSize `yaml:"request_packet_size_tokens_rate,omitempty"`
 
 	// Maximum number of queries waiting for execution in the queue
 	// if omitted or zero - queries are executed without waiting
@@ -515,6 +765,9 @@ type User struct {
 	// Name of ParamGroup to use
 	Params string `yaml:"params,omitempty"`
 
+	// prefix_*
+	IsWildcarded bool `yaml:"is_wildcarded,omitempty"`
+
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
 }
@@ -526,6 +779,14 @@ func (u *User) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 
+	if err := u.validate(); err != nil {
+		return err
+	}
+
+	return checkOverflow(u.XXX, fmt.Sprintf("user %q", u.Name))
+}
+
+func (u *User) validate() error {
 	if len(u.Name) == 0 {
 		return fmt.Errorf("`user.name` cannot be empty")
 	}
@@ -542,11 +803,62 @@ func (u *User) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("`deny_http` and `deny_https` cannot be simultaneously set to `true` for %q", u.Name)
 	}
 
+	if err := u.validateWildcarded(); err != nil {
+		return err
+	}
+
+	if err := u.validateRateLimitConfig(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (u *User) validateWildcarded() error {
+	if u.IsWildcarded {
+		if s := strings.Split(u.Name, "*"); !(len(s) == 2 && (s[0] == "" || s[1] == "")) {
+			return fmt.Errorf("user name %q marked 'is_wildcared' does not match 'prefix*' or '*suffix' or '*'", u.Name)
+		}
+	}
+
+	return nil
+}
+
+func (u *User) validateRateLimitConfig() error {
 	if u.MaxQueueTime > 0 && u.MaxQueueSize == 0 {
 		return fmt.Errorf("`max_queue_size` must be set if `max_queue_time` is set for %q", u.Name)
 	}
 
-	return checkOverflow(u.XXX, fmt.Sprintf("user %q", u.Name))
+	if u.ReqPacketSizeTokensBurst > 0 && u.ReqPacketSizeTokensRate == 0 {
+		return fmt.Errorf("`request_packet_size_tokens_rate` must be set if `request_packet_size_tokens_burst` is set for %q", u.Name)
+	}
+
+	return nil
+}
+
+func (u *User) validateSecurity(hasHTTP, hasHTTPS bool) error {
+	if len(u.Password) == 0 {
+		if !u.DenyHTTPS && hasHTTPS {
+			return fmt.Errorf("https: user %q has neither password nor `allowed_networks` on `user` or `server.http` level",
+				u.Name)
+		}
+		if !u.DenyHTTP && hasHTTP {
+			return fmt.Errorf("http: user %q has neither password nor `allowed_networks` on `user` or `server.http` level",
+				u.Name)
+		}
+	}
+	if len(u.Password) > 0 && hasHTTP {
+		return fmt.Errorf("http: user %q is allowed to connect via http, but not limited by `allowed_networks` "+
+			"on `user` or `server.http` level - password could be stolen", u.Name)
+	}
+
+	return nil
+}
+
+func (u *User) setDefaults() {
+	if u.MaxExecutionTime == 0 {
+		u.MaxExecutionTime = defaultExecutionTime
+	}
 }
 
 // NetworkGroups describes a named Networks lists
@@ -584,45 +896,103 @@ type NetworksOrGroups []string
 // Cache describes configuration options for caching
 // responses from CH clusters
 type Cache struct {
+	// Mode of cache (file_system, redis)
+	// todo make it an enum
+	Mode string `yaml:"mode"`
+
 	// Name of configuration for further assign
 	Name string `yaml:"name"`
-
-	// Path to directory where cached files will be saved
-	Dir string `yaml:"dir"`
-
-	// Maximum total size of all cached to Dir files
-	// If size is exceeded - the oldest files in Dir will be deleted
-	// until total size becomes normal
-	MaxSize ByteSize `yaml:"max_size"`
 
 	// Expiration period for cached response
 	// Files which are older than expiration period will be deleted
 	// on new request and re-cached
 	Expire Duration `yaml:"expire,omitempty"`
 
-	// Grace duration before the expired entry is deleted from the cache.
+	// Deprecated: GraceTime duration before the expired entry is deleted from the cache.
+	// It's deprecated and in future versions it'll be replaced by user's MaxExecutionTime.
+	// It's already the case today if value of GraceTime is omitted.
 	GraceTime Duration `yaml:"grace_time,omitempty"`
+
+	FileSystem FileSystemCacheConfig `yaml:"file_system,omitempty"`
+
+	Redis RedisCacheConfig `yaml:"redis,omitempty"`
 
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
+
+	// Maximum total size of request payload for caching
+	MaxPayloadSize ByteSize `yaml:"max_payload_size,omitempty"`
+
+	// Whether a query cached by a user could be used by another user
+	SharedWithAllUsers bool `yaml:"shared_with_all_users,omitempty"`
+}
+
+func (c *Cache) setDefaults() {
+	if c.MaxPayloadSize <= 0 {
+		c.MaxPayloadSize = defaultMaxPayloadSize
+	}
+}
+
+type FileSystemCacheConfig struct {
+	//// Path to directory where cached files will be saved
+	Dir string `yaml:"dir"`
+
+	// Maximum total size of all cached to Dir files
+	// If size is exceeded - the oldest files in Dir will be deleted
+	// until total size becomes normal
+	MaxSize ByteSize `yaml:"max_size"`
+}
+
+type RedisCacheConfig struct {
+	TLS `yaml:",inline"`
+
+	Username  string                 `yaml:"username,omitempty"`
+	Password  string                 `yaml:"password,omitempty"`
+	Addresses []string               `yaml:"addresses"`
+	XXX       map[string]interface{} `yaml:",inline"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (c *Cache) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (c *Cache) UnmarshalYAML(unmarshal func(interface{}) error) (err error) {
 	type plain Cache
-	if err := unmarshal((*plain)(c)); err != nil {
+	if err = unmarshal((*plain)(c)); err != nil {
 		return err
 	}
 	if len(c.Name) == 0 {
 		return fmt.Errorf("`cache.name` must be specified")
 	}
-	if len(c.Dir) == 0 {
-		return fmt.Errorf("`cache.dir` must be specified for %q", c.Name)
+
+	switch c.Mode {
+	case "file_system":
+		err = c.checkFileSystemConfig()
+	case "redis":
+		err = c.checkRedisConfig()
+	default:
+		err = fmt.Errorf("not supported cache type %v. Supported types: [file_system]", c.Mode)
 	}
-	if c.MaxSize <= 0 {
-		return fmt.Errorf("`cache.max_size` must be specified for %q", c.Name)
+
+	if err != nil {
+		return fmt.Errorf("failed to configure cache for %q", c.Name)
 	}
+
 	return checkOverflow(c.XXX, fmt.Sprintf("cache %q", c.Name))
+}
+
+func (c *Cache) checkFileSystemConfig() error {
+	if len(c.FileSystem.Dir) == 0 {
+		return fmt.Errorf("`cache.filesystem.dir` must be specified for %q", c.Name)
+	}
+	if c.FileSystem.MaxSize <= 0 {
+		return fmt.Errorf("`cache.filesystem.max_size` must be specified for %q", c.Name)
+	}
+	return nil
+}
+
+func (c *Cache) checkRedisConfig() error {
+	if len(c.Redis.Addresses) == 0 {
+		return fmt.Errorf("`cache.redis.addresses` must be specified for %q", c.Name)
+	}
+	return nil
 }
 
 // ParamGroup describes named group of GET params
@@ -661,6 +1031,32 @@ type Param struct {
 	Value string `yaml:"value"`
 }
 
+// ConnectionPool describes pool of connection with ClickHouse
+// settings
+type ConnectionPool struct {
+	// Maximum total number of idle connections between chproxy and all ClickHouse instances
+	MaxIdleConns int `yaml:"max_idle_conns,omitempty"`
+
+	// Maximum number of idle connections between chproxy and particuler ClickHouse instance
+	MaxIdleConnsPerHost int `yaml:"max_idle_conns_per_host,omitempty"`
+
+	// Catches all undefined fields
+	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (cp *ConnectionPool) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*cp = defaultConnectionPool
+	type plain ConnectionPool
+	if err := unmarshal((*plain)(cp)); err != nil {
+		return err
+	}
+	if cp.MaxIdleConnsPerHost > cp.MaxIdleConns || cp.MaxIdleConns < 0 {
+		return fmt.Errorf("inconsistent ConnectionPool settings")
+	}
+	return checkOverflow(cp.XXX, "connection_pool")
+}
+
 // ClusterUser describes simplest <users> configuration
 type ClusterUser struct {
 	// User name in ClickHouse users.xml config
@@ -674,12 +1070,20 @@ type ClusterUser struct {
 	MaxConcurrentQueries uint32 `yaml:"max_concurrent_queries,omitempty"`
 
 	// Maximum duration of query execution for user
-	// if omitted or zero - no limits would be applied
+	// if omitted or zero - limit is set to 120 seconds
 	MaxExecutionTime Duration `yaml:"max_execution_time,omitempty"`
 
 	// Maximum number of requests per minute for user
 	// if omitted or zero - no limits would be applied
 	ReqPerMin uint32 `yaml:"requests_per_minute,omitempty"`
+
+	// The burst of request packet size token bucket for user
+	// if omitted or zero - no limits would be applied
+	ReqPacketSizeTokensBurst ByteSize `yaml:"request_packet_size_tokens_burst,omitempty"`
+
+	// The request packet size tokens produced rate for user
+	// if omitted or zero - no limits would be applied
+	ReqPacketSizeTokensRate ByteSize `yaml:"request_packet_size_tokens_rate,omitempty"`
 
 	// Maximum number of queries waiting for execution in the queue
 	// if omitted or zero - queries are executed without waiting
@@ -716,17 +1120,24 @@ func (cu *ClusterUser) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("`max_queue_size` must be set if `max_queue_time` is set for %q", cu.Name)
 	}
 
+	if cu.ReqPacketSizeTokensBurst > 0 && cu.ReqPacketSizeTokensRate == 0 {
+		return fmt.Errorf("`request_packet_size_tokens_rate` must be set if `request_packet_size_tokens_burst` is set for %q", cu.Name)
+	}
+
 	return checkOverflow(cu.XXX, fmt.Sprintf("cluster.user %q", cu.Name))
 }
 
 // LoadFile loads and validates configuration from provided .yml file
 func LoadFile(filename string) (*Config, error) {
-	content, err := ioutil.ReadFile(filename)
+	content, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, err
 	}
+
+	content = findAndReplacePlaceholders(content)
+
 	cfg := &Config{}
-	if err := yaml.Unmarshal([]byte(content), cfg); err != nil {
+	if err := yaml.Unmarshal(content, cfg); err != nil {
 		return nil, err
 	}
 	cfg.networkReg = make(map[string]Networks, len(cfg.NetworkGroups))
@@ -745,92 +1156,46 @@ func LoadFile(filename string) (*Config, error) {
 	if cfg.Server.Metrics.AllowedNetworks, err = cfg.groupToNetwork(cfg.Server.Metrics.NetworksOrGroups); err != nil {
 		return nil, err
 	}
-	var maxResponseTime time.Duration
-	for i := range cfg.Clusters {
-		c := &cfg.Clusters[i]
-		for j := range c.ClusterUsers {
-			u := &c.ClusterUsers[j]
-			cud := time.Duration(u.MaxExecutionTime + u.MaxQueueTime)
-			if cud > maxResponseTime {
-				maxResponseTime = cud
-			}
-			if u.AllowedNetworks, err = cfg.groupToNetwork(u.NetworksOrGroups); err != nil {
-				return nil, err
-			}
-		}
-	}
-	for i := range cfg.Users {
-		u := &cfg.Users[i]
-		ud := time.Duration(u.MaxExecutionTime + u.MaxQueueTime)
-		if ud > maxResponseTime {
-			maxResponseTime = ud
-		}
-		if u.AllowedNetworks, err = cfg.groupToNetwork(u.NetworksOrGroups); err != nil {
-			return nil, err
-		}
-	}
 
-	if maxResponseTime < 0 {
-		maxResponseTime = 0
-	}
-	// Give an additional minute for the maximum response time,
-	// so the response body may be sent to the requester.
-	maxResponseTime += time.Minute
-	if len(cfg.Server.HTTP.ListenAddr) > 0 && cfg.Server.HTTP.WriteTimeout == 0 {
-		cfg.Server.HTTP.WriteTimeout = Duration(maxResponseTime)
-	}
-
-	if len(cfg.Server.HTTPS.ListenAddr) > 0 && cfg.Server.HTTPS.WriteTimeout == 0 {
-		cfg.Server.HTTPS.WriteTimeout = Duration(maxResponseTime)
+	if err := cfg.setDefaults(); err != nil {
+		return nil, err
 	}
 
 	if err := cfg.checkVulnerabilities(); err != nil {
-		return nil, fmt.Errorf("security breach: %s\nSet option `hack_me_please=true` to disable security errors", err)
+		return nil, fmt.Errorf("security breach: %w\nSet option `hack_me_please=true` to disable security errors", err)
 	}
 	return cfg, nil
 }
 
-func (c Config) groupToNetwork(src NetworksOrGroups) (Networks, error) {
-	if len(src) == 0 {
-		return nil, nil
-	}
-	dst := make(Networks, 0)
-	for _, v := range src {
-		group, ok := c.networkReg[v]
-		if ok {
-			dst = append(dst, group...)
-		} else {
-			ipnet, err := stringToIPnet(v)
-			if err != nil {
-				return nil, err
-			}
-			dst = append(dst, ipnet)
+var envVarRegex = regexp.MustCompile(`\${([a-zA-Z_][a-zA-Z0-9_]*)}`)
+
+// findAndReplacePlaceholders finds all environment variables placeholders in the config.
+// Each placeholder is a string like ${VAR_NAME}. They will be replaced with the value of the
+// corresponding environment variable. It returns the new content with replaced placeholders.
+func findAndReplacePlaceholders(content []byte) []byte {
+	for _, match := range envVarRegex.FindAllSubmatch(content, -1) {
+		envVar := os.Getenv(string(match[1]))
+		if envVar != "" {
+			content = bytes.ReplaceAll(content, match[0], []byte(envVar))
 		}
 	}
-	return dst, nil
+
+	return content
 }
 
 func (c Config) checkVulnerabilities() error {
 	if c.HackMePlease {
 		return nil
 	}
-	httpsVulnerability := len(c.Server.HTTPS.ListenAddr) > 0 && len(c.Server.HTTPS.NetworksOrGroups) == 0
-	httpVulnerability := len(c.Server.HTTP.ListenAddr) > 0 && len(c.Server.HTTP.NetworksOrGroups) == 0
+
+	hasHTTPS := len(c.Server.HTTPS.ListenAddr) > 0 && len(c.Server.HTTPS.NetworksOrGroups) == 0
+	hasHTTP := len(c.Server.HTTP.ListenAddr) > 0 && len(c.Server.HTTP.NetworksOrGroups) == 0
 	for _, u := range c.Users {
 		if len(u.NetworksOrGroups) != 0 {
 			continue
 		}
-		if len(u.Password) == 0 {
-			if !u.DenyHTTPS && httpsVulnerability {
-				return fmt.Errorf("https: user %q has neither password nor `allowed_networks` on `user` or `server.http` level", u.Name)
-			}
-			if !u.DenyHTTP && httpVulnerability {
-				return fmt.Errorf("http: user %q has neither password nor `allowed_networks` on `user` or `server.http` level", u.Name)
-			}
-		}
-		if len(u.Password) > 0 && httpVulnerability {
-			return fmt.Errorf("http: user %q is allowed to connect via http, but not limited by `allowed_networks` "+
-				"on `user` or `server.http` level - password could be stolen", u.Name)
+		if err := u.validateSecurity(hasHTTP, hasHTTPS); err != nil {
+			return err
 		}
 	}
 	return nil

@@ -1,0 +1,89 @@
+version: '3'
+services:
+  zookeeper:
+    image: zookeeper:3.7
+    container_name: zookeeper
+    hostname: zookeeper
+    networks:
+      clickhouse-network:
+        ipv4_address: 172.23.0.10
+  clickhouse1:
+    image: clickhouse/clickhouse-server:22.5
+    volumes:
+      - ${PWD}/resources/clickhouse/initdb:/docker-entrypoint-initdb.d
+      - ${PWD}/resources/clickhouse/config:/etc/clickhouse-server
+      - ${PWD}/resources/clickhouse/data:/data
+    ports:
+      - 8123:8123
+    networks:
+      clickhouse-network:
+        ipv4_address: 172.23.0.11
+    hostname: clickhouse1
+    healthcheck:
+      test: clickhouse-client --query "select count(1) from tutorial.views"
+      interval: 2s
+      timeout: 20s
+      retries: 10
+    depends_on:
+      - zookeeper
+  clickhouse2:
+    image: clickhouse/clickhouse-server:22.5
+    volumes:
+      - ${PWD}/resources/clickhouse/initdb:/docker-entrypoint-initdb.d
+      - ${PWD}/resources/clickhouse/config:/etc/clickhouse-server
+      - ${PWD}/resources/clickhouse/data:/data
+    networks:
+      clickhouse-network:
+        ipv4_address: 172.23.0.12
+    hostname: clickhouse2
+    healthcheck:
+      test: clickhouse-client --query "select count(1) from tutorial.views"
+      interval: 2s
+      timeout: 20s
+      retries: 10
+    depends_on:
+      - zookeeper
+  clickhouse3:
+    image: clickhouse/clickhouse-server:22.5
+    volumes:
+      - ${PWD}/resources/clickhouse/initdb:/docker-entrypoint-initdb.d
+      - ${PWD}/resources/clickhouse/config:/etc/clickhouse-server
+      - ${PWD}/resources/clickhouse/data:/data
+    networks:
+      clickhouse-network:
+        ipv4_address: 172.23.0.13
+    hostname: clickhouse3
+    healthcheck:
+      test: clickhouse-client --query "select count(1) from tutorial.views"
+      interval: 2s
+      timeout: 20s
+      retries: 10
+    depends_on:
+      - zookeeper
+  chproxy:
+    image: contentsquareplatform/chproxy:v1.24.0
+    volumes:
+      - ${PWD}/resources/chproxy/config:/config
+      - ${PWD}/resources/chproxy/data:/data
+    ports:
+      - 9001:9001
+    networks:
+      clickhouse-network:
+        ipv4_address: 172.23.0.14
+    depends_on:
+      - "clickhouse1"
+      - "clickhouse2"
+      - "clickhouse3"
+    command: -config /config/config.yml
+    healthcheck:
+      test: curl 'http://127.0.0.1:9001/metrics'
+      interval: 2s
+      timeout: 20s
+      retries: 10
+
+networks:
+  clickhouse-network:
+    name: clickhouse-network
+    ipam:
+      config:
+        - subnet: 172.23.0.0/24

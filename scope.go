@@ -3,8 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"hash/fnv"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -14,10 +13,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/Vertamedia/chproxy/cache"
-	"github.com/Vertamedia/chproxy/config"
-	"github.com/Vertamedia/chproxy/log"
+	"github.com/contentsquare/chproxy/cache"
+	"github.com/contentsquare/chproxy/config"
+	"github.com/contentsquare/chproxy/internal/heartbeat"
+	"github.com/contentsquare/chproxy/internal/topology"
+	"github.com/contentsquare/chproxy/log"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/time/rate"
 )
 
 type scopeID uint64
@@ -36,7 +38,7 @@ var nextScopeID = uint64(time.Now().UnixNano())
 type scope struct {
 	startTime   time.Time
 	id          scopeID
-	host        *host
+	host        *topology.Node
 	cluster     *cluster
 	user        *user
 	clusterUser *clusterUser
@@ -51,6 +53,8 @@ type scope struct {
 	canceled bool
 
 	labels prometheus.Labels
+
+	requestPacketSize int
 }
 
 func newScope(req *http.Request, u *user, c *cluster, cu *clusterUser, sessionId string, sessionTimeout int) *scope {
@@ -79,8 +83,8 @@ func newScope(req *http.Request, u *user, c *cluster, cu *clusterUser, sessionId
 			"user":         u.name,
 			"cluster":      c.name,
 			"cluster_user": cu.name,
-			"replica":      h.replica.name,
-			"cluster_node": h.addr.Host,
+			"replica":      h.ReplicaName(),
+			"cluster_node": h.Host(),
 		},
 	}
 	return s
@@ -91,10 +95,11 @@ func (s *scope) String() string {
 		s.id,
 		s.user.name, s.user.queryCounter.load(),
 		s.clusterUser.name, s.clusterUser.queryCounter.load(),
-		s.host.addr.Host, s.host.load(),
+		s.host.Host(), s.host.CurrentLoad(),
 		s.remoteAddr, s.localAddr, time.Since(s.startTime).Nanoseconds()/1000.0)
 }
 
+//nolint:cyclop // TODO abstract user queues to reduce complexity here.
 func (s *scope) incQueued() error {
 	if s.user.queueCh == nil && s.clusterUser.queueCh == nil {
 		// Request queues in the current scope are disabled.
@@ -149,15 +154,11 @@ func (s *scope) incQueued() error {
 	defer queueSize.Dec()
 
 	// Try starting the request during the given duration.
-	d := s.maxQueueTime()
-	dSleep := d / 10
-	if dSleep > time.Second {
-		dSleep = time.Second
-	}
-	if dSleep < time.Millisecond {
-		dSleep = time.Millisecond
-	}
-	deadline := time.Now().Add(d)
+	sleep, deadline := s.calculateQueueDeadlineAndSleep()
+	return s.waitUntilAllowStart(sleep, deadline, labels)
+}
+
+func (s *scope) waitUntilAllowStart(sleep time.Duration, deadline time.Time, labels prometheus.Labels) error {
 	for {
 		err := s.inc()
 		if err == nil {
@@ -174,19 +175,39 @@ func (s *scope) incQueued() error {
 
 		// The request has dLeft remaining time to wait in the queue.
 		// Sleep for a bit and try starting it again.
-		if dSleep > dLeft {
+		if sleep > dLeft {
 			time.Sleep(dLeft)
 		} else {
-			time.Sleep(dSleep)
+			time.Sleep(sleep)
 		}
-
+		var h *topology.Node
 		// Choose new host, since the previous one may become obsolete
 		// after sleeping.
-		h := s.cluster.getHost()
+		if s.sessionId == "" {
+			h = s.cluster.getHost()
+		} else {
+			// if request has session_id, set same host
+			h = s.cluster.getHostSticky(s.sessionId)
+		}
+
 		s.host = h
-		s.labels["replica"] = h.replica.name
-		s.labels["cluster_node"] = h.addr.Host
+		s.labels["replica"] = h.ReplicaName()
+		s.labels["cluster_node"] = h.Host()
 	}
+}
+
+func (s *scope) calculateQueueDeadlineAndSleep() (time.Duration, time.Time) {
+	d := s.maxQueueTime()
+	dSleep := d / 10
+	if dSleep > time.Second {
+		dSleep = time.Second
+	}
+	if dSleep < time.Millisecond {
+		dSleep = time.Millisecond
+	}
+	deadline := time.Now().Add(d)
+
+	return dSleep, deadline
 }
 
 func (s *scope) inc() error {
@@ -202,6 +223,30 @@ func (s *scope) inc() error {
 		err = fmt.Errorf("limits for cluster user %q are exceeded: max_concurrent_queries limit: %d",
 			s.clusterUser.name, s.clusterUser.maxConcurrentQueries)
 	}
+
+	err2 := s.checkTokenFreeRateLimiters()
+	if err2 != nil {
+		err = err2
+	}
+
+	if err != nil {
+		s.user.queryCounter.dec()
+		s.clusterUser.queryCounter.dec()
+
+		// Decrement rate limiter here, so it doesn't count requests
+		// that didn't start due to limits overflow.
+		s.user.rateLimiter.dec()
+		s.clusterUser.rateLimiter.dec()
+		return err
+	}
+
+	s.host.IncrementConnections()
+	concurrentQueries.With(s.labels).Inc()
+	return nil
+}
+
+func (s *scope) checkTokenFreeRateLimiters() error {
+	var err error
 
 	uRPM := s.user.rateLimiter.inc()
 	cRPM := s.clusterUser.rateLimiter.inc()
@@ -219,20 +264,35 @@ func (s *scope) inc() error {
 			s.clusterUser.name, s.clusterUser.reqPerMin)
 	}
 
-	if err != nil {
-		s.user.queryCounter.dec()
-		s.clusterUser.queryCounter.dec()
-
-		// Decrement rate limiter here, so it doesn't count requests
-		// that didn't start due to limits overflow.
-		s.user.rateLimiter.dec()
-		s.clusterUser.rateLimiter.dec()
-		return err
+	err2 := s.checkTokenFreePacketSizeRateLimiters()
+	if err2 != nil {
+		err = err2
 	}
 
-	s.host.inc()
-	concurrentQueries.With(s.labels).Inc()
-	return nil
+	return err
+}
+
+func (s *scope) checkTokenFreePacketSizeRateLimiters() error {
+	var err error
+	// reserving tokens num s.requestPacketSize
+	if s.user.reqPacketSizeTokensBurst > 0 {
+		tl := s.user.reqPacketSizeTokenLimiter
+		ok := tl.AllowN(time.Now(), s.requestPacketSize)
+		if !ok {
+			err = fmt.Errorf("limits for user %q is exceeded: request_packet_size_tokens_burst limit: %d",
+				s.user.name, s.user.reqPacketSizeTokensBurst)
+		}
+	}
+	if s.clusterUser.reqPacketSizeTokensBurst > 0 {
+		tl := s.clusterUser.reqPacketSizeTokenLimiter
+		ok := tl.AllowN(time.Now(), s.requestPacketSize)
+		if !ok {
+			err = fmt.Errorf("limits for cluster user %q is exceeded: request_packet_size_tokens_burst limit: %d",
+				s.clusterUser.name, s.clusterUser.reqPacketSizeTokensBurst)
+		}
+	}
+
+	return err
 }
 
 func (s *scope) dec() {
@@ -241,7 +301,7 @@ func (s *scope) dec() {
 
 	s.user.queryCounter.dec()
 	s.clusterUser.queryCounter.dec()
-	s.host.dec()
+	s.host.DecrementConnections()
 	concurrentQueries.With(s.labels).Dec()
 }
 
@@ -254,10 +314,10 @@ func (s *scope) killQuery() error {
 
 	query := fmt.Sprintf("KILL QUERY WHERE query_id = '%s'", s.id)
 	r := strings.NewReader(query)
-	addr := s.host.addr.String()
+	addr := s.host.String()
 	req, err := http.NewRequest("POST", addr, r)
 	if err != nil {
-		return fmt.Errorf("error while creating kill query request to %s: %s", addr, err)
+		return fmt.Errorf("error while creating kill query request to %s: %w", addr, err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), killQueryTimeout)
 	defer cancel()
@@ -267,25 +327,25 @@ func (s *scope) killQuery() error {
 	// send request as kill_query_user
 	userName := s.cluster.killQueryUserName
 	if len(userName) == 0 {
-		userName = "default"
+		userName = defaultUser
 	}
 	req.SetBasicAuth(userName, s.cluster.killQueryUserPassword)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("error while executing clickhouse query %q at %q: %s", query, addr, err)
+		return fmt.Errorf("error while executing clickhouse query %q at %q: %w", query, addr, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		responseBody, _ := ioutil.ReadAll(resp.Body)
+		responseBody, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("unexpected status code returned from query %q at %q: %d. Response body: %q",
 			query, addr, resp.StatusCode, responseBody)
 	}
 
-	respBody, err := ioutil.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return fmt.Errorf("cannot read response body for the query %q: %s", query, err)
+		return fmt.Errorf("cannot read response body for the query %q: %w", query, err)
 	}
 
 	log.Debugf("killed the query with query_id=%s; respBody: %q", s.id, respBody)
@@ -293,7 +353,7 @@ func (s *scope) killQuery() error {
 }
 
 // allowedParams contains query args allowed to be proxied.
-// See http://clickhouse-docs.readthedocs.io/en/latest/settings/
+// See https://clickhouse.com/docs/en/operations/settings/
 //
 // All the other params passed via query args are stripped before
 // proxying the request. This is for the sake of security.
@@ -343,20 +403,16 @@ func (s *scope) decorateRequest(req *http.Request) (*http.Request, url.Values) {
 		}
 	}
 
+	// Keep parametrized queries params
+	for param := range origParams {
+		if strings.HasPrefix(param, "param_") {
+			params.Set(param, origParams.Get(param))
+		}
+	}
+
 	// Keep external_data params
 	if req.Method == "POST" {
-		ct := req.Header.Get("Content-Type")
-		if strings.Contains(ct, "multipart/form-data") {
-			for key := range origParams {
-				if externalDataParams.MatchString(key) {
-					params.Set(key, origParams.Get(key))
-				}
-			}
-
-			// disable cache for external_data queries
-			origParams.Set("no_cache", "1")
-			log.Debugf("external data params detected - cache will be disabled")
-		}
+		s.decoratePostRequest(req, origParams, params)
 	}
 
 	// Set query_id as scope_id to have possibility to kill query if needed.
@@ -375,8 +431,8 @@ func (s *scope) decorateRequest(req *http.Request) (*http.Request, url.Values) {
 	req.Header.Del("X-ClickHouse-Key")
 
 	// Send request to the chosen host from cluster.
-	req.URL.Scheme = s.host.addr.Scheme
-	req.URL.Host = s.host.addr.Host
+	req.URL.Scheme = s.host.Scheme()
+	req.URL.Host = s.host.Host()
 
 	// Extend ua with additional info, so it may be queried
 	// via system.query_log.http_user_agent.
@@ -385,6 +441,21 @@ func (s *scope) decorateRequest(req *http.Request) (*http.Request, url.Values) {
 	req.Header.Set("User-Agent", ua)
 
 	return req, origParams
+}
+
+func (s *scope) decoratePostRequest(req *http.Request, origParams, params url.Values) {
+	ct := req.Header.Get("Content-Type")
+	if strings.Contains(ct, "multipart/form-data") {
+		for key := range origParams {
+			if externalDataParams.MatchString(key) {
+				params.Set(key, origParams.Get(key))
+			}
+		}
+
+		// disable cache for external_data queries
+		origParams.Set("no_cache", "1")
+		log.Debugf("external data params detected - cache will be disabled")
+	}
 }
 
 func (s *scope) getTimeoutWithErrMsg() (time.Duration, error) {
@@ -426,13 +497,18 @@ func newParamsRegistry(params []config.Param) (*paramsRegistry, error) {
 	if len(params) == 0 {
 		return nil, fmt.Errorf("params can't be empty")
 	}
-	h := fnv.New32a()
-	for _, p := range params {
-		str := fmt.Sprintf("%s=%s&", p.Key, p.Value)
-		h.Write([]byte(str))
+
+	paramsMap := make(map[string]string, len(params))
+	for _, k := range params {
+		paramsMap[k.Key] = k.Value
 	}
+	key, err := calcMapHash(paramsMap)
+	if err != nil {
+		return nil, err
+	}
+
 	return &paramsRegistry{
-		key:    h.Sum32(),
+		key:    key,
 		params: params,
 	}, nil
 }
@@ -452,23 +528,28 @@ type user struct {
 	reqPerMin   uint32
 	rateLimiter rateLimiter
 
+	reqPacketSizeTokenLimiter *rate.Limiter
+	reqPacketSizeTokensBurst  config.ByteSize
+	reqPacketSizeTokensRate   config.ByteSize
+
 	queueCh      chan struct{}
 	maxQueueTime time.Duration
 
 	allowedNetworks config.Networks
 
-	denyHTTP  bool
-	denyHTTPS bool
-	allowCORS bool
+	denyHTTP     bool
+	denyHTTPS    bool
+	allowCORS    bool
+	isWildcarded bool
 
-	cache  *cache.Cache
+	cache  *cache.AsyncCache
 	params *paramsRegistry
 }
 
 type usersProfile struct {
 	cfg      []config.User
 	clusters map[string]*cluster
-	caches   map[string]*cache.Cache
+	caches   map[string]*cache.AsyncCache
 	params   map[string]*paramsRegistry
 }
 
@@ -480,7 +561,7 @@ func (up usersProfile) newUsers() (map[string]*user, error) {
 		}
 		tmpU, err := up.newUser(u)
 		if err != nil {
-			return nil, fmt.Errorf("cannot initialize user %q: %s", u.Name, err)
+			return nil, fmt.Errorf("cannot initialize user %q: %w", u.Name, err)
 		}
 		users[u.Name] = tmpU
 	}
@@ -492,8 +573,13 @@ func (up usersProfile) newUser(u config.User) (*user, error) {
 	if !ok {
 		return nil, fmt.Errorf("unknown `to_cluster` %q", u.ToCluster)
 	}
-	if _, ok := c.users[u.ToUser]; !ok {
+	var cu *clusterUser
+	if cu, ok = c.users[u.ToUser]; !ok {
 		return nil, fmt.Errorf("unknown `to_user` %q in cluster %q", u.ToUser, u.ToCluster)
+	} else if u.IsWildcarded {
+		// a wildcarded user is mapped to this cluster user
+		// used to check if a proper user to send heartbeat exists
+		cu.isWildcarded = true
 	}
 
 	var queueCh chan struct{}
@@ -501,7 +587,7 @@ func (up usersProfile) newUser(u config.User) (*user, error) {
 		queueCh = make(chan struct{}, u.MaxQueueSize)
 	}
 
-	var cc *cache.Cache
+	var cc *cache.AsyncCache
 	if len(u.Cache) > 0 {
 		cc = up.caches[u.Cache]
 		if cc == nil {
@@ -518,21 +604,25 @@ func (up usersProfile) newUser(u config.User) (*user, error) {
 	}
 
 	return &user{
-		name:                 u.Name,
-		password:             u.Password,
-		toCluster:            u.ToCluster,
-		toUser:               u.ToUser,
-		maxConcurrentQueries: u.MaxConcurrentQueries,
-		maxExecutionTime:     time.Duration(u.MaxExecutionTime),
-		reqPerMin:            u.ReqPerMin,
-		queueCh:              queueCh,
-		maxQueueTime:         time.Duration(u.MaxQueueTime),
-		allowedNetworks:      u.AllowedNetworks,
-		denyHTTP:             u.DenyHTTP,
-		denyHTTPS:            u.DenyHTTPS,
-		allowCORS:            u.AllowCORS,
-		cache:                cc,
-		params:               params,
+		name:                      u.Name,
+		password:                  u.Password,
+		toCluster:                 u.ToCluster,
+		toUser:                    u.ToUser,
+		maxConcurrentQueries:      u.MaxConcurrentQueries,
+		maxExecutionTime:          time.Duration(u.MaxExecutionTime),
+		reqPerMin:                 u.ReqPerMin,
+		queueCh:                   queueCh,
+		maxQueueTime:              time.Duration(u.MaxQueueTime),
+		reqPacketSizeTokenLimiter: rate.NewLimiter(rate.Limit(u.ReqPacketSizeTokensRate), int(u.ReqPacketSizeTokensBurst)),
+		reqPacketSizeTokensBurst:  u.ReqPacketSizeTokensBurst,
+		reqPacketSizeTokensRate:   u.ReqPacketSizeTokensRate,
+		allowedNetworks:           u.AllowedNetworks,
+		denyHTTP:                  u.DenyHTTP,
+		denyHTTPS:                 u.DenyHTTPS,
+		allowCORS:                 u.AllowCORS,
+		isWildcarded:              u.IsWildcarded,
+		cache:                     cc,
+		params:                    params,
 	}, nil
 }
 
@@ -551,7 +641,29 @@ type clusterUser struct {
 	queueCh      chan struct{}
 	maxQueueTime time.Duration
 
+	reqPacketSizeTokenLimiter *rate.Limiter
+	reqPacketSizeTokensBurst  config.ByteSize
+	reqPacketSizeTokensRate   config.ByteSize
+
 	allowedNetworks config.Networks
+	isWildcarded    bool
+}
+
+func deepCopy(cu *clusterUser) *clusterUser {
+	var queueCh chan struct{}
+	if cu.maxQueueTime > 0 {
+		queueCh = make(chan struct{}, cu.maxQueueTime)
+	}
+	return &clusterUser{
+		name:                 cu.name,
+		password:             cu.password,
+		maxConcurrentQueries: cu.maxConcurrentQueries,
+		maxExecutionTime:     time.Duration(cu.maxExecutionTime),
+		reqPerMin:            cu.reqPerMin,
+		queueCh:              queueCh,
+		maxQueueTime:         time.Duration(cu.maxQueueTime),
+		allowedNetworks:      cu.allowedNetworks,
+	}
 }
 
 func newClusterUser(cu config.ClusterUser) *clusterUser {
@@ -560,30 +672,18 @@ func newClusterUser(cu config.ClusterUser) *clusterUser {
 		queueCh = make(chan struct{}, cu.MaxQueueSize)
 	}
 	return &clusterUser{
-		name:                 cu.Name,
-		password:             cu.Password,
-		maxConcurrentQueries: cu.MaxConcurrentQueries,
-		maxExecutionTime:     time.Duration(cu.MaxExecutionTime),
-		reqPerMin:            cu.ReqPerMin,
-		queueCh:              queueCh,
-		maxQueueTime:         time.Duration(cu.MaxQueueTime),
-		allowedNetworks:      cu.AllowedNetworks,
+		name:                      cu.Name,
+		password:                  cu.Password,
+		maxConcurrentQueries:      cu.MaxConcurrentQueries,
+		maxExecutionTime:          time.Duration(cu.MaxExecutionTime),
+		reqPerMin:                 cu.ReqPerMin,
+		reqPacketSizeTokenLimiter: rate.NewLimiter(rate.Limit(cu.ReqPacketSizeTokensRate), int(cu.ReqPacketSizeTokensBurst)),
+		reqPacketSizeTokensBurst:  cu.ReqPacketSizeTokensBurst,
+		reqPacketSizeTokensRate:   cu.ReqPacketSizeTokensRate,
+		queueCh:                   queueCh,
+		maxQueueTime:              time.Duration(cu.MaxQueueTime),
+		allowedNetworks:           cu.AllowedNetworks,
 	}
-}
-
-type host struct {
-	replica *replica
-
-	// Counter of unsuccessful requests to decrease host priority.
-	penalty uint32
-
-	// Either the current host is alive.
-	active uint32
-
-	// Host address.
-	addr *url.URL
-
-	counter
 }
 
 type replica struct {
@@ -591,7 +691,7 @@ type replica struct {
 
 	name string
 
-	hosts       []*host
+	hosts       []*topology.Node
 	nextHostIdx uint32
 }
 
@@ -619,7 +719,7 @@ func newReplicas(replicasCfg []config.Replica, nodes []string, scheme string, c 
 		}
 		hosts, err := newNodes(rCfg.Nodes, scheme, r)
 		if err != nil {
-			return nil, fmt.Errorf("cannot initialize replica %q: %s", rCfg.Name, err)
+			return nil, fmt.Errorf("cannot initialize replica %q: %w", rCfg.Name, err)
 		}
 		r.hosts = hosts
 		replicas[i] = r
@@ -627,96 +727,32 @@ func newReplicas(replicasCfg []config.Replica, nodes []string, scheme string, c 
 	return replicas, nil
 }
 
-func newNodes(nodes []string, scheme string, r *replica) ([]*host, error) {
-	hosts := make([]*host, len(nodes))
+func newNodes(nodes []string, scheme string, r *replica) ([]*topology.Node, error) {
+	hosts := make([]*topology.Node, len(nodes))
 	for i, node := range nodes {
 		addr, err := url.Parse(fmt.Sprintf("%s://%s", scheme, node))
 		if err != nil {
-			return nil, fmt.Errorf("cannot parse `node` %q with `scheme` %q: %s", node, scheme, err)
+			return nil, fmt.Errorf("cannot parse `node` %q with `scheme` %q: %w", node, scheme, err)
 		}
-		hosts[i] = &host{
-			replica: r,
-			addr:    addr,
-		}
+		hosts[i] = topology.NewNode(addr, r.cluster.heartBeat, r.cluster.name, r.name)
 	}
 	return hosts, nil
 }
 
-func (h *host) runHeartbeat(done <-chan struct{}) {
-	label := prometheus.Labels{
-		"cluster":      h.replica.cluster.name,
-		"replica":      h.replica.name,
-		"cluster_node": h.addr.Host,
-	}
-	hb := h.replica.cluster.heartBeat
-	heartbeat := func() {
-		if err := hb.isHealthy(h.addr.String()); err == nil {
-			atomic.StoreUint32(&h.active, uint32(1))
-			hostHealth.With(label).Set(1)
-		} else {
-			log.Errorf("error while health-checking %q host: %s", h.addr.Host, err)
-			atomic.StoreUint32(&h.active, uint32(0))
-			hostHealth.With(label).Set(0)
-		}
-	}
-	heartbeat()
-	for {
-		select {
-		case <-done:
-			return
-		case <-time.After(hb.interval):
-			heartbeat()
-		}
-	}
-}
-
-func (h *host) isActive() bool { return atomic.LoadUint32(&h.active) == 1 }
-
 func (r *replica) isActive() bool {
 	// The replica is active if at least a single host is active.
 	for _, h := range r.hosts {
-		if h.isActive() {
+		if h.IsActive() {
 			return true
 		}
 	}
 	return false
 }
 
-const (
-	// prevents excess goroutine creating while penalizing overloaded host
-	penaltySize     = 5
-	penaltyMaxSize  = 300
-	penaltyDuration = time.Second * 10
-)
-
-// decrease host priority for next requests
-func (h *host) penalize() {
-	p := atomic.LoadUint32(&h.penalty)
-	if p >= penaltyMaxSize {
-		return
-	}
-	hostPenalties.With(prometheus.Labels{
-		"cluster":      h.replica.cluster.name,
-		"replica":      h.replica.name,
-		"cluster_node": h.addr.Host,
-	}).Inc()
-	atomic.AddUint32(&h.penalty, penaltySize)
-	time.AfterFunc(penaltyDuration, func() {
-		atomic.AddUint32(&h.penalty, ^uint32(penaltySize-1))
-	})
-}
-
-// overload runningQueries to take penalty into consideration
-func (h *host) load() uint32 {
-	c := h.counter.load()
-	p := atomic.LoadUint32(&h.penalty)
-	return c + p
-}
-
 func (r *replica) load() uint32 {
 	var reqs uint32
 	for _, h := range r.hosts {
-		reqs += h.load()
+		reqs += h.CurrentLoad()
 	}
 	return reqs
 }
@@ -732,7 +768,9 @@ type cluster struct {
 	killQueryUserName     string
 	killQueryUserPassword string
 
-	heartBeat *heartBeat
+	heartBeat heartbeat.HeartBeat
+
+	retryNumber int
 }
 
 func newCluster(c config.Cluster) (*cluster, error) {
@@ -744,7 +782,7 @@ func newCluster(c config.Cluster) (*cluster, error) {
 		clusterUsers[cu.Name] = newClusterUser(cu)
 	}
 
-	heartBeat := newHeartBeat(c.HeartBeat, c.ClusterUsers[0])
+	heartBeat := heartbeat.NewHeartbeat(c.HeartBeat, heartbeat.WithDefaultUser(c.ClusterUsers[0].Name, c.ClusterUsers[0].Password))
 
 	newC := &cluster{
 		name:                  c.Name,
@@ -752,11 +790,12 @@ func newCluster(c config.Cluster) (*cluster, error) {
 		killQueryUserName:     c.KillQueryUser.Name,
 		killQueryUserPassword: c.KillQueryUser.Password,
 		heartBeat:             heartBeat,
+		retryNumber:           c.RetryNumber,
 	}
 
 	replicas, err := newReplicas(c.Replicas, c.Nodes, c.Scheme, newC)
 	if err != nil {
-		return nil, fmt.Errorf("cannot initialize replicas: %s", err)
+		return nil, fmt.Errorf("cannot initialize replicas: %w", err)
 	}
 	newC.replicas = replicas
 
@@ -771,7 +810,7 @@ func newClusters(cfg []config.Cluster) (map[string]*cluster, error) {
 		}
 		tmpC, err := newCluster(c)
 		if err != nil {
-			return nil, fmt.Errorf("cannot initialize cluster %q: %s", c.Name, err)
+			return nil, fmt.Errorf("cannot initialize cluster %q: %w", c.Name, err)
 		}
 		clusters[c.Name] = tmpC
 	}
@@ -817,7 +856,35 @@ func (c *cluster) getReplica() *replica {
 			reqs = tmpReqs
 		}
 	}
+	// The returned replica may be inactive. This is OK,
+	// since this means all the replicas are inactive,
+	// so let's try proxying the request to any replica.
+	return r
+}
 
+func (c *cluster) getReplicaSticky(sessionId string) *replica {
+	idx := atomic.AddUint32(&c.nextReplicaIdx, 1)
+	n := uint32(len(c.replicas))
+	if n == 1 {
+		return c.replicas[0]
+	}
+
+	idx %= n
+	r := c.replicas[idx]
+
+	for i := uint32(1); i < n; i++ {
+		// handling sticky session
+		sessionId := hash(sessionId)
+		tmpIdx := (sessionId) % n
+		tmpRSticky := c.replicas[tmpIdx]
+		log.Debugf("Sticky replica candidate is: %s", tmpRSticky.name)
+		if !tmpRSticky.isActive() {
+			log.Debugf("Sticky session replica has been picked up, but it is not available")
+			continue
+		}
+		log.Debugf("Sticky session replica is: %s, session_id: %d, replica_idx: %d, max replicas in pool: %d", tmpRSticky.name, sessionId, tmpIdx, n)
+		return tmpRSticky
+	}
 	// The returned replica may be inactive. This is OK,
 	// since this means all the replicas are inactive,
 	// so let's try proxying the request to any replica.
@@ -827,7 +894,7 @@ func (c *cluster) getReplica() *replica {
 // getHostSticky returns host by stickiness from replica.
 //
 // Always returns non-nil.
-func (r *replica) getHostSticky(sessionId string) *host {
+func (r *replica) getHostSticky(sessionId string) *topology.Node {
 	idx := atomic.AddUint32(&r.nextHostIdx, 1)
 	n := uint32(len(r.hosts))
 	if n == 1 {
@@ -839,18 +906,16 @@ func (r *replica) getHostSticky(sessionId string) *host {
 
 	// Scan all the hosts for the least loaded host.
 	for i := uint32(1); i < n; i++ {
-		tmpIdx := (idx + i) % n
-
 		// handling sticky session
 		sessionId := hash(sessionId)
-		tmpIdx = (sessionId) % n
+		tmpIdx := (sessionId) % n
 		tmpHSticky := r.hosts[tmpIdx]
-		log.Debugf("Sticky server candidate is: %s", tmpHSticky.addr)
-		if !tmpHSticky.isActive() {
+		log.Debugf("Sticky server candidate is: %s", tmpHSticky)
+		if !tmpHSticky.IsActive() {
 			log.Debugf("Sticky session server has been picked up, but it is not available")
 			continue
 		}
-		log.Debugf("Sticky session server is: %s, session_id: %d, server_idx: %d, max nodes in pool: %d", tmpHSticky.addr, sessionId, tmpIdx, n)
+		log.Debugf("Sticky session server is: %s, session_id: %d, server_idx: %d, max nodes in pool: %d", tmpHSticky, sessionId, tmpIdx, n)
 		return tmpHSticky
 	}
 
@@ -863,7 +928,7 @@ func (r *replica) getHostSticky(sessionId string) *host {
 // getHost returns least loaded + round-robin host from replica.
 //
 // Always returns non-nil.
-func (r *replica) getHost() *host {
+func (r *replica) getHost() *topology.Node {
 	idx := atomic.AddUint32(&r.nextHostIdx, 1)
 	n := uint32(len(r.hosts))
 	if n == 1 {
@@ -872,10 +937,10 @@ func (r *replica) getHost() *host {
 
 	idx %= n
 	h := r.hosts[idx]
-	reqs := h.load()
+	reqs := h.CurrentLoad()
 
 	// Set least priority to inactive host.
-	if !h.isActive() {
+	if !h.IsActive() {
 		reqs = ^uint32(0)
 	}
 
@@ -887,10 +952,10 @@ func (r *replica) getHost() *host {
 	for i := uint32(1); i < n; i++ {
 		tmpIdx := (idx + i) % n
 		tmpH := r.hosts[tmpIdx]
-		if !tmpH.isActive() {
+		if !tmpH.IsActive() {
 			continue
 		}
-		tmpReqs := tmpH.load()
+		tmpReqs := tmpH.CurrentLoad()
 		if tmpReqs == 0 {
 			return tmpH
 		}
@@ -909,15 +974,15 @@ func (r *replica) getHost() *host {
 // getHostSticky returns host based on stickiness from cluster.
 //
 // Always returns non-nil.
-func (c *cluster) getHostSticky(sessionId string) *host {
-	r := c.getReplica()
+func (c *cluster) getHostSticky(sessionId string) *topology.Node {
+	r := c.getReplicaSticky(sessionId)
 	return r.getHostSticky(sessionId)
 }
 
 // getHost returns least loaded + round-robin host from cluster.
 //
 // Always returns non-nil.
-func (c *cluster) getHost() *host {
+func (c *cluster) getHost() *topology.Node {
 	r := c.getReplica()
 	return r.getHost()
 }

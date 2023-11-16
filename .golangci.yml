@@ -1,0 +1,73 @@
+run:
+  timeout: 3m
+  tests: false
+
+linters:
+  enable:
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - deadcode
+    - depguard
+    - dogsled
+    - dupl
+    - durationcheck
+    - errcheck
+    - errname
+    - errorlint
+    - exportloopref
+    - gochecknoinits
+    - goconst
+    - gocritic
+    - gocyclo
+    - gofmt
+    - goheader
+    - goimports
+    - gomoddirectives
+    - gomodguard
+    - goprintffuncname
+    - gosimple
+    - importas
+    - makezero
+    - misspell
+    - nakedret
+    - predeclared
+    - promlinter
+    - rowserrcheck
+    - sqlclosecheck
+    - structcheck
+    - testpackage
+    - thelper
+    - tparallel
+    - typecheck
+    - unused
+    - varcheck
+    - whitespace
+    - gosec
+    - forcetypeassert
+    - cyclop
+    - exhaustive
+    - govet
+    - nilerr
+    - wastedassign
+    - ineffassign
+  disable:
+    # Should be readded in the future with a dedicated PR to do the fix
+    - funlen
+    - gocognit
+    - gofumpt
+    - ifshort
+    - nestif
+    - nolintlint
+    - revive
+    - staticcheck
+    - stylecheck
+    - unconvert
+    - unparam
+
+    # Disabled with a reason
+    - gochecknoglobals # incompatible with the way we define our flags currently
+    - maligned # checker not supported anymore
+    - noctx # disabled because we do not plan to distribute this code as a library
+    - prealloc # we are not after some perf
+    - tagliatelle # disabled because we are dependant on external API that do not follow the right naming

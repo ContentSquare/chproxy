@@ -5,10 +5,12 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
+	"strconv"
 	"testing"
 	"time"
 
-	"github.com/Vertamedia/chproxy/config"
+	"github.com/contentsquare/chproxy/config"
+	"github.com/contentsquare/chproxy/internal/topology"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -19,11 +21,8 @@ var (
 	c = &cluster{
 		replicas: []*replica{
 			{
-				hosts: []*host{
-					{
-						addr:   &url.URL{Host: "127.0.0.1"},
-						active: 1,
-					},
+				hosts: []*topology.Node{
+					topology.NewNode(&url.URL{Host: "127.0.0.1"}, nil, "", "", topology.WithDefaultActiveState(true)),
 				},
 			},
 		},
@@ -59,8 +58,8 @@ func TestRunningQueries(t *testing.T) {
 			t.Fatalf("expected runningQueries for cluster user: %d; got: %d", cuq, s.clusterUser.queryCounter.load())
 		}
 
-		if s.host.load() != hq {
-			t.Fatalf("expected runningQueries for host: %d; got: %d", hq, s.host.load())
+		if s.host.CurrentLoad() != hq {
+			t.Fatalf("expected runningQueries for host: %d; got: %d", hq, s.host.CurrentLoad())
 		}
 	}
 
@@ -116,22 +115,10 @@ func TestGetHost(t *testing.T) {
 	}
 	r := c.replicas[0]
 	r.cluster = c
-	r.hosts = []*host{
-		{
-			addr:    &url.URL{Host: "127.0.0.1"},
-			active:  1,
-			replica: r,
-		},
-		{
-			addr:    &url.URL{Host: "127.0.0.2"},
-			active:  1,
-			replica: r,
-		},
-		{
-			addr:    &url.URL{Host: "127.0.0.3"},
-			active:  1,
-			replica: r,
-		},
+	r.hosts = []*topology.Node{
+		topology.NewNode(&url.URL{Host: "127.0.0.1"}, nil, "", r.name, topology.WithDefaultActiveState(true)),
+		topology.NewNode(&url.URL{Host: "127.0.0.2"}, nil, "", r.name, topology.WithDefaultActiveState(true)),
+		topology.NewNode(&url.URL{Host: "127.0.0.3"}, nil, "", r.name, topology.WithDefaultActiveState(true)),
 	}
 
 	// step | expected  | hosts running queries
@@ -146,112 +133,72 @@ func TestGetHost(t *testing.T) {
 	// step: 1
 	h := c.getHost()
 	expected := "127.0.0.2"
-	if h.addr.Host != expected {
-		t.Fatalf("got host %q; expected %q", h.addr.Host, expected)
+	if h.Host() != expected {
+		t.Fatalf("got host %q; expected %q", h.Host(), expected)
 	}
-	h.inc()
+	h.IncrementConnections()
 
 	// step: 2
 	h = c.getHost()
 	expected = "127.0.0.3"
-	if h.addr.Host != expected {
-		t.Fatalf("got host %q; expected %q", h.addr.Host, expected)
+	if h.Host() != expected {
+		t.Fatalf("got host %q; expected %q", h.Host(), expected)
 	}
-	h.inc()
+	h.IncrementConnections()
 
 	// step: 3
 	h = c.getHost()
 	expected = "127.0.0.1"
-	if h.addr.Host != expected {
-		t.Fatalf("got host %q; expected %q", h.addr.Host, expected)
+	if h.Host() != expected {
+		t.Fatalf("got host %q; expected %q", h.Host(), expected)
 	}
-	h.inc()
+	h.IncrementConnections()
 
 	// step: 4
 	h = c.getHost()
 	expected = "127.0.0.2"
-	if h.addr.Host != expected {
-		t.Fatalf("got host %q; expected %q", h.addr.Host, expected)
+	if h.Host() != expected {
+		t.Fatalf("got host %q; expected %q", h.Host(), expected)
 	}
-	h.inc()
+	h.IncrementConnections()
 
 	// inc last host to get least-loaded 1st host
-	r.hosts[2].inc()
+	r.hosts[2].IncrementConnections()
 
 	// step: 5
 	h = c.getHost()
 	expected = "127.0.0.1"
-	if h.addr.Host != expected {
-		t.Fatalf("got host %q; expected %q", h.addr.Host, expected)
+	if h.Host() != expected {
+		t.Fatalf("got host %q; expected %q", h.Host(), expected)
 	}
-	h.inc()
+	h.IncrementConnections()
 
 	// penalize 2nd host
 	h = r.hosts[1]
-	expRunningQueries := penaltySize + h.load()
-	h.penalize()
-	if h.load() != expRunningQueries {
-		t.Fatalf("got host %q running queries %d; expected %d", h.addr.Host, h.load(), expRunningQueries)
+	expRunningQueries := topology.DefaultPenaltySize + h.CurrentLoad()
+	h.Penalize()
+	if h.CurrentLoad() != expRunningQueries {
+		t.Fatalf("got host %q running queries %d; expected %d", h.Host(), h.CurrentLoad(), expRunningQueries)
 	}
 
 	// step: 6
 	// we got "127.0.0.1" because index it's 6th step, hence index is = 0
 	h = c.getHost()
 	expected = "127.0.0.1"
-	if h.addr.Host != expected {
-		t.Fatalf("got host %q; expected %q", h.addr.Host, expected)
+	if h.Host() != expected {
+		t.Fatalf("got host %q; expected %q", h.Host(), expected)
 	}
-	h.inc()
+	h.IncrementConnections()
 
 	// step: 7
 	// we got "127.0.0.3"; index = 1, means to get 2nd host, but it has runningQueries=7
 	// so we will get next least loaded
 	h = c.getHost()
 	expected = "127.0.0.3"
-	if h.addr.Host != expected {
-		t.Fatalf("got host %q; expected %q", h.addr.Host, expected)
+	if h.Host() != expected {
+		t.Fatalf("got host %q; expected %q", h.Host(), expected)
 	}
-	h.inc()
-}
-
-func TestPenalize(t *testing.T) {
-	c := &cluster{name: "default"}
-	c.replicas = []*replica{
-		{
-			cluster: c,
-		},
-	}
-	h := &host{
-		replica: c.replicas[0],
-		addr:    &url.URL{Host: "127.0.0.1"},
-	}
-	exp := uint32(0)
-	if h.load() != exp {
-		t.Fatalf("got running queries %d; expected %d", h.load(), exp)
-	}
-
-	h.penalize()
-	exp = uint32(penaltySize)
-	if h.load() != exp {
-		t.Fatalf("got running queries %d; expected %d", h.load(), exp)
-	}
-
-	// do more penalties than `penaltyMaxSize` allows
-	max := int(penaltyMaxSize/penaltySize) * 2
-	for i := 0; i < max; i++ {
-		h.penalize()
-	}
-	exp = uint32(penaltyMaxSize)
-	if h.load() != exp {
-		t.Fatalf("got running queries %d; expected %d", h.load(), exp)
-	}
-
-	// but still might increased
-	h.inc()
-	exp++
-	if h.load() != exp {
-		t.Fatalf("got running queries %d; expected %d", h.load(), exp)
-	}
+	h.IncrementConnections()
 }
 
 func TestRunningQueriesConcurrent(t *testing.T) {
@@ -272,27 +219,18 @@ func TestGetHostConcurrent(t *testing.T) {
 	c := &cluster{
 		replicas: []*replica{
 			{
-				hosts: []*host{
-					{
-						addr:   &url.URL{Host: "127.0.0.1"},
-						active: 1,
-					},
-					{
-						addr:   &url.URL{Host: "127.0.0.2"},
-						active: 1,
-					},
-					{
-						addr:   &url.URL{Host: "127.0.0.3"},
-						active: 1,
-					},
+				hosts: []*topology.Node{
+					topology.NewNode(&url.URL{Host: "127.0.0.1"}, nil, "", "", topology.WithDefaultActiveState(true)),
+					topology.NewNode(&url.URL{Host: "127.0.0.2"}, nil, "", "", topology.WithDefaultActiveState(true)),
+					topology.NewNode(&url.URL{Host: "127.0.0.3"}, nil, "", "", topology.WithDefaultActiveState(true)),
 				},
 			},
 		},
 	}
 	f := func() {
 		h := c.getHost()
-		h.inc()
-		h.dec()
+		h.IncrementConnections()
+		h.DecrementConnections()
 	}
 	if err := testConcurrent(f, 1000); err != nil {
 		t.Fatalf("concurrent test err: %s", err)
@@ -409,9 +347,7 @@ func TestDecorateRequest(t *testing.T) {
 			user: &user{
 				params: tc.userParams,
 			},
-			host: &host{
-				addr: &url.URL{Host: "127.0.0.1"},
-			},
+			host: topology.NewNode(&url.URL{Host: "127.0.0.1"}, nil, "", ""),
 		}
 		req, _ = s.decorateRequest(req)
 		values := req.URL.Query()
@@ -434,4 +370,134 @@ func TestDecorateRequest(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestGetHostSticky(t *testing.T) {
+	exceptedSessionHostMap := map[string]string{
+		"0": "127.0.0.22",
+		"1": "127.0.0.33",
+		"2": "127.0.0.44",
+		"3": "127.0.0.55",
+	}
+	c := testGetCluster()
+	for i := 0; i < 10000; i++ {
+		sessionId := strconv.Itoa(i % 4)
+		if exceptedSessionHostMap[sessionId] != c.getHostSticky(sessionId).Host() {
+			t.Fatalf("getHostSticky use sessionId: %s,expected host: %s, get: %s", sessionId, exceptedSessionHostMap[sessionId], c.getHostSticky(sessionId).Host())
+		}
+	}
+}
+
+func TestIncQueued(t *testing.T) {
+	u := testGetUser()
+	cu := testGetClusterUser()
+	c := testGetCluster()
+	expectedSessionHostMap := map[string]string{
+		"0": "127.0.0.22",
+		"1": "127.0.0.33",
+		"2": "127.0.0.44",
+		"3": "127.0.0.55",
+	}
+	if err := testConcurrentQuery(c, u, cu, 10000, expectedSessionHostMap); err != nil {
+		t.Fatalf("incQueue test err: %s", err)
+	}
+}
+
+func testConcurrentQuery(c *cluster, u *user, cu *clusterUser, concurrency int, expectedSessionHostMap map[string]string) error {
+	ch := make(chan map[string]string, 10000)
+
+	f := func(sessionId string) map[string]string {
+		s := testGetScope(c, u, cu, sessionId)
+		// user set sessionId
+		s.sessionId = sessionId
+		// concurrent task wait
+		s.incQueued()
+		time.Sleep(50 * time.Millisecond)
+		s.dec()
+		// return wake task's new host
+		// same sessionId should get same host addr
+		return map[string]string{sessionId: s.host.Host()}
+	}
+
+	for i := 0; i < concurrency; i++ {
+		sessionId := strconv.Itoa(i % 4)
+		go func() {
+			ch <- f(sessionId)
+		}()
+	}
+	for i := 0; i < concurrency; i++ {
+		sessionHost := <-ch
+		for sessionId, host := range sessionHost {
+			if expectedSessionHostMap[sessionId] != host {
+				return fmt.Errorf("incQueue waked task sessionId: %s,expected host: %v, get: %v", sessionId, expectedSessionHostMap[sessionId], host)
+			}
+		}
+	}
+	return nil
+}
+
+func testGetCluster() *cluster {
+	c := &cluster{
+		name:     "default",
+		replicas: []*replica{{}, {}, {}},
+	}
+
+	r1 := c.replicas[0]
+	r1.cluster = c
+	r1.hosts = []*topology.Node{
+		topology.NewNode(&url.URL{Host: "127.0.0.11"}, nil, "", r1.name, topology.WithDefaultActiveState(true)),
+		topology.NewNode(&url.URL{Host: "127.0.0.22"}, nil, "", r1.name, topology.WithDefaultActiveState(true)),
+	}
+	r1.name = "replica1"
+	r2 := c.replicas[1]
+	r2.cluster = c
+	r2.hosts = []*topology.Node{
+		topology.NewNode(&url.URL{Host: "127.0.0.33"}, nil, "", r2.name, topology.WithDefaultActiveState(true)),
+		topology.NewNode(&url.URL{Host: "127.0.0.44"}, nil, "", r2.name, topology.WithDefaultActiveState(true)),
+	}
+	r2.name = "replica2"
+	r3 := c.replicas[2]
+	r3.cluster = c
+	r3.hosts = []*topology.Node{
+		topology.NewNode(&url.URL{Host: "127.0.0.55"}, nil, "", r3.name, topology.WithDefaultActiveState(true)),
+		topology.NewNode(&url.URL{Host: "127.0.0.66"}, nil, "", r3.name, topology.WithDefaultActiveState(true)),
+	}
+	r3.name = "replica3"
+	return c
+}
+
+func testGetClusterUser() *clusterUser {
+	cu = &clusterUser{
+		maxConcurrentQueries: 1,
+		queueCh:              make(chan struct{}, 10000),
+	}
+	return cu
+}
+
+func testGetUser() *user {
+	u := &user{
+		maxConcurrentQueries: 1,
+		queueCh:              make(chan struct{}, 10000),
+	}
+	return u
+}
+
+func testGetScope(c *cluster, u *user, cu *clusterUser, sessionId string) *scope {
+	s := &scope{id: newScopeID()}
+	s.cluster = c
+	s.host = c.getHost()
+	if sessionId != "" {
+		s.host = c.getHostSticky(sessionId)
+	}
+	s.sessionId = sessionId
+	s.user = u
+	s.clusterUser = cu
+	s.labels = prometheus.Labels{
+		"user":         "default",
+		"cluster":      "default",
+		"cluster_user": "default",
+		"replica":      "default",
+		"cluster_node": "default",
+	}
+	return s
 }
