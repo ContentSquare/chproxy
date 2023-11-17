@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 
@@ -32,7 +31,7 @@ func NewTmpFileResponseWriter(rw http.ResponseWriter, dir string) (*TmpFileRespo
 		return nil, fmt.Errorf("the response writer does not implement http.CloseNotifier")
 	}
 
-	f, err := ioutil.TempFile(dir, "tmp")
+	f, err := os.CreateTemp(dir, "tmp")
 	if err != nil {
 		return nil, fmt.Errorf("cannot create temporary file in %q: %w", dir, err)
 	}
