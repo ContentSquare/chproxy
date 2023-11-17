@@ -57,5 +57,10 @@ release: format lint test clean release-build
 
 release-build-docker:
 	@echo "Ver: $(BUILD_TAG)"
-	@DOCKER_BUILDKIT=1 docker build  --target build --build-arg EXT_BUILD_TAG=$(BUILD_TAG) --progress plain -t chproxy-build -f Dockerfile_build .
+	@DOCKER_BUILDKIT=1 docker build -f Dockerfile_build --target build --build-arg EXT_BUILD_TAG=$(BUILD_TAG) --progress plain -t chproxy-build .
 	@docker run --rm --entrypoint "/bin/sh" -v $(CURDIR):/host chproxy-build -c "/bin/cp chproxy-linux-*-*.tar.gz /host"
+
+release-build-docker-fips:
+	@echo "Ver: $(BUILD_TAG)"
+	@DOCKER_BUILDKIT=1 docker build -f Dockerfile_boringcrypto --build-arg EXT_BUILD_TAG=$(BUILD_TAG)-fips --progress plain -t chproxy-build .
+	@docker run --rm --entrypoint "/bin/sh" -v $(CURDIR):/host chproxy-build -c "/bin/cp /src/chproxy-*.tar.gz /host"
