@@ -62,5 +62,5 @@ release-build-docker:
 
 release-build-docker-fips:
 	@echo "Ver: $(BUILD_TAG)"
-	@DOCKER_BUILDKIT=1 docker build -f Dockerfile_boringcrypto --build-arg EXT_BUILD_TAG=$(BUILD_TAG)-fips --progress plain -t chproxy-build .
+	@DOCKER_BUILDKIT=1 docker build -f Dockerfile_boringcrypto --build-arg EXT_BUILD_TAG=$(BUILD_TAG)-fips --build-arg EXT_BUILD_OPTS="-tags fips" --progress plain -t chproxy-build .
 	@docker run --rm --entrypoint "/bin/sh" -v $(CURDIR):/host chproxy-build -c "/bin/cp /src/chproxy-*.tar.gz /host"
