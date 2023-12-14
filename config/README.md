@@ -111,6 +111,7 @@ redis:
     - <string> # example "localhost:6379"
   username: <string>
   password: <string>
+  db_index: <int> | default = 0 [optional]
 
 # Expiration time for cached responses.
 expire: <duration>
