@@ -26,6 +26,14 @@ Chproxy is an HTTP proxy and load balancer for [ClickHouse](https://ClickHouse.y
 - Exposes various useful [metrics](/configuration/metrics) in [Prometheus text format](https://prometheus.io/docs/instrumenting/exposition_formats/).
 - Configuration may be updated without restart - just send `SIGHUP` signal to `chproxy` process.
 - Easy to manage and run - just pass config file path to a single `chproxy` binary.
+- Facilitates session affinity through `session_id` mapping, guaranteeing requests from the same user session are routed to the same upstream server (It is useful if one application server performs an initial processing step and stores the results in a temporary table; other servers can efficiently access and utilize that data by reaching the same server where the data is.)
+- Service can be built to use only cryptographic algorithms approved by the Federal Information Processing Standard (FIPS) 140-2, making it suitable for processing sensitive government data.
+```bash
+-- to build regular artifact
+make release-build-docker
+-- to build artifact with FIPS support relying on Borring Crypto Module
+make release-build-docker-fips:
+```
 - Easy to [configure](https://github.com/contentsquare/chproxy/blob/master/config/examples/simple.yml):
 ```yml
 server:

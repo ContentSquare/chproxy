@@ -1,0 +1,42 @@
+ARG UBUNTU_IMAGE=ubuntu:20.04
+FROM ${UBUNTU_IMAGE} AS build
+
+ENV GOPATH=/gocode
+ENV PATH=$PATH:$GOPATH/bin
+ENV GOVERSION=1.21
+
+RUN mkdir /scr
+WORKDIR /src
+
+# golang
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        apt-utils \
+        software-properties-common \
+        gcc \
+        libc-dev \
+    && add-apt-repository -y ppa:longsleep/golang-backports \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+        golang-$GOVERSION-go \
+        golang-golang-x-tools \
+    && apt-get autoremove -y \
+    && apt-get remove -y \
+        apt-utils \
+        software-properties-common
+
+# Create symbolic link
+RUN ln -s /usr/lib/go-$GOVERSION /gocode
+
+# tools
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    git \
+    make \
+    tzdata
+
+FROM build
+
+# Build chproxy
+COPY . ./
+ARG EXT_BUILD_TAG
+ENV GOEXPERIMENT=boringcrypto
+RUN make release-build
