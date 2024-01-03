@@ -27,6 +27,6 @@ jobs:
     - name: Update coverage report
       uses: ncruces/go-coverage-report@21fa4b59396f242b81896a3cd212a463589b6742
       with:
-        report: 'true'
+        report: 'false'
         chart: 'true'
         amend: 'false'
