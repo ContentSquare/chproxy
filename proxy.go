@@ -144,7 +144,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if shouldReturnFromCache {
+	if shouldReturnFromCache && s.user.cache.Alive() {
 		rp.serveFromCache(s, srw, req, origParams, q)
 	} else {
 		rp.proxyRequest(s, srw, srw, req)
