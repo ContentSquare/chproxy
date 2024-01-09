@@ -17,14 +17,16 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/time/rate"
+
+	"github.com/contentsquare/chproxy/cache"
+
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 
-	"github.com/contentsquare/chproxy/cache"
 	"github.com/contentsquare/chproxy/config"
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/time/rate"
 )
 
 var nbHeavyRequestsInflight int64 = 0
@@ -1035,11 +1037,11 @@ var (
 	handler  = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt64(&nbRequestsInflight, 1)
 		defer atomic.AddInt64(&nbRequestsInflight, -1)
-		switch r.URL.Path {
-		case "/fast":
+		if r.URL.Path == "/fast" {
 			fmt.Fprintln(w, okResponse)
 			return
-		case "/badGateway":
+		}
+		if r.URL.Path == "/badGateway" {
 			w.WriteHeader(http.StatusBadGateway)
 			fmt.Fprintln(w, badGatewayResponse)
 			return
