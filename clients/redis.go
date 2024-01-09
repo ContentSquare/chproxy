@@ -1,9 +1,6 @@
 package clients
 
 import (
-	"context"
-	"fmt"
-
 	"github.com/contentsquare/chproxy/config"
 	"github.com/redis/go-redis/v9"
 )
@@ -29,13 +26,5 @@ func NewRedisClient(cfg config.RedisCacheConfig) (redis.UniversalClient, error) 
 		options.TLSConfig = tlsConfig
 	}
 
-	r := redis.NewUniversalClient(options)
-
-	err := r.Ping(context.Background()).Err()
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to reach redis: %w", err)
-	}
-
-	return r, nil
+	return redis.NewUniversalClient(options), nil
 }
