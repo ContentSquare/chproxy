@@ -454,6 +454,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 
 		var errReason string
 		if contentLength > rp.maxErrorReasonSize {
+			errReason = "unknown error reason"
 			log.Infof("%s: Error reason length (%d) is greater than max error reason size (%d)", s, contentLength, rp.maxErrorReasonSize)
 		} else {
 			errString, err := toString(reader)

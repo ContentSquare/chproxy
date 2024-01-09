@@ -507,6 +507,11 @@ func TestBadConfig(t *testing.T) {
 			"testdata/bad.proxy_settings.yml",
 			"`proxy_header` cannot be set without enabling proxy settings",
 		},
+		{
+			"max error reason size",
+			"testdata/bad.max_error_reason_size.yml",
+			"cannot parse byte size \"-10B\": it must be positive float followed by optional units. For example, 1.5Gb, 3T",
+		},
 	}
 
 	for _, tc := range testCases {

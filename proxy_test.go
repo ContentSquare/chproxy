@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"math/rand"
 	"net"
@@ -16,16 +17,14 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/time/rate"
-
-	"github.com/contentsquare/chproxy/cache"
-
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 
+	"github.com/contentsquare/chproxy/cache"
 	"github.com/contentsquare/chproxy/config"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/time/rate"
 )
 
 var nbHeavyRequestsInflight int64 = 0
@@ -41,7 +40,10 @@ const (
 	okResponse         = "1"
 	badGatewayResponse = "]: cannot reach 127.0.0.1:"
 )
-const testCacheDir = "./test-cache-data"
+const (
+	testCacheDir    = "./test-cache-data"
+	fileSystemCache = "file_system_cache"
+)
 
 var goodCfg = &config.Config{
 	Server: config.Server{
@@ -97,7 +99,7 @@ var goodCfgWithCache = &config.Config{
 			Name:      defaultUsername,
 			ToCluster: "cluster",
 			ToUser:    "web",
-			Cache:     "file_system_cache",
+			Cache:     fileSystemCache,
 		},
 	},
 	ParamGroups: []config.ParamGroup{
@@ -105,7 +107,48 @@ var goodCfgWithCache = &config.Config{
 	},
 	Caches: []config.Cache{
 		{
-			Name: "file_system_cache",
+			Name: fileSystemCache,
+			Mode: "file_system",
+			FileSystem: config.FileSystemCacheConfig{
+				Dir:     testCacheDir,
+				MaxSize: config.ByteSize(1024 * 1024),
+			},
+			Expire: config.Duration(1000 * 60 * 60),
+		},
+	},
+	MaxErrorReasonSize: config.ByteSize(100 << 20),
+}
+var goodCfgWithCacheAndMaxErrorReasonSize = &config.Config{
+	Clusters: []config.Cluster{
+		{
+			Name:   "cluster",
+			Scheme: "http",
+			Replicas: []config.Replica{
+				{
+					Nodes: []string{"localhost:8123"},
+				},
+			},
+			ClusterUsers: []config.ClusterUser{
+				{
+					Name: "web",
+				},
+			},
+		},
+	},
+	Users: []config.User{
+		{
+			Name:      defaultUsername,
+			ToCluster: "cluster",
+			ToUser:    "web",
+			Cache:     fileSystemCache,
+		},
+	},
+	ParamGroups: []config.ParamGroup{
+		{Name: "param_test", Params: []config.Param{{Key: "param_key", Value: "param_value"}}},
+	},
+	Caches: []config.Cache{
+		{
+			Name: fileSystemCache,
 			Mode: "file_system",
 			FileSystem: config.FileSystemCacheConfig{
 				Dir:     testCacheDir,
@@ -310,13 +353,24 @@ var fullWildcardedCfg = &config.Config{
 	},
 }
 
+func compareTransactionFailReason(t *testing.T, p *reverseProxy, user config.ClusterUser, query string, failReason string) {
+	h := fnv.New32a()
+	h.Write([]byte(user.Name + user.Password))
+	transactionKey := cache.NewKey([]byte(query), url.Values{"query": []string{query}}, "", 0, 0, h.Sum32())
+	transactionStatus, err := p.caches[fileSystemCache].TransactionRegistry.Status(transactionKey)
+	assert.Nil(t, err)
+	assert.Equal(t, failReason, transactionStatus.FailReason)
+}
+
 func TestReverseProxy_ServeHTTP1(t *testing.T) {
+	query := "SELECT123456"
 	testCases := []struct {
-		cfg           *config.Config
-		name          string
-		expResponse   string
-		expStatusCode int
-		f             func(p *reverseProxy) *http.Response
+		cfg                   *config.Config
+		name                  string
+		expResponse           string
+		expStatusCode         int
+		f                     func(p *reverseProxy) *http.Response
+		transactionFailReason string
 	}{
 		{
 			cfg:           goodCfg,
@@ -324,7 +378,7 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 			expResponse:   badGatewayResponse,
 			expStatusCode: http.StatusBadGateway,
 			f: func(p *reverseProxy) *http.Response {
-				req := httptest.NewRequest("GET", fmt.Sprintf("%s/badGateway?query=SELECT123456", fakeServer.URL), nil)
+				req := httptest.NewRequest("GET", fmt.Sprintf("%s/badGateway?query=%s", fakeServer.URL, query), nil)
 				return makeCustomRequest(p, req)
 			},
 		},
@@ -334,11 +388,12 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 			expResponse:   badGatewayResponse,
 			expStatusCode: http.StatusBadGateway,
 			f: func(p *reverseProxy) *http.Response {
-				req := httptest.NewRequest("GET", fmt.Sprintf("%s/badGateway?query=SELECT123456", fakeServer.URL), nil)
+				req := httptest.NewRequest("GET", fmt.Sprintf("%s/badGateway?query=%s", fakeServer.URL, query), nil)
 				// cleaning the cache to be sure it will be a cache miss although the query isn't supposed to be cached
 				os.RemoveAll(testCacheDir)
 				return makeCustomRequest(p, req)
 			},
+			transactionFailReason: "[concurrent query failed] ]: cannot reach 127.0.0.1:\n",
 		},
 		{
 			cfg:           goodCfg,
@@ -705,6 +760,17 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 				return makeHeavyRequest(p, time.Millisecond*200)
 			},
 		},
+		{
+			cfg:           goodCfgWithCacheAndMaxErrorReasonSize,
+			name:          "max error reason size",
+			expResponse:   badGatewayResponse,
+			expStatusCode: http.StatusBadGateway,
+			f: func(p *reverseProxy) *http.Response {
+				req := httptest.NewRequest("GET", fmt.Sprintf("%s/badGateway?query=%s", fakeServer.URL, query), nil)
+				return makeCustomRequest(p, req)
+			},
+			transactionFailReason: "unknown error reason",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -717,6 +783,9 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 			resp := tc.f(proxy)
 			b := bbToString(t, resp.Body)
 			resp.Body.Close()
+			if len(tc.cfg.Caches) != 0 {
+				compareTransactionFailReason(t, proxy, tc.cfg.Clusters[0].ClusterUsers[0], query, tc.transactionFailReason)
+			}
 			if !strings.Contains(b, tc.expResponse) {
 				t.Fatalf("expected response: %q; got: %q for %q", tc.expResponse, b, tc.name)
 			}
@@ -966,12 +1035,13 @@ var (
 	handler  = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt64(&nbRequestsInflight, 1)
 		defer atomic.AddInt64(&nbRequestsInflight, -1)
-		if r.URL.Path == "/fast" {
+		switch r.URL.Path {
+		case "/fast":
 			fmt.Fprintln(w, okResponse)
 			return
-		}
-		if r.URL.Path == "/badGateway" {
+		case "/badGateway":
 			w.WriteHeader(http.StatusBadGateway)
+			fmt.Fprintln(w, badGatewayResponse)
 			return
 		}
 

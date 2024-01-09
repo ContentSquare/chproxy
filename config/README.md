@@ -27,6 +27,11 @@ param_groups:
 # Named network lists
 network_groups: <network_groups_config> ... [optional]
 
+# Maximum total size of fail reason of queries. Config prevents large tmp files from being read into memory, affects only cachable queries
+# The default value is set to 1 Petabyte.
+# If error reason exceeds limit "unknown error reason" will be stored as a fail reason
+max_error_reason_size: <byte_size>
+
 # Settings for connection pool to ClickHouse
 connection_pool:
   max_idle_conns: 100
