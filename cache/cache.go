@@ -14,6 +14,7 @@ type Cache interface {
 	Get(key *Key) (*CachedData, error)
 	Put(r io.Reader, ctMetadata ContentMetadata, key *Key) (time.Duration, error)
 	Name() string
+	Alive() bool
 }
 
 type ContentMetadata struct {

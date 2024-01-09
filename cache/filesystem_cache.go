@@ -133,6 +133,10 @@ func (f *fileSystemCache) Get(key *Key) (*CachedData, error) {
 	return value, nil
 }
 
+func (f *fileSystemCache) Alive() bool {
+	return true
+}
+
 // decodeHeader decodes header from raw byte stream. Data is encoded as follows:
 // length(contentType)|contentType|length(contentEncoding)|contentEncoding|length(contentLength)|contentLength|cachedData
 func decodeHeader(reader io.Reader) (*ContentMetadata, error) {

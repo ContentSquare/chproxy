@@ -18,9 +18,11 @@ import (
 )
 
 type redisCache struct {
-	name   string
-	client redis.UniversalClient
-	expire time.Duration
+	name           string
+	client         redis.UniversalClient
+	expire         time.Duration
+	alive          bool
+	quitAliveCheck chan bool
 }
 
 const getTimeout = 2 * time.Second
@@ -28,6 +30,7 @@ const removeTimeout = 1 * time.Second
 const renameTimeout = 1 * time.Second
 const putTimeout = 2 * time.Second
 const statsTimeout = 500 * time.Millisecond
+const pingInterval = 5 * time.Second
 
 // this variable is key to select whether the result should be streamed
 // from redis to the http response or if chproxy should first put the
@@ -40,15 +43,19 @@ const redisTmpFilePrefix = "chproxyRedisTmp"
 
 func newRedisCache(client redis.UniversalClient, cfg config.Cache) *redisCache {
 	redisCache := &redisCache{
-		name:   cfg.Name,
-		expire: time.Duration(cfg.Expire),
-		client: client,
+		name:           cfg.Name,
+		expire:         time.Duration(cfg.Expire),
+		client:         client,
+		quitAliveCheck: make(chan bool),
 	}
+
+	go redisCache.checkAlive()
 
 	return redisCache
 }
 
 func (r *redisCache) Close() error {
+	r.quitAliveCheck <- true
 	return r.client.Close()
 }
 
@@ -327,6 +334,22 @@ func (r *redisCache) clean(stringKey string) {
 
 func (r *redisCache) Name() string {
 	return r.name
+}
+
+func (f *redisCache) checkAlive() {
+	for {
+		select {
+		case <-f.quitAliveCheck:
+			return
+		default:
+			f.alive = f.client.Ping(context.Background()).Err() == nil
+			time.Sleep(pingInterval)
+		}
+	}
+}
+
+func (f *redisCache) Alive() bool {
+	return f.alive
 }
 
 type redisStreamReader struct {
