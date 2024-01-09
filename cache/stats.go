@@ -7,4 +7,6 @@ type Stats struct {
 
 	// Items is the number of items in the cache.
 	Items uint64
+
+	Alive uint64
 }

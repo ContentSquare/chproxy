@@ -758,6 +758,7 @@ func (rp *reverseProxy) restartWithNewConfig(caches map[string]*cache.AsyncCache
 	topology.HostHealth.Reset()
 	cacheSize.Reset()
 	cacheItems.Reset()
+	cacheAlive.Reset()
 
 	// Start service goroutines with new configs.
 	for _, c := range clusters {
@@ -799,6 +800,7 @@ func (rp *reverseProxy) refreshCacheMetrics() {
 		}
 		cacheSize.With(labels).Set(float64(stats.Size))
 		cacheItems.With(labels).Set(float64(stats.Items))
+		cacheAlive.With(labels).Set(float64(stats.Alive))
 	}
 }
 

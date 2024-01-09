@@ -86,6 +86,7 @@ func (f *fileSystemCache) Stats() Stats {
 	var s Stats
 	s.Size = atomic.LoadUint64(&f.stats.Size)
 	s.Items = atomic.LoadUint64(&f.stats.Items)
+	s.Alive = 1
 	return s
 }
 

@@ -66,9 +66,14 @@ var usedMemoryRegexp = regexp.MustCompile(`used_memory:([0-9]+)\r\n`)
 // Second one will fetch memory info that will be parsed to fetch the used_memory
 // NOTE : we can only fetch database size, not cache size
 func (r *redisCache) Stats() Stats {
+	alive := uint64(0)
+	if r.alive {
+		alive = 1
+	}
 	return Stats{
 		Items: r.nbOfKeys(),
 		Size:  r.nbOfBytes(),
+		Alive: alive,
 	}
 }
 

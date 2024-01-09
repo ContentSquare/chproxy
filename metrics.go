@@ -23,6 +23,7 @@ var (
 	cacheMiss                      *prometheus.CounterVec
 	cacheSize                      *prometheus.GaugeVec
 	cacheItems                     *prometheus.GaugeVec
+	cacheAlive                     *prometheus.GaugeVec
 	cacheSkipped                   *prometheus.CounterVec
 	requestDuration                *prometheus.SummaryVec
 	proxiedResponseDuration        *prometheus.SummaryVec
@@ -168,6 +169,14 @@ func initMetrics(cfg *config.Config) {
 		},
 		[]string{"cache"},
 	)
+	cacheAlive = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: namespace,
+			Name:      "cache_alive",
+			Help:      "Cache alive at the current time",
+		},
+		[]string{"cache"},
+	)
 	cacheSkipped = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: namespace,
@@ -277,7 +286,7 @@ func registerMetrics(cfg *config.Config) {
 		limitExcess, concurrentQueries,
 		requestQueueSize, userQueueOverflow, clusterUserQueueOverflow,
 		requestBodyBytes, responseBodyBytes, cacheFailedInsert, cacheCorruptedFetch,
-		cacheHit, cacheMiss, cacheSize, cacheItems, cacheSkipped,
+		cacheHit, cacheMiss, cacheSize, cacheItems, cacheAlive, cacheSkipped,
 		requestDuration, proxiedResponseDuration, cachedResponseDuration,
 		canceledRequest, timeoutRequest,
 		configSuccess, configSuccessTime, badRequest, retryRequest)
