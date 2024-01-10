@@ -18,11 +18,11 @@ import (
 )
 
 type redisCache struct {
-	name           string
-	client         redis.UniversalClient
-	expire         time.Duration
-	alive          bool
-	quitAliveCheck chan bool
+	name   string
+	client redis.UniversalClient
+	expire time.Duration
+	alive  bool
+	done   chan bool
 }
 
 const getTimeout = 2 * time.Second
@@ -43,10 +43,10 @@ const redisTmpFilePrefix = "chproxyRedisTmp"
 
 func newRedisCache(client redis.UniversalClient, cfg config.Cache) *redisCache {
 	redisCache := &redisCache{
-		name:           cfg.Name,
-		expire:         time.Duration(cfg.Expire),
-		client:         client,
-		quitAliveCheck: make(chan bool),
+		name:   cfg.Name,
+		expire: time.Duration(cfg.Expire),
+		client: client,
+		done:   make(chan bool),
 	}
 
 	go redisCache.checkAlive()
@@ -55,7 +55,7 @@ func newRedisCache(client redis.UniversalClient, cfg config.Cache) *redisCache {
 }
 
 func (r *redisCache) Close() error {
-	r.quitAliveCheck <- true
+	r.done <- true
 	return r.client.Close()
 }
 
@@ -342,13 +342,13 @@ func (r *redisCache) Name() string {
 }
 
 func (f *redisCache) checkAlive() {
+	ticker := time.NewTicker(pingInterval)
 	for {
 		select {
-		case <-f.quitAliveCheck:
+		case <-f.done:
 			return
-		default:
+		case <-ticker.C:
 			f.alive = f.client.Ping(context.Background()).Err() == nil
-			time.Sleep(pingInterval)
 		}
 	}
 }
