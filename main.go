@@ -68,6 +68,9 @@ func main() {
 	if server.HTTP.ForceAutocertHandler {
 		autocertManager = newAutocertManager(server.HTTPS.Autocert)
 	}
+
+	notifyReady()
+
 	if len(server.HTTPS.ListenAddr) != 0 {
 		go serveTLS(server.HTTPS)
 	}
@@ -76,6 +79,15 @@ func main() {
 	}
 
 	select {}
+}
+
+func notifyReady() {
+	sent, err := sdNotifyReady()
+	if err != nil {
+		log.Errorf("SdNotify error: %s", err)
+	} else if !sent {
+		log.Debugf("SdNotify unsupported (not a systemd service?)")
+	}
 }
 
 func setupReloadConfigWatch() {
