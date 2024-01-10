@@ -48,8 +48,10 @@ func newRedisCache(client redis.UniversalClient, cfg config.Cache) *redisCache {
 		client: client,
 		done:   make(chan bool),
 	}
-
-	go redisCache.checkAlive()
+	// Init lifecheck at startup
+	redisCache.setAlive()
+	// Background lifechecks
+	go redisCache.backgroundLifecheck()
 
 	return redisCache
 }
@@ -341,14 +343,18 @@ func (r *redisCache) Name() string {
 	return r.name
 }
 
-func (f *redisCache) checkAlive() {
+func (f *redisCache) setAlive() {
+	f.alive = f.client.Ping(context.Background()).Err() == nil
+}
+
+func (f *redisCache) backgroundLifecheck() {
 	ticker := time.NewTicker(pingInterval)
 	for {
 		select {
 		case <-f.done:
 			return
 		case <-ticker.C:
-			f.alive = f.client.Ping(context.Background()).Err() == nil
+			f.setAlive()
 		}
 	}
 }
