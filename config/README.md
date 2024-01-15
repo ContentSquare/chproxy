@@ -252,8 +252,8 @@ to_user: <string>
 max_concurrent_queries: <int> | optional | default = 0
 
 # Maximum duration of query execution for user
-# By default there is no limit on the query duration.
-max_execution_time: <duration> | optional | default = 0
+# By default there is a 120 sec limit the query duration.
+max_execution_time: <duration> | optional | default = 120s
 
 # Maximum number of requests per minute for user.
 # By default there are no per-minute limits
@@ -364,8 +364,8 @@ password: <string> | optional
 max_concurrent_queries: <int> | optional | default = 0
 
 # Maximum duration of query execution for user
-# By default there is no limit on the query duration.
-max_execution_time: <duration> | optional | default = 0
+# By default there is a 120 sec limit the query duration.
+max_execution_time: <duration> | optional | default = 120s
 
 # Maximum number of requests per minute for user.
 # By default there are no per-minute limits
