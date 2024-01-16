@@ -48,6 +48,8 @@ var (
 
 	defaultMaxPayloadSize = ByteSize(1 << 50)
 
+	defaultMaxErrorReasonSize = ByteSize(1 << 50)
+
 	defaultRetryNumber = 0
 )
 
@@ -66,6 +68,9 @@ type Config struct {
 	HackMePlease bool `yaml:"hack_me_please,omitempty"`
 
 	NetworkGroups []NetworkGroups `yaml:"network_groups,omitempty"`
+
+	// Maximum size of error payload
+	MaxErrorReasonSize ByteSize `yaml:"max_error_reason_size,omitempty"`
 
 	Caches []Cache `yaml:"caches,omitempty"`
 
@@ -186,6 +191,10 @@ func (cfg *Config) setDefaults() error {
 	for i := range cfg.Caches {
 		c := &cfg.Caches[i]
 		c.setDefaults()
+	}
+
+	if cfg.MaxErrorReasonSize <= 0 {
+		cfg.MaxErrorReasonSize = defaultMaxErrorReasonSize
 	}
 
 	cfg.setServerMaxResponseTime(maxResponseTime)

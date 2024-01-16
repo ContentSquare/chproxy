@@ -48,6 +48,7 @@ type reverseProxy struct {
 	hasWildcarded       bool
 	maxIdleConns        int
 	maxIdleConnsPerHost int
+	maxErrorReasonSize  int64
 }
 
 func newReverseProxy(cfgCp *config.ConnectionPool) *reverseProxy {
@@ -451,12 +452,18 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 			tmpFileRespWriter.WriteHeader(srw.statusCode)
 		}
 
-		errString, err := toString(reader)
-		if err != nil {
-			log.Errorf("%s failed to get error reason: %s", s, err.Error())
+		errReason := "unknown error reason"
+		if contentLength > rp.maxErrorReasonSize {
+			log.Infof("%s: Error reason length (%d) is greater than max error reason size (%d)", s, contentLength, rp.maxErrorReasonSize)
+		} else {
+			errString, err := toString(reader)
+			if err != nil {
+				log.Errorf("%s failed to get error reason: %s", s, err.Error())
+			}
+
+			errReason = fmt.Sprintf("%s %s", failedTransactionPrefix, errString)
 		}
 
-		errReason := fmt.Sprintf("%s %s", failedTransactionPrefix, errString)
 		rp.completeTransaction(s, statusCode, userCache, key, q, errReason)
 
 		// we need to reset the offset since the reader of tmpFileRespWriter was already
@@ -621,6 +628,8 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 	if err != nil {
 		return err
 	}
+
+	rp.maxErrorReasonSize = int64(cfg.MaxErrorReasonSize)
 
 	caches := make(map[string]*cache.AsyncCache, len(cfg.Caches))
 	defer func() {

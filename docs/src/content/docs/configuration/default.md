@@ -85,6 +85,10 @@ network_groups:
   - name: "reporting-apps"
     networks: ["10.10.10.0/24"]
 
+# Maximum total size of fail reason of queries. Config prevents large tmp files from being read into memory, affects only cachable queries
+# If error reason exceeds limit "unknown error reason" will be stored as a fail reason
+max_error_reason_size: 100GB
+
 # Optional lists of query params to send with each proxied request to ClickHouse.
 # These lists may be used for overriding ClickHouse settings on a per-user basis.
 param_groups:
