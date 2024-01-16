@@ -5,6 +5,17 @@ title: Changelog
 Since v1.17.1, chproxy follows [semantic versioning](https://semver.org/).
 Don't expect breaking changes between 2 releases if they have the same major version.
 
+### <a id="231"></a> release 1.26.0 2024-01-16
+
+#### New Feature
+* Notify systemd when chproxy is ready [#378](https://github.com/ContentSquare/chproxy/pull/378)
+* Support db_index in Redis cache configuration [#380](https://github.com/ContentSquare/chproxy/pull/380)
+* New max_error_reason_size configuration option to limit the maximum size read for error responses [#385](https://github.com/ContentSquare/chproxy/issues/385)
+
+#### Improvement
+* [code quality] strengthen linter rules [#365](https://github.com/ContentSquare/chproxy/pull/365)
+* [code quality] Remove deprecated ioutil usage [#374](https://github.com/ContentSquare/chproxy/pull/374)
+
 ### <a id="230"></a> release 1.25.0, 2023-09-04
 
 #### New Feature
