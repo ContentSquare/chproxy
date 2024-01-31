@@ -237,7 +237,7 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 		}
 		proxy.refreshCacheMetrics()
 		promHandler.ServeHTTP(rw, r)
-	case "/", "/query":
+	case "/", "/query", "/ping":
 		var err error
 		// nolint:forcetypeassert // We will cover this by tests as we control what is stored.
 		proxyHandler := proxyHandler.Load().(*ProxyHandler)

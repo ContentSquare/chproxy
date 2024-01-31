@@ -415,10 +415,13 @@ func (s *scope) decorateRequest(req *http.Request) (*http.Request, url.Values) {
 		s.decoratePostRequest(req, origParams, params)
 	}
 
-	// Set query_id as scope_id to have possibility to kill query if needed.
-	params.Set("query_id", s.id.String())
-	// Set session_timeout an idle timeout for session
-	params.Set("session_timeout", strconv.Itoa(s.sessionTimeout))
+	// 仅当非 GET 请求或 params 非空时，增加 query_id 和 session_timeout
+	if req.Method != "GET" || len(params.Encode()) != 0 {
+		// Set query_id as scope_id to have possibility to kill query if needed.
+		params.Set("query_id", s.id.String())
+		// Set session_timeout an idle timeout for session
+		params.Set("session_timeout", strconv.Itoa(s.sessionTimeout))
+	}
 
 	req.URL.RawQuery = params.Encode()
 
