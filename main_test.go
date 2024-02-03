@@ -213,6 +213,37 @@ func TestServe(t *testing.T) {
 			startTLS,
 		},
 		{
+			"https request body is not empty",
+			"testdata/https.yml",
+			func(t *testing.T) {
+				query := "SELECT SleepTimeout"
+				buf := bytes.NewBufferString(query)
+				req, err := http.NewRequest("POST", "https://127.0.0.1:8443", buf)
+				checkErr(t, err)
+				req.SetBasicAuth("default", "qwerty")
+				req.Close = true
+
+				resp, err := tlsClient.Do(req)
+				checkErr(t, err)
+				if resp.StatusCode != http.StatusGatewayTimeout {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusGatewayTimeout)
+				}
+
+				bodyBytes, err := io.ReadAll(resp.Body)
+				if err != nil {
+					t.Fatalf("error while reading body from response; err: %q", err)
+				}
+
+				b := string(bodyBytes)
+				if !strings.Contains(b, query) {
+					t.Fatalf("expected request body: %q; got: %q", query, b)
+				}
+
+				resp.Body.Close()
+			},
+			startTLS,
+		},
+		{
 			"https cache with mix query source",
 			"testdata/https.cache.yml",
 			func(t *testing.T) {
@@ -1019,6 +1050,26 @@ func fakeCHHandler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		fmt.Fprint(w, b)
 		fmt.Fprint(w, "Ok.\n")
+	case strings.Contains(q, "SELECT SleepTimeout"):
+		w.WriteHeader(http.StatusGatewayTimeout)
+
+		bodyBytes, err := io.ReadAll(r.Body)
+		if err != nil {
+			fmt.Fprintf(w, "query: %s; error while reading body: %s", query, err)
+			return
+		}
+
+		b := string(bodyBytes)
+		// Ensure the original request body is not empty and remains unchanged
+		// after it is processed by getFullQuery.
+		if b == "" && b != q {
+			fmt.Fprintf(w, "got original req body: <%s>; escaped query: <%s>", b, q)
+			return
+		}
+
+		// execute sleep 1.5 sec
+		time.Sleep(1500 * time.Millisecond)
+		fmt.Fprint(w, b)
 	default:
 		if strings.Contains(string(query), killQueryPattern) {
 			fakeCHState.kill()

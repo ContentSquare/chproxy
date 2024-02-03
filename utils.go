@@ -98,8 +98,16 @@ func getQuerySnippetFromBody(req *http.Request) string {
 	// 'read' request body, so it traps into to crc.
 	// Ignore any errors, since getQuerySnippet is called only
 	// during error reporting.
+	// Temporary solution: Quick and dirty way to work with the request body.
+	// TODO: Create an original copy of req.Body and work with the copy to avoid altering the original request.
+	// This current approach consumes the req.Body content with io.Copy(io.Discard, crc) to reset the internal state of crc.
+	// However, it is not the most efficient or safest method, as it modifies the original req.Body.
 	io.Copy(io.Discard, crc) // nolint
 	data := crc.String()
+
+	// Here, we attempt to restore req.Body by wrapping the string data in a ReadCloser.
+	// This is part of the temporary solution and should be replaced with a more robust method that does not consume the original req.Body.
+	req.Body = io.NopCloser(strings.NewReader(data))
 
 	u := getDecompressor(req)
 	if u == nil {
@@ -294,4 +302,19 @@ func calcCredentialHash(user string, pwd string) (uint32, error) {
 	h := fnv.New32a()
 	_, err := h.Write([]byte(user + pwd))
 	return h.Sum32(), err
+}
+
+// Function to read the request body and return it as a byte slice.
+// It also restores the req.Body to be used again.
+func readAndRestoreRequestBody(req *http.Request) ([]byte, error) {
+	// Read the entire request body.
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		return nil, err
+	}
+	// Restore the req.Body with a new reader for the original content.
+	req.Body = io.NopCloser(bytes.NewReader(body))
+
+	// Return the read body.
+	return body, nil
 }

@@ -1012,6 +1012,25 @@ func TestReverseProxy_ServeHTTP2(t *testing.T) {
 			t.Fatalf("expected response: %q; got: %q", expected, b)
 		}
 	})
+
+	t.Run("request body not empty", func(t *testing.T) {
+		proxy, err := getProxy(goodCfg)
+		if err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
+		body := bytes.NewBufferString("SELECT sleep(1.5)")
+		expected := "SELECT sleep(1.5)"
+		req := httptest.NewRequest("POST", fakeServer.URL, body)
+
+		resp := makeCustomRequest(proxy, req)
+		b := bbToString(t, resp.Body)
+		resp.Body.Close()
+
+		if !strings.Contains(b, expected) {
+			t.Fatalf("expected response: %q; got: %q", expected, b)
+		}
+
+	})
 }
 
 func getNetwork(s string) *net.IPNet {
