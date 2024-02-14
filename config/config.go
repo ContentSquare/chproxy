@@ -110,7 +110,7 @@ func withoutSensitiveInfo(config *Config) *Config {
 		}
 	}
 	for i := range c.Caches {
-		if len(c.Caches[i].Redis.Username) > 0 {
+		if len(c.Caches[i].Redis.Password) > 0 {
 			c.Caches[i].Redis.Password = pswPlaceHolder
 		}
 	}
