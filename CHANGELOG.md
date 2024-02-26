@@ -5,6 +5,15 @@ title: Changelog
 Since v1.17.1, chproxy follows [semantic versioning](https://semver.org/).
 Don't expect breaking changes between 2 releases if they have the same major version.
 
+### <a id="231"></a> release 1.26.1 2024-02-26
+
+#### Bug fix
+* Fix missing query details in logs [#397](https://github.com/ContentSquare/chproxy/issues/397)
+
+#### Improvement
+* Hide Redis password in info logs when redis username is empty [#399](https://github.com/ContentSquare/chproxy/issues/322)
+
+
 ### <a id="231"></a> release 1.26.0 2024-01-16
 
 #### New Feature
