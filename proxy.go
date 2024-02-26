@@ -207,22 +207,20 @@ func executeWithRetry(
 	startTime := time.Now()
 	var since float64
 
-	// keep the request body
-	body, err := io.ReadAll(req.Body)
-	req.Body.Close()
+	// Use readAndRestoreRequestBody to read the entire request body into a byte slice,
+	// and to restore req.Body so that it can be reused later in the code.
+	body, err := readAndRestoreRequestBody(req)
 	if err != nil {
-		since = time.Since(startTime).Seconds()
-
+		since := time.Since(startTime).Seconds()
 		return since, err
 	}
 
 	numRetry := 0
 	for {
-		// update body
-		req.Body = io.NopCloser(bytes.NewBuffer(body))
-		req.Body.Close()
-
 		rp(rw, req)
+
+		// Restore req.Body after it's consumed by 'rp' for potential reuse.
+		req.Body = io.NopCloser(bytes.NewBuffer(body))
 
 		err := ctx.Err()
 		if err != nil {
