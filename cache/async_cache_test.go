@@ -2,6 +2,7 @@ package cache
 
 import (
 	"log"
+	"net/http"
 	"os"
 	"testing"
 	"time"
@@ -111,7 +112,7 @@ func TestAsyncCache_AwaitForConcurrentTransaction_TransactionCompletedWhileAwait
 	errs := make(chan error)
 	go func() {
 		time.Sleep(graceTime / 2)
-		if err := asyncCache.Complete(key); err != nil {
+		if err := asyncCache.Complete(key, http.StatusOK); err != nil {
 			errs <- err
 		} else {
 			errs <- nil
@@ -157,7 +158,7 @@ func TestAsyncCache_AwaitForConcurrentTransaction_TransactionFailedWhileAwaiting
 	errs := make(chan error)
 	go func() {
 		time.Sleep(graceTime / 2)
-		if err := asyncCache.Fail(key, failReason); err != nil {
+		if err := asyncCache.Fail(key, http.StatusInternalServerError, failReason); err != nil {
 			errs <- err
 		} else {
 			errs <- nil

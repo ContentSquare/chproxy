@@ -402,7 +402,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 				log.Debugf("%s: cache miss after awaiting concurrent query", s)
 			}
 		} else if transactionStatus.State.IsFailed() {
-			respondWith(srw, fmt.Errorf(transactionStatus.FailReason), http.StatusInternalServerError)
+			respondWith(srw, fmt.Errorf(transactionStatus.FailReason), transactionStatus.CodeResponse)
 			return
 		}
 	}
@@ -579,18 +579,18 @@ func (rp *reverseProxy) completeTransaction(s *scope, statusCode int, userCache 
 ) {
 	// complete successful transactions or those with empty fail reason
 	if statusCode < 300 || failReason == "" {
-		if err := userCache.Complete(key); err != nil {
+		if err := userCache.Complete(key, statusCode); err != nil {
 			log.Errorf("%s: %s; query: %q", s, err, q)
 		}
 		return
 	}
 
 	if _, ok := clickhouseRecoverableStatusCodes[statusCode]; ok {
-		if err := userCache.Complete(key); err != nil {
+		if err := userCache.Complete(key, statusCode); err != nil {
 			log.Errorf("%s: %s; query: %q", s, err, q)
 		}
 	} else {
-		if err := userCache.Fail(key, failReason); err != nil {
+		if err := userCache.Fail(key, statusCode, failReason); err != nil {
 			log.Errorf("%s: %s; query: %q", s, err, q)
 		}
 	}

@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"net/http"
 	"testing"
 	"time"
 
@@ -31,7 +32,7 @@ func TestRedisTransaction(t *testing.T) {
 		t.Fatalf("unexpected: transaction should be pending")
 	}
 
-	if err := redisTransaction.Complete(key); err != nil {
+	if err := redisTransaction.Complete(key, http.StatusOK); err != nil {
 		t.Fatalf("unexpected error: %s while unregistering transaction", err)
 	}
 
@@ -66,7 +67,7 @@ func TestFailRedisTransaction(t *testing.T) {
 
 	failReason := "failed for fun dudes"
 
-	if err := redisTransaction.Fail(key, failReason); err != nil {
+	if err := redisTransaction.Fail(key, http.StatusInternalServerError, failReason); err != nil {
 		t.Fatalf("unexpected error: %s while unregistering transaction", err)
 	}
 
@@ -106,7 +107,7 @@ func TestCleanupFailedRedisTransaction(t *testing.T) {
 
 	failReason := "failed for fun dudes"
 
-	if err := redisTransaction.Fail(key, failReason); err != nil {
+	if err := redisTransaction.Fail(key, http.StatusInternalServerError, failReason); err != nil {
 		t.Fatalf("unexpected error: %s while unregistering transaction", err)
 	}
 
@@ -152,7 +153,7 @@ func TestCleanupCompletedRedisTransaction(t *testing.T) {
 		t.Fatalf("unexpected: transaction should be pending")
 	}
 
-	if err := redisTransaction.Complete(key); err != nil {
+	if err := redisTransaction.Complete(key, http.StatusOK); err != nil {
 		t.Fatalf("unexpected error: %s while unregistering transaction", err)
 	}
 

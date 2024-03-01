@@ -10,6 +10,7 @@ import (
 type pendingEntry struct {
 	deadline     time.Time
 	state        TransactionState
+	codeResponse int
 	failedReason string
 }
 
@@ -57,23 +58,24 @@ func (i *inMemoryTransactionRegistry) Create(key *Key) error {
 	return nil
 }
 
-func (i *inMemoryTransactionRegistry) Complete(key *Key) error {
-	i.updateTransactionState(key, transactionCompleted, "")
+func (i *inMemoryTransactionRegistry) Complete(key *Key, statusCode int) error {
+	i.updateTransactionState(key, statusCode, transactionCompleted, "")
 	return nil
 }
 
-func (i *inMemoryTransactionRegistry) Fail(key *Key, reason string) error {
-	i.updateTransactionState(key, transactionFailed, reason)
+func (i *inMemoryTransactionRegistry) Fail(key *Key, statusCode int, reason string) error {
+	i.updateTransactionState(key, statusCode, transactionFailed, reason)
 	return nil
 }
 
-func (i *inMemoryTransactionRegistry) updateTransactionState(key *Key, state TransactionState, failReason string) {
+func (i *inMemoryTransactionRegistry) updateTransactionState(key *Key, statusCode int, state TransactionState, failReason string) {
 	i.pendingEntriesLock.Lock()
 	defer i.pendingEntriesLock.Unlock()
 	k := key.String()
 	if entry, ok := i.pendingEntries[k]; ok {
 		entry.state = state
 		entry.failedReason = failReason
+		entry.codeResponse = statusCode
 		entry.deadline = time.Now().Add(i.transactionEndedDeadline)
 		i.pendingEntries[k] = entry
 	} else {
@@ -81,6 +83,7 @@ func (i *inMemoryTransactionRegistry) updateTransactionState(key *Key, state Tra
 		i.pendingEntries[k] = pendingEntry{
 			deadline:     time.Now().Add(i.transactionEndedDeadline),
 			state:        state,
+			codeResponse: statusCode,
 			failedReason: failReason,
 		}
 	}
@@ -91,7 +94,10 @@ func (i *inMemoryTransactionRegistry) Status(key *Key) (TransactionStatus, error
 	defer i.pendingEntriesLock.Unlock()
 	k := key.String()
 	if entry, ok := i.pendingEntries[k]; ok {
-		return TransactionStatus{State: entry.state, FailReason: entry.failedReason}, nil
+		return TransactionStatus{
+			State:        entry.state,
+			CodeResponse: entry.codeResponse,
+			FailReason:   entry.failedReason}, nil
 	}
 	return TransactionStatus{State: transactionAbsent}, nil
 }
