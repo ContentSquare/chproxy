@@ -53,6 +53,7 @@ var fullConfig = Config{
 				Username:  "chproxy",
 				Password:  "password",
 				Addresses: []string{"127.0.0.1:" + redisPort},
+				PoolSize:  10,
 			},
 		},
 	},

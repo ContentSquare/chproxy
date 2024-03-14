@@ -116,6 +116,7 @@ redis:
     - <string> # example "localhost:6379"
   username: <string>
   password: <string>
+  pool_size: <int>
   db_index: <int> | default = 0 [optional] # This option is only applicable for non-clustered Redis instance.
 
 # Expiration time for cached responses.

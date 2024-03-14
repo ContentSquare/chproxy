@@ -13,6 +13,7 @@ func NewRedisClient(cfg config.RedisCacheConfig) (redis.UniversalClient, error) 
 		Addrs:      cfg.Addresses,
 		Username:   cfg.Username,
 		Password:   cfg.Password,
+		PoolSize:   cfg.PoolSize,
 		MaxRetries: 7, // default value = 3, since MinRetryBackoff = 8 msec & MinRetryBackoff = 512 msec
 		// the redis client will wait up to 1016 msec btw the 7 tries
 	}
