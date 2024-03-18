@@ -4,6 +4,7 @@ go 1.19
 
 require (
 	github.com/alicebob/miniredis/v2 v2.21.0
+	github.com/coreos/go-systemd/v22 v22.5.0
 	github.com/google/go-cmp v0.5.7
 	github.com/klauspost/compress v1.15.11
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
@@ -20,8 +21,6 @@ require (
 	github.com/alicebob/gopher-json v0.0.0-20200520072559-a9ecdc9d1d3a // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
-	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf // indirect
-	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/frankban/quicktest v1.7.2 // indirect
@@ -36,6 +35,6 @@ require (
 	golang.org/x/sys v0.15.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
-	google.golang.org/protobuf v1.26.0 // indirect
+	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
