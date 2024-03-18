@@ -55,6 +55,7 @@ caches:
     redis:
       username: chproxy
       password: password
+      pool_size: 10
       addresses:
         - 127.0.0.1:16379
     max_payload_size: 107374182400

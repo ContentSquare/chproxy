@@ -959,6 +959,7 @@ type RedisCacheConfig struct {
 	Password  string                 `yaml:"password,omitempty"`
 	Addresses []string               `yaml:"addresses"`
 	DBIndex   int                    `yaml:"db_index,omitempty"`
+	PoolSize  int                    `yaml:"pool_size,omitempty"`
 	XXX       map[string]interface{} `yaml:",inline"`
 }
 

@@ -53,6 +53,7 @@ var fullConfig = Config{
 				Username:  "chproxy",
 				Password:  "password",
 				Addresses: []string{"127.0.0.1:" + redisPort},
+				PoolSize:  10,
 			},
 		},
 	},
@@ -913,6 +914,7 @@ caches:
     password: XXX
     addresses:
     - 127.0.0.1:%s
+    pool_size: 10
   max_payload_size: 107374182400
   shared_with_all_users: true
 param_groups:
