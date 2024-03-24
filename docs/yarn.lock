@@ -100,10 +100,10 @@
     sitemap "^7.1.1"
     zod "^3.22.4"
 
-"@astrojs/starlight@^0.20.1":
-  version "0.20.1"
-  resolved "https://registry.yarnpkg.com/@astrojs/starlight/-/starlight-0.20.1.tgz#3e4bf9974944eadf3bf640c8a19a3eabf65226ab"
-  integrity sha512-MRkX937Q50H6Ly2QnYn+VmG2O+RjsdZl4gAXpfknWpDcxhB8pdUdddgTVAKfrc0czlhm9kzd/sF05CRB9nakqQ==
+"@astrojs/starlight@^0.21.0":
+  version "0.21.2"
+  resolved "https://registry.yarnpkg.com/@astrojs/starlight/-/starlight-0.21.2.tgz#2e00c75a14ae7c9e67e2b7016997ee194fd547f3"
+  integrity sha512-ziDfrbhBjw/+HwMITk6yz7SbkQKQJZY9GlaPHntSPq4kYs+b2ru3toIxj2l3T9LUFtUpNWHkj+C1wJTmfLZfaw==
   dependencies:
     "@astrojs/mdx" "^2.1.1"
     "@astrojs/sitemap" "^3.0.5"
@@ -112,7 +112,9 @@
     "@types/mdast" "^4.0.3"
     astro-expressive-code "^0.33.4"
     bcp-47 "^2.1.0"
+    hast-util-from-html "^2.0.1"
     hast-util-select "^6.0.2"
+    hast-util-to-string "^3.0.0"
     hastscript "^8.0.0"
     mdast-util-directive "^3.0.0"
     mdast-util-to-markdown "^2.1.0"
@@ -1740,7 +1742,7 @@ has@^1.0.3:
   dependencies:
     function-bind "^1.1.1"
 
-hast-util-from-html@^2.0.0:
+hast-util-from-html@^2.0.0, hast-util-from-html@^2.0.1:
   version "2.0.1"
   resolved "https://registry.yarnpkg.com/hast-util-from-html/-/hast-util-from-html-2.0.1.tgz#9cd38ee81bf40b2607368b92a04b0905fa987488"
   integrity sha512-RXQBLMl9kjKVNkJTIO6bZyb2n+cUH8LFaSSzo82jiLT6Tfc+Pt7VQCS+/h3YwG4jaNE2TA2sdJisGWR+aJrp0g==
