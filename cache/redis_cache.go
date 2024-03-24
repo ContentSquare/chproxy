@@ -21,6 +21,8 @@ type redisCache struct {
 	name   string
 	client redis.UniversalClient
 	expire time.Duration
+	alive  bool
+	done   chan bool
 }
 
 const getTimeout = 2 * time.Second
@@ -28,6 +30,7 @@ const removeTimeout = 1 * time.Second
 const renameTimeout = 1 * time.Second
 const putTimeout = 2 * time.Second
 const statsTimeout = 500 * time.Millisecond
+const pingInterval = 5 * time.Second
 
 // this variable is key to select whether the result should be streamed
 // from redis to the http response or if chproxy should first put the
@@ -43,12 +46,18 @@ func newRedisCache(client redis.UniversalClient, cfg config.Cache) *redisCache {
 		name:   cfg.Name,
 		expire: time.Duration(cfg.Expire),
 		client: client,
+		done:   make(chan bool),
 	}
+	// Init lifecheck at startup
+	redisCache.setAlive()
+	// Background lifechecks
+	go redisCache.backgroundLifecheck()
 
 	return redisCache
 }
 
 func (r *redisCache) Close() error {
+	r.done <- true
 	return r.client.Close()
 }
 
@@ -59,9 +68,14 @@ var usedMemoryRegexp = regexp.MustCompile(`used_memory:([0-9]+)\r\n`)
 // Second one will fetch memory info that will be parsed to fetch the used_memory
 // NOTE : we can only fetch database size, not cache size
 func (r *redisCache) Stats() Stats {
+	alive := uint64(0)
+	if r.alive {
+		alive = 1
+	}
 	return Stats{
 		Items: r.nbOfKeys(),
 		Size:  r.nbOfBytes(),
+		Alive: alive,
 	}
 }
 
@@ -327,6 +341,26 @@ func (r *redisCache) clean(stringKey string) {
 
 func (r *redisCache) Name() string {
 	return r.name
+}
+
+func (f *redisCache) setAlive() {
+	f.alive = f.client.Ping(context.Background()).Err() == nil
+}
+
+func (f *redisCache) backgroundLifecheck() {
+	ticker := time.NewTicker(pingInterval)
+	for {
+		select {
+		case <-f.done:
+			return
+		case <-ticker.C:
+			f.setAlive()
+		}
+	}
+}
+
+func (f *redisCache) Alive() bool {
+	return f.alive
 }
 
 type redisStreamReader struct {
