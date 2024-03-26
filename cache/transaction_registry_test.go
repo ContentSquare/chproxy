@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"net/http"
 	"testing"
 	"time"
 )
@@ -21,7 +22,7 @@ func TestInMemoryTransaction(t *testing.T) {
 		t.Fatalf("unexpected: transaction should be pending")
 	}
 
-	if err := inMemoryTransaction.Complete(key); err != nil {
+	if err := inMemoryTransaction.Complete(key, http.StatusOK); err != nil {
 		t.Fatalf("unexpected error: %s while unregistering transaction", err)
 	}
 

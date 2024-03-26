@@ -35,11 +35,11 @@ func (r *redisTransactionRegistry) Create(key *Key) error {
 		[]byte{uint8(transactionCreated)}, r.deadline).Err()
 }
 
-func (r *redisTransactionRegistry) Complete(key *Key) error {
+func (r *redisTransactionRegistry) Complete(key *Key, statusCode int) error {
 	return r.updateTransactionState(key, []byte{uint8(transactionCompleted)})
 }
 
-func (r *redisTransactionRegistry) Fail(key *Key, reason string) error {
+func (r *redisTransactionRegistry) Fail(key *Key, statusCode int, reason string) error {
 	b := make([]byte, 0, uint32(len(reason))+1)
 	b = append(b, byte(transactionFailed))
 	b = append(b, []byte(reason)...)

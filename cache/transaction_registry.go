@@ -13,10 +13,10 @@ type TransactionRegistry interface {
 	Create(key *Key) error
 
 	// Complete completes a transaction for given key
-	Complete(key *Key) error
+	Complete(key *Key, statusCode int) error
 
 	// Fail fails a transaction for given key
-	Fail(key *Key, reason string) error
+	Fail(key *Key, statusCode int, reason string) error
 
 	// Status checks the status of the transaction
 	Status(key *Key) (TransactionStatus, error)
@@ -26,8 +26,9 @@ type TransactionRegistry interface {
 const transactionEndedTTL = 500 * time.Millisecond
 
 type TransactionStatus struct {
-	State      TransactionState
-	FailReason string // filled in only if state of transaction is transactionFailed
+	State        TransactionState
+	CodeResponse int
+	FailReason   string // filled in only if state of transaction is transactionFailed
 }
 
 type TransactionState uint8
