@@ -5,6 +5,12 @@ title: Changelog
 Since v1.17.1, chproxy follows [semantic versioning](https://semver.org/).
 Don't expect breaking changes between 2 releases if they have the same major version.
 
+### <a id="231"></a> release 1.26.2 2024-04-04
+
+#### Improvement
+* add a config pool for redis connections [#409](https://github.com/ContentSquare/chproxy/issues/409)
+
+
 ### <a id="231"></a> release 1.26.1 2024-02-26
 
 #### Bug fix
