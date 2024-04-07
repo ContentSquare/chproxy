@@ -8,7 +8,7 @@ import (
 
 var (
 	statusCodes                    *prometheus.CounterVec
-	statusCodesProxy               *prometheus.CounterVec
+	statusCodesClickhouse          *prometheus.CounterVec
 	requestSum                     *prometheus.CounterVec
 	requestSuccess                 *prometheus.CounterVec
 	limitExcess                    *prometheus.CounterVec
@@ -49,13 +49,13 @@ func initMetrics(cfg *config.Config) {
 		},
 		[]string{"user", "cluster", "cluster_user", "replica", "cluster_node", "code"},
 	)
-	statusCodesProxy = prometheus.NewCounterVec(
+	statusCodesClickhouse = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: namespace,
 			Name:      "status_codes_proxy_total",
 			Help:      "Distribution by status codes",
 		},
-		[]string{"user", "cluster", "cluster_user", "replica", "cluster_node", "code"},
+		[]string{"cluster", "replica", "cluster_node", "code"},
 	)
 	requestSum = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -282,7 +282,7 @@ func registerMetrics(cfg *config.Config) {
 	topology.RegisterMetrics(cfg)
 
 	initMetrics(cfg)
-	prometheus.MustRegister(statusCodes, statusCodesProxy, requestSum, requestSuccess,
+	prometheus.MustRegister(statusCodes, statusCodesClickhouse, requestSum, requestSuccess,
 		limitExcess, concurrentQueries,
 		requestQueueSize, userQueueOverflow, clusterUserQueueOverflow,
 		requestBodyBytes, responseBodyBytes, cacheFailedInsert, cacheCorruptedFetch,
