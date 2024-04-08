@@ -311,6 +311,14 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw ResponseWriterWithCode, srw *s
 		proxiedResponseDuration.With(s.labels).Observe(duration)
 	}, func(labels prometheus.Labels) { retryRequest.With(labels).Inc() })
 
+	statusCodesClickhouse.With(
+		prometheus.Labels{
+			"cluster":      s.cluster.name,
+			"replica":      s.host.ReplicaName(),
+			"cluster_node": s.host.Host(),
+			"code":         strconv.Itoa(rw.StatusCode()),
+		},
+	).Inc()
 	switch {
 	case err == nil:
 		return
