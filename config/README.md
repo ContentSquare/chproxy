@@ -262,7 +262,8 @@ max_concurrent_queries: <int> | optional | default = 0
 max_execution_time: <duration> | optional | default = 120s
 
 # Maximum number of requests per minute for user.
-# By default there are no per-minute limits
+# By default there are no per-minute limits.
+# A negative value would effectively block the user.
 requests_per_minute: <int> | optional | default = 0
 
 # The burst of request packet size token bucket for user

@@ -733,7 +733,8 @@ type User struct {
 
 	// Maximum number of requests per minute for user
 	// if omitted or zero - no limits would be applied
-	ReqPerMin uint32 `yaml:"requests_per_minute,omitempty"`
+	// if negative - the user is effectively blocked
+	ReqPerMin int32 `yaml:"requests_per_minute,omitempty"`
 
 	// The burst of request packet size token bucket for user
 	// if omitted or zero - no limits would be applied
@@ -1086,7 +1087,8 @@ type ClusterUser struct {
 
 	// Maximum number of requests per minute for user
 	// if omitted or zero - no limits would be applied
-	ReqPerMin uint32 `yaml:"requests_per_minute,omitempty"`
+	// if negative - the user is effectively blocked
+	ReqPerMin int32 `yaml:"requests_per_minute,omitempty"`
 
 	// The burst of request packet size token bucket for user
 	// if omitted or zero - no limits would be applied
