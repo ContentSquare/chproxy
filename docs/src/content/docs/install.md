@@ -67,3 +67,32 @@ Example:
 ```console
 docker run -d -v $(PWD)/config.yml:/opt/config.yml -p 9090:9090 chproxy-test -config /opt/config.yml
 ```
+
+### systemd service
+
+Example systemd service configuration:
+
+```
+[Unit]
+Description=Chproxy
+Documentation=https://www.chproxy.org/
+Requires=network.target
+After=network.target
+
+[Service]
+Type=notify
+User=chproxy
+Group=chproxy
+ExecStart=/usr/bin/chproxy -config /etc/chproxy/chproxy.yml
+TimeoutSec=30
+Restart=on-failure
+
+# quick response on bad config
+TimeoutStartSec=5
+
+# avoid resource intensive cycles
+RestartSec=30
+
+[Install]
+WantedBy=default.target
+```
