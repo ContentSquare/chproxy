@@ -417,6 +417,17 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 		},
 		{
 			cfg:           goodCfg,
+			name:          "max requests per minute negative for cluster user",
+			expResponse:   "rate limit for cluster user \"web\" is exceeded: requests_per_minute limit: -1",
+			expStatusCode: http.StatusTooManyRequests,
+			f: func(p *reverseProxy) *http.Response {
+				p.clusters["cluster"].users["web"].reqPerMin = -1
+				runHeavyRequestInGoroutine(p, 1, true)
+				return makeRequest(p)
+			},
+		},
+		{
+			cfg:           goodCfg,
 			name:          "max time for cluster user",
 			expResponse:   "timeout for cluster user \"web\" exceeded: 10ms",
 			expStatusCode: http.StatusGatewayTimeout,
@@ -454,6 +465,17 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 			expStatusCode: http.StatusTooManyRequests,
 			f: func(p *reverseProxy) *http.Response {
 				p.users[defaultUsername].maxConcurrentQueries = 1
+				runHeavyRequestInGoroutine(p, 1, true)
+				return makeRequest(p)
+			},
+		},
+		{
+			cfg:           goodCfg,
+			name:          "max requests per minute negative for user",
+			expResponse:   fmt.Sprintf("rate limit for user %q is exceeded: requests_per_minute limit: -1", defaultUsername),
+			expStatusCode: http.StatusTooManyRequests,
+			f: func(p *reverseProxy) *http.Response {
+				p.users[defaultUsername].reqPerMin = -1
 				runHeavyRequestInGoroutine(p, 1, true)
 				return makeRequest(p)
 			},
