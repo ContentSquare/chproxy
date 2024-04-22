@@ -5,6 +5,12 @@ title: Changelog
 Since v1.17.1, chproxy follows [semantic versioning](https://semver.org/).
 Don't expect breaking changes between 2 releases if they have the same major version.
 
+### <a id="231"></a> release 1.26.3 2024-04-22
+
+#### Improvement
+* allow block user by negative rate [#423](https://github.com/ContentSquare/chproxy/pull/423)
+* add metrics for proxy [#427](https://github.com/ContentSquare/chproxy/pull/427)
+
 ### <a id="231"></a> release 1.26.2 2024-04-04
 
 #### Improvement
