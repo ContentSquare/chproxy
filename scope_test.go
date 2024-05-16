@@ -278,6 +278,28 @@ func TestDecorateRequest(t *testing.T) {
 			[]string{"query_id", "session_timeout", "query", "database"},
 		},
 		{
+			"http://127.0.0.1?user=default&password=default&query=SELECT&testdata_structure=id+UInt32&log_comment=log_comment+test",
+			"application/x-www-form-urlencoded",
+			"POST",
+			nil,
+			[]string{"query_id", "session_timeout", "query", "log_comment"},
+		},
+		{
+			"http://127.0.0.1?user=default&password=default&query=SELECT&testdata_structure=id+UInt32",
+			"application/x-www-form-urlencoded",
+			"POST",
+			&paramsRegistry{
+				key: uint32(1),
+				params: []config.Param{
+					{
+						Key:   "log_comment",
+						Value: "test",
+					},
+				},
+			},
+			[]string{"query_id", "session_timeout", "query", "log_comment"},
+		},
+		{
 			"http://127.0.0.1?user=default&password=default&query=SELECT&testdata_structure=id+UInt32&testdata_format=TSV",
 			"application/x-www-form-urlencoded",
 			"POST",

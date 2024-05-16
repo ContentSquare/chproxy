@@ -377,6 +377,8 @@ var allowedParams = []string{
 	"session_id",
 	// session timeout
 	"session_timeout",
+	// specifies the value for the log_comment field of the system.query_log table and comment text for the server log.
+	"log_comment",
 }
 
 // This regexp must match params needed to describe a way to use external data
