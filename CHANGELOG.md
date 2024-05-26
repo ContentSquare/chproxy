@@ -5,6 +5,14 @@ title: Changelog
 Since v1.17.1, chproxy follows [semantic versioning](https://semver.org/).
 Don't expect breaking changes between 2 releases if they have the same major version.
 
+### <a id="231"></a> release 1.26.4 2024-05-26
+
+#### Upgrade Go version
+* Go 1.22
+
+#### Improvement
+* add log_comment to allowedParams [#432](https://github.com/ContentSquare/chproxy/pull/432)
+
 ### <a id="231"></a> release 1.26.3 2024-04-22
 
 #### Improvement
