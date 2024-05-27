@@ -27,6 +27,11 @@ param_groups:
 # Named network lists
 network_groups: <network_groups_config> ... [optional]
 
+# Maximum total size of fail reason of queries. Config prevents large tmp files from being read into memory, affects only cachable queries
+# The default value is set to 1 Petabyte.
+# If error reason exceeds limit "unknown error reason" will be stored as a fail reason
+max_error_reason_size: <byte_size>
+
 # Settings for connection pool to ClickHouse
 connection_pool:
   max_idle_conns: 100
@@ -111,6 +116,8 @@ redis:
     - <string> # example "localhost:6379"
   username: <string>
   password: <string>
+  pool_size: <int>
+  db_index: <int> | default = 0 [optional] # This option is only applicable for non-clustered Redis instance.
 
 # Expiration time for cached responses.
 expire: <duration>
@@ -251,11 +258,12 @@ to_user: <string>
 max_concurrent_queries: <int> | optional | default = 0
 
 # Maximum duration of query execution for user
-# By default there is no limit on the query duration.
-max_execution_time: <duration> | optional | default = 0
+# By default there is a 120 sec limit the query duration.
+max_execution_time: <duration> | optional | default = 120s
 
 # Maximum number of requests per minute for user.
-# By default there are no per-minute limits
+# By default there are no per-minute limits.
+# A negative value would effectively block the user.
 requests_per_minute: <int> | optional | default = 0
 
 # The burst of request packet size token bucket for user
@@ -363,8 +371,8 @@ password: <string> | optional
 max_concurrent_queries: <int> | optional | default = 0
 
 # Maximum duration of query execution for user
-# By default there is no limit on the query duration.
-max_execution_time: <duration> | optional | default = 0
+# By default there is a 120 sec limit the query duration.
+max_execution_time: <duration> | optional | default = 120s
 
 # Maximum number of requests per minute for user.
 # By default there are no per-minute limits

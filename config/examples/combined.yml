@@ -33,6 +33,12 @@ users:
     max_queue_time: 25s
     cache: "shortterm"
 
+  - name: "blocked"
+    password: "****"
+    to_cluster: "stats-raw"
+    to_user: "blocked"
+    requests_per_minute: -1
+
 clusters:
   - name: "stats-aggregate"
     nodes: [

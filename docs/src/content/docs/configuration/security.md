@@ -4,7 +4,7 @@ sidebar:
     order: 4
 ---
 
-`Chproxy` removes all the query params from input requests (except the user's [params](https://github.com/ContentSquare/chproxy/blob/master/config#param_groups_config) and listed [here](https://github.com/ContentSquare/chproxy/blob/master/scope.go#L292))
+`Chproxy` removes all the query params from input requests (except the user's [params](https://github.com/ContentSquare/chproxy/blob/master/config#param_groups_config) and listed [here](https://github.com/ContentSquare/chproxy/blob/master/scope.go#L360))
 before proxying them to `ClickHouse` nodes. This prevents from unsafe overriding
 of various `ClickHouse` [settings](https://clickhouse.com/docs/en/interfaces/http/).
 

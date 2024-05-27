@@ -255,11 +255,11 @@ func (s *scope) checkTokenFreeRateLimiters() error {
 	// is decremented on error below after per-minute zeroing
 	// in rateLimiter.run.
 	// These races become innocent with the given check.
-	if s.user.reqPerMin > 0 && int32(uRPM) > 0 && uRPM > s.user.reqPerMin {
+	if (s.user.reqPerMin > 0 && int32(uRPM) > 0 && uRPM > uint32(s.user.reqPerMin)) || s.user.reqPerMin < 0 {
 		err = fmt.Errorf("rate limit for user %q is exceeded: requests_per_minute limit: %d",
 			s.user.name, s.user.reqPerMin)
 	}
-	if s.clusterUser.reqPerMin > 0 && int32(cRPM) > 0 && cRPM > s.clusterUser.reqPerMin {
+	if (s.clusterUser.reqPerMin > 0 && int32(cRPM) > 0 && cRPM > uint32(s.clusterUser.reqPerMin)) || s.clusterUser.reqPerMin < 0 {
 		err = fmt.Errorf("rate limit for cluster user %q is exceeded: requests_per_minute limit: %d",
 			s.clusterUser.name, s.clusterUser.reqPerMin)
 	}
@@ -377,6 +377,8 @@ var allowedParams = []string{
 	"session_id",
 	// session timeout
 	"session_timeout",
+	// specifies the value for the log_comment field of the system.query_log table and comment text for the server log.
+	"log_comment",
 }
 
 // This regexp must match params needed to describe a way to use external data
@@ -525,7 +527,7 @@ type user struct {
 
 	maxExecutionTime time.Duration
 
-	reqPerMin   uint32
+	reqPerMin   int32
 	rateLimiter rateLimiter
 
 	reqPacketSizeTokenLimiter *rate.Limiter
@@ -635,7 +637,7 @@ type clusterUser struct {
 
 	maxExecutionTime time.Duration
 
-	reqPerMin   uint32
+	reqPerMin   int32
 	rateLimiter rateLimiter
 
 	queueCh      chan struct{}

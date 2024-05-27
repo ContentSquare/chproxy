@@ -8,7 +8,6 @@ linters:
     - bidichk
     - bodyclose
     - deadcode
-    - depguard
     - dogsled
     - dupl
     - durationcheck
@@ -53,6 +52,7 @@ linters:
     - ineffassign
   disable:
     # Should be readded in the future with a dedicated PR to do the fix
+    - depguard
     - funlen
     - gocognit
     - gofumpt

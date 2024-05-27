@@ -48,6 +48,7 @@ type reverseProxy struct {
 	hasWildcarded       bool
 	maxIdleConns        int
 	maxIdleConnsPerHost int
+	maxErrorReasonSize  int64
 }
 
 func newReverseProxy(cfgCp *config.ConnectionPool) *reverseProxy {
@@ -206,22 +207,20 @@ func executeWithRetry(
 	startTime := time.Now()
 	var since float64
 
-	// keep the request body
-	body, err := io.ReadAll(req.Body)
-	req.Body.Close()
+	// Use readAndRestoreRequestBody to read the entire request body into a byte slice,
+	// and to restore req.Body so that it can be reused later in the code.
+	body, err := readAndRestoreRequestBody(req)
 	if err != nil {
-		since = time.Since(startTime).Seconds()
-
+		since := time.Since(startTime).Seconds()
 		return since, err
 	}
 
 	numRetry := 0
 	for {
-		// update body
-		req.Body = io.NopCloser(bytes.NewBuffer(body))
-		req.Body.Close()
-
 		rp(rw, req)
+
+		// Restore req.Body after it's consumed by 'rp' for potential reuse.
+		req.Body = io.NopCloser(bytes.NewBuffer(body))
 
 		err := ctx.Err()
 		if err != nil {
@@ -312,6 +311,14 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw ResponseWriterWithCode, srw *s
 		proxiedResponseDuration.With(s.labels).Observe(duration)
 	}, func(labels prometheus.Labels) { retryRequest.With(labels).Inc() })
 
+	statusCodesClickhouse.With(
+		prometheus.Labels{
+			"cluster":      s.cluster.name,
+			"replica":      s.host.ReplicaName(),
+			"cluster_node": s.host.Host(),
+			"code":         strconv.Itoa(rw.StatusCode()),
+		},
+	).Inc()
 	switch {
 	case err == nil:
 		return
@@ -451,12 +458,18 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 			tmpFileRespWriter.WriteHeader(srw.statusCode)
 		}
 
-		errString, err := toString(reader)
-		if err != nil {
-			log.Errorf("%s failed to get error reason: %s", s, err.Error())
+		errReason := "unknown error reason"
+		if contentLength > rp.maxErrorReasonSize {
+			log.Infof("%s: Error reason length (%d) is greater than max error reason size (%d)", s, contentLength, rp.maxErrorReasonSize)
+		} else {
+			errString, err := toString(reader)
+			if err != nil {
+				log.Errorf("%s failed to get error reason: %s", s, err.Error())
+			}
+
+			errReason = fmt.Sprintf("%s %s", failedTransactionPrefix, errString)
 		}
 
-		errReason := fmt.Sprintf("%s %s", failedTransactionPrefix, errString)
 		rp.completeTransaction(s, statusCode, userCache, key, q, errReason)
 
 		// we need to reset the offset since the reader of tmpFileRespWriter was already
@@ -621,6 +634,8 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 	if err != nil {
 		return err
 	}
+
+	rp.maxErrorReasonSize = int64(cfg.MaxErrorReasonSize)
 
 	caches := make(map[string]*cache.AsyncCache, len(cfg.Caches))
 	defer func() {

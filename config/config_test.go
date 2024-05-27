@@ -53,6 +53,7 @@ var fullConfig = Config{
 				Username:  "chproxy",
 				Password:  "password",
 				Addresses: []string{"127.0.0.1:" + redisPort},
+				PoolSize:  10,
 			},
 		},
 	},
@@ -262,7 +263,8 @@ var fullConfig = Config{
 			},
 		},
 	},
-	networkReg: map[string]Networks{},
+	MaxErrorReasonSize: ByteSize(100 << 20),
+	networkReg:         map[string]Networks{},
 }
 
 func TestLoadConfig(t *testing.T) {
@@ -319,6 +321,7 @@ func TestLoadConfig(t *testing.T) {
 						MaxExecutionTime: Duration(120 * time.Second),
 					},
 				},
+				MaxErrorReasonSize: ByteSize(1 << 50),
 			},
 		},
 	}
@@ -504,6 +507,11 @@ func TestBadConfig(t *testing.T) {
 			"proxy header without enabling proxy settings",
 			"testdata/bad.proxy_settings.yml",
 			"`proxy_header` cannot be set without enabling proxy settings",
+		},
+		{
+			"max error reason size",
+			"testdata/bad.max_error_reason_size.yml",
+			"cannot parse byte size \"-10B\": it must be positive float followed by optional units. For example, 1.5Gb, 3T",
 		},
 	}
 
@@ -880,6 +888,7 @@ network_groups:
 - name: reporting-apps
   networks:
   - 10.10.10.0/24
+max_error_reason_size: 104857600
 caches:
 - mode: file_system
   name: longterm
@@ -905,6 +914,7 @@ caches:
     password: XXX
     addresses:
     - 127.0.0.1:%s
+    pool_size: 10
   max_payload_size: 107374182400
   shared_with_all_users: true
 param_groups:

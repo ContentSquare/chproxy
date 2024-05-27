@@ -48,6 +48,8 @@ var (
 
 	defaultMaxPayloadSize = ByteSize(1 << 50)
 
+	defaultMaxErrorReasonSize = ByteSize(1 << 50)
+
 	defaultRetryNumber = 0
 )
 
@@ -66,6 +68,9 @@ type Config struct {
 	HackMePlease bool `yaml:"hack_me_please,omitempty"`
 
 	NetworkGroups []NetworkGroups `yaml:"network_groups,omitempty"`
+
+	// Maximum size of error payload
+	MaxErrorReasonSize ByteSize `yaml:"max_error_reason_size,omitempty"`
 
 	Caches []Cache `yaml:"caches,omitempty"`
 
@@ -105,7 +110,7 @@ func withoutSensitiveInfo(config *Config) *Config {
 		}
 	}
 	for i := range c.Caches {
-		if len(c.Caches[i].Redis.Username) > 0 {
+		if len(c.Caches[i].Redis.Password) > 0 {
 			c.Caches[i].Redis.Password = pswPlaceHolder
 		}
 	}
@@ -186,6 +191,10 @@ func (cfg *Config) setDefaults() error {
 	for i := range cfg.Caches {
 		c := &cfg.Caches[i]
 		c.setDefaults()
+	}
+
+	if cfg.MaxErrorReasonSize <= 0 {
+		cfg.MaxErrorReasonSize = defaultMaxErrorReasonSize
 	}
 
 	cfg.setServerMaxResponseTime(maxResponseTime)
@@ -724,7 +733,8 @@ type User struct {
 
 	// Maximum number of requests per minute for user
 	// if omitted or zero - no limits would be applied
-	ReqPerMin uint32 `yaml:"requests_per_minute,omitempty"`
+	// if negative - the user is effectively blocked
+	ReqPerMin int32 `yaml:"requests_per_minute,omitempty"`
 
 	// The burst of request packet size token bucket for user
 	// if omitted or zero - no limits would be applied
@@ -949,6 +959,8 @@ type RedisCacheConfig struct {
 	Username  string                 `yaml:"username,omitempty"`
 	Password  string                 `yaml:"password,omitempty"`
 	Addresses []string               `yaml:"addresses"`
+	DBIndex   int                    `yaml:"db_index,omitempty"`
+	PoolSize  int                    `yaml:"pool_size,omitempty"`
 	XXX       map[string]interface{} `yaml:",inline"`
 }
 
@@ -1075,7 +1087,8 @@ type ClusterUser struct {
 
 	// Maximum number of requests per minute for user
 	// if omitted or zero - no limits would be applied
-	ReqPerMin uint32 `yaml:"requests_per_minute,omitempty"`
+	// if negative - the user is effectively blocked
+	ReqPerMin int32 `yaml:"requests_per_minute,omitempty"`
 
 	// The burst of request packet size token bucket for user
 	// if omitted or zero - no limits would be applied
