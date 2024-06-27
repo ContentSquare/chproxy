@@ -86,6 +86,7 @@ func (f *fileSystemCache) Stats() Stats {
 	var s Stats
 	s.Size = atomic.LoadUint64(&f.stats.Size)
 	s.Items = atomic.LoadUint64(&f.stats.Items)
+	s.Alive = 1
 	return s
 }
 
@@ -131,6 +132,10 @@ func (f *fileSystemCache) Get(key *Key) (*CachedData, error) {
 	}
 
 	return value, nil
+}
+
+func (f *fileSystemCache) Alive() bool {
+	return true
 }
 
 // decodeHeader decodes header from raw byte stream. Data is encoded as follows:
