@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/sony/gobreaker/v2"
+
 	"github.com/contentsquare/chproxy/cache"
 	"github.com/contentsquare/chproxy/config"
 	"github.com/contentsquare/chproxy/internal/topology"
@@ -51,8 +53,46 @@ type reverseProxy struct {
 	maxErrorReasonSize  int64
 }
 
+type circuitBreakingTransport struct {
+	transport http.RoundTripper
+	cb        *gobreaker.CircuitBreaker[*http.Response]
+}
+
+var (
+	// errCircuitBreaking is an error instance indicating a circuit breaker has been triggered.
+	errCircuitBreaking = errors.New("circuit breaking status code")
+
+	// clickhouseBadStatusForCircuitBreaking is a map that associates HTTP status codes with an empty struct.
+	// This map is used to quickly check if a ClickHouse operation resulted in a status code that indicates
+	// a condition severe enough to trigger circuit breaking.
+	clickhouseBadStatusForCircuitBreaking = map[int]struct{}{
+		201: {}, // QUOTA_EXCEEDED
+		241: {}, // MEMORY_LIMIT_EXCEEDED
+		439: {}, // CANNOT_SCHEDULE_TASK
+	}
+)
+
+func (b *circuitBreakingTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	return b.cb.Execute(func() (*http.Response, error) {
+		resp, err := b.transport.RoundTrip(r)
+		if err != nil {
+			return nil, err
+		}
+
+		if _, ok := clickhouseBadStatusForCircuitBreaking[resp.StatusCode]; ok {
+			return nil, errCircuitBreaking
+		}
+
+		if resp.StatusCode >= http.StatusInternalServerError {
+			return nil, errCircuitBreaking
+		}
+
+		return resp, err
+	})
+}
+
 func newReverseProxy(cfgCp *config.ConnectionPool) *reverseProxy {
-	transport := &http.Transport{
+	var transport http.RoundTripper = &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			dialer := &net.Dialer{
@@ -67,6 +107,33 @@ func newReverseProxy(cfgCp *config.ConnectionPool) *reverseProxy {
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
+	}
+
+	if cfgCp.BreakerOn {
+		var st gobreaker.Settings
+		st.Name = "ch-proxy"
+		st.MaxRequests = cfgCp.BreakerMaxRequests
+		st.Interval = cfgCp.BreakerInterval
+		st.Timeout = cfgCp.BreakerTimeout
+
+		errorRequests := uint32(3)
+		if cfgCp.BreakerErrorRequests != 0 {
+			errorRequests = cfgCp.BreakerErrorRequests
+		}
+		failureRatio := 0.6
+		if cfgCp.BreakerFailureRatio != 0 {
+			failureRatio = cfgCp.BreakerFailureRatio
+		}
+
+		st.ReadyToTrip = func(counts gobreaker.Counts) bool {
+			fr := float64(counts.TotalFailures) / float64(counts.Requests)
+			return counts.Requests >= errorRequests && fr >= failureRatio
+		}
+
+		transport = &circuitBreakingTransport{
+			transport: transport,
+			cb:        gobreaker.NewCircuitBreaker[*http.Response](st), //nolint:bodyclose
+		}
 	}
 
 	return &reverseProxy{
