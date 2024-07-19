@@ -210,8 +210,14 @@ var fullConfig = Config{
 	},
 
 	ConnectionPool: ConnectionPool{
-		MaxIdleConns:        100,
-		MaxIdleConnsPerHost: 2,
+		MaxIdleConns:         100,
+		MaxIdleConnsPerHost:  2,
+		BreakerOn:            true,
+		BreakerMaxRequests:   10,
+		BreakerInterval:      time.Second,
+		BreakerTimeout:       time.Second,
+		BreakerFailureRatio:  0.1,
+		BreakerErrorRequests: 5,
 	},
 
 	Users: []User{
@@ -935,6 +941,12 @@ param_groups:
 connection_pool:
   max_idle_conns: 100
   max_idle_conns_per_host: 2
+  breaker_on: true
+  breaker_max_requests: 10
+  breaker_interval: 1s
+  breaker_timeout: 1s
+  breaker_failure_ratio: 0.1
+  breaker_error_requests: 5
 `, redisPort)
 	tested := fullConfig.String()
 	if tested != expected {

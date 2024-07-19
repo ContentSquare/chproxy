@@ -106,6 +106,21 @@ connection_pool:
   # Number of connections per ClickHouse host to keep open
   # when they are not needed for clients.
   max_idle_conns_per_host: 2
+  # switch on CircuitBreaker for clickhouse http client.
+  breaker_on: true
+  # Number of requests allowed to pass through  when the CircuitBreaker is half-open.
+  breaker_max_requests: 10
+  # Is the cyclic period of the closed state for the CircuitBreaker
+  # to clear the internal Counts.
+  breaker_interval: 1s
+  # Is the period of the open state,
+  # after which the state of the CircuitBreaker becomes half-open.
+  breaker_timeout: 1s
+  # Is a threshold for determining whether a system  is considered ready to handle
+  # requests based on its recent failure rate.
+  breaker_failure_ratio: 0.1
+  # Is a variable that represents a threshold for the total number of failed requests.
+  breaker_error_requests: 5
 
 # Settings for `chproxy` input interfaces.
 server:
