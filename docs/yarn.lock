@@ -81,10 +81,10 @@
     stream-replace-string "^2.0.0"
     zod "^3.23.8"
 
-"@astrojs/starlight@^0.24.5":
-  version "0.24.5"
-  resolved "https://registry.yarnpkg.com/@astrojs/starlight/-/starlight-0.24.5.tgz#b00f140d4bf394874518bf36a906636d9f5c9993"
-  integrity sha512-DDI8NpLzk+ReBudhAV09OhO5DxD+KN4Nnp3YlG6kwn/F8fmywNTNgY7VW67Z8aad+A/85OOiQOtq9wIFNRy3YA==
+"@astrojs/starlight@^0.25.0":
+  version "0.25.2"
+  resolved "https://registry.yarnpkg.com/@astrojs/starlight/-/starlight-0.25.2.tgz#1fb6591b28ce6026d6a9da7eb5705ac86f85e1a1"
+  integrity sha512-VcFe9yXB0oUIoEU0lLdDA3jnbtjVzSXXpX/oI8OW4ofEHCt8L9V27f+NzRjB0A1+2D6FxAEoAw3NKoP06PLRQA==
   dependencies:
     "@astrojs/mdx" "^3.1.0"
     "@astrojs/sitemap" "^3.1.5"
@@ -99,6 +99,7 @@
     hastscript "^9.0.0"
     mdast-util-directive "^3.0.0"
     mdast-util-to-markdown "^2.1.0"
+    mdast-util-to-string "^4.0.0"
     pagefind "^1.0.3"
     rehype "^13.0.1"
     rehype-format "^5.0.0"
