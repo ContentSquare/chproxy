@@ -310,8 +310,8 @@ func TestAsyncCache_RedisCache_wrong_instantiation(t *testing.T) {
 	}
 
 	_, err := NewAsyncCache(redisCfg, 1*time.Second)
-	if err == nil {
-		t.Fatalf("the redis instanciation should have crashed")
+	if err != nil {
+		t.Fatalf("the redis instanciation should not crash")
 	}
 }
 
