@@ -160,6 +160,43 @@ var goodCfgWithCacheAndMaxErrorReasonSize = &config.Config{
 		},
 	},
 }
+var goodCfgWithBreaker = &config.Config{
+	Server: config.Server{
+		Metrics: config.Metrics{
+			Namespace: "proxy_test"},
+	},
+	Clusters: []config.Cluster{
+		{
+			Name:   "cluster",
+			Scheme: "http",
+			Replicas: []config.Replica{
+				{
+					Nodes: []string{"localhost:8123"},
+				},
+			},
+			ClusterUsers: []config.ClusterUser{
+				{
+					Name: "web",
+				},
+			},
+		},
+	},
+	Users: []config.User{
+		{
+			Name:      defaultUsername,
+			ToCluster: "cluster",
+			ToUser:    "web",
+		},
+	},
+	ParamGroups: []config.ParamGroup{
+		{Name: "param_test", Params: []config.Param{{Key: "param_key", Value: "param_value"}}},
+	},
+	ConnectionPool: config.ConnectionPool{
+		BreakerOn:            true,
+		BreakerErrorRequests: 1,
+		BreakerFailureRatio:  0.1,
+	},
+}
 
 func newConfiguredProxy(cfg *config.Config) (*reverseProxy, error) {
 	p := newReverseProxy(&cfg.ConnectionPool)
@@ -795,6 +832,17 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 			},
 			transactionFailReason: "unknown error reason",
 		},
+		{
+			cfg:           goodCfgWithBreaker,
+			name:          "error with breaker on",
+			expResponse:   badGatewayResponse,
+			expStatusCode: http.StatusBadGateway,
+			f: func(p *reverseProxy) *http.Response {
+				req := httptest.NewRequest("GET", fmt.Sprintf("%s/badGateway?query=%s", fakeServer.URL, query), nil)
+				return makeCustomRequest(p, req)
+			},
+			transactionFailReason: "unknown error reason1",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -807,6 +855,7 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 			resp := tc.f(proxy)
 			b := bbToString(t, resp.Body)
 			resp.Body.Close()
+
 			if len(tc.cfg.Caches) != 0 {
 				compareTransactionFailReason(t, proxy, tc.cfg.Clusters[0].ClusterUsers[0], query, tc.transactionFailReason)
 			}
