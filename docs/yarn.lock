@@ -20,30 +20,6 @@
   resolved "https://registry.yarnpkg.com/@astrojs/internal-helpers/-/internal-helpers-0.4.1.tgz#ceb5de49346dbdbfb6cba1b683c07fef7df56e1c"
   integrity sha512-bMf9jFihO8YP940uD70SI/RDzIhUHJAolWVcO1v5PUivxGKvfLZTLTVVxEYzGYyPsA3ivdLNqMnL5VgmQySa+g==
 
-"@astrojs/markdown-remark@5.1.1":
-  version "5.1.1"
-  resolved "https://registry.yarnpkg.com/@astrojs/markdown-remark/-/markdown-remark-5.1.1.tgz#48aaab3f416f195107dd340f57d3adb185a02cd7"
-  integrity sha512-rkWWjR9jVo0LAMxQ2+T19RKbQUa7NwBGhFj03bAz3hGf3blqeBIXs1NSPpizshO5kZzcOqKe8OlG6XpYO8esHg==
-  dependencies:
-    "@astrojs/prism" "3.1.0"
-    github-slugger "^2.0.0"
-    hast-util-from-html "^2.0.1"
-    hast-util-to-text "^4.0.2"
-    import-meta-resolve "^4.1.0"
-    mdast-util-definitions "^6.0.0"
-    rehype-raw "^7.0.0"
-    rehype-stringify "^10.0.0"
-    remark-gfm "^4.0.0"
-    remark-parse "^11.0.0"
-    remark-rehype "^11.1.0"
-    remark-smartypants "^3.0.1"
-    shiki "^1.9.0"
-    unified "^11.0.5"
-    unist-util-remove-position "^5.0.0"
-    unist-util-visit "^5.0.0"
-    unist-util-visit-parents "^6.0.1"
-    vfile "^6.0.1"
-
 "@astrojs/markdown-remark@5.2.0":
   version "5.2.0"
   resolved "https://registry.yarnpkg.com/@astrojs/markdown-remark/-/markdown-remark-5.2.0.tgz#15955e22b74256ed0f1c2b6e98ebcc277b1abe19"
@@ -68,14 +44,14 @@
     unist-util-visit-parents "^6.0.1"
     vfile "^6.0.2"
 
-"@astrojs/mdx@^3.1.0":
-  version "3.1.2"
-  resolved "https://registry.yarnpkg.com/@astrojs/mdx/-/mdx-3.1.2.tgz#8484c0b6d05fc8a52024a3fd80038ebe3b917c59"
-  integrity sha512-0EizCWhUi0wdYPm31kNOHsOrGmn8pEJy+YEGQlHWt4Flg2NYfV7nWZuYG8KxoRSK/W397vPhyHYrITCYo7JMYw==
+"@astrojs/mdx@^3.1.3":
+  version "3.1.3"
+  resolved "https://registry.yarnpkg.com/@astrojs/mdx/-/mdx-3.1.3.tgz#583445541e92a8da3059ccb011526de3dfb580a2"
+  integrity sha512-hOM4dMM4RfJI254d3p/AnOZuk2VyKszRtuY5FBm+Xc4XdhIpGrR56OXMNEcWchtwz4HQyPe/eJSgvBjSROcQIQ==
   dependencies:
-    "@astrojs/markdown-remark" "5.1.1"
+    "@astrojs/markdown-remark" "5.2.0"
     "@mdx-js/mdx" "^3.0.1"
-    acorn "^8.12.0"
+    acorn "^8.12.1"
     es-module-lexer "^1.5.4"
     estree-util-visit "^2.0.0"
     github-slugger "^2.0.0"
@@ -84,10 +60,10 @@
     kleur "^4.1.5"
     rehype-raw "^7.0.0"
     remark-gfm "^4.0.0"
-    remark-smartypants "^3.0.1"
+    remark-smartypants "^3.0.2"
     source-map "^0.7.4"
     unist-util-visit "^5.0.0"
-    vfile "^6.0.1"
+    vfile "^6.0.2"
 
 "@astrojs/prism@3.1.0":
   version "3.1.0"
@@ -96,7 +72,7 @@
   dependencies:
     prismjs "^1.29.0"
 
-"@astrojs/sitemap@^3.1.5":
+"@astrojs/sitemap@^3.1.6":
   version "3.1.6"
   resolved "https://registry.yarnpkg.com/@astrojs/sitemap/-/sitemap-3.1.6.tgz#32bba41b6512ee97ea42633593046b1a22658260"
   integrity sha512-1Qp2NvAzVImqA6y+LubKi1DVhve/hXXgFvB0szxiipzh7BvtuKe4oJJ9dXSqaubaTkt4nMa6dv6RCCAYeB6xaQ==
@@ -105,17 +81,17 @@
     stream-replace-string "^2.0.0"
     zod "^3.23.8"
 
-"@astrojs/starlight@^0.25.0":
-  version "0.25.2"
-  resolved "https://registry.yarnpkg.com/@astrojs/starlight/-/starlight-0.25.2.tgz#1fb6591b28ce6026d6a9da7eb5705ac86f85e1a1"
-  integrity sha512-VcFe9yXB0oUIoEU0lLdDA3jnbtjVzSXXpX/oI8OW4ofEHCt8L9V27f+NzRjB0A1+2D6FxAEoAw3NKoP06PLRQA==
+"@astrojs/starlight@^0.25.4":
+  version "0.25.4"
+  resolved "https://registry.yarnpkg.com/@astrojs/starlight/-/starlight-0.25.4.tgz#8d8e120937d3fb97e4914e3382fe511fabbad2cc"
+  integrity sha512-TRPgRsd5opi2tCXvh8rWizpLsJsRRXbYecULG5b/1x4BFyp40ZJVB77cLMjTj3lHwqWs0Sybtq5OBpOy6fuIEQ==
   dependencies:
-    "@astrojs/mdx" "^3.1.0"
-    "@astrojs/sitemap" "^3.1.5"
+    "@astrojs/mdx" "^3.1.3"
+    "@astrojs/sitemap" "^3.1.6"
     "@pagefind/default-ui" "^1.0.3"
     "@types/hast" "^3.0.4"
     "@types/mdast" "^4.0.4"
-    astro-expressive-code "^0.35.3"
+    astro-expressive-code "^0.35.6"
     bcp-47 "^2.1.0"
     hast-util-from-html "^2.0.1"
     hast-util-select "^6.0.2"
@@ -128,9 +104,9 @@
     rehype "^13.0.1"
     rehype-format "^5.0.0"
     remark-directive "^3.0.0"
-    unified "^11.0.4"
+    unified "^11.0.5"
     unist-util-visit "^5.0.0"
-    vfile "^6.0.1"
+    vfile "^6.0.2"
 
 "@astrojs/telemetry@3.1.0":
   version "3.1.0"
@@ -573,10 +549,10 @@
   resolved "https://registry.yarnpkg.com/@esbuild/win32-x64/-/win32-x64-0.21.5.tgz#acad351d582d157bb145535db2a6ff53dd514b5c"
   integrity sha512-tQd/1efJuzPC6rCFwEvLtci/xNFcTZknmXs98FYDfGE4wP9ClFV98nyKrzJKVPMhdDnjzLhdUyMX4PsQAPjwIw==
 
-"@expressive-code/core@^0.35.3":
-  version "0.35.3"
-  resolved "https://registry.yarnpkg.com/@expressive-code/core/-/core-0.35.3.tgz#581303f5f35b98fc1396851b8485464ad562ee3a"
-  integrity sha512-SYamcarAjufYhbuK/kfvJSvAXLsfnM7DKc78R7Dq4B73R5bKQK2m5zR0l57tXr4yp2C5Z8lu5xZncdwWxcmPdg==
+"@expressive-code/core@^0.35.6":
+  version "0.35.6"
+  resolved "https://registry.yarnpkg.com/@expressive-code/core/-/core-0.35.6.tgz#7fd2f6b5c130588acd956c0d8fd042a2d8d096cb"
+  integrity sha512-xGqCkmfkgT7lr/rvmfnYdDSeTdCSp1otAHgoFS6wNEeO7wGDPpxdosVqYiIcQ8CfWUABh/pGqWG90q+MV3824A==
   dependencies:
     "@ctrl/tinycolor" "^4.0.4"
     hast-util-select "^6.0.2"
@@ -588,27 +564,27 @@
     unist-util-visit "^5.0.0"
     unist-util-visit-parents "^6.0.1"
 
-"@expressive-code/plugin-frames@^0.35.3":
-  version "0.35.3"
-  resolved "https://registry.yarnpkg.com/@expressive-code/plugin-frames/-/plugin-frames-0.35.3.tgz#a8e57a3fd7edcaa95b463c8a5af60a0f100fbdea"
-  integrity sha512-QYytMq6IsaHgTofQ5b6d+CnbxkqLdikSF2hC+IL/ZZwPYHYZoUlmjIwmJZhY4/hHqJGELrtZsyVdlt06RntgmA==
+"@expressive-code/plugin-frames@^0.35.6":
+  version "0.35.6"
+  resolved "https://registry.yarnpkg.com/@expressive-code/plugin-frames/-/plugin-frames-0.35.6.tgz#37566970a7e71cbb793cde8d9aeab8fd5e6c6abb"
+  integrity sha512-CqjSWjDJ3wabMJZfL9ZAzH5UAGKg7KWsf1TBzr4xvUbZvWoBtLA/TboBML0U1Ls8h/4TRCIvR4VEb8dv5+QG3w==
   dependencies:
-    "@expressive-code/core" "^0.35.3"
+    "@expressive-code/core" "^0.35.6"
 
-"@expressive-code/plugin-shiki@^0.35.3":
-  version "0.35.3"
-  resolved "https://registry.yarnpkg.com/@expressive-code/plugin-shiki/-/plugin-shiki-0.35.3.tgz#7b59923664b6d791c0a368d39b3fc208c92bd6de"
-  integrity sha512-aFQBPepv0zhVXqJFAvfQ4vXYv/meJKiqmEEKSxdjAfwXllIV49PDlnGEXmbGYjR4hUQQjbfDgzAbrbfePc3YVQ==
+"@expressive-code/plugin-shiki@^0.35.6":
+  version "0.35.6"
+  resolved "https://registry.yarnpkg.com/@expressive-code/plugin-shiki/-/plugin-shiki-0.35.6.tgz#9f52f5e557a12fff702b94a414d3d41a5b0aebf8"
+  integrity sha512-xm+hzi9BsmhkDUGuyAWIydOAWer7Cs9cj8FM0t4HXaQ+qCubprT6wJZSKUxuvFJIUsIOqk1xXFaJzGJGnWtKMg==
   dependencies:
-    "@expressive-code/core" "^0.35.3"
+    "@expressive-code/core" "^0.35.6"
     shiki "^1.1.7"
 
-"@expressive-code/plugin-text-markers@^0.35.3":
-  version "0.35.3"
-  resolved "https://registry.yarnpkg.com/@expressive-code/plugin-text-markers/-/plugin-text-markers-0.35.3.tgz#009ea0a9d4af6dcd3df44c2167fc18cf40d3ab4d"
-  integrity sha512-gDdnQrfDRXw5Y+PKHJDkpAUdf2pthYOthGcgy3JB8GOTQ3EL1h+755Ct/bGc4MR6jn+dgnQP47uHMWQaccvN6Q==
+"@expressive-code/plugin-text-markers@^0.35.6":
+  version "0.35.6"
+  resolved "https://registry.yarnpkg.com/@expressive-code/plugin-text-markers/-/plugin-text-markers-0.35.6.tgz#bcca76e8eb90dc44fa8fd937f28d5eb78a4bc0c8"
+  integrity sha512-/k9eWVZSCs+uEKHR++22Uu6eIbHWEciVHbIuD8frT8DlqTtHYaaiwHPncO6KFWnGDz5i/gL7oyl6XmOi/E6GVg==
   dependencies:
-    "@expressive-code/core" "^0.35.3"
+    "@expressive-code/core" "^0.35.6"
 
 "@img/sharp-darwin-arm64@0.33.3":
   version "0.33.3"
@@ -1000,11 +976,6 @@
   resolved "https://registry.npmjs.org/@shikijs/core/-/core-1.2.4.tgz"
   integrity sha512-ClaUWpt8oTzjcF0MM1P81AeWyzc1sNSJlAjMG80CbwqbFqXSNz+NpQVUC0icobt3sZn43Sn27M4pHD/Jmp3zHw==
 
-"@shikijs/core@1.9.1":
-  version "1.9.1"
-  resolved "https://registry.yarnpkg.com/@shikijs/core/-/core-1.9.1.tgz#f8c61fb19dbec510fa27f892c441d99b53093e49"
-  integrity sha512-EmUful2MQtY8KgCF1OkBtOuMcvaZEvmdubhW0UHCGXi21O9dRLeADVCj+k6ZS+de7Mz9d2qixOXJ+GLhcK3pXg==
-
 "@types/acorn@^4.0.0":
   version "4.0.6"
   resolved "https://registry.npmjs.org/@types/acorn/-/acorn-4.0.6.tgz"
@@ -1151,11 +1122,6 @@ acorn@^8.0.0:
   resolved "https://registry.npmjs.org/acorn/-/acorn-8.11.3.tgz"
   integrity sha512-Y9rRfJG5jcKOE0CLisYbojUjIrIEE7AGMzA/Sm4BslANhbS+cDMpgBdcPT91oJ7OuJ9hYJBx59RjbhxVnrF8Xg==
 
-acorn@^8.12.0:
-  version "8.12.0"
-  resolved "https://registry.yarnpkg.com/acorn/-/acorn-8.12.0.tgz#1627bfa2e058148036133b8d9b51a700663c294c"
-  integrity sha512-RTvkC4w+KNXrM39/lWCUaG0IbRkWdCv7W/IOW9oU6SawyxulvkQy5HQPVTKxEjczcUvapcrw3cFx/60VN/NRNw==
-
 acorn@^8.12.1:
   version "8.12.1"
   resolved "https://registry.yarnpkg.com/acorn/-/acorn-8.12.1.tgz#71616bdccbe25e27a54439e0046e89ca76df2248"
@@ -1224,14 +1190,14 @@ astring@^1.8.0:
   resolved "https://registry.npmjs.org/astring/-/astring-1.8.6.tgz"
   integrity sha512-ISvCdHdlTDlH5IpxQJIex7BWBywFWgjJSVdwst+/iQCoEYnyOaQ95+X1JGshuBjGp6nxKUy1jMgE3zPqN7fQdg==
 
-astro-expressive-code@^0.35.3:
-  version "0.35.3"
-  resolved "https://registry.yarnpkg.com/astro-expressive-code/-/astro-expressive-code-0.35.3.tgz#da4ec3d607a46a623e7a0750a670534d609c802f"
-  integrity sha512-f1L1m3J3EzZHDEox6TXmuKo5fTSbaNxE/HU0S0UQmvlCowtOKnU/LOsoDwsbQSYGKz+fdLRPsCjFMiKqEoyfcw==
+astro-expressive-code@^0.35.6:
+  version "0.35.6"
+  resolved "https://registry.yarnpkg.com/astro-expressive-code/-/astro-expressive-code-0.35.6.tgz#5029d44cba99c674e1225968de1382466b997f3d"
+  integrity sha512-1U4KrvFuodaCV3z4I1bIR16SdhQlPkolGsYTtiANxPZUVv/KitGSCTjzksrkPonn1XuwVqvnwmUUVzTLWngnBA==
   dependencies:
-    rehype-expressive-code "^0.35.3"
+    rehype-expressive-code "^0.35.6"
 
-astro@^4.12.2:
+astro@^4.13.3:
   version "4.13.3"
   resolved "https://registry.yarnpkg.com/astro/-/astro-4.13.3.tgz#0d60eb3174d19a13f153168dab2851e414d85205"
   integrity sha512-MyhmM0v5sphiVwxAm5jjKxWeuPZijWPJ8Ajdign9QzEmLWSH8vUYIJWx/dWRQ6vF1I0jXrksoj3wtw5nzXt9nw==
@@ -1745,15 +1711,15 @@ execa@^8.0.1:
     signal-exit "^4.1.0"
     strip-final-newline "^3.0.0"
 
-expressive-code@^0.35.3:
-  version "0.35.3"
-  resolved "https://registry.yarnpkg.com/expressive-code/-/expressive-code-0.35.3.tgz#09815e4c4649067340c953d9cbf5d3807198661c"
-  integrity sha512-XjWWUCxS4uQjPoRM98R7SNWWIYlFEaOeHm1piWv+c7coHCekuWno81thsc3g/UJ+DajNtOEsIQIAAcsBQZ8LMg==
+expressive-code@^0.35.6:
+  version "0.35.6"
+  resolved "https://registry.yarnpkg.com/expressive-code/-/expressive-code-0.35.6.tgz#ad8ee87bd5d5376c07a5f4475bbf98366b5b307a"
+  integrity sha512-+mx+TPTbMqgo0mL92Xh9QgjW0kSQIsEivMgEcOnaqKqL7qCw8Vkqc5Rg/di7ZYw4aMUSr74VTc+w8GQWu05j1g==
   dependencies:
-    "@expressive-code/core" "^0.35.3"
-    "@expressive-code/plugin-frames" "^0.35.3"
-    "@expressive-code/plugin-shiki" "^0.35.3"
-    "@expressive-code/plugin-text-markers" "^0.35.3"
+    "@expressive-code/core" "^0.35.6"
+    "@expressive-code/plugin-frames" "^0.35.6"
+    "@expressive-code/plugin-shiki" "^0.35.6"
+    "@expressive-code/plugin-text-markers" "^0.35.6"
 
 extend-shallow@^2.0.1:
   version "2.0.1"
@@ -3267,12 +3233,12 @@ queue-microtask@^1.2.2:
   resolved "https://registry.npmjs.org/queue-microtask/-/queue-microtask-1.2.3.tgz"
   integrity sha512-NuaNSa6flKT5JaSYQzJok04JzTL1CA6aGhv5rfLW3PgqA+M2ChpZQnAC8h8i4ZFkBS8X5RqkDBHA7r4hej3K9A==
 
-rehype-expressive-code@^0.35.3:
-  version "0.35.3"
-  resolved "https://registry.yarnpkg.com/rehype-expressive-code/-/rehype-expressive-code-0.35.3.tgz#eb3762db03049e9568b87deb1b77f748942e0547"
-  integrity sha512-kj43Rg+WzYUs8RRr6XyBr60pnrIZEgbmn9yJoV6qka1UDpcx7r8icn6Q2uSAgaLtlEUy+HCPgQJraOZrA53LOQ==
+rehype-expressive-code@^0.35.6:
+  version "0.35.6"
+  resolved "https://registry.yarnpkg.com/rehype-expressive-code/-/rehype-expressive-code-0.35.6.tgz#aacae31a68664b4055b4c969a69992787ace5307"
+  integrity sha512-pPdE+pRcRw01kxMOwHQjuRxgwlblZt5+wAc3w2aPGgmcnn57wYjn07iKO7zaznDxYVxMYVvYlnL+R3vWFQS4Gw==
   dependencies:
-    expressive-code "^0.35.3"
+    expressive-code "^0.35.6"
 
 rehype-format@^5.0.0:
   version "5.0.0"
@@ -3386,16 +3352,6 @@ remark-rehype@^11.0.0, remark-rehype@^11.1.0:
     mdast-util-to-hast "^13.0.0"
     unified "^11.0.0"
     vfile "^6.0.0"
-
-remark-smartypants@^3.0.1:
-  version "3.0.1"
-  resolved "https://registry.yarnpkg.com/remark-smartypants/-/remark-smartypants-3.0.1.tgz#44171381842f0b7ecba296340925b588aa9991a3"
-  integrity sha512-qyshfCl2eLO0i0558e79ZJsfojC5wjnYLByjt0FmjJQN6aYwcRxpoj784LZJSoWCdnA2ubh5rLNGb8Uur/wDng==
-  dependencies:
-    retext "^9.0.0"
-    retext-smartypants "^6.0.0"
-    unified "^11.0.4"
-    unist-util-visit "^5.0.0"
 
 remark-smartypants@^3.0.2:
   version "3.0.2"
@@ -3611,13 +3567,6 @@ shiki@^1.10.3, shiki@^1.12.1:
   dependencies:
     "@shikijs/core" "1.12.1"
     "@types/hast" "^3.0.4"
-
-shiki@^1.9.0:
-  version "1.9.1"
-  resolved "https://registry.yarnpkg.com/shiki/-/shiki-1.9.1.tgz#9d9f553b06e70a9e71b5457622d6f4a5aaf1db27"
-  integrity sha512-8PDkgb5ja3nfujTjvC4VytL6wGOGCtFAClUb2r3QROevYXxcq+/shVJK5s6gy0HZnjaJgFxd6BpPqpRfqne5rA==
-  dependencies:
-    "@shikijs/core" "1.9.1"
 
 signal-exit@^3.0.2:
   version "3.0.7"
@@ -3948,7 +3897,7 @@ vfile-message@^4.0.0:
     "@types/unist" "^3.0.0"
     unist-util-stringify-position "^4.0.0"
 
-vfile@^6.0.0, vfile@^6.0.1:
+vfile@^6.0.0:
   version "6.0.1"
   resolved "https://registry.npmjs.org/vfile/-/vfile-6.0.1.tgz"
   integrity sha512-1bYqc7pt6NIADBJ98UiG0Bn/CHIVOoZ/IyEkqIruLg0mE1BKzkOXY2D6CSqQIcKqgadppE5lrxgWXJmXd7zZJw==
