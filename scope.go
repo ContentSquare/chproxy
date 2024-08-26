@@ -389,6 +389,13 @@ func (s *scope) decorateRequest(req *http.Request) (*http.Request, url.Values) {
 	// Make new params to purify URL.
 	params := make(url.Values)
 
+	// pass ping request
+	if req.RequestURI == "/ping" {
+		req.URL.Scheme = s.host.Scheme()
+		req.URL.Host = s.host.Host()
+		return req, req.URL.Query()
+	}
+
 	// Set user params
 	if s.user.params != nil {
 		for _, param := range s.user.params.params {
