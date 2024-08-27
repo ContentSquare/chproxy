@@ -35,6 +35,7 @@ var (
 	allowedNetworksHTTPS   atomic.Value
 	allowedNetworksMetrics atomic.Value
 	proxyHandler           atomic.Value
+	allowPing              atomic.Bool
 )
 
 func main() {
@@ -237,8 +238,37 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 		}
 		proxy.refreshCacheMetrics()
 		promHandler.ServeHTTP(rw, r)
-	case "/", "/query", "/ping":
+	case "/", "/query":
 		var err error
+		// nolint:forcetypeassert // We will cover this by tests as we control what is stored.
+		proxyHandler := proxyHandler.Load().(*ProxyHandler)
+		r.RemoteAddr = proxyHandler.GetRemoteAddr(r)
+
+		var an *config.Networks
+		if r.TLS != nil {
+			// nolint:forcetypeassert // We will cover this by tests as we control what is stored.
+			an = allowedNetworksHTTPS.Load().(*config.Networks)
+			err = fmt.Errorf("https connections are not allowed from %s", r.RemoteAddr)
+		} else {
+			// nolint:forcetypeassert // We will cover this by tests as we control what is stored.
+			an = allowedNetworksHTTP.Load().(*config.Networks)
+			err = fmt.Errorf("http connections are not allowed from %s", r.RemoteAddr)
+		}
+		if !an.Contains(r.RemoteAddr) {
+			rw.Header().Set("Connection", "close")
+			respondWith(rw, err, http.StatusForbidden)
+			return
+		}
+		proxy.ServeHTTP(rw, r)
+	case "/ping":
+		var err error
+
+		if !allowPing.Load() {
+			err = fmt.Errorf("ping is not allowed")
+			respondWith(rw, err, http.StatusForbidden)
+			return
+		}
+
 		// nolint:forcetypeassert // We will cover this by tests as we control what is stored.
 		proxyHandler := proxyHandler.Load().(*ProxyHandler)
 		r.RemoteAddr = proxyHandler.GetRemoteAddr(r)
@@ -296,6 +326,7 @@ func applyConfig(cfg *config.Config) error {
 	allowedNetworksHTTPS.Store(&cfg.Server.HTTPS.AllowedNetworks)
 	allowedNetworksMetrics.Store(&cfg.Server.Metrics.AllowedNetworks)
 	proxyHandler.Store(NewProxyHandler(&cfg.Server.Proxy))
+	allowPing.Store(cfg.AllowPing)
 	log.SetDebug(cfg.LogDebug)
 	log.Infof("Loaded config:\n%s", cfg)
 

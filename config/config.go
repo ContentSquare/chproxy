@@ -78,6 +78,9 @@ type Config struct {
 
 	ConnectionPool ConnectionPool `yaml:"connection_pool,omitempty"`
 
+	// Allow to proxy ping requests
+	AllowPing bool `yaml:"allow_ping,omitempty"`
+
 	networkReg map[string]Networks
 
 	// Catches all undefined fields

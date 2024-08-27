@@ -1,0 +1,52 @@
+log_debug: true
+hack_me_please: true
+allow_ping: true
+
+caches:
+  - name: "longterm"
+    mode: "file_system"
+    file_system:
+      dir: "/tmp/chproxy/longterm/cache"
+      max_size: 10Gb
+    expire: 1h
+    shared_with_all_users: true
+
+max_error_reason_size: 10GB
+
+server:
+  http:
+    listen_addr: ":80"
+    idle_timeout: 20m
+
+  https:
+    listen_addr: ":4433"
+    autocert:
+      cache_dir: "/tmp/chproxy/certs"
+  proxy:
+    enable: true
+    header: CF-Connecting-IP
+
+users:
+  - name: "*"
+    to_cluster: "dl"
+    to_user: "*"
+    is_wildcarded: true
+    max_concurrent_queries: 4
+    max_execution_time: 15m
+    deny_https: false
+    cache: "longterm"
+
+clusters:
+  - name: "dl"
+    scheme: "http"
+    nodes: ["localhost:28123"]
+    # heartbeat:
+    #   interval: 1m
+    #   timeout: 10s
+    #   request: "/?query=SELECT%201%2B1"
+    # q  response: "2\n"
+    kill_query_user:
+      name: "chproxy"
+      password: "chproxy"
+    users:
+      - name: "*"
