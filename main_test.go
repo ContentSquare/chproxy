@@ -885,6 +885,17 @@ func TestServe(t *testing.T) {
 			},
 			startTLS,
 		},
+		{
+			"http ping request is not allowed",
+			"testdata/http.yml",
+			func(t *testing.T) {
+				resp := httpGet(t, "http://127.0.0.1:9090/ping", http.StatusForbidden)
+				expected := "ping is not allowed\n"
+				checkResponse(t, resp.Body, expected)
+				resp.Body.Close()
+			},
+			startHTTP,
+		},
 	}
 
 	// Wait until CHServer starts.
