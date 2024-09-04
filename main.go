@@ -20,6 +20,8 @@ import (
 	"golang.org/x/crypto/acme/autocert"
 )
 
+const pingEndpoint string = "/ping"
+
 var (
 	configFile = flag.String("config", "", "Proxy configuration filename")
 	version    = flag.Bool("version", false, "Prints current version and exits")
@@ -238,10 +240,10 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 		}
 		proxy.refreshCacheMetrics()
 		promHandler.ServeHTTP(rw, r)
-	case "/", "/query", "/ping":
+	case "/", "/query", pingEndpoint:
 		var err error
 
-		if r.URL.Path == "/ping" && !allowPing.Load() {
+		if r.URL.Path == pingEndpoint && !allowPing.Load() {
 			err = fmt.Errorf("ping is not allowed")
 			respondWith(rw, err, http.StatusForbidden)
 			return

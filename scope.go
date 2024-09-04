@@ -390,7 +390,7 @@ func (s *scope) decorateRequest(req *http.Request) (*http.Request, url.Values) {
 	params := make(url.Values)
 
 	// pass ping request
-	if req.RequestURI == "/ping" {
+	if req.RequestURI == pingEndpoint {
 		req.URL.Scheme = s.host.Scheme()
 		req.URL.Host = s.host.Host()
 		return req, req.URL.Query()
