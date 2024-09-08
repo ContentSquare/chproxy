@@ -858,6 +858,44 @@ func TestServe(t *testing.T) {
 			},
 			startTLS,
 		},
+		{
+			"http ping request",
+			"testdata/http.ping.yml",
+			func(t *testing.T) {
+				httpGet(t, "http://127.0.0.1:9090/ping", http.StatusOK)
+			},
+			startHTTP,
+		},
+		{
+			"https ping request",
+			"testdata/https.ping.yml",
+			func(t *testing.T) {
+				req, err := http.NewRequest("GET", "https://127.0.0.1:9090/ping", nil)
+				checkErr(t, err)
+				req.Close = true
+				req.SetBasicAuth("default", "qwerty")
+
+				resp, err := tlsClient.Do(req)
+				checkErr(t, err)
+				defer resp.Body.Close()
+
+				if resp.StatusCode != http.StatusOK {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
+				}
+			},
+			startTLS,
+		},
+		{
+			"http ping request is not allowed",
+			"testdata/http.yml",
+			func(t *testing.T) {
+				resp := httpGet(t, "http://127.0.0.1:9090/ping", http.StatusForbidden)
+				expected := "ping is not allowed\n"
+				checkResponse(t, resp.Body, expected)
+				resp.Body.Close()
+			},
+			startHTTP,
+		},
 	}
 
 	// Wait until CHServer starts.

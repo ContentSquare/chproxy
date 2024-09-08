@@ -16,6 +16,9 @@ log_debug: <bool> | default = false [optional]
 # Whether to ignore security warnings
 hack_me_please: <bool> | default = false [optional]
 
+# Allow ping server
+allow_ping: <bool> | default = false [optional]
+
 # Named list of cache configurations
 caches:
   - <cache_config> ...
