@@ -1055,6 +1055,28 @@ type ConnectionPool struct {
 	// Maximum number of idle connections between chproxy and particuler ClickHouse instance
 	MaxIdleConnsPerHost int `yaml:"max_idle_conns_per_host,omitempty"`
 
+	// BreakerOn switch on CircuitBreaker for clickhouse http client.
+	BreakerOn bool `yaml:"breaker_on,omitempty"`
+	// BreakerMaxRequests is the maximum number of requests allowed to pass through
+	// when the CircuitBreaker is half-open.
+	// If BreakerMaxRequests is 0, the CircuitBreaker allows only 1 request.
+	BreakerMaxRequests uint32 `yaml:"breaker_max_requests,omitempty"`
+	// BreakerInterval is the cyclic period of the closed state
+	// for the CircuitBreaker to clear the internal Counts.
+	// If BreakerInterval is less than or equal to 0, the CircuitBreaker doesn't clear internal Counts during the closed state.
+	BreakerInterval time.Duration `yaml:"breaker_interval,omitempty"`
+	// BreakerTimeout is the period of the open state,
+	// after which the state of the CircuitBreaker becomes half-open.
+	// If BreakerTimeout is less than or equal to 0, the timeout value of the CircuitBreaker is set to 60 seconds.
+	BreakerTimeout time.Duration `yaml:"breaker_timeout,omitempty"`
+	// BreakerFailureRatio  is a threshold for determining whether a system  is considered ready to handle requests based on its recent failure rate
+	// Default value is 0.6.
+	BreakerFailureRatio float64 `yaml:"breaker_failure_ratio,omitempty"`
+	// BreakerErrorRequests  is a variable that represents a threshold for the total number of failed requests
+	// that should be considered significant enough to trigger some action or state change within the system
+	// Default value is 3.
+	BreakerErrorRequests uint32 `yaml:"breaker_error_requests,omitempty"`
+
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
 }
