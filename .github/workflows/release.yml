@@ -42,7 +42,7 @@ jobs:
         with:
           distribution: goreleaser
           version: latest
-          args: release --debug
+          args: release --verbose
         env:
           BUILD_TAG: 'latest'
           GOPATH: ${{ env.GOPATH }}
