@@ -146,6 +146,25 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	if shouldReturnFromCache {
+		// if cache shared between all users
+		// try to check if cached query is allowed for current user
+		if s.user.cache != nil && s.user.cache.SharedWithAllUsers && s.user.cache.CheckGrantsForSharedCache {
+			checkReq, checkQuery, _ := s.createCheckGrantsRequest(req)
+
+			srwCheck := &checkGrantsResponseWriter{
+				ResponseWriter: srw.ResponseWriter,
+			}
+
+			rp.proxyRequest(s, srwCheck, srw, checkReq)
+
+			if srwCheck.statusCode == http.StatusOK {
+				log.Debugf("%s: check grants for shared cached query request success; query: %q; Method: %s; URL: %q", s, checkQuery, checkReq.Method, checkReq.URL.String())
+			} else {
+				log.Debugf("%s: check grants for shared cached query request failure: non-200 status code %d; query: %q; Method: %s; URL: %q", s, srwCheck.statusCode, checkQuery, checkReq.Method, checkReq.URL.String())
+				return
+			}
+		}
+
 		rp.serveFromCache(s, srw, req, origParams, q)
 	} else {
 		rp.proxyRequest(s, srw, srw, req)
@@ -924,4 +943,41 @@ func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 	}
 	s.requestPacketSize = len(q)
 	return s, 0, nil
+}
+
+// create a new request based on proxied one
+// with query wrapped to fetch result types like:
+// 'DESC ({original_query})'
+// along with query parsed and analyzed for return types (which is fast)
+// ClickHouse check permissions to execute this query for the user
+func (s *scope) createCheckGrantsRequest(originalReq *http.Request) (*http.Request, string, error) {
+	originalQuery := originalReq.URL.Query().Get("query")
+	checkQuery := fmt.Sprintf("DESC (%s);", strings.TrimRight(originalQuery, ";"))
+
+	newURL := *originalReq.URL
+
+	queryParams, err := url.ParseQuery(newURL.RawQuery)
+	if err != nil {
+		return nil, checkQuery, err
+	}
+
+	queryParams.Set("query", checkQuery)
+
+	newURL.RawQuery = queryParams.Encode()
+
+	req := &http.Request{
+		Method:        originalReq.Method,
+		URL:           &newURL,
+		Proto:         originalReq.Proto,
+		ProtoMajor:    originalReq.ProtoMajor,
+		ProtoMinor:    originalReq.ProtoMinor,
+		Header:        originalReq.Header.Clone(),
+		Body:          originalReq.Body,
+		Host:          originalReq.Host,
+		ContentLength: originalReq.ContentLength,
+		Close:         originalReq.Close,
+		TLS:           originalReq.TLS,
+	}
+
+	return req, checkQuery, nil
 }
