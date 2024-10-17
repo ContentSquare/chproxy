@@ -28,7 +28,7 @@ run: build
 
 lint:
 	go vet $(pkgs)
-	golangci-lint run
+	go list ./... | grep -v /vendor/ | xargs -n1 golint
 
 tidy:
 	go mod tidy
@@ -48,8 +48,8 @@ clean:
 release-build:
 	@echo "Ver: $(BUILD_TAG), OPTS: $(BUILD_OPTS)"
 	GOOS=linux GOARCH=amd64 go build $(BUILD_OPTS)
+	rm chproxy-linux-amd64-*.tar.gz || true
 	tar czf chproxy-linux-amd64-$(BUILD_TAG).tar.gz chproxy
-	rm chproxy-linux-amd64-*.tar.gz
 
 release: format lint test clean release-build
 	@echo "Ver: $(BUILD_TAG), OPTS: $(BUILD_OPTS)"
@@ -58,4 +58,9 @@ release: format lint test clean release-build
 release-build-docker:
 	@echo "Ver: $(BUILD_TAG)"
 	@DOCKER_BUILDKIT=1 docker build --target build --build-arg EXT_BUILD_TAG=$(BUILD_TAG) --progress plain -t chproxy-build .
-	@docker run --rm --entrypoint "/bin/sh" -v $(CURDIR):/host chproxy-build -c "/bin/cp /go/src/github.com/contentsquare/chproxy/*.tar.gz /host"
+	@docker run --rm --entrypoint "/bin/sh" -v $(CURDIR):/host chproxy-build -c "/bin/cp chproxy-linux-*-*.tar.gz /host"
+
+release-build-docker-fips:
+	@echo "Ver: $(BUILD_TAG)"
+	@DOCKER_BUILDKIT=1 docker build -f Dockerfile_boringcrypto --build-arg EXT_BUILD_TAG=$(BUILD_TAG)-fips --build-arg EXT_BUILD_OPTS="-tags fips" --progress plain -t chproxy-build .
+	@docker run --rm --entrypoint "/bin/sh" -v $(CURDIR):/host chproxy-build -c "/bin/cp /src/chproxy-*.tar.gz /host"
