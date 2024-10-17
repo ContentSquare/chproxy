@@ -139,6 +139,11 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		rw.Header().Set("X-ClickHouse-Server-Session-Id", s.sessionId)
 	}
 
+	// publish session_timeout if needed
+	if s.sessionId != "" {
+		rw.Header().Set("X-ClickHouse-Server-Session-Timeout", strconv.Itoa(s.sessionTimeout))
+	}
+
 	q, shouldReturnFromCache, err := shouldRespondFromCache(s, origParams, req)
 	if err != nil {
 		respondWith(srw, err, http.StatusBadRequest)
