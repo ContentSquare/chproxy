@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"os"
 	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -41,7 +42,7 @@ func TestGoVersionMatching(t *testing.T) {
 		t.Fatalf("Error getting Go version from Dockerfile: %v", err)
 	}
 
-	if goModVersion != dockerfileVersion {
+	if !strings.HasPrefix(dockerfileVersion, goModVersion) {
 		t.Errorf("Go version mismatch: go.mod (%s), Dockerfile (%s)", goModVersion, dockerfileVersion)
 	}
 }
@@ -60,7 +61,7 @@ func TestGoVersionMatchingBoringCrypto(t *testing.T) {
 		t.Fatalf("Error getting Go version from Dockerfile_boringcrypto: %v", err)
 	}
 
-	if goModVersion != dockerfileVersion {
+	if !strings.HasPrefix(dockerfileVersion, goModVersion) {
 		t.Errorf("Go version mismatch: go.mod (%s), Dockerfile (%s)", goModVersion, dockerfileVersion)
 	}
 }

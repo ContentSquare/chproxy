@@ -5,7 +5,7 @@ ENV GOPATH=/gocode
 ENV PATH=$PATH:$GOPATH/bin
 ENV GO_VERSION=1.22
 
-RUN mkdir /scr
+RUN mkdir /src
 WORKDIR /src
 
 # golang
