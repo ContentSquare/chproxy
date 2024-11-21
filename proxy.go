@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -21,9 +22,6 @@ import (
 	"github.com/contentsquare/chproxy/log"
 	"github.com/prometheus/client_golang/prometheus"
 )
-
-// tmpDir temporary path to store ongoing queries results
-const tmpDir = "/tmp"
 
 // failedTransactionPrefix prefix added to the failed reason for concurrent queries registry
 const failedTransactionPrefix = "[concurrent query failed]"
@@ -417,7 +415,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 
 	// The response wasn't found in the cache.
 	// Request it from clickhouse.
-	tmpFileRespWriter, err := cache.NewTmpFileResponseWriter(srw, tmpDir)
+	tmpFileRespWriter, err := cache.NewTmpFileResponseWriter(srw, os.TempDir())
 	if err != nil {
 		err = fmt.Errorf("%s: %w; query: %q", s, err, q)
 		respondWith(srw, err, http.StatusInternalServerError)

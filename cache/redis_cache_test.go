@@ -236,7 +236,7 @@ func TestSmallTTLOnBigPayloadAreCacheWithFile(t *testing.T) {
 
 	//simulate a value almost expired
 	redis.SetTTL(key.String(), 2*time.Second)
-	nbFileCacheBeforeGet, err := countFilesWithPrefix(tmpDir, redisTmpFilePrefix)
+	nbFileCacheBeforeGet, err := countFilesWithPrefix(os.TempDir(), redisTmpFilePrefix)
 	if err != nil {
 		t.Fatalf("could not read directory %s", err)
 	}
@@ -245,7 +245,7 @@ func TestSmallTTLOnBigPayloadAreCacheWithFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected cached to have the value")
 	}
-	nbFileCacheAfterGet, err := countFilesWithPrefix(tmpDir, redisTmpFilePrefix)
+	nbFileCacheAfterGet, err := countFilesWithPrefix(os.TempDir(), redisTmpFilePrefix)
 	if err != nil {
 		t.Fatalf("could not read directory %s", err)
 	}
@@ -261,7 +261,7 @@ func TestSmallTTLOnBigPayloadAreCacheWithFile(t *testing.T) {
 		t.Fatalf("got a value different than the expected one len(value)=%d vs len(expectedValue)=%d", len(string(cachedValue)), len(expectedValue))
 	}
 	cachedData.Data.Close()
-	nbFileCacheAfterClose, err := countFilesWithPrefix(tmpDir, redisTmpFilePrefix)
+	nbFileCacheAfterClose, err := countFilesWithPrefix(os.TempDir(), redisTmpFilePrefix)
 	if err != nil {
 		t.Fatalf("could not read directory %s", err)
 	}
