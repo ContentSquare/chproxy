@@ -8,25 +8,24 @@ import (
 	"io"
 	"math/rand"
 	"net"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"golang.org/x/time/rate"
-
 	"github.com/contentsquare/chproxy/cache"
-
-	"net/http"
-	"net/http/httptest"
-	"net/url"
-
 	"github.com/contentsquare/chproxy/config"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/time/rate"
 )
 
 var nbHeavyRequestsInflight int64 = 0
@@ -158,6 +157,44 @@ var goodCfgWithCacheAndMaxErrorReasonSize = &config.Config{
 			},
 			Expire: config.Duration(1000 * 60 * 60),
 		},
+	},
+}
+var goodCfgWithBreaker = &config.Config{
+	Server: config.Server{
+		Metrics: config.Metrics{
+			Namespace: "proxy_test"},
+	},
+	Clusters: []config.Cluster{
+		{
+			Name:   "cluster",
+			Scheme: "http",
+			Replicas: []config.Replica{
+				{
+					Nodes: []string{"localhost:8123"},
+				},
+			},
+			ClusterUsers: []config.ClusterUser{
+				{
+					Name: "web",
+				},
+			},
+		},
+	},
+	Users: []config.User{
+		{
+			Name:      defaultUsername,
+			ToCluster: "cluster",
+			ToUser:    "web",
+		},
+	},
+	ParamGroups: []config.ParamGroup{
+		{Name: "param_test", Params: []config.Param{{Key: "param_key", Value: "param_value"}}},
+	},
+	ConnectionPool: config.ConnectionPool{
+		BreakerOn:            true,
+		BreakerErrorRequests: 1,
+		BreakerFailureRatio:  0.5,
+		BreakerTimeout:       time.Second,
 	},
 }
 
@@ -795,6 +832,17 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 			},
 			transactionFailReason: "unknown error reason",
 		},
+		{
+			cfg:           goodCfgWithBreaker,
+			name:          "error with breaker on",
+			expResponse:   badGatewayResponse,
+			expStatusCode: http.StatusBadGateway,
+			f: func(p *reverseProxy) *http.Response {
+				req := httptest.NewRequest("GET", fmt.Sprintf("%s/badGateway?query=%s", fakeServer.URL, query), nil)
+				return makeCustomRequest(p, req)
+			},
+			transactionFailReason: "unknown error reason1",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -807,6 +855,7 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 			resp := tc.f(proxy)
 			b := bbToString(t, resp.Body)
 			resp.Body.Close()
+
 			if len(tc.cfg.Caches) != 0 {
 				compareTransactionFailReason(t, proxy, tc.cfg.Clusters[0].ClusterUsers[0], query, tc.transactionFailReason)
 			}
@@ -1320,4 +1369,126 @@ func stopAllRequestsInFlight() {
 		time.Sleep(time.Millisecond)
 	}
 	atomic.StoreUint64(&shouldStop, 0)
+}
+
+func Test_CircuitBreaking(t *testing.T) {
+	t.Parallel()
+
+	promLabels := prometheus.Labels{
+		"user": "", "cluster": "", "cluster_user": "", "replica": "", "cluster_node": "",
+	}
+
+	testCases := []struct {
+		name           string
+		statusCodes    []int
+		visitServer    int32
+		connectionPool *config.ConnectionPool
+	}{
+		{
+			name:        "all ok",
+			statusCodes: []int{200, 200, 200, 200, 200, 200, 200, 200, 200, 200},
+			visitServer: 10,
+		},
+		{
+			name:        "50% rate errors all",
+			statusCodes: []int{439, 201, 241, 439, 201, 241, 439, 201, 241},
+			visitServer: 1,
+		},
+		{
+			name:        "50% rate errors float",
+			statusCodes: []int{200, 200, 200, 439, 201, 241, 439, 201, 241, 439, 201, 241},
+			visitServer: 6,
+		},
+		{
+			name:        "10% rate errors all",
+			statusCodes: []int{439, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200},
+			visitServer: 1,
+			connectionPool: &config.ConnectionPool{
+				BreakerOn:            true,
+				BreakerErrorRequests: 1,
+				BreakerFailureRatio:  0.1,
+				BreakerTimeout:       time.Second,
+			},
+		},
+		{
+			name:        "50% rate errors after 5 times",
+			statusCodes: []int{439, 439, 439, 439, 439, 439, 439, 439, 439, 439, 439, 439, 439, 439, 439},
+			visitServer: 5,
+			connectionPool: &config.ConnectionPool{
+				BreakerOn:            true,
+				BreakerErrorRequests: 5,
+				BreakerFailureRatio:  0.5,
+				BreakerTimeout:       time.Second,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var visitServer int32
+			// init test serv
+			serv := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				atomic.AddInt32(&visitServer, 1)
+
+				code := request.URL.Query().Get("code")
+
+				if statusCode, err := strconv.Atoi(code); err == nil {
+					writer.WriteHeader(statusCode) // CH code
+
+					if _, ok := clickhouseBadStatusForCircuitBreaking[statusCode]; ok {
+						writer.Write([]byte("Fail CH"))
+
+						return
+					}
+				}
+
+				writer.Write([]byte("OK"))
+			}))
+			defer serv.Close()
+
+			cfg := *goodCfgWithBreaker
+			if tc.connectionPool != nil {
+				cfg.ConnectionPool = *tc.connectionPool
+			}
+
+			initMetrics(&cfg)
+
+			p, err := getProxy(&cfg)
+			assert.NoError(t, err)
+
+			for _, code := range tc.statusCodes {
+				target := fmt.Sprintf("%s/test?code=%d", serv.URL, code)
+				req := httptest.NewRequest(http.MethodGet, target, http.NoBody)
+
+				rec := httptest.NewRecorder()
+				recNot200 := httptest.NewRecorder()
+
+				cls := testGetCluster()
+				p.proxyRequest(&scope{
+					user:        testGetUser(),
+					clusterUser: testGetClusterUser(),
+					cluster:     cls,
+					host:        cls.getHost(),
+					labels:      promLabels,
+				}, &statResponseWriter{
+					ResponseWriter: &testCloseNotifier{
+						ResponseWriter: rec,
+					},
+					bytesWritten: configSuccess,
+				}, &statResponseWriter{
+					ResponseWriter: recNot200,
+					bytesWritten:   configSuccess,
+				}, req)
+
+				if code == http.StatusOK {
+					assert.Equal(t, http.StatusOK, rec.Result().StatusCode)
+					assert.Equal(t, http.StatusOK, recNot200.Result().StatusCode)
+				} else {
+					assert.NotEqual(t, http.StatusOK, recNot200.Result().StatusCode)
+				}
+			}
+
+			assert.Equal(t, tc.visitServer, visitServer)
+		})
+	}
 }
