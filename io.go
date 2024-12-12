@@ -177,3 +177,49 @@ func (crc *cachedReadCloser) String() string {
 	crc.bLock.Unlock()
 	return s
 }
+
+var _ ResponseWriterWithCode = &checkGrantsResponseWriter{}
+
+type checkGrantsResponseWriter struct {
+	http.ResponseWriter
+
+	statusCode int
+}
+
+func (rw *checkGrantsResponseWriter) SetStatusCode(code int) {
+	rw.statusCode = code
+	rw.ResponseWriter.WriteHeader(rw.statusCode)
+}
+
+func (rw *checkGrantsResponseWriter) StatusCode() int {
+	if rw.statusCode == 0 {
+		return http.StatusOK
+	}
+
+	return rw.statusCode
+}
+
+func (rw *checkGrantsResponseWriter) WriteHeader(statusCode int) {
+	// cache statusCode to keep the opportunity to change it in further
+	rw.statusCode = statusCode
+	rw.SetStatusCode(statusCode)
+}
+
+func (rw *checkGrantsResponseWriter) Write(b []byte) (int, error) {
+	if rw.statusCode == http.StatusOK {
+		return 0, nil
+	}
+
+	n, err := rw.ResponseWriter.Write(b)
+	return n, err
+}
+
+// CloseNotify implements http.CloseNotifier
+func (rw *checkGrantsResponseWriter) CloseNotify() <-chan bool {
+	// The rw.ResponseWriter must implement http.CloseNotifier
+	rwc, ok := rw.ResponseWriter.(http.CloseNotifier)
+	if !ok {
+		panic("BUG: the wrapped ResponseWriter must implement http.CloseNotifier")
+	}
+	return rwc.CloseNotify()
+}
