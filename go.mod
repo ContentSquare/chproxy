@@ -11,7 +11,8 @@ require (
 	github.com/pierrec/lz4 v2.4.0+incompatible
 	github.com/prometheus/client_golang v1.11.1
 	github.com/redis/go-redis/v9 v9.0.2
-	github.com/stretchr/testify v1.8.1
+	github.com/sony/gobreaker/v2 v2.0.0
+	github.com/stretchr/testify v1.8.4
 	golang.org/x/crypto v0.21.0
 	golang.org/x/time v0.3.0
 	gopkg.in/yaml.v2 v2.4.0
