@@ -900,7 +900,8 @@ func TestServe(t *testing.T) {
 			"http allow CORS false",
 			"testdata/http.yml",
 			func(t *testing.T) {
-				req, err := http.NewRequest(http.MethodOptions, "http://127.0.0.1:9090?query=cors", nil)
+				q := "cors"
+				req, err := http.NewRequest("GET", "http://127.0.0.1:9090?query="+url.QueryEscape(q), nil)
 				checkErr(t, err)
 				resp, err := http.DefaultClient.Do(req)
 				checkErr(t, err)
