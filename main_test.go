@@ -900,15 +900,14 @@ func TestServe(t *testing.T) {
 			"http allow CORS false",
 			"testdata/http.yml",
 			func(t *testing.T) {
-				req, err := http.NewRequest(http.MethodOptions, "http://127.0.0.1:9090?query=asd", nil)
+				req, err := http.NewRequest(http.MethodOptions, "http://127.0.0.1:9090?query=cors", nil)
 				checkErr(t, err)
 				resp, err := http.DefaultClient.Do(req)
 				checkErr(t, err)
 				if resp.StatusCode != http.StatusOK {
 					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
 				}
-
-				resp.Body.Close()
+				defer resp.Body.Close()
 				checkHeader(t, resp, "Access-Control-Allow-Origin", "")
 			},
 			startHTTP,
@@ -917,7 +916,7 @@ func TestServe(t *testing.T) {
 			"http allow CORS true without request Origin header",
 			"testdata/http.allow.cors.yml",
 			func(t *testing.T) {
-				q := "SELECT 123"
+				q := "cors"
 				req, err := http.NewRequest("GET", "http://127.0.0.1:9090?query="+url.QueryEscape(q), nil)
 				checkErr(t, err)
 				resp, err := http.DefaultClient.Do(req)
@@ -925,7 +924,7 @@ func TestServe(t *testing.T) {
 				if resp.StatusCode != http.StatusOK {
 					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
 				}
-				resp.Body.Close()
+				defer resp.Body.Close()
 				checkHeader(t, resp, "Access-Control-Allow-Origin", "*")
 			},
 			startHTTP,
@@ -934,7 +933,7 @@ func TestServe(t *testing.T) {
 			"http allow CORS true with request Origin header",
 			"testdata/http.allow.cors.yml",
 			func(t *testing.T) {
-				q := "SELECT 123"
+				q := "cors"
 				req, err := http.NewRequest("GET", "http://127.0.0.1:9090?query="+url.QueryEscape(q), nil)
 				checkErr(t, err)
 				req.Header.Set("Origin", "http://example.com")
@@ -943,8 +942,7 @@ func TestServe(t *testing.T) {
 				if resp.StatusCode != http.StatusOK {
 					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
 				}
-
-				resp.Body.Close()
+				defer resp.Body.Close()
 				checkHeader(t, resp, "Access-Control-Allow-Origin", "http://example.com")
 			},
 			startHTTP,
@@ -1161,6 +1159,8 @@ func fakeCHHandler(w http.ResponseWriter, r *http.Request) {
 		// execute sleep 1.5 sec
 		time.Sleep(1500 * time.Millisecond)
 		fmt.Fprint(w, b)
+	case q == "cors":
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 	default:
 		if strings.Contains(string(query), killQueryPattern) {
 			fakeCHState.kill()
