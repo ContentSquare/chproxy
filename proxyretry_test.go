@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -177,7 +177,7 @@ func (mhs *mockHosts) mockReverseProxy(rw http.ResponseWriter, req *http.Request
 		rw.WriteHeader(http.StatusOK)
 	}
 
-	b, err := ioutil.ReadAll(req.Body)
+	b, err := io.ReadAll(req.Body)
 	if err != nil {
 		mhs.t.Errorf("The req body cannot be read: %v", err)
 	}

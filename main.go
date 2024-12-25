@@ -20,6 +20,8 @@ import (
 	"golang.org/x/crypto/acme/autocert"
 )
 
+const pingEndpoint string = "/ping"
+
 var (
 	configFile = flag.String("config", "", "Proxy configuration filename")
 	version    = flag.Bool("version", false, "Prints current version and exits")
@@ -35,6 +37,7 @@ var (
 	allowedNetworksHTTPS   atomic.Value
 	allowedNetworksMetrics atomic.Value
 	proxyHandler           atomic.Value
+	allowPing              atomic.Bool
 )
 
 func main() {
@@ -68,6 +71,9 @@ func main() {
 	if server.HTTP.ForceAutocertHandler {
 		autocertManager = newAutocertManager(server.HTTPS.Autocert)
 	}
+
+	notifyReady()
+
 	if len(server.HTTPS.ListenAddr) != 0 {
 		go serveTLS(server.HTTPS)
 	}
@@ -76,6 +82,15 @@ func main() {
 	}
 
 	select {}
+}
+
+func notifyReady() {
+	sent, err := sdNotifyReady()
+	if err != nil {
+		log.Errorf("SdNotify error: %s", err)
+	} else if !sent {
+		log.Debugf("SdNotify unsupported (not a systemd service?)")
+	}
 }
 
 func setupReloadConfigWatch() {
@@ -225,8 +240,15 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 		}
 		proxy.refreshCacheMetrics()
 		promHandler.ServeHTTP(rw, r)
-	case "/", "/query":
+	case "/", "/query", pingEndpoint:
 		var err error
+
+		if r.URL.Path == pingEndpoint && !allowPing.Load() {
+			err = fmt.Errorf("ping is not allowed")
+			respondWith(rw, err, http.StatusForbidden)
+			return
+		}
+
 		// nolint:forcetypeassert // We will cover this by tests as we control what is stored.
 		proxyHandler := proxyHandler.Load().(*ProxyHandler)
 		r.RemoteAddr = proxyHandler.GetRemoteAddr(r)
@@ -284,6 +306,7 @@ func applyConfig(cfg *config.Config) error {
 	allowedNetworksHTTPS.Store(&cfg.Server.HTTPS.AllowedNetworks)
 	allowedNetworksMetrics.Store(&cfg.Server.Metrics.AllowedNetworks)
 	proxyHandler.Store(NewProxyHandler(&cfg.Server.Proxy))
+	allowPing.Store(cfg.AllowPing)
 	log.SetDebug(cfg.LogDebug)
 	log.Infof("Loaded config:\n%s", cfg)
 

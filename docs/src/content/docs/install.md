@@ -15,7 +15,7 @@ Just download the latest stable binary, unpack and run it with the desired [conf
 Chproxy is written in [Go](https://golang.org/). The easiest way to install it from sources is:
 
 ```console
-go get -u github.com/ContentSquare/chproxy
+go get -u github.com/contentsquare/chproxy
 ```
 
 If you don't have Go installed on your system - follow [this guide](https://golang.org/doc/install).
@@ -66,4 +66,33 @@ Flags
 Example:
 ```console
 docker run -d -v $(PWD)/config.yml:/opt/config.yml -p 9090:9090 chproxy-test -config /opt/config.yml
+```
+
+### systemd service
+
+Example systemd service configuration:
+
+```
+[Unit]
+Description=Chproxy
+Documentation=https://www.chproxy.org/
+Requires=network.target
+After=network.target
+
+[Service]
+Type=notify
+User=chproxy
+Group=chproxy
+ExecStart=/usr/bin/chproxy -config /etc/chproxy/chproxy.yml
+TimeoutSec=30
+Restart=on-failure
+
+# quick response on bad config
+TimeoutStartSec=5
+
+# avoid resource intensive cycles
+RestartSec=30
+
+[Install]
+WantedBy=default.target
 ```

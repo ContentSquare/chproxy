@@ -5,6 +5,46 @@ title: Changelog
 Since v1.17.1, chproxy follows [semantic versioning](https://semver.org/).
 Don't expect breaking changes between 2 releases if they have the same major version.
 
+### <a id="231"></a> release 1.26.4 2024-05-26
+
+#### Upgrade Go version
+* Go 1.22
+
+#### Improvement
+* add log_comment to allowedParams [#432](https://github.com/ContentSquare/chproxy/pull/432)
+
+### <a id="231"></a> release 1.26.3 2024-04-22
+
+#### Improvement
+* allow block user by negative rate [#423](https://github.com/ContentSquare/chproxy/pull/423)
+* add metrics for proxy [#427](https://github.com/ContentSquare/chproxy/pull/427)
+
+### <a id="231"></a> release 1.26.2 2024-04-04
+
+#### Improvement
+* add a config pool for redis connections [#409](https://github.com/ContentSquare/chproxy/issues/409)
+
+
+### <a id="231"></a> release 1.26.1 2024-02-26
+
+#### Bug fix
+* Fix missing query details in logs [#397](https://github.com/ContentSquare/chproxy/issues/397)
+
+#### Improvement
+* Hide Redis password in info logs when redis username is empty [#399](https://github.com/ContentSquare/chproxy/issues/322)
+
+
+### <a id="231"></a> release 1.26.0 2024-01-16
+
+#### New Feature
+* Notify systemd when chproxy is ready [#378](https://github.com/ContentSquare/chproxy/pull/378)
+* Support db_index in Redis cache configuration [#380](https://github.com/ContentSquare/chproxy/pull/380)
+* New max_error_reason_size configuration option to limit the maximum size read for error responses [#385](https://github.com/ContentSquare/chproxy/issues/385)
+
+#### Improvement
+* [code quality] strengthen linter rules [#365](https://github.com/ContentSquare/chproxy/pull/365)
+* [code quality] Remove deprecated ioutil usage [#374](https://github.com/ContentSquare/chproxy/pull/374)
+
 ### <a id="230"></a> release 1.25.0, 2023-09-04
 
 #### New Feature

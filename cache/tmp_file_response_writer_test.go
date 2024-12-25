@@ -1,7 +1,7 @@
 package cache
 
 import (
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -57,7 +57,7 @@ func init() {
 
 func TestFileCreation(t *testing.T) {
 	srw := newFakeResponse()
-	files, _ := ioutil.ReadDir(testTmpWriterDir)
+	files, _ := os.ReadDir(testTmpWriterDir)
 	nbFileBefore := len(files)
 
 	tmpFileRespWriter, err := NewTmpFileResponseWriter(srw, testTmpWriterDir)
@@ -67,7 +67,7 @@ func TestFileCreation(t *testing.T) {
 		return
 	}
 
-	files, _ = ioutil.ReadDir(testTmpWriterDir)
+	files, _ = os.ReadDir(testTmpWriterDir)
 	nbFileAfter := len(files)
 	if nbFileAfter == nbFileBefore {
 		t.Fatalf("Error while creating tmp file")
@@ -77,7 +77,7 @@ func TestFileCreation(t *testing.T) {
 
 func TestFileRemoval(t *testing.T) {
 	srw := newFakeResponse()
-	files, _ := ioutil.ReadDir(testTmpWriterDir)
+	files, _ := os.ReadDir(testTmpWriterDir)
 	nbFileBefore := len(files)
 
 	tmpFileRespWriter, err := NewTmpFileResponseWriter(srw, testTmpWriterDir)
@@ -87,7 +87,7 @@ func TestFileRemoval(t *testing.T) {
 	}
 	tmpFileRespWriter.Close()
 
-	files, _ = ioutil.ReadDir(testTmpWriterDir)
+	files, _ = os.ReadDir(testTmpWriterDir)
 	nbFileAfter := len(files)
 	if nbFileAfter != nbFileBefore {
 		t.Fatalf("Error while deleting tmp file")
@@ -147,7 +147,7 @@ func TestWriteThenReadContent(t *testing.T) {
 		return
 	}
 	tmpFileRespWriter.ResetFileOffset()
-	buffer, err := ioutil.ReadAll(reader)
+	buffer, err := io.ReadAll(reader)
 	if err != nil {
 		t.Fatalf("could not read tmp file:%s", err)
 		return

@@ -28,7 +28,7 @@ run: build
 
 lint:
 	go vet $(pkgs)
-	go list ./... | grep -v /vendor/ | xargs -n1 golint
+	golangci-lint run
 
 tidy:
 	go mod tidy

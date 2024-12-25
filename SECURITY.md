@@ -2,33 +2,27 @@
 Hash: SHA256
 
 Contact: mailto:security@contentsquare.com
-
-Expires: 2024-08-11T22:59:00.000Z
-
+Expires: 2028-01-31T21:59:00.000Z
 Encryption: https://contentsquare.com/gpg/security-at-contentsquare-publickey.txt
-
+Acknowledgments: https://yeswehack.com/programs/contentsquare-bug-bounty-program
 Preferred-Languages: en
-
 Canonical: https://contentsquare.com/.well-known/security.txt
-
 Policy: https://contentsquare.com/disclosure
-
 Hiring: https://jobs.lever.co/contentsquare
-
 -----BEGIN PGP SIGNATURE-----
 
-iQJPBAEBCAA5FiEE0tOBX/YZ1od6va0LGtuuooPyGHUFAmFN5sobHHNlY3VyaXR5
-QGNvbnRlbnRzcXVhcmUuY29tAAoJEBrbrqKD8hh1LkoQAJ3MEnIgeYH2P6e6fICm
-l2PHYq6V8DTidf71RLuuiYYwN4tzvxarPxXVCt2O1wnrgDlR2ZxNZUBXkz+PQgRX
-88GZLybeaKsKoKobRx8YuN6PuEyXGSs7ogL0aXPtwxJIQlmiPmBgHMB3BxOh6+Wr
-i2IcAVjK2hfLCU+71tDaU4cm+tBdkCmjoaeAg7W+yDdI+VTg62PNrB9JrKDq8Un+
-iJY1qeAp//1ZGrFmxSLmIC/QMmZPTK3QZRQgvHCKqyzuS2f1vYEeGTOmL9XhiaSb
-Y/oEri/EZ8dOulAKkyidlJFV4A1goHziIf64fItdgfBKSMP+++NjCYyFZBMaJ9MI
-h7wZYZs9noOOGnvxHgzr9WEF8hQgyDxmpZ9evSZ0rAiVj6UKcG7CF4D2D7pu/QAO
-NDXrOQ2LtOLS/80bltVZPMhGGzizdzSV2ws2TwupQLt/gO0zKJl3Ivl7dGY3cawP
-lvyN3NQsW0rO+n2jMCaW0AJK4msEkVmH+T/plvQkO5EAXChjDgoxYcj5J/xi6dkC
-EaFL63JIkOi0sb3s4JpWEIV/sxBnQU4Ylv+rROgKqzOyZ4y5xGvquPAM8qMOZLwq
-DPTXfDc8G2DOOOWPorIpXLeiDZHSwcABsOvg/57MMS91tXeyyvCnNzsAchAHxSN8
-D/MpHvTKTGRYseHGCh7/+pel
-=FmhX
+iQJPBAEBCAA5FiEE3sFHm5grRbsnnm8MUN5E/tG6BRsFAmZHI7MbHHNlY3VyaXR5
+QGNvbnRlbnRzcXVhcmUuY29tAAoJEFDeRP7RugUbfiIP/R5qRAifa4QtVMV2MuvS
+s3McW3+zs+cUXJ1fRJ/q5tB7H4GaMRLxiVvtnmSuDKjrur22FGA1eh4s+c1Fatov
+m1abOPuxIJiWXyC433ATmrPWM97EbjzaBDT2uyb9Jg9dOum/fj9s+DIXvYhP+ZME
+aw5Biteo4WkarTg/QOqDMYWoOsMtpOLOccTdJ8NIcTxACuA7Y9zdhK03YDTxMSqh
+9cENKyqLLV/WXLP8e05GwJDqdH899Sz+tvZQb9YpGk+oTEUS8mGkNV7RAQzMkS0n
+6UeKcuOz3B7AsdWGyHFMDZV7ElHrtu1x5Q+5LPKsa5cbO/MrGq/TTSs92tFUpCnA
+PaUfStQ64lM9OeTO5AkvfkIvWQhmTOZVXvAYR+Bk7Q7/SC4SZyZy8vfk4vOA4tKC
+eJ8NCgax1qHt4k9SmEUNNdCEF144gOW+buC/buLJo5AAdCxBSnI2jbc2oU4f2OeL
+EL/M04U19RhxtbdO9zJtlSF0hNvGkNV9fQYhUVNcAPeKeW89AWpthuoL6fLGhEyG
+pMjE2hdWL60U4jZNaskCsXSitdns1VXZgn8m6frmbpb1u3JhqXnPHhdz9jgUplAt
+4v69gNcXle2MEbRo/KHnAkqM3XHF/7bPGghYd1rQ/P+QnZvBQyGX1BLHFhoS4E8q
+n+AHgwUPeQYSIkcst86/D6HX
+=HBzQ
 -----END PGP SIGNATURE-----

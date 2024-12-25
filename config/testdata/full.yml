@@ -55,6 +55,7 @@ caches:
     redis:
       username: chproxy
       password: password
+      pool_size: 10
       addresses:
         - 127.0.0.1:16379
     max_payload_size: 107374182400
@@ -68,6 +69,8 @@ network_groups:
 
   - name: "reporting-apps"
     networks: ["10.10.10.0/24"]
+
+max_error_reason_size: 100Mb
 
 # Optional lists of query params to send with each proxied request to ClickHouse.
 # These lists may be used for overriding ClickHouse settings on a per-user basis.

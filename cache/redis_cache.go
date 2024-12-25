@@ -34,8 +34,6 @@ const statsTimeout = 500 * time.Millisecond
 // result from redis in a temporary files before sending it to the http response
 const minTTLForRedisStreamingReader = 15 * time.Second
 
-// tmpDir temporary path to store ongoing queries results
-const tmpDir = "/tmp"
 const redisTmpFilePrefix = "chproxyRedisTmp"
 
 func newRedisCache(client redis.UniversalClient, cfg config.Cache) *redisCache {
@@ -155,7 +153,7 @@ func (r *redisCache) readResultsAboveLimit(offset int, stringKey string, metadat
 	// nb: it would be better to retry the flow if such a failure happened but this requires a huge refactoring of proxy.go
 
 	if ttl <= minTTLForRedisStreamingReader {
-		fileStream, err := newFileWriterReader(tmpDir)
+		fileStream, err := newFileWriterReader(os.TempDir())
 		if err != nil {
 			return nil, err
 		}
