@@ -2,31 +2,32 @@ name: go-test
 
 on:
   push:
-    branches: [ master ]
+    branches:
+      - master
   pull_request:
-    branches: [ master ]
+    branches:
+      - master
 
 jobs:
-
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v2
-      with:
-        go-version: 1.19
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.22
 
-    - name: Build
-      run: go build -v ./...
+      - name: Build
+        run: go build -v ./...
 
-    - name: Test
-      run: go test -v ./...
+      - name: Test
+        run: go test -v ./...
 
-    - name: Update coverage report
-      uses: ncruces/go-coverage-report@21fa4b59396f242b81896a3cd212a463589b6742
-      with:
-        report: 'true'
-        chart: 'true'
-        amend: 'false'
+      - name: Update coverage report
+        uses: ncruces/go-coverage-report@21fa4b59396f242b81896a3cd212a463589b6742
+        with:
+          report: 'false'
+          chart: 'true'
+          amend: 'false'

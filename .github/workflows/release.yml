@@ -3,9 +3,8 @@ name: goreleaser
 on:
   push:
     tags:
-      - "v*"
-    tags_ignore:
-      - "*-test"
+      - 'v*'
+      - '!*-test'
 
 permissions:
   contents: write
@@ -14,17 +13,15 @@ jobs:
   goreleaser:
     runs-on: ubuntu-latest
     steps:
-      -
-        name: Checkout
-        uses: actions/checkout@v2
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      -
-        name: Set up Go
-        uses: actions/setup-go@v2
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
-          go-version: 1.19
+          go-version: 1.22
 
       - name: Install cross-compile package
         run: |
@@ -32,24 +29,21 @@ jobs:
           sudo apt install -y gcc gcc-aarch64-linux-gnu musl build-essential
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3
 
-      -
-        name: Docker login
-        run: |
-          docker login -u ${DOCKER_USERNAME} -p ${DOCKER_PASSWORD}
-        env:
-          DOCKER_USERNAME: ${{ secrets.docker_username }}
-          DOCKER_PASSWORD: ${{ secrets.docker_password }}
+      - name: Docker login
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.docker_username }}
+          password: ${{ secrets.docker_password }}
 
-      -
-        name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v4
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
           version: latest
-          args: release --debug
+          args: release --verbose
         env:
-          BUILD_TAG: "latest"
+          BUILD_TAG: 'latest'
           GOPATH: ${{ env.GOPATH }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
