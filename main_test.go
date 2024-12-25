@@ -909,7 +909,7 @@ func TestServe(t *testing.T) {
 					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
 				}
 				defer resp.Body.Close()
-				checkHeader(t, resp, "Access-Control-Allow-Origin", "")
+				checkHeader(t, resp, "Access-Control-Allow-Origin", "*")
 			},
 			startHTTP,
 		},
