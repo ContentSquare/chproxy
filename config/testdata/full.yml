@@ -3,6 +3,9 @@
 # By default debug logs are disabled.
 log_debug: true
 
+log_mask:
+  - secret
+
 # Whether to ignore security checks during config parsing.
 #
 # By default security checks are enabled.

@@ -881,6 +881,8 @@ users:
   - 1.2.3.0/24
   deny_https: true
 log_debug: true
+log_mask:
+- secret
 hack_me_please: true
 network_groups:
 - name: office
