@@ -93,6 +93,8 @@ var fullConfig = Config{
 	},
 	LogDebug: true,
 
+	LogMask: []string{"secret"},
+
 	Clusters: []Cluster{
 		{
 			Name:   "first cluster",
