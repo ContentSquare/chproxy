@@ -119,6 +119,9 @@ func withoutSensitiveInfo(config *Config) *Config {
 			c.Caches[i].Redis.Password = pswPlaceHolder
 		}
 	}
+	for i := range config.LogMask {
+		c.LogMask[i] = pswPlaceHolder
+	}
 	return c
 }
 
