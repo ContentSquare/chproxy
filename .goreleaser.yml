@@ -1,4 +1,6 @@
 ---
+version: 2
+
 before:
   hooks:
     - go mod tidy
@@ -45,8 +47,8 @@ dockers:
 docker_manifests:
   - name_template: "posthog/chproxy:{{ .Tag }}"
     image_templates:
-      - "posthog/chproxy:{{ .Version }}-amd64"
-      - "posthog/chproxy:{{ .Version }}-arm64"
+      - "posthog/chproxy:{{ .Tag }}-amd64"
+      - "posthog/chproxy:{{ .Tag }}-arm64"
 
 snapshot:
   version_template: "{{ .FullCommit }}-SNAPSHOT"
