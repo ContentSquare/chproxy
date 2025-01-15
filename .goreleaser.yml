@@ -15,6 +15,7 @@ builds:
     goarch:
       - amd64
       - arm64
+      - arm64v8
     flags:
       - "-tags={{ .Env.BUILD_TAG }}"
     ldflags:
@@ -30,25 +31,31 @@ dockers:
   - goos: linux
     goarch: amd64
     image_templates:
-      - "contentsquareplatform/chproxy:{{ .Tag }}"
-      - "contentsquareplatform/chproxy:{{ .Tag }}-amd64"
+      - "posthog/chproxy:{{ .Tag }}-amd64"
     use: buildx
     build_flag_templates:
       - "--platform=linux/amd64"
-#  - goos: linux
-#    goarch: arm64
-#    image_templates:
-#      - "contentsquareplatform/chproxy:{{ .Tag }}-arm64"
-#    use: buildx
-#    build_flag_templates:
-#      - "--platform=linux/arm64"
-#  - goos: linux
-#    goarch: arm64
-#    image_templates:
-#      - "contentsquareplatform/chproxy:{{ .Tag }}-arm64v8"
-#    use: buildx
-#    build_flag_templates:
-#      - "--platform=linux/arm64/v8"
+  - goos: linux
+    goarch: arm64
+    image_templates:
+      - "posthog/chproxy:{{ .Tag }}-arm64"
+    use: buildx
+    build_flag_templates:
+      - "--platform=linux/arm64"
+  - goos: linux
+    goarch: arm64
+    image_templates:
+      - "posthog/chproxy:{{ .Tag }}-arm64v8"
+    use: buildx
+    build_flag_templates:
+      - "--platform=linux/arm64/v8"
+
+docker_manifests:
+  - name_template: "posthog/chproxy:{{ .Tag }}"
+    image_templates:
+      - "posthog/chproxy:{{ .Version }}-amd64"
+      - "posthog/chproxy:{{ .Version }}-arm64"
+      - "posthog/chproxy:{{ .Version }}-arm64v8"
 
 snapshot:
   name_template: "{{ .FullCommit }}-SNAPSHOT"
@@ -57,7 +64,7 @@ release:
   # Repo in which the release will be created.
   # Default is extracted from the origin remote URL.
   github:
-    owner: ContentSquare
+    owner: PostHog
     name: chproxy
 
   # If set to true, will not auto-publish the release.
