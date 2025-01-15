@@ -408,7 +408,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 				log.Debugf("%s: cache miss after awaiting concurrent query", s)
 			}
 		} else if transactionStatus.State.IsFailed() {
-			respondWith(srw, fmt.Errorf(transactionStatus.FailReason), http.StatusInternalServerError)
+			respondWith(srw, errors.New(transactionStatus.FailReason), http.StatusInternalServerError)
 			return
 		}
 	}
@@ -486,7 +486,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 		}
 	} else {
 		// Do not cache responses greater than max payload size.
-		if contentLength > int64(s.user.cache.MaxPayloadSize) {
+		if contentLength > int64(s.user.cache.MaxPayloadSize) { //nolint:gosec
 			cacheSkipped.With(labels).Inc()
 			log.Infof("%s: Request will not be cached. Content length (%d) is greater than max payload size (%d)", s, contentLength, s.user.cache.MaxPayloadSize)
 
@@ -633,7 +633,7 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 		return err
 	}
 
-	rp.maxErrorReasonSize = int64(cfg.MaxErrorReasonSize)
+	rp.maxErrorReasonSize = int64(cfg.MaxErrorReasonSize) //nolint:gosec
 
 	caches := make(map[string]*cache.AsyncCache, len(cfg.Caches))
 	defer func() {

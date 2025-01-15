@@ -62,7 +62,7 @@ func RespondWithData(rw http.ResponseWriter, data io.Reader, metadata cache.Cont
 
 	h.Set("Content-Length", fmt.Sprintf("%d", metadata.Length))
 	if ttl > 0 {
-		expireSeconds := uint(ttl / time.Second)
+		expireSeconds := uint64(ttl.Seconds()) //nolint:gosec
 		h.Set("Cache-Control", fmt.Sprintf("max-age=%d", expireSeconds))
 	}
 

@@ -40,7 +40,7 @@ func (r *redisTransactionRegistry) Complete(key *Key) error {
 }
 
 func (r *redisTransactionRegistry) Fail(key *Key, reason string) error {
-	b := make([]byte, 0, uint32(len(reason))+1)
+	b := make([]byte, 0, len(reason)+1)
 	b = append(b, byte(transactionFailed))
 	b = append(b, []byte(reason)...)
 	return r.updateTransactionState(key, b)

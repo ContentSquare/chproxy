@@ -30,3 +30,4 @@ type CachedData struct {
 
 // ErrMissing is returned when the entry isn't found in the cache.
 var ErrMissing = errors.New("missing cache entry")
+var ErrTooBig = errors.New("int overflow")

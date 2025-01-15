@@ -15,7 +15,6 @@ builds:
     goarch:
       - amd64
       - arm64
-      - arm64v8
     flags:
       - "-tags={{ .Env.BUILD_TAG }}"
     ldflags:
@@ -42,23 +41,15 @@ dockers:
     use: buildx
     build_flag_templates:
       - "--platform=linux/arm64"
-  - goos: linux
-    goarch: arm64
-    image_templates:
-      - "posthog/chproxy:{{ .Tag }}-arm64v8"
-    use: buildx
-    build_flag_templates:
-      - "--platform=linux/arm64/v8"
 
 docker_manifests:
   - name_template: "posthog/chproxy:{{ .Tag }}"
     image_templates:
       - "posthog/chproxy:{{ .Version }}-amd64"
       - "posthog/chproxy:{{ .Version }}-arm64"
-      - "posthog/chproxy:{{ .Version }}-arm64v8"
 
 snapshot:
-  name_template: "{{ .FullCommit }}-SNAPSHOT"
+  version_template: "{{ .FullCommit }}-SNAPSHOT"
 
 release:
   # Repo in which the release will be created.

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"math/rand"
 	"os"
 	"regexp"
@@ -70,7 +71,7 @@ func (r *redisCache) nbOfKeys() uint64 {
 	if err != nil {
 		log.Errorf("failed to fetch nb of keys in redis: %s", err)
 	}
-	return uint64(nbOfKeys)
+	return uint64(nbOfKeys) //nolint:gosec
 }
 
 func (r *redisCache) nbOfBytes() uint64 {
@@ -91,7 +92,7 @@ func (r *redisCache) nbOfBytes() uint64 {
 		}
 	}
 
-	return uint64(cacheSize)
+	return uint64(cacheSize) //nolint:gosec
 }
 
 func (r *redisCache) Get(key *Key) (*CachedData, error) {
@@ -145,7 +146,7 @@ func (r *redisCache) Get(key *Key) (*CachedData, error) {
 func (r *redisCache) readResultsAboveLimit(offset int, stringKey string, metadata *ContentMetadata, ttl time.Duration) (*CachedData, error) {
 	// since the cached results in redis are too big, we can't fetch all of them because of the memory overhead.
 	// We will create an io.reader that will fetch redis bulk by bulk to reduce the memory usage.
-	redisStreamreader := newRedisStreamReader(uint64(offset), r.client, stringKey, metadata.Length)
+	redisStreamreader := newRedisStreamReader(uint64(offset), r.client, stringKey, metadata.Length) //nolint:gosec
 
 	// But before that, since the usage of the reader could take time and the object in redis could disappear btw 2 fetches
 	// we need to make sure the TTL will be long enough to avoid nasty side effects
@@ -191,8 +192,12 @@ type ioReaderDecorator struct {
 func (m ioReaderDecorator) Close() error {
 	return nil
 }
+
 func (r *redisCache) encodeString(s string) []byte {
-	n := uint32(len(s))
+	if len(s) > math.MaxUint32 {
+		panic("cannot fit len(s) in uint32")
+	}
+	n := uint32(len(s)) //nolint:gosec
 
 	b := make([]byte, 0, n+4)
 	b = append(b, byte(n>>24), byte(n>>16), byte(n>>8), byte(n))
@@ -229,6 +234,9 @@ func (r *redisCache) decodeMetadata(b []byte) (*ContentMetadata, int, error) {
 		return nil, 0, &RedisCacheCorruptionError{}
 	}
 	cLength := uint64(b[7]) | (uint64(b[6]) << 8) | (uint64(b[5]) << 16) | (uint64(b[4]) << 24) | uint64(b[3])<<32 | (uint64(b[2]) << 40) | (uint64(b[1]) << 48) | (uint64(b[0]) << 56)
+	if cLength > math.MaxInt64 {
+		return nil, 0, fmt.Errorf("redis metadata length: %w", ErrTooBig)
+	}
 	offset := 8
 	cType, sizeCType, err := r.decodeString(b[offset:])
 	if err != nil {
@@ -388,8 +396,11 @@ func (r *redisStreamReader) Read(destBuf []byte) (n int, err error) {
 func (r *redisStreamReader) readRangeFromRedis(bufSize int) error {
 	ctx, cancelFunc := context.WithTimeout(context.Background(), getTimeout)
 	defer cancelFunc()
-	newBuf, err := r.client.GetRange(ctx, r.key, int64(r.redisOffset), int64(r.redisOffset+uint64(bufSize))).Result()
-	r.redisOffset += uint64(len(newBuf))
+	if r.redisOffset+uint64(bufSize) > math.MaxInt64 { //nolint:gosec
+		return fmt.Errorf("redis offset and size: %w", ErrTooBig)
+	}
+	newBuf, err := r.client.GetRange(ctx, r.key, int64(r.redisOffset), int64(r.redisOffset+uint64(bufSize))).Result() //nolint:gosec
+	r.redisOffset += uint64(len(newBuf))                                                                              //nolint:gosec
 	if errors.Is(err, redis.Nil) || len(newBuf) == 0 {
 		r.isRedisEOF = true
 	}
