@@ -47,4 +47,3 @@ jobs:
           BUILD_TAG: 'latest'
           GOPATH: ${{ env.GOPATH }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-

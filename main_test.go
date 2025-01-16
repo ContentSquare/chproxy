@@ -248,7 +248,7 @@ func TestServe(t *testing.T) {
 			"testdata/https.cache.yml",
 			func(t *testing.T) {
 				// do request which response must be cached
-				queryURLParam := "SELECT * FROM system.numbers"
+				queryURLParam := "select * from system.numbers"
 				queryBody := "LIMIT 10"
 				expectedQuery := queryURLParam + "\n" + queryBody
 				buf := bytes.NewBufferString(queryBody)
@@ -443,21 +443,36 @@ func TestServe(t *testing.T) {
 			startHTTP,
 		},
 		{
-			"http POST request with session id",
+			"http POST request with session_id and session_timeout",
 			"testdata/http-session-id.yml",
 			func(t *testing.T) {
+				sessionName := "name"
+				sessionTimeout := 900
 				req, err := http.NewRequest("POST",
-					"http://127.0.0.1:9090/?query_id=45395792-a432-4b92-8cc9-536c14e1e1a9&extremes=0&session_id=default-session-id233",
-					bytes.NewBufferString("SELECT * FROM system.numbers LIMIT 10"))
+					"http://127.0.0.1:9090/?query_id=45395792-a432-4b92-8cc9-536c14e1e1a9&extremes=0&session_id="+sessionName+"&session_timeout="+strconv.Itoa(sessionTimeout),
+					bytes.NewBufferString("select * from system.numbers LIMIT 10"))
 				req.Header.Set("Content-Type", "application/x-www-form-urlencoded;") // This makes it work
 
 				checkErr(t, err)
 				resp, err := http.DefaultClient.Do(req)
 				checkErr(t, err)
 
-				if resp.StatusCode != http.StatusOK || resp.StatusCode != http.StatusOK && resp.Header.Get("X-Clickhouse-Server-Session-Id") == "" {
+				if resp.StatusCode != http.StatusOK {
 					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
 				}
+
+				// verify correctness of session_id
+				_sessionName := resp.Header.Get("X-Clickhouse-Server-Session-Id")
+				if _sessionName != sessionName {
+					t.Fatalf("unexpected value of X-Clickhouse-Server-Session-Id: %s; expected: %s", _sessionName, sessionName)
+				}
+
+				// verify correctness of session_id
+				_sessionTimeout, _ := strconv.Atoi(resp.Header.Get("X-Clickhouse-Server-Session-Timeout"))
+				if _sessionTimeout != sessionTimeout {
+					t.Fatalf("unexpected value of X-Clickhouse-Server-Session-Timeout: %d; expected: %d", _sessionTimeout, sessionTimeout)
+				}
+
 				resp.Body.Close()
 			},
 			startHTTP,
@@ -548,7 +563,7 @@ func TestServe(t *testing.T) {
 			func(t *testing.T) {
 				var buf bytes.Buffer
 				zw := gzip.NewWriter(&buf)
-				_, err := zw.Write([]byte("SELECT * FROM system.numbers LIMIT 10"))
+				_, err := zw.Write([]byte("select * from system.numbers LIMIT 10"))
 				checkErr(t, err)
 				zw.Close()
 				req, err := http.NewRequest("POST", "http://127.0.0.1:9090", &buf)
@@ -569,7 +584,7 @@ func TestServe(t *testing.T) {
 			"http POST request",
 			"testdata/http.yml",
 			func(t *testing.T) {
-				buf := bytes.NewBufferString("SELECT * FROM system.numbers LIMIT 10")
+				buf := bytes.NewBufferString("select * from system.numbers LIMIT 10")
 				req, err := http.NewRequest("POST", "http://127.0.0.1:9090", buf)
 				checkErr(t, err)
 				resp, err := http.DefaultClient.Do(req)
@@ -587,7 +602,7 @@ func TestServe(t *testing.T) {
 			func(t *testing.T) {
 				var buf bytes.Buffer
 				zw := gzip.NewWriter(&buf)
-				_, err := zw.Write([]byte("SELECT * FROM system.numbers LIMIT 1000"))
+				_, err := zw.Write([]byte("select * from system.numbers LIMIT 1000"))
 				checkErr(t, err)
 				zw.Close()
 				req, err := http.NewRequest("POST", "http://127.0.0.1:9090", &buf)

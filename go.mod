@@ -4,7 +4,6 @@ go 1.22
 
 require (
 	github.com/alicebob/miniredis/v2 v2.21.0
-	github.com/coreos/go-systemd/v22 v22.5.0
 	github.com/google/go-cmp v0.5.7
 	github.com/klauspost/compress v1.15.11
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
