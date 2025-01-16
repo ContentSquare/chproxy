@@ -918,18 +918,5 @@ func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 	}
 
 	s := newScope(req, u, c, cu, sessionId, sessionTimeout)
-
-	if s.user.reqPacketSizeTokensBurst > 0 || s.clusterUser.reqPacketSizeTokensBurst > 0 {
-		s.requestPacketSize = int(req.ContentLength)
-		if s.requestPacketSize < 0 {
-			// if ContentLength is unknown, get the length of query
-			q, err := getFullQuery(req)
-			if err != nil {
-				return nil, http.StatusBadRequest, fmt.Errorf("%s: cannot read query: %w", s, err)
-			}
-			s.requestPacketSize = len(q)
-		}
-	}
-
 	return s, 0, nil
 }

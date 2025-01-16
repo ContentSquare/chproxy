@@ -86,6 +86,8 @@ func newScope(req *http.Request, u *user, c *cluster, cu *clusterUser, sessionId
 			"replica":      h.ReplicaName(),
 			"cluster_node": h.Host(),
 		},
+
+		requestPacketSize: max(0, int(req.ContentLength)),
 	}
 	return s
 }

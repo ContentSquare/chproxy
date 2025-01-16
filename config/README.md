@@ -382,11 +382,11 @@ max_execution_time: <duration> | optional | default = 120s
 # By default there are no per-minute limits
 requests_per_minute: <int> | optional | default = 0
 
-# The burst of request packet size token bucket for user
+# The burst of request packet body size token bucket for user
 # By default there are no request packet size limits
 request_packet_size_tokens_burst: <byte_size> | optional | default = 0
 
-# The request packet size tokens produced rate per second for user
+# The request packet body size tokens produced rate per second for user
 # By default there are no request packet size limits
 request_packet_size_tokens_rate: <byte_size> | optional | default = 0
 
