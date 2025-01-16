@@ -209,7 +209,7 @@ func executeWithRetry(
 	var err error
 	// Use readAndRestoreRequestBody to read the entire request body into a byte slice,
 	// and to restore req.Body so that it can be reused later in the code.
-	if maxRetry > 0 && req.Method == http.MethodPost {
+	if maxRetry > 0 {
 		body, err = readAndRestoreRequestBody(req)
 		if err != nil {
 			since := time.Since(startTime).Seconds()
