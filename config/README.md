@@ -347,8 +347,9 @@ kill_query_user: <kill_query_user_config> | optional
 heartbeat: <heartbeat_config> | optional
 
 # RetryNumber - user configuration for query retry when one host cannot respond.
-# By default there are no query retry, because it impacts performance when copying
-# the request body for reuse (especially in large-payload insert).
+# By default there are no query retries.
+# Note: Retrying may impact performance if there are many large-payload requests (such as inserts),
+# because it requires copying the request body for reuse.
 retry_number: 0
 
 ```
