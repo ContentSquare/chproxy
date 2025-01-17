@@ -26,9 +26,9 @@ jobs:
       run: go test -v ./...
 
     - name: Update coverage report
+      if: github.ref == 'refs/heads/master'
       uses: ncruces/go-coverage-report@21fa4b59396f242b81896a3cd212a463589b6742
       with:
         report: 'false'
         chart: 'true'
         amend: 'false'
-
