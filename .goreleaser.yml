@@ -1,4 +1,5 @@
 ---
+version: 2
 before:
   hooks:
     - go mod tidy
@@ -27,31 +28,25 @@ builds:
       - -trimpath={{.Env.GOPATH}}/src
 
 dockers:
-  - goos: linux
-    goarch: amd64
-    image_templates:
-      - "contentsquareplatform/chproxy:{{ .Tag }}"
+  - image_templates:
       - "contentsquareplatform/chproxy:{{ .Tag }}-amd64"
     use: buildx
     build_flag_templates:
       - "--platform=linux/amd64"
-#  - goos: linux
-#    goarch: arm64
-#    image_templates:
-#      - "contentsquareplatform/chproxy:{{ .Tag }}-arm64"
-#    use: buildx
-#    build_flag_templates:
-#      - "--platform=linux/arm64"
-#  - goos: linux
-#    goarch: arm64
-#    image_templates:
-#      - "contentsquareplatform/chproxy:{{ .Tag }}-arm64v8"
-#    use: buildx
-#    build_flag_templates:
-#      - "--platform=linux/arm64/v8"
+  - image_templates:
+      - "contentsquareplatform/chproxy:{{ .Tag }}-arm64v8"
+    use: buildx
+    build_flag_templates:
+      - "--platform=linux/arm64/v8"
+
+docker_manifests:
+  - name_template: "contentsquareplatform/chproxy:{{ .Tag }}"
+    image_templates:
+      - "contentsquareplatform/chproxy:{{ .Tag }}-amd64"
+      - "contentsquareplatform/chproxy:{{ .Tag }}-arm64v8"
 
 snapshot:
-  name_template: "{{ .FullCommit }}-SNAPSHOT"
+  version_template: "{{ .FullCommit }}-SNAPSHOT"
 
 release:
   # Repo in which the release will be created.
