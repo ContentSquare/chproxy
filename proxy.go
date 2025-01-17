@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -49,7 +50,7 @@ type reverseProxy struct {
 	maxErrorReasonSize  int64
 }
 
-func newReverseProxy(cfgCp *config.ConnectionPool) *reverseProxy {
+func newReverseProxy(cfgCp *config.HTTPClientConfig) *reverseProxy {
 	transport := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -60,11 +61,17 @@ func newReverseProxy(cfgCp *config.ConnectionPool) *reverseProxy {
 			return dialer.DialContext(ctx, network, addr)
 		},
 		ForceAttemptHTTP2:     true,
-		MaxIdleConns:          cfgCp.MaxIdleConns,
-		MaxIdleConnsPerHost:   cfgCp.MaxIdleConnsPerHost,
+		MaxIdleConns:          cfgCp.ConnectionPool.MaxIdleConns,
+		MaxIdleConnsPerHost:   cfgCp.ConnectionPool.MaxIdleConnsPerHost,
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
+	}
+
+	if cfgCp.InsecureSkipVerify {
+		transport.TLSClientConfig = &tls.Config{
+			InsecureSkipVerify: cfgCp.InsecureSkipVerify,
+		}
 	}
 
 	return &reverseProxy{
@@ -78,8 +85,8 @@ func newReverseProxy(cfgCp *config.ConnectionPool) *reverseProxy {
 		},
 		reloadSignal:        make(chan struct{}),
 		reloadWG:            sync.WaitGroup{},
-		maxIdleConns:        cfgCp.MaxIdleConnsPerHost,
-		maxIdleConnsPerHost: cfgCp.MaxIdleConnsPerHost,
+		maxIdleConns:        cfgCp.ConnectionPool.MaxIdleConnsPerHost,
+		maxIdleConnsPerHost: cfgCp.ConnectionPool.MaxIdleConnsPerHost,
 	}
 }
 

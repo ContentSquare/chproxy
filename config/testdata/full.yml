@@ -96,16 +96,20 @@ param_groups:
       - key: "max_execution_time"
         value: "30"
 
-# Settings for `chproxy` connection pool to ClickHouse.
-connection_pool:
-  # Total number of connections to keep open
-  # when they are not needed for clients.
-  # Consider increasing if many sessions in TIME_WAIT and Bad Gateway is
-  # often returned by chporxy.
-  max_idle_conns: 100
-  # Number of connections per ClickHouse host to keep open
-  # when they are not needed for clients.
-  max_idle_conns_per_host: 2
+# Settings for `chproxy` connection to ClickHouse
+http_client:
+  # Allow to disable cert validation, useful for testing purposes.
+  insecure_skip_verify: true
+  # Settings for `chproxy` connection pool to ClickHouse.
+  connection_pool:
+    # Total number of connections to keep open
+    # when they are not needed for clients.
+    # Consider increasing if many sessions in TIME_WAIT and Bad Gateway is
+    # often returned by chporxy.
+    max_idle_conns: 100
+    # Number of connections per ClickHouse host to keep open
+    # when they are not needed for clients.
+    max_idle_conns_per_host: 2
 
 # Settings for `chproxy` input interfaces.
 server:

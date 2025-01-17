@@ -296,8 +296,8 @@ func proxyConfigChanged(cfgCp *config.ConnectionPool, rp *reverseProxy) bool {
 }
 
 func applyConfig(cfg *config.Config) error {
-	if proxy == nil || proxyConfigChanged(&cfg.ConnectionPool, proxy) {
-		proxy = newReverseProxy(&cfg.ConnectionPool)
+	if proxy == nil || proxyConfigChanged(&cfg.HTTPClient.ConnectionPool, proxy) {
+		proxy = newReverseProxy(&cfg.HTTPClient)
 	}
 	if err := proxy.applyConfig(cfg); err != nil {
 		return err

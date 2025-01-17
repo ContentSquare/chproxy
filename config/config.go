@@ -76,7 +76,8 @@ type Config struct {
 
 	ParamGroups []ParamGroup `yaml:"param_groups,omitempty"`
 
-	ConnectionPool ConnectionPool `yaml:"connection_pool,omitempty"`
+	// HTTPClient - extra config options for HTTP client
+	HTTPClient HTTPClientConfig `yaml:"http_client,omitempty"`
 
 	// Allow to proxy ping requests
 	AllowPing bool `yaml:"allow_ping,omitempty"`
@@ -502,7 +503,7 @@ func (c *Metrics) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 type Proxy struct {
 	// Enable enables parsing proxy headers. In proxy mode, CHProxy will try to
-	// parse the X-Forwarded-For, X-Real-IP or Forwarded header to extract the IP. If an other header is configured
+	// parse the X-Forwarded-For, X-Real-IP or Forwarded header to extract the IP. If another header is configured
 	// in the proxy settings, CHProxy will  use that header instead.
 	Enable bool `yaml:"enable,omitempty"`
 
@@ -527,6 +528,14 @@ func (c *Proxy) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	return checkOverflow(c.XXX, "proxy")
+}
+
+// HTTPClientConfig contains extra options for a HTTP client
+type HTTPClientConfig struct {
+	// InsecureSkipVerify turns off certificatev verification
+	InsecureSkipVerify bool `yaml:"insecure_skip_verify,omitempty"`
+
+	ConnectionPool ConnectionPool `yaml:"connection_pool,omitempty"`
 }
 
 // Cluster describes CH cluster configuration

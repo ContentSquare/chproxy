@@ -162,7 +162,7 @@ var goodCfgWithCacheAndMaxErrorReasonSize = &config.Config{
 }
 
 func newConfiguredProxy(cfg *config.Config) (*reverseProxy, error) {
-	p := newReverseProxy(&cfg.ConnectionPool)
+	p := newReverseProxy(&cfg.HTTPClient)
 	if err := p.applyConfig(cfg); err != nil {
 		return p, fmt.Errorf("error while loading config: %s", err)
 	}
@@ -176,7 +176,7 @@ func init() {
 }
 
 func TestNewReverseProxy(t *testing.T) {
-	proxy := newReverseProxy(&goodCfg.ConnectionPool)
+	proxy := newReverseProxy(&goodCfg.HTTPClient)
 	if err := proxy.applyConfig(goodCfg); err != nil {
 		t.Fatalf("error while loading config: %s", err)
 	}
