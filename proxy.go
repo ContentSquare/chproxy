@@ -408,7 +408,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 				log.Debugf("%s: cache miss after awaiting concurrent query", s)
 			}
 		} else if transactionStatus.State.IsFailed() {
-			respondWith(srw, fmt.Errorf(transactionStatus.FailReason), http.StatusInternalServerError)
+			respondWith(srw, fmt.Errorf("%v", transactionStatus.FailReason), http.StatusInternalServerError)
 			return
 		}
 	}
