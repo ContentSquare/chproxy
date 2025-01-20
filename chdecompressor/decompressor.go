@@ -6,7 +6,7 @@ import (
 	"io"
 
 	"github.com/klauspost/compress/zstd"
-	"github.com/pierrec/lz4"
+	"github.com/pierrec/lz4/v4"
 )
 
 // Reader reads clickhouse compressed stream.
