@@ -4,17 +4,26 @@ run:
 
 linters:
   enable:
+    - asasalint
     - asciicheck
     - bidichk
     - bodyclose
-    - deadcode
+    - containedctx
+    - copyloopvar
+    - cyclop
+    - decorder
     - dogsled
     - dupl
+    - dupword
     - durationcheck
     - errcheck
+    - errchkjson
     - errname
     - errorlint
-    - exportloopref
+    - exhaustive
+    - exptostd
+    - forcetypeassert
+    - fatcontext
     - gochecknoinits
     - goconst
     - gocritic
@@ -25,38 +34,31 @@ linters:
     - gomoddirectives
     - gomodguard
     - goprintffuncname
+    - gosec
     - gosimple
+    - govet
     - importas
+    - ineffassign
     - makezero
     - misspell
     - nakedret
+    - nilerr
     - predeclared
     - promlinter
     - rowserrcheck
     - sqlclosecheck
-    - structcheck
     - testpackage
     - thelper
     - tparallel
     - typecheck
     - unused
-    - varcheck
-    - whitespace
-    - gosec
-    - forcetypeassert
-    - cyclop
-    - exhaustive
-    - govet
-    - nilerr
     - wastedassign
-    - ineffassign
+    - whitespace
   disable:
     # Should be readded in the future with a dedicated PR to do the fix
-    - depguard
     - funlen
     - gocognit
     - gofumpt
-    - ifshort
     - nestif
     - nolintlint
     - revive
@@ -66,8 +68,13 @@ linters:
     - unparam
 
     # Disabled with a reason
+    - canonicalheader # Clickhouse uses non-canonical header
+    - depguard # Way too spammy and forces whitelist of all imports
     - gochecknoglobals # incompatible with the way we define our flags currently
-    - maligned # checker not supported anymore
     - noctx # disabled because we do not plan to distribute this code as a library
     - prealloc # we are not after some perf
     - tagliatelle # disabled because we are dependant on external API that do not follow the right naming
+linters-settings:
+  gosec:
+    excludes:
+      - G115 # Unsafe cast of ints. Needs to be looked at by a dedicated PR
