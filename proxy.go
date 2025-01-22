@@ -148,7 +148,7 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if shouldReturnFromCache {
 		// if cache shared between all users
 		// try to check if cached query is allowed for current user
-		if s.user.cache != nil && s.user.cache.SharedWithAllUsers && s.user.cache.CheckGrantsForSharedCache {
+		if s.user.cache.SharedWithAllUsers && s.user.cache.CheckGrantsForSharedCache {
 			checkReq, checkQuery, _ := s.createCheckGrantsRequest(req)
 
 			srwCheck := &checkGrantsResponseWriter{
@@ -158,9 +158,9 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			rp.proxyRequest(s, srwCheck, srw, checkReq)
 
 			if srwCheck.statusCode == http.StatusOK {
-				log.Debugf("%s: check grants for shared cached query request success; query: %q; Method: %s; URL: %q", s, checkQuery, checkReq.Method, checkReq.URL.String())
+				log.Debugf("%s: check grants for shared cached query request success; user: %s; query: %q; Method: %s; URL: %q", s, s.user.name, checkQuery, checkReq.Method, checkReq.URL.String())
 			} else {
-				log.Debugf("%s: check grants for shared cached query request failure: non-200 status code %d; query: %q; Method: %s; URL: %q", s, srwCheck.statusCode, checkQuery, checkReq.Method, checkReq.URL.String())
+				log.Debugf("%s: check grants for shared cached query request failure: non-200 status code %d; user: %s; query: %q; Method: %s; URL: %q", s, srwCheck.statusCode, s.user.name, checkQuery, checkReq.Method, checkReq.URL.String())
 				return
 			}
 		}
