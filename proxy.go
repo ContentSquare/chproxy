@@ -205,20 +205,21 @@ func executeWithRetry(
 	startTime := time.Now()
 	var since float64
 
+	var body []byte
+	var err error
 	// Use readAndRestoreRequestBody to read the entire request body into a byte slice,
 	// and to restore req.Body so that it can be reused later in the code.
-	body, err := readAndRestoreRequestBody(req)
-	if err != nil {
-		since := time.Since(startTime).Seconds()
-		return since, err
+	if maxRetry > 0 {
+		body, err = readAndRestoreRequestBody(req)
+		if err != nil {
+			since := time.Since(startTime).Seconds()
+			return since, err
+		}
 	}
 
 	numRetry := 0
 	for {
 		rp(rw, req)
-
-		// Restore req.Body after it's consumed by 'rp' for potential reuse.
-		req.Body = io.NopCloser(bytes.NewBuffer(body))
 
 		err := ctx.Err()
 		if err != nil {
@@ -269,6 +270,8 @@ func executeWithRetry(
 			since = time.Since(startTime).Seconds()
 			break
 		}
+		// Restore req.Body after it's consumed by 'rp' for potential reuse.
+		req.Body = io.NopCloser(bytes.NewBuffer(body))
 		numRetry++
 	}
 	return since, nil
@@ -915,11 +918,5 @@ func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 	}
 
 	s := newScope(req, u, c, cu, sessionId, sessionTimeout)
-
-	q, err := getFullQuery(req)
-	if err != nil {
-		return nil, http.StatusBadRequest, fmt.Errorf("%s: cannot read query: %w", s, err)
-	}
-	s.requestPacketSize = len(q)
 	return s, 0, nil
 }

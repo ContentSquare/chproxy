@@ -347,6 +347,9 @@ kill_query_user: <kill_query_user_config> | optional
 heartbeat: <heartbeat_config> | optional
 
 # RetryNumber - user configuration for query retry when one host cannot respond.
+# By default there are no query retries.
+# Note: Retrying may impact performance if there are many large-payload requests (such as inserts),
+# because it requires copying the request body for reuse.
 retry_number: 0
 
 ```
@@ -381,11 +384,11 @@ max_execution_time: <duration> | optional | default = 120s
 # By default there are no per-minute limits
 requests_per_minute: <int> | optional | default = 0
 
-# The burst of request packet size token bucket for user
+# The burst of request packet body size token bucket for user
 # By default there are no request packet size limits
 request_packet_size_tokens_burst: <byte_size> | optional | default = 0
 
-# The request packet size tokens produced rate per second for user
+# The request packet body size tokens produced rate per second for user
 # By default there are no request packet size limits
 request_packet_size_tokens_rate: <byte_size> | optional | default = 0
 
