@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"strings"
 	"sync/atomic"
 )
 
@@ -19,6 +20,7 @@ var (
 
 	// NilLogger suppresses all the log messages.
 	NilLogger = log.New(io.Discard, "", stdLogFlags)
+	replacer  *strings.Replacer
 )
 
 // SuppressOutput suppresses all output from logs if `suppress` is true
@@ -52,30 +54,49 @@ func Debugf(format string, args ...interface{}) {
 		return
 	}
 	s := fmt.Sprintf(format, args...)
-	debugLogger.Output(outputCallDepth, s) // nolint
+	debugLogger.Output(outputCallDepth, mask(s)) // nolint
 }
 
 // Infof prints info message according to a format
 func Infof(format string, args ...interface{}) {
 	s := fmt.Sprintf(format, args...)
-	infoLogger.Output(outputCallDepth, s) // nolint
+	infoLogger.Output(outputCallDepth, mask(s)) // nolint
 }
 
 // Errorf prints warning message according to a format
 func Errorf(format string, args ...interface{}) {
 	s := fmt.Sprintf(format, args...)
-	errorLogger.Output(outputCallDepth, s) // nolint
+	errorLogger.Output(outputCallDepth, mask(s)) // nolint
 }
 
 // ErrorWithCallDepth prints err into error log using the given callDepth.
 func ErrorWithCallDepth(err error, callDepth int) {
 	s := err.Error()
-	errorLogger.Output(outputCallDepth+callDepth, s) //nolint
+	errorLogger.Output(outputCallDepth+callDepth, mask(s)) //nolint
 }
 
 // Fatalf prints fatal message according to a format and exits program
 func Fatalf(format string, args ...interface{}) {
 	s := fmt.Sprintf(format, args...)
-	fatalLogger.Output(outputCallDepth, s) // nolint
+	fatalLogger.Output(outputCallDepth, mask(s)) // nolint
 	os.Exit(1)
+}
+
+func mask(s string) string {
+	if replacer == nil {
+		return s
+	}
+	return replacer.Replace(s)
+}
+
+func InitReplacer(secrets []string) {
+	//nolint:mnd // twice the size
+	oldnew := make([]string, 0, len(secrets)*2)
+	for _, s := range secrets {
+		if s == "" {
+			continue
+		}
+		oldnew = append(oldnew, s, "<xxx>")
+	}
+	replacer = strings.NewReplacer(oldnew...)
 }
