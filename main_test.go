@@ -900,6 +900,8 @@ func TestServe(t *testing.T) {
 			"http allow CORS false",
 			"testdata/http.yml",
 			func(t *testing.T) {
+				// TODO: rework this test because it doesn't fails when it should
+				// cf the discussion in https://github.com/ContentSquare/chproxy/pull/489
 				q := "cors"
 				req, err := http.NewRequest("GET", "http://127.0.0.1:9090?query="+url.QueryEscape(q), nil)
 				checkErr(t, err)
@@ -917,6 +919,8 @@ func TestServe(t *testing.T) {
 			"http allow CORS true without request Origin header",
 			"testdata/http.allow.cors.yml",
 			func(t *testing.T) {
+				// TODO: rework this test because it doesn't fails when it should
+				// cf the discussion in https://github.com/ContentSquare/chproxy/pull/489
 				q := "cors"
 				req, err := http.NewRequest("GET", "http://127.0.0.1:9090?query="+url.QueryEscape(q), nil)
 				checkErr(t, err)
@@ -934,6 +938,8 @@ func TestServe(t *testing.T) {
 			"http allow CORS true with request Origin header",
 			"testdata/http.allow.cors.yml",
 			func(t *testing.T) {
+				// TODO: rework this test because it doesn't fails when it should
+				// cf the discussion in https://github.com/ContentSquare/chproxy/pull/489
 				q := "cors"
 				req, err := http.NewRequest("GET", "http://127.0.0.1:9090?query="+url.QueryEscape(q), nil)
 				checkErr(t, err)
