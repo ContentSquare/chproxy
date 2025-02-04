@@ -10,10 +10,10 @@ Don't expect breaking changes between 2 releases if they have the same major ver
 
 #### Improvement
 * update to go 1.23 [#510](https://github.com/ContentSquare/chproxy/pull/510)
-* perf improvement for huge query (insert into) without retry [#500](https://github.com/ContentSquare/chproxy/issues/500)
+* perf improvement for huge queries (mainly insert into) when no retry is asked [#500](https://github.com/ContentSquare/chproxy/issues/500)
 
 #### Bug fix
-* Fix wrong http header with cors [#489](https://github.com/ContentSquare/chproxy/issues/489)
+* Fix wrong http header with when cors is activated [#489](https://github.com/ContentSquare/chproxy/issues/489)
 
 ### <a id="231"></a> release v1.26.7 2025-01-25
 
