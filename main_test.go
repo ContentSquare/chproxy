@@ -896,6 +896,64 @@ func TestServe(t *testing.T) {
 			},
 			startHTTP,
 		},
+		{
+			"http allow CORS false",
+			"testdata/http.yml",
+			func(t *testing.T) {
+				// TODO: rework this test because it doesn't fails when it should
+				// cf the discussion in https://github.com/ContentSquare/chproxy/pull/489
+				q := "cors"
+				req, err := http.NewRequest("GET", "http://127.0.0.1:9090?query="+url.QueryEscape(q), nil)
+				checkErr(t, err)
+				resp, err := http.DefaultClient.Do(req)
+				checkErr(t, err)
+				if resp.StatusCode != http.StatusOK {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
+				}
+				defer resp.Body.Close()
+				checkHeader(t, resp, "Access-Control-Allow-Origin", "*")
+			},
+			startHTTP,
+		},
+		{
+			"http allow CORS true without request Origin header",
+			"testdata/http.allow.cors.yml",
+			func(t *testing.T) {
+				// TODO: rework this test because it doesn't fails when it should
+				// cf the discussion in https://github.com/ContentSquare/chproxy/pull/489
+				q := "cors"
+				req, err := http.NewRequest("GET", "http://127.0.0.1:9090?query="+url.QueryEscape(q), nil)
+				checkErr(t, err)
+				resp, err := http.DefaultClient.Do(req)
+				checkErr(t, err)
+				if resp.StatusCode != http.StatusOK {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
+				}
+				defer resp.Body.Close()
+				checkHeader(t, resp, "Access-Control-Allow-Origin", "*")
+			},
+			startHTTP,
+		},
+		{
+			"http allow CORS true with request Origin header",
+			"testdata/http.allow.cors.yml",
+			func(t *testing.T) {
+				// TODO: rework this test because it doesn't fails when it should
+				// cf the discussion in https://github.com/ContentSquare/chproxy/pull/489
+				q := "cors"
+				req, err := http.NewRequest("GET", "http://127.0.0.1:9090?query="+url.QueryEscape(q), nil)
+				checkErr(t, err)
+				req.Header.Set("Origin", "http://example.com")
+				resp, err := http.DefaultClient.Do(req)
+				checkErr(t, err)
+				if resp.StatusCode != http.StatusOK {
+					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
+				}
+				defer resp.Body.Close()
+				checkHeader(t, resp, "Access-Control-Allow-Origin", "http://example.com")
+			},
+			startHTTP,
+		},
 	}
 
 	// Wait until CHServer starts.
@@ -1108,6 +1166,8 @@ func fakeCHHandler(w http.ResponseWriter, r *http.Request) {
 		// execute sleep 1.5 sec
 		time.Sleep(1500 * time.Millisecond)
 		fmt.Fprint(w, b)
+	case q == "cors":
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 	default:
 		if strings.Contains(string(query), killQueryPattern) {
 			fakeCHState.kill()

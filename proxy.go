@@ -107,14 +107,6 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	log.Debugf("%s: request start", s)
 	requestSum.With(s.labels).Inc()
 
-	if s.user.allowCORS {
-		origin := req.Header.Get("Origin")
-		if len(origin) == 0 {
-			origin = "*"
-		}
-		rw.Header().Set("Access-Control-Allow-Origin", origin)
-	}
-
 	req.Body = &statReadCloser{
 		ReadCloser: req.Body,
 		bytesRead:  requestBodyBytes.With(s.labels),
@@ -147,6 +139,14 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		rp.serveFromCache(s, srw, req, origParams, q)
 	} else {
 		rp.proxyRequest(s, srw, srw, req)
+	}
+
+	if s.user.allowCORS {
+		origin := req.Header.Get("Origin")
+		if len(origin) == 0 {
+			origin = "*"
+		}
+		rw.Header().Set("Access-Control-Allow-Origin", origin)
 	}
 
 	// It is safe calling getQuerySnippet here, since the request
