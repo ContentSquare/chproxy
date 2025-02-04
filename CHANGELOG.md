@@ -5,6 +5,33 @@ title: Changelog
 Since v1.17.1, chproxy follows [semantic versioning](https://semver.org/).
 Don't expect breaking changes between 2 releases if they have the same major version.
 
+
+### <a id="231"></a> release v1.26.8 2025-02-04
+
+#### Improvement
+* update to go 1.23 [#510](https://github.com/ContentSquare/chproxy/pull/510)
+* perf improvement for huge queries (mainly insert into) when no retry is asked [#500](https://github.com/ContentSquare/chproxy/issues/500)
+
+#### Bug fix
+* Fix wrong http header with when cors is activated [#489](https://github.com/ContentSquare/chproxy/issues/489)
+
+### <a id="231"></a> release v1.26.7 2025-01-25
+
+#### Improvement
+* enable docker images for ARM [#503](https://github.com/ContentSquare/chproxy/pull/503)
+
+
+### <a id="231"></a> release v1.26.6 2024-11-21
+
+#### Improvement
+* use os tmp dir instead of a fixed "/tmp" path [#486](https://github.com/ContentSquare/chproxy/pull/486)
+
+
+### <a id="231"></a> release 1.26.5 2024-10-01
+
+#### New Feature
+* Support ping endpoint by @hulk8 in [#456](https://github.com/ContentSquare/chproxy/pull/456)
+
 ### <a id="231"></a> release 1.26.4 2024-05-26
 
 #### Upgrade Go version
@@ -12,6 +39,7 @@ Don't expect breaking changes between 2 releases if they have the same major ver
 
 #### Improvement
 * add log_comment to allowedParams [#432](https://github.com/ContentSquare/chproxy/pull/432)
+
 
 ### <a id="231"></a> release 1.26.3 2024-04-22
 
