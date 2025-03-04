@@ -93,7 +93,10 @@ var fullConfig = Config{
 	},
 	LogDebug: true,
 
-	LogMask: []string{"secret"},
+	LogMask: []LogMask{{
+		Regex:       `(s3\(\s*'(?:(?:\\'|[^'])*)'\s*,\s*'(?:(?:\\'|[^'])*)'\s*,\s*')((?:\\'|[^'])*)(')`,
+		Replacement: "$1******$3",
+	}},
 
 	Clusters: []Cluster{
 		{
@@ -752,7 +755,6 @@ func TestRemovalSensitiveData(t *testing.T) {
 	conf.Clusters[1].ClusterUsers[1].Password = "XXX"
 	conf.Clusters[2].ClusterUsers[0].Password = "XXX"
 	conf.Caches[2].Redis.Password = "XXX"
-	conf.LogMask[0] = "XXX"
 
 	if !cmp.Equal(conf, confSafe, cmpopts.IgnoreUnexported(Config{})) {
 		t.Fatalf("confCopy should have sensitive data replaced with XXX values,\n the diff is: %s",
@@ -883,7 +885,8 @@ users:
   deny_https: true
 log_debug: true
 log_mask:
-- XXX
+- regex: (s3\(\s*'(?:(?:\\'|[^'])*)'\s*,\s*'(?:(?:\\'|[^'])*)'\s*,\s*')((?:\\'|[^'])*)(')
+  replacement: $1******$3
 hack_me_please: true
 network_groups:
 - name: office

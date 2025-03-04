@@ -64,7 +64,7 @@ type Config struct {
 	// Whether to print debug logs
 	LogDebug bool `yaml:"log_debug,omitempty"`
 
-	LogMask []string `yaml:"log_mask,omitempty"`
+	LogMask []LogMask `yaml:"log_mask,omitempty"`
 
 	// Whether to ignore security warnings
 	HackMePlease bool `yaml:"hack_me_please,omitempty"`
@@ -118,9 +118,6 @@ func withoutSensitiveInfo(config *Config) *Config {
 		if len(c.Caches[i].Redis.Password) > 0 {
 			c.Caches[i].Redis.Password = pswPlaceHolder
 		}
-	}
-	for i := range config.LogMask {
-		c.LogMask[i] = pswPlaceHolder
 	}
 	return c
 }
@@ -1220,4 +1217,9 @@ func (c Config) checkVulnerabilities() error {
 		}
 	}
 	return nil
+}
+
+type LogMask struct {
+	Regex       string `yaml:"regex"`
+	Replacement string `yaml:"replacement"`
 }

@@ -5,8 +5,11 @@ import (
 	"io"
 	"log"
 	"os"
+	"regexp"
 	"strings"
 	"sync/atomic"
+
+	"github.com/contentsquare/chproxy/config"
 )
 
 var (
@@ -82,21 +85,30 @@ func Fatalf(format string, args ...interface{}) {
 	os.Exit(1)
 }
 
-func mask(s string) string {
-	if replacer == nil {
-		return s
-	}
-	return replacer.Replace(s)
+type regexReplacer struct {
+	regex       *regexp.Regexp
+	replacement string
 }
 
-func InitReplacer(secrets []string) {
-	//nolint:mnd // twice the size
-	oldnew := make([]string, 0, len(secrets)*2)
-	for _, s := range secrets {
-		if s == "" {
-			continue
+var replacers []regexReplacer
+
+func InitReplacer(masks []config.LogMask) error {
+	for _, mask := range masks {
+		re, err := regexp.Compile(mask.Regex)
+		if err != nil {
+			return fmt.Errorf("error compiling regex %s: %w", mask.Regex, err)
 		}
-		oldnew = append(oldnew, s, "<xxx>")
+		replacers = append(replacers, regexReplacer{
+			regex:       re,
+			replacement: mask.Replacement,
+		})
 	}
-	replacer = strings.NewReplacer(oldnew...)
+	return nil
+}
+
+func mask(s string) string {
+	for _, r := range replacers {
+		s = r.regex.ReplaceAllString(s, r.replacement)
+	}
+	return s
 }
