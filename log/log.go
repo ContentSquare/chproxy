@@ -6,7 +6,6 @@ import (
 	"log"
 	"os"
 	"regexp"
-	"strings"
 	"sync/atomic"
 
 	"github.com/contentsquare/chproxy/config"
@@ -23,7 +22,6 @@ var (
 
 	// NilLogger suppresses all the log messages.
 	NilLogger = log.New(io.Discard, "", stdLogFlags)
-	replacer  *strings.Replacer
 )
 
 // SuppressOutput suppresses all output from logs if `suppress` is true
