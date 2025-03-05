@@ -90,15 +90,15 @@ type regexReplacer struct {
 
 var replacers []regexReplacer
 
-func InitReplacer(masks []config.LogMask) error {
-	for _, mask := range masks {
-		re, err := regexp.Compile(mask.Regex)
+func InitReplacer(logMasks []config.LogMask) error {
+	for _, logMask := range logMasks {
+		re, err := regexp.Compile(logMask.Regex)
 		if err != nil {
-			return fmt.Errorf("error compiling regex %s: %w", mask.Regex, err)
+			return fmt.Errorf("error compiling regex %s: %w", logMask.Regex, err)
 		}
 		replacers = append(replacers, regexReplacer{
 			regex:       re,
-			replacement: mask.Replacement,
+			replacement: logMask.Replacement,
 		})
 	}
 	return nil

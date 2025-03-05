@@ -64,7 +64,7 @@ type Config struct {
 	// Whether to print debug logs
 	LogDebug bool `yaml:"log_debug,omitempty"`
 
-	LogMask []LogMask `yaml:"log_mask,omitempty"`
+	LogMasks []LogMask `yaml:"log_masks,omitempty"`
 
 	// Whether to ignore security warnings
 	HackMePlease bool `yaml:"hack_me_please,omitempty"`
