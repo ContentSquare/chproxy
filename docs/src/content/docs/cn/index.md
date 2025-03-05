@@ -352,6 +352,11 @@ caches:
 # By default debug logs are disabled.
 log_debug: true
 
+# Optional log masks, for example replace s3('', '', 'secret', '') -> s3('', '', '******', '')
+log_masks:
+  - regex: (s3\(\s*'(?:(?:\\'|[^'])*)'\s*,\s*'(?:(?:\\'|[^'])*)'\s*,\s*')((?:\\'|[^'])*)(')
+    replacement: $1******$3
+
 # Whether to ignore security checks during config parsing.
 #
 # By default security checks are enabled.

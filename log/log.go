@@ -5,7 +5,10 @@ import (
 	"io"
 	"log"
 	"os"
+	"regexp"
 	"sync/atomic"
+
+	"github.com/contentsquare/chproxy/config"
 )
 
 var (
@@ -52,30 +55,58 @@ func Debugf(format string, args ...interface{}) {
 		return
 	}
 	s := fmt.Sprintf(format, args...)
-	debugLogger.Output(outputCallDepth, s) // nolint
+	debugLogger.Output(outputCallDepth, mask(s)) // nolint
 }
 
 // Infof prints info message according to a format
 func Infof(format string, args ...interface{}) {
 	s := fmt.Sprintf(format, args...)
-	infoLogger.Output(outputCallDepth, s) // nolint
+	infoLogger.Output(outputCallDepth, mask(s)) // nolint
 }
 
 // Errorf prints warning message according to a format
 func Errorf(format string, args ...interface{}) {
 	s := fmt.Sprintf(format, args...)
-	errorLogger.Output(outputCallDepth, s) // nolint
+	errorLogger.Output(outputCallDepth, mask(s)) // nolint
 }
 
 // ErrorWithCallDepth prints err into error log using the given callDepth.
 func ErrorWithCallDepth(err error, callDepth int) {
 	s := err.Error()
-	errorLogger.Output(outputCallDepth+callDepth, s) //nolint
+	errorLogger.Output(outputCallDepth+callDepth, mask(s)) //nolint
 }
 
 // Fatalf prints fatal message according to a format and exits program
 func Fatalf(format string, args ...interface{}) {
 	s := fmt.Sprintf(format, args...)
-	fatalLogger.Output(outputCallDepth, s) // nolint
+	fatalLogger.Output(outputCallDepth, mask(s)) // nolint
 	os.Exit(1)
+}
+
+type regexReplacer struct {
+	regex       *regexp.Regexp
+	replacement string
+}
+
+var replacers []regexReplacer
+
+func InitReplacer(logMasks []config.LogMask) error {
+	for _, logMask := range logMasks {
+		re, err := regexp.Compile(logMask.Regex)
+		if err != nil {
+			return fmt.Errorf("error compiling regex %s: %w", logMask.Regex, err)
+		}
+		replacers = append(replacers, regexReplacer{
+			regex:       re,
+			replacement: logMask.Replacement,
+		})
+	}
+	return nil
+}
+
+func mask(s string) string {
+	for _, r := range replacers {
+		s = r.regex.ReplaceAllString(s, r.replacement)
+	}
+	return s
 }

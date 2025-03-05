@@ -64,6 +64,8 @@ type Config struct {
 	// Whether to print debug logs
 	LogDebug bool `yaml:"log_debug,omitempty"`
 
+	LogMasks []LogMask `yaml:"log_masks,omitempty"`
+
 	// Whether to ignore security warnings
 	HackMePlease bool `yaml:"hack_me_please,omitempty"`
 
@@ -1215,4 +1217,9 @@ func (c Config) checkVulnerabilities() error {
 		}
 	}
 	return nil
+}
+
+type LogMask struct {
+	Regex       string `yaml:"regex"`
+	Replacement string `yaml:"replacement"`
 }
