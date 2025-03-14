@@ -93,6 +93,13 @@ var fullConfig = Config{
 	},
 	LogDebug: true,
 
+	LogMasks: []LogMask{
+		{
+			Regex:       `(s3\(\s*'(?:(?:\\'|[^'])*)'\s*,\s*'(?:(?:\\'|[^'])*)'\s*,\s*')((?:\\'|[^'])*)(')`,
+			Replacement: "$1******$3",
+		},
+	},
+
 	Clusters: []Cluster{
 		{
 			Name:   "first cluster",
@@ -879,6 +886,9 @@ users:
   - 1.2.3.0/24
   deny_https: true
 log_debug: true
+log_masks:
+- regex: (s3\(\s*'(?:(?:\\'|[^'])*)'\s*,\s*'(?:(?:\\'|[^'])*)'\s*,\s*')((?:\\'|[^'])*)(')
+  replacement: $1******$3
 hack_me_please: true
 network_groups:
 - name: office
