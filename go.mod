@@ -10,7 +10,7 @@ require (
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
 	github.com/pierrec/lz4 v2.4.0+incompatible
 	github.com/prometheus/client_golang v1.20.5
-	github.com/redis/go-redis/v9 v9.7.0
+	github.com/redis/go-redis/v9 v9.7.3
 	github.com/stretchr/testify v1.10.0
 	golang.org/x/crypto v0.35.0
 	golang.org/x/time v0.9.0
