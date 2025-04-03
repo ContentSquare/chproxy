@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/url"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ var _ heartbeat.HeartBeat = &mockHeartbeat{}
 type mockHeartbeat struct {
 	interval time.Duration
 	err      error
+	mu       sync.Mutex
 }
 
 func (hb *mockHeartbeat) Interval() time.Duration {
@@ -23,6 +25,8 @@ func (hb *mockHeartbeat) Interval() time.Duration {
 }
 
 func (hb *mockHeartbeat) IsHealthy(ctx context.Context, addr string) error {
+	hb.mu.Lock()
+	defer hb.mu.Unlock()
 	return hb.err
 }
 
@@ -54,6 +58,7 @@ func TestStartHeartbeat(t *testing.T) {
 	hb := &mockHeartbeat{
 		interval: 10 * time.Millisecond,
 		err:      nil,
+		mu:       sync.Mutex{},
 	}
 
 	done := make(chan struct{})
@@ -69,14 +74,18 @@ func TestStartHeartbeat(t *testing.T) {
 	}, time.Second, 100*time.Millisecond)
 
 	// change heartbeat to error, node eventually becomes inactive.
+	hb.mu.Lock()
 	hb.err = errors.New("failed connection")
+	hb.mu.Unlock()
 
 	assert.Eventually(t, func() bool {
 		return !node.IsActive()
 	}, time.Second, 100*time.Millisecond)
 
 	// If error is removed node becomes active again.
+	hb.mu.Lock()
 	hb.err = nil
+	hb.mu.Unlock()
 
 	assert.Eventually(t, func() bool {
 		return node.IsActive()
