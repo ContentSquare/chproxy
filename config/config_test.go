@@ -755,6 +755,7 @@ func TestRemovalSensitiveData(t *testing.T) {
 	conf.Clusters[0].KillQueryUser.Password = "XXX"
 	conf.Clusters[1].ClusterUsers[0].Password = "XXX"
 	conf.Clusters[1].ClusterUsers[1].Password = "XXX"
+	conf.Clusters[1].HeartBeat.Password = "XXX"
 	conf.Clusters[2].ClusterUsers[0].Password = "XXX"
 	conf.Caches[2].Redis.Password = "XXX"
 
@@ -845,7 +846,7 @@ clusters:
     response: |
       Ok.
     user: hbuser
-    password: hbpassword
+    password: XXX
   retry_number: 2
 - name: third cluster
   scheme: http

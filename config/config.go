@@ -107,6 +107,9 @@ func withoutSensitiveInfo(config *Config) *Config {
 		c.Users[i].Password = pswPlaceHolder
 	}
 	for i := range c.Clusters {
+		if len(c.Clusters[i].HeartBeat.User) > 0 {
+			c.Clusters[i].HeartBeat.Password = pswPlaceHolder
+		}
 		if len(c.Clusters[i].KillQueryUser.Name) > 0 {
 			c.Clusters[i].KillQueryUser.Password = pswPlaceHolder
 		}
