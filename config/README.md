@@ -7,6 +7,7 @@
  - `<networks>`: string value consisting of IP, IP mask or named group, for example `"127.0.0.1"` or `"127.0.0.1/24"`.
  - `<host_name>`: string value consisting of host name, for example `"example.com"`
  - `<byte_size>`: string value matching the regular expression `/^\d+(\.\d+)?[KMGTP]?B?$/i`, for example `"100MB"`
+ - `<map[label_name]label_value>`: а map consisting of string keys and string values for optional custom labels in metrics
 
 ### Global configuration consist of:
 ```yml
@@ -237,6 +238,9 @@ allowed_networks: <network_groups>, <networks> ... | optional
 
 # Prometheus metric namespace
 namespace: <string> | optional
+
+# Labels that should be added to each sent prometheus metrics
+constant_labels: <map[label_name]label_value>
 ```
 
 ### <user_config>

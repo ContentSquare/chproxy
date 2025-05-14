@@ -640,7 +640,16 @@ func TestServe(t *testing.T) {
 			"testdata/http.metrics.namespace.yml",
 			func(t *testing.T) {
 				resp := httpGet(t, "http://127.0.0.1:9090/metrics", http.StatusOK)
-				assert.GreaterOrEqual(t, len(getStringFromResponse(t, resp.Body)), 10000)
+				metricsString := getStringFromResponse(t, resp.Body)
+				assert.GreaterOrEqual(t, len(metricsString), 10000)
+				assert.GreaterOrEqual(
+					t,
+					strings.Count(
+						metricsString,
+						`constant_label1="value1",constant_label2="value2"`,
+					),
+					10,
+				)
 				resp.Body.Close()
 			},
 			startHTTP,
@@ -973,6 +982,11 @@ func TestServe(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
+	cfg.Server.Metrics.ConstantLabels = map[string]string{
+		"constant_label1": "value1",
+		"constant_label2": "value2",
+	}
+
 	registerMetrics(cfg)
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
