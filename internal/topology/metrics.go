@@ -13,19 +13,23 @@ var (
 
 func initMetrics(cfg *config.Config) {
 	namespace := cfg.Server.Metrics.Namespace
+	constLabels := cfg.Server.Metrics.ConstantLabels
+
 	HostHealth = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Namespace: namespace,
-			Name:      "host_health",
-			Help:      "Health state of hosts by clusters",
+			Namespace:   namespace,
+			Name:        "host_health",
+			Help:        "Health state of hosts by clusters",
+			ConstLabels: constLabels,
 		},
 		[]string{"cluster", "replica", "cluster_node"},
 	)
 	HostPenalties = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: namespace,
-			Name:      "host_penalties_total",
-			Help:      "Total number of given penalties by host",
+			Namespace:   namespace,
+			Name:        "host_penalties_total",
+			Help:        "Total number of given penalties by host",
+			ConstLabels: constLabels,
 		},
 		[]string{"cluster", "replica", "cluster_node"},
 	)
