@@ -41,238 +41,270 @@ var (
 
 func initMetrics(cfg *config.Config) {
 	namespace := cfg.Server.Metrics.Namespace
+	constLabels := cfg.Server.Metrics.ConstantLabels
+
 	statusCodes = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: namespace,
-			Name:      "status_codes_total",
-			Help:      "Distribution by status codes",
+			Namespace:   namespace,
+			Name:        "status_codes_total",
+			Help:        "Distribution by status codes",
+			ConstLabels: constLabels,
 		},
 		[]string{"user", "cluster", "cluster_user", "replica", "cluster_node", "code"},
 	)
 	statusCodesClickhouse = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: namespace,
-			Name:      "status_codes_proxy_total",
-			Help:      "Distribution by status codes",
+			Namespace:   namespace,
+			Name:        "status_codes_proxy_total",
+			Help:        "Distribution by status codes",
+			ConstLabels: constLabels,
 		},
 		[]string{"cluster", "replica", "cluster_node", "code"},
 	)
 	requestSum = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: namespace,
-			Name:      "request_sum_total",
-			Help:      "Total number of sent requests",
+			Namespace:   namespace,
+			Name:        "request_sum_total",
+			Help:        "Total number of sent requests",
+			ConstLabels: constLabels,
 		},
 		[]string{"user", "cluster", "cluster_user", "replica", "cluster_node"},
 	)
 	requestSuccess = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: namespace,
-			Name:      "request_success_total",
-			Help:      "Total number of sent success requests",
+			Namespace:   namespace,
+			Name:        "request_success_total",
+			Help:        "Total number of sent success requests",
+			ConstLabels: constLabels,
 		},
 		[]string{"user", "cluster", "cluster_user", "replica", "cluster_node"},
 	)
 	limitExcess = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: namespace,
-			Name:      "concurrent_limit_excess_total",
-			Help:      "Total number of max_concurrent_queries excess",
+			Namespace:   namespace,
+			Name:        "concurrent_limit_excess_total",
+			Help:        "Total number of max_concurrent_queries excess",
+			ConstLabels: constLabels,
 		},
 		[]string{"user", "cluster", "cluster_user", "replica", "cluster_node"},
 	)
 	concurrentQueries = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Namespace: namespace,
-			Name:      "concurrent_queries",
-			Help:      "The number of concurrent queries at current time",
+			Namespace:   namespace,
+			Name:        "concurrent_queries",
+			Help:        "The number of concurrent queries at current time",
+			ConstLabels: constLabels,
 		},
 		[]string{"user", "cluster", "cluster_user", "replica", "cluster_node"},
 	)
 	requestQueueSize = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Namespace: namespace,
-			Name:      "request_queue_size",
-			Help:      "Request queue sizes at the current time",
+			Namespace:   namespace,
+			Name:        "request_queue_size",
+			Help:        "Request queue sizes at the current time",
+			ConstLabels: constLabels,
 		},
 		[]string{"user", "cluster", "cluster_user"},
 	)
 	userQueueOverflow = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: namespace,
-			Name:      "user_queue_overflow_total",
-			Help:      "The number of overflows for per-user request queues",
+			Namespace:   namespace,
+			Name:        "user_queue_overflow_total",
+			Help:        "The number of overflows for per-user request queues",
+			ConstLabels: constLabels,
 		},
 		[]string{"user", "cluster", "cluster_user"},
 	)
 	clusterUserQueueOverflow = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: namespace,
-			Name:      "cluster_user_queue_overflow_total",
-			Help:      "The number of overflows for per-cluster_user request queues",
+			Namespace:   namespace,
+			Name:        "cluster_user_queue_overflow_total",
+			Help:        "The number of overflows for per-cluster_user request queues",
+			ConstLabels: constLabels,
 		},
 		[]string{"user", "cluster", "cluster_user"},
 	)
 	requestBodyBytes = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: namespace,
-			Name:      "request_body_bytes_total",
-			Help:      "The amount of bytes read from request bodies",
+			Namespace:   namespace,
+			Name:        "request_body_bytes_total",
+			Help:        "The amount of bytes read from request bodies",
+			ConstLabels: constLabels,
 		},
 		[]string{"user", "cluster", "cluster_user", "replica", "cluster_node"},
 	)
 	responseBodyBytes = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: namespace,
-			Name:      "response_body_bytes_total",
-			Help:      "The amount of bytes written to response bodies",
+			Namespace:   namespace,
+			Name:        "response_body_bytes_total",
+			Help:        "The amount of bytes written to response bodies",
+			ConstLabels: constLabels,
 		},
 		[]string{"user", "cluster", "cluster_user", "replica", "cluster_node"},
 	)
 	cacheFailedInsert = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: namespace,
-			Name:      "cache_insertion_failures_total",
-			Help:      "The number of insertion in the cache that didn't work out",
+			Namespace:   namespace,
+			Name:        "cache_insertion_failures_total",
+			Help:        "The number of insertion in the cache that didn't work out",
+			ConstLabels: constLabels,
 		},
 		[]string{"cache", "user", "cluster", "cluster_user"},
 	)
 	cacheCorruptedFetch = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: namespace,
-			Name:      "cache_get_corrutpion_total",
-			Help:      "The number of time a data fetching from redis was corrupted",
+			Namespace:   namespace,
+			Name:        "cache_get_corrutpion_total",
+			Help:        "The number of time a data fetching from redis was corrupted",
+			ConstLabels: constLabels,
 		},
 		[]string{"cache", "user", "cluster", "cluster_user"},
 	)
 	cacheHit = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: namespace,
-			Name:      "cache_hits_total",
-			Help:      "The amount of cache hits",
+			Namespace:   namespace,
+			Name:        "cache_hits_total",
+			Help:        "The amount of cache hits",
+			ConstLabels: constLabels,
 		},
 		[]string{"cache", "user", "cluster", "cluster_user"},
 	)
 	cacheMiss = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: namespace,
-			Name:      "cache_miss_total",
-			Help:      "The amount of cache misses",
+			Namespace:   namespace,
+			Name:        "cache_miss_total",
+			Help:        "The amount of cache misses",
+			ConstLabels: constLabels,
 		},
 		[]string{"cache", "user", "cluster", "cluster_user"},
 	)
 	cacheSize = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Namespace: namespace,
-			Name:      "cache_size",
-			Help:      "Cache size at the current time",
+			Namespace:   namespace,
+			Name:        "cache_size",
+			Help:        "Cache size at the current time",
+			ConstLabels: constLabels,
 		},
 		[]string{"cache"},
 	)
 	cacheItems = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Namespace: namespace,
-			Name:      "cache_items",
-			Help:      "Cache items at the current time",
+			Namespace:   namespace,
+			Name:        "cache_items",
+			Help:        "Cache items at the current time",
+			ConstLabels: constLabels,
 		},
 		[]string{"cache"},
 	)
 	cacheSkipped = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: namespace,
-			Name:      "cache_payloadsize_too_big_total",
-			Help:      "The amount of too big payloads to be cached",
+			Namespace:   namespace,
+			Name:        "cache_payloadsize_too_big_total",
+			Help:        "The amount of too big payloads to be cached",
+			ConstLabels: constLabels,
 		},
 		[]string{"cache", "user", "cluster", "cluster_user"},
 	)
 	requestDuration = prometheus.NewSummaryVec(
 		prometheus.SummaryOpts{
-			Namespace:  namespace,
-			Name:       "request_duration_seconds",
-			Help:       "Request duration. Includes possible wait time in the queue",
-			Objectives: map[float64]float64{0.5: 1e-1, 0.9: 1e-2, 0.99: 1e-3, 0.999: 1e-4, 1: 1e-5},
+			Namespace:   namespace,
+			Name:        "request_duration_seconds",
+			Help:        "Request duration. Includes possible wait time in the queue",
+			ConstLabels: constLabels,
+			Objectives:  map[float64]float64{0.5: 1e-1, 0.9: 1e-2, 0.99: 1e-3, 0.999: 1e-4, 1: 1e-5},
 		},
 		[]string{"user", "cluster", "cluster_user", "replica", "cluster_node"},
 	)
 	proxiedResponseDuration = prometheus.NewSummaryVec(
 		prometheus.SummaryOpts{
-			Namespace:  namespace,
-			Name:       "proxied_response_duration_seconds",
-			Help:       "Response duration proxied from clickhouse",
-			Objectives: map[float64]float64{0.5: 1e-1, 0.9: 1e-2, 0.99: 1e-3, 0.999: 1e-4, 1: 1e-5},
+			Namespace:   namespace,
+			Name:        "proxied_response_duration_seconds",
+			Help:        "Response duration proxied from clickhouse",
+			ConstLabels: constLabels,
+			Objectives:  map[float64]float64{0.5: 1e-1, 0.9: 1e-2, 0.99: 1e-3, 0.999: 1e-4, 1: 1e-5},
 		},
 		[]string{"user", "cluster", "cluster_user", "replica", "cluster_node"},
 	)
 	cachedResponseDuration = prometheus.NewSummaryVec(
 		prometheus.SummaryOpts{
-			Namespace:  namespace,
-			Name:       "cached_response_duration_seconds",
-			Help:       "Response duration served from the cache",
-			Objectives: map[float64]float64{0.5: 1e-1, 0.9: 1e-2, 0.99: 1e-3, 0.999: 1e-4, 1: 1e-5},
+			Namespace:   namespace,
+			Name:        "cached_response_duration_seconds",
+			Help:        "Response duration served from the cache",
+			ConstLabels: constLabels,
+			Objectives:  map[float64]float64{0.5: 1e-1, 0.9: 1e-2, 0.99: 1e-3, 0.999: 1e-4, 1: 1e-5},
 		},
 		[]string{"cache", "user", "cluster", "cluster_user"},
 	)
 	canceledRequest = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: namespace,
-			Name:      "canceled_request_total",
-			Help:      "The number of requests canceled by remote client",
+			Namespace:   namespace,
+			Name:        "canceled_request_total",
+			Help:        "The number of requests canceled by remote client",
+			ConstLabels: constLabels,
 		},
 		[]string{"user", "cluster", "cluster_user", "replica", "cluster_node"},
 	)
 	cacheHitFromConcurrentQueries = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: namespace,
-			Name:      "cache_hit_concurrent_query_total",
-			Help:      "The amount of cache hits after having awaited concurrently executed queries",
+			Namespace:   namespace,
+			Name:        "cache_hit_concurrent_query_total",
+			Help:        "The amount of cache hits after having awaited concurrently executed queries",
+			ConstLabels: constLabels,
 		},
 		[]string{"cache", "user", "cluster", "cluster_user"},
 	)
 
 	cacheMissFromConcurrentQueries = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: namespace,
-			Name:      "cache_miss_concurrent_query_total",
-			Help:      "The amount of cache misses, even if previously reported as queries available in the cache, after having awaited concurrently executed queries",
+			Namespace:   namespace,
+			Name:        "cache_miss_concurrent_query_total",
+			Help:        "The amount of cache misses, even if previously reported as queries available in the cache, after having awaited concurrently executed queries",
+			ConstLabels: constLabels,
 		},
 		[]string{"cache", "user", "cluster", "cluster_user"},
 	)
 	killedRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: namespace,
-			Name:      "killed_request_total",
-			Help:      "The number of requests killed by proxy",
+			Namespace:   namespace,
+			Name:        "killed_request_total",
+			Help:        "The number of requests killed by proxy",
+			ConstLabels: constLabels,
 		},
 		[]string{"user", "cluster", "cluster_user", "replica", "cluster_node"},
 	)
 	timeoutRequest = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: namespace,
-			Name:      "timeout_request_total",
-			Help:      "The number of timed out requests",
+			Namespace:   namespace,
+			Name:        "timeout_request_total",
+			Help:        "The number of timed out requests",
+			ConstLabels: constLabels,
 		},
 		[]string{"user", "cluster", "cluster_user", "replica", "cluster_node"},
 	)
 	configSuccess = prometheus.NewGauge(prometheus.GaugeOpts{
-		Namespace: namespace,
-		Name:      "config_last_reload_successful",
-		Help:      "Whether the last configuration reload attempt was successful.",
+		Namespace:   namespace,
+		Name:        "config_last_reload_successful",
+		Help:        "Whether the last configuration reload attempt was successful.",
+		ConstLabels: constLabels,
 	})
 	configSuccessTime = prometheus.NewGauge(prometheus.GaugeOpts{
-		Namespace: namespace,
-		Name:      "config_last_reload_success_timestamp_seconds",
-		Help:      "Timestamp of the last successful configuration reload.",
+		Namespace:   namespace,
+		Name:        "config_last_reload_success_timestamp_seconds",
+		Help:        "Timestamp of the last successful configuration reload.",
+		ConstLabels: constLabels,
 	})
 	badRequest = prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: namespace,
-		Name:      "bad_requests_total",
-		Help:      "Total number of unsupported requests",
+		Namespace:   namespace,
+		Name:        "bad_requests_total",
+		Help:        "Total number of unsupported requests",
+		ConstLabels: constLabels,
 	})
 	retryRequest = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: namespace,
-			Name:      "retry_request_total",
-			Help:      "The number of retry requests",
+			Namespace:   namespace,
+			Name:        "retry_request_total",
+			Help:        "The number of retry requests",
+			ConstLabels: constLabels,
 		},
 		[]string{"user", "cluster", "cluster_user", "replica", "cluster_node"},
 	)

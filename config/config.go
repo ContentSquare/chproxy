@@ -492,6 +492,9 @@ type Metrics struct {
 	// Prometheus metric namespace
 	Namespace string `yaml:"namespace,omitempty"`
 
+	// Constant labels which will be added to each sent prometheus metric
+	ConstantLabels map[string]string `yaml:"constant_labels,omitempty"`
+
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline"`
 }

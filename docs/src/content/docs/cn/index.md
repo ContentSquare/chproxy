@@ -487,6 +487,8 @@ server:
   # By default access to `/metrics` is unrestricted.
   metrics:
     allowed_networks: ["office"]
+    # You can specify constant labels which will be added to each sent prometheus metric
+    constant_labels: {}
 
 # Configs for input users.
 users:

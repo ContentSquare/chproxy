@@ -177,6 +177,8 @@ server:
   metrics:
     allowed_networks: ["office"]
     namespace: ""
+    # You can specify constant labels which will be added to each sent prometheus metric
+    constant_labels: {}
 
   # Proxy settings enable parsing proxy headers in cases where
   # CHProxy is run behind another proxy.
