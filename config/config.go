@@ -946,6 +946,10 @@ type Cache struct {
 
 	// Whether a query cached by a user could be used by another user
 	SharedWithAllUsers bool `yaml:"shared_with_all_users,omitempty"`
+
+	// Whether `shared_with_all_users` option is enabled
+	// check permissions for cached query used by another user
+	CheckGrantsForSharedCache bool `yaml:"check_grants_for_shared_cache,omitempty"`
 }
 
 func (c *Cache) setDefaults() {
