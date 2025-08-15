@@ -20,6 +20,9 @@ type Key struct {
 	// AcceptEncoding must contain 'Accept-Encoding' request header value.
 	AcceptEncoding string
 
+	// ClientProtocolVersion must contain `client_protocol_version` query arg.
+	ClientProtocolVersion string
+
 	// DefaultFormat must contain `default_format` query arg.
 	DefaultFormat string
 
@@ -62,6 +65,7 @@ func NewKey(query []byte, originParams url.Values, acceptEncoding string, userPa
 	return &Key{
 		Query:                 query,
 		AcceptEncoding:        acceptEncoding,
+		ClientProtocolVersion: originParams.Get("client_protocol_version"),
 		DefaultFormat:         originParams.Get("default_format"),
 		Database:              originParams.Get("database"),
 		Compress:              originParams.Get("compress"),
@@ -83,8 +87,8 @@ func (k *Key) filePath(dir string) string {
 
 // String returns string representation of the key.
 func (k *Key) String() string {
-	s := fmt.Sprintf("V%d; Query=%q; AcceptEncoding=%q; DefaultFormat=%q; Database=%q; Compress=%q; EnableHTTPCompression=%q; Namespace=%q; MaxResultRows=%q; Extremes=%q; ResultOverflowMode=%q; UserParams=%d; QueryParams=%d; UserCredentialHash=%d",
-		k.Version, k.Query, k.AcceptEncoding, k.DefaultFormat, k.Database, k.Compress, k.EnableHTTPCompression, k.Namespace,
+	s := fmt.Sprintf("V%d; Query=%q; AcceptEncoding=%q; ClientProtocolVersion=%q; DefaultFormat=%q; Database=%q; Compress=%q; EnableHTTPCompression=%q; Namespace=%q; MaxResultRows=%q; Extremes=%q; ResultOverflowMode=%q; UserParams=%d; QueryParams=%d; UserCredentialHash=%d",
+		k.Version, k.Query, k.AcceptEncoding, k.ClientProtocolVersion, k.DefaultFormat, k.Database, k.Compress, k.EnableHTTPCompression, k.Namespace,
 		k.MaxResultRows, k.Extremes, k.ResultOverflowMode, k.UserParamsHash, k.QueryParamsHash, k.UserCredentialHash)
 	h := sha256.Sum256([]byte(s))
 
