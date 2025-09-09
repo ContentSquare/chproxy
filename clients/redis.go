@@ -22,7 +22,8 @@ func NewRedisClient(cfg config.RedisCacheConfig) (redis.UniversalClient, error) 
 		options.DB = cfg.DBIndex
 	}
 
-	if len(cfg.CertFile) != 0 || len(cfg.KeyFile) != 0 {
+	// maintain backwards compatibility in case of non-presence of enable_tls
+	if len(cfg.CertFile) != 0 || len(cfg.KeyFile) != 0 || cfg.EnableTLS {
 		tlsConfig, err := cfg.TLS.BuildTLSConfig(nil)
 		if err != nil {
 			return nil, err

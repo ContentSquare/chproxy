@@ -367,12 +367,10 @@ func (c *TLS) BuildTLSConfig(acm *autocert.Manager) (*tls.Config, error) {
 				c.CertFile, c.KeyFile, err)
 		}
 		tlsCfg.Certificates = []tls.Certificate{cert}
-	} else {
-		if acm == nil {
-			return nil, fmt.Errorf("autocert manager is not configured")
-		}
+	} else if acm != nil {
 		tlsCfg.GetCertificate = acm.GetCertificate
 	}
+
 	return &tlsCfg, nil
 }
 
@@ -965,7 +963,8 @@ type FileSystemCacheConfig struct {
 }
 
 type RedisCacheConfig struct {
-	TLS `yaml:",inline"`
+	TLS       `yaml:",inline"`
+	EnableTLS bool `yaml:"enable_tls,omitempty"`
 
 	Username  string                 `yaml:"username,omitempty"`
 	Password  string                 `yaml:"password,omitempty"`
