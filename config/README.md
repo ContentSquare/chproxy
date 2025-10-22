@@ -101,6 +101,10 @@ max_payload_size: <byte_size>
 
 # Whether a query cached by a user can be used by another user
 shared_with_all_users: <bool> | default = false [optional]
+
+# Whether `shared_with_all_users` option is enabled
+# check permissions for cached query used by another user
+check_grants_for_shared_cache: <bool> | default = false [optional]
 ```
 
 ### <distributed_cache_config>
