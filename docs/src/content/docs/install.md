@@ -84,6 +84,7 @@ Type=notify
 User=chproxy
 Group=chproxy
 ExecStart=/usr/bin/chproxy -config /etc/chproxy/chproxy.yml
+ExecReload=kill -HUP $MAINPID
 TimeoutSec=30
 Restart=on-failure
 
