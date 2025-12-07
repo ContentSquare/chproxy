@@ -886,7 +886,7 @@ func (c *cluster) getReplicaSticky(sessionId string) *replica {
 	}
 
 	// handling sticky session
-	idx := hash(sessionId) % n
+	idx := (hash(sessionId) >> 16) % n
 	r := c.replicas[idx]
 
 	// TODO: In principle, sticky session must always proxy to the fixed replica continuously,
@@ -917,7 +917,7 @@ func (r *replica) getHostSticky(sessionId string) *topology.Node {
 	}
 
 	// handling sticky session
-	idx := hash(sessionId) % n
+	idx := (hash(sessionId) & 0xFFFF) % n
 	h := r.hosts[idx]
 
 	// TODO: In principle, sticky session must always proxy to the fixed host continuously,

@@ -396,10 +396,10 @@ func TestDecorateRequest(t *testing.T) {
 
 func TestGetHostSticky(t *testing.T) {
 	exceptedSessionHostMap := map[string]string{
-		"0": "127.0.0.22",
+		"0": "127.0.0.66",
 		"1": "127.0.0.33",
 		"2": "127.0.0.44",
-		"3": "127.0.0.55",
+		"3": "127.0.0.11",
 	}
 	c := testGetCluster()
 	for i := 0; i < 10000; i++ {
@@ -415,10 +415,10 @@ func TestIncQueued(t *testing.T) {
 	cu := testGetClusterUser()
 	c := testGetCluster()
 	expectedSessionHostMap := map[string]string{
-		"0": "127.0.0.22",
+		"0": "127.0.0.66",
 		"1": "127.0.0.33",
 		"2": "127.0.0.44",
-		"3": "127.0.0.55",
+		"3": "127.0.0.11",
 	}
 	if err := testConcurrentQuery(c, u, cu, 10000, expectedSessionHostMap); err != nil {
 		t.Fatalf("incQueue test err: %s", err)
