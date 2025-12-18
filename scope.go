@@ -57,10 +57,14 @@ type scope struct {
 	requestPacketSize int
 }
 
-func newScope(req *http.Request, u *user, c *cluster, cu *clusterUser, sessionId string, sessionTimeout int) *scope {
-	h := c.getHost()
+func newScope(req *http.Request, u *user, c *cluster, cu *clusterUser, sessionId string, sessionTimeout int, replicaIndex, nodeIndex int) *scope {
+	var h *topology.Node
 	if sessionId != "" {
 		h = c.getHostSticky(sessionId)
+	} else if replicaIndex > 0 || nodeIndex > 0 {
+		h = c.getSpecificHost(replicaIndex, nodeIndex)
+	} else {
+		h = c.getHost()
 	}
 	var localAddr string
 	if addr, ok := req.Context().Value(http.LocalAddrContextKey).(net.Addr); ok {
@@ -720,6 +724,8 @@ func newReplicas(replicasCfg []config.Replica, nodes []string, scheme string, c 
 			return nil, err
 		}
 		r.hosts = hosts
+		c.maxNodeIndex = len(r.hosts)
+		c.maxReplicaIndex = 1
 		return []*replica{r}, nil
 	}
 
@@ -735,7 +741,9 @@ func newReplicas(replicasCfg []config.Replica, nodes []string, scheme string, c 
 		}
 		r.hosts = hosts
 		replicas[i] = r
+		c.maxNodeIndex = max(c.maxNodeIndex, len(r.hosts))
 	}
+	c.maxReplicaIndex = len(replicas)
 	return replicas, nil
 }
 
@@ -774,6 +782,9 @@ type cluster struct {
 
 	replicas       []*replica
 	nextReplicaIdx uint32
+
+	maxReplicaIndex int
+	maxNodeIndex    int
 
 	users map[string]*clusterUser
 
@@ -937,6 +948,69 @@ func (r *replica) getHostSticky(sessionId string) *topology.Node {
 	return h
 }
 
+// getSpecificReplica returns specific replica by replicaIndex from the cluster.
+//
+// Always returns non-nil.
+func (c *cluster) getSpecificReplica(replicaIndex, nodeIndex int) *replica {
+	if replicaIndex > 0 {
+		return c.replicas[replicaIndex-1]
+	}
+	if nodeIndex == 0 {
+		return c.getReplica()
+	}
+
+	idx := atomic.AddUint32(&c.nextReplicaIdx, 1)
+	n := uint32(len(c.replicas))
+	if n == 1 {
+		return c.replicas[0]
+	}
+
+	idx %= n
+	r := c.replicas[idx]
+	reqs := r.load()
+
+	// Set least priority to inactive replica.
+	if !r.isActive() {
+		reqs = ^uint32(0)
+	}
+
+	if reqs == 0 && nodeIndex <= len(r.hosts) {
+		return r
+	}
+
+	// Scan all the replicas for the least loaded and nodeIndex-satisfied replica.
+	for i := uint32(1); i < n; i++ {
+		tmpIdx := (idx + i) % n
+		tmpR := c.replicas[tmpIdx]
+		if !tmpR.isActive() || nodeIndex > len(tmpR.hosts) {
+			continue
+		}
+		tmpReqs := tmpR.load()
+		if tmpReqs == 0 && nodeIndex <= len(tmpR.hosts) {
+			return tmpR
+		}
+		if tmpReqs < reqs && nodeIndex <= len(tmpR.hosts) {
+			r = tmpR
+			reqs = tmpReqs
+		}
+	}
+	// The returned replica may be inactive. This is OK,
+	// since this means all the replicas are inactive,
+	// so let's try proxying the request to any replica.
+	return r
+}
+
+// getSpecificHost returns specific host by nodeIndex from replica.
+//
+// Always returns non-nil.
+func (r *replica) getSpecificHost(nodeIndex int) *topology.Node {
+	if nodeIndex > 0 {
+		return r.hosts[nodeIndex-1]
+	}
+
+	return r.getHost()
+}
+
 // getHost returns least loaded + round-robin host from replica.
 //
 // Always returns non-nil.
@@ -989,6 +1063,14 @@ func (r *replica) getHost() *topology.Node {
 func (c *cluster) getHostSticky(sessionId string) *topology.Node {
 	r := c.getReplicaSticky(sessionId)
 	return r.getHostSticky(sessionId)
+}
+
+// getSpecificHost returns specific host by index from cluster.
+//
+// Always returns non-nil.
+func (c *cluster) getSpecificHost(replicaIndex, nodeIndex int) *topology.Node {
+	r := c.getSpecificReplica(replicaIndex, nodeIndex)
+	return r.getSpecificHost(nodeIndex)
 }
 
 // getHost returns least loaded + round-robin host from cluster.

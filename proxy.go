@@ -917,6 +917,11 @@ func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 		return nil, http.StatusForbidden, fmt.Errorf("cluster user %q is not allowed to access", cu.name)
 	}
 
-	s := newScope(req, u, c, cu, sessionId, sessionTimeout)
+	replicaIndex, nodeIndex, err := getSpecificHostIndex(req, c)
+	if err != nil {
+		return nil, http.StatusBadRequest, err
+	}
+
+	s := newScope(req, u, c, cu, sessionId, sessionTimeout, replicaIndex, nodeIndex)
 	return s, 0, nil
 }
