@@ -45,6 +45,8 @@ type scope struct {
 
 	sessionId      string
 	sessionTimeout int
+	replicaIndex   int
+	nodeIndex      int
 
 	remoteAddr string
 	localAddr  string
@@ -79,6 +81,8 @@ func newScope(req *http.Request, u *user, c *cluster, cu *clusterUser, sessionId
 		clusterUser:    cu,
 		sessionId:      sessionId,
 		sessionTimeout: sessionTimeout,
+		replicaIndex:   replicaIndex,
+		nodeIndex:      nodeIndex,
 
 		remoteAddr: req.RemoteAddr,
 		localAddr:  localAddr,
@@ -189,11 +193,13 @@ func (s *scope) waitUntilAllowStart(sleep time.Duration, deadline time.Time, lab
 		var h *topology.Node
 		// Choose new host, since the previous one may become obsolete
 		// after sleeping.
-		if s.sessionId == "" {
-			h = s.cluster.getHost()
-		} else {
+		if s.sessionId != "" {
 			// if request has session_id, set same host
 			h = s.cluster.getHostSticky(s.sessionId)
+		} else if s.replicaIndex > 0 || s.nodeIndex > 0 {
+			h = s.cluster.getSpecificHost(s.replicaIndex, s.nodeIndex)
+		} else {
+			h = s.cluster.getHost()
 		}
 
 		s.host = h

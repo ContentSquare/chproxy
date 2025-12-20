@@ -238,7 +238,12 @@ func executeWithRetry(
 			// comment s.host.dec() line to avoid double increment; issue #322
 			// s.host.dec()
 			s.host.SetIsActive(false)
-			nextHost := s.cluster.getHost()
+			var nextHost *topology.Node
+			if s.replicaIndex > 0 || s.nodeIndex > 0 {
+				nextHost = s.cluster.getSpecificHost(s.replicaIndex, s.nodeIndex)
+			} else {
+				nextHost = s.cluster.getHost()
+			}
 			// The query could be retried if it has no stickiness to a certain server
 			if numRetry < maxRetry && nextHost.IsActive() && s.sessionId == "" {
 				// the query execution has been failed
