@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"fmt"
+	"github.com/contentsquare/chproxy/internal/topology"
 	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/url"
@@ -371,6 +372,153 @@ func TestCalcMapHash(t *testing.T) {
 			r, err := calcMapHash(tc.input)
 			assert.Equal(t, r, tc.expectedResult)
 			assert.Equal(t, err, tc.expectedError)
+		})
+	}
+}
+
+func TestGetSpecificHostIndex(t *testing.T) {
+	// Create a test cluster with 2 replicas, each having 3 nodes
+	testCluster := &cluster{
+		name: "test_cluster",
+		replicas: []*replica{
+			{
+				name:  "replica1",
+				hosts: []*topology.Node{{}, {}, {}},
+			},
+			{
+				name:  "replica2",
+				hosts: []*topology.Node{{}, {}, {}},
+			},
+		},
+		maxReplicaIndex: 2,
+		maxNodeIndex:    3,
+	}
+	// Set the cluster reference for each replica
+	for _, r := range testCluster.replicas {
+		r.cluster = testCluster
+	}
+
+	testCases := []struct {
+		name          string
+		params        map[string]string
+		expectedRI    int
+		expectedNI    int
+		expectedError bool
+	}{
+		{
+			"no parameters",
+			map[string]string{},
+			0,
+			0,
+			false,
+		},
+		{
+			"only replica_index",
+			map[string]string{"replica_index": "1"},
+			1,
+			0,
+			false,
+		},
+		{
+			"only node_index",
+			map[string]string{"node_index": "2"},
+			0,
+			2,
+			false,
+		},
+		{
+			"only shard_index",
+			map[string]string{"shard_index": "3"},
+			0,
+			3,
+			false,
+		},
+		{
+			"replica_index and node_index",
+			map[string]string{"replica_index": "1", "node_index": "2"},
+			1,
+			2,
+			false,
+		},
+		{
+			"invalid replica_index",
+			map[string]string{"replica_index": "invalid"},
+			0,
+			0,
+			true,
+		},
+		{
+			"invalid node_index",
+			map[string]string{"node_index": "-1"},
+			0,
+			0,
+			true,
+		},
+		{
+			"replica_index out of range",
+			map[string]string{"replica_index": "3"},
+			0,
+			0,
+			true,
+		},
+		{
+			"node_index out of range",
+			map[string]string{"node_index": "4"},
+			0,
+			0,
+			true,
+		},
+		{
+			"node_index out of range for specific replica",
+			map[string]string{"replica_index": "1", "node_index": "4"},
+			0,
+			0,
+			true,
+		},
+		{
+			"replica_index is zero",
+			map[string]string{"replica_index": "0"},
+			0,
+			0,
+			false,
+		},
+		{
+			"node_index is zero",
+			map[string]string{"node_index": "0"},
+			0,
+			0,
+			false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			req, err := http.NewRequest("GET", "", nil)
+			checkErr(t, err)
+
+			// Set up the URL parameters
+			params := make(url.Values)
+			for k, v := range tc.params {
+				params.Set(k, v)
+			}
+			req.URL.RawQuery = params.Encode()
+
+			replicaIndex, nodeIndex, err := getSpecificHostIndex(req, testCluster)
+			if tc.expectedError {
+				if err == nil {
+					t.Fatalf("expected error but got none")
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				if replicaIndex != tc.expectedRI {
+					t.Fatalf("unexpected replicaIndex: got %d, expecting %d", replicaIndex, tc.expectedRI)
+				}
+				if nodeIndex != tc.expectedNI {
+					t.Fatalf("unexpected nodeIndex: got %d, expecting %d", nodeIndex, tc.expectedNI)
+				}
+			}
 		})
 	}
 }
