@@ -965,37 +965,27 @@ func (c *cluster) getSpecificReplica(replicaIndex, nodeIndex int) *replica {
 		return c.replicas[0]
 	}
 
-	idx %= n
-	r := c.replicas[idx]
-	reqs := r.load()
-
-	// Set least priority to inactive replica.
-	if !r.isActive() {
-		reqs = ^uint32(0)
-	}
-
-	if reqs == 0 && nodeIndex <= len(r.hosts) {
-		return r
-	}
+	var r *replica
+	reqs := ^uint32(0)
 
 	// Scan all the replicas for the least loaded and nodeIndex-satisfied replica.
-	for i := uint32(1); i < n; i++ {
+	for i := uint32(0); i < n; i++ {
 		tmpIdx := (idx + i) % n
 		tmpR := c.replicas[tmpIdx]
-		if !tmpR.isActive() || nodeIndex > len(tmpR.hosts) {
+		if nodeIndex > len(tmpR.hosts) {
 			continue
 		}
-		tmpReqs := tmpR.load()
-		if tmpReqs == 0 && nodeIndex <= len(tmpR.hosts) {
-			return tmpR
-		}
-		if tmpReqs < reqs && nodeIndex <= len(tmpR.hosts) {
-			r = tmpR
-			reqs = tmpReqs
+		if tmpR.isActive() || r == nil {
+			tmpReqs := tmpR.load()
+			if tmpReqs < reqs || !r.isActive() {
+				r = tmpR
+				reqs = tmpReqs
+			}
 		}
 	}
+
 	// The returned replica may be inactive. This is OK,
-	// since this means all the replicas are inactive,
+	// since this means all the nodeIndex-satisfied replicas are inactive,
 	// so let's try proxying the request to any replica.
 	return r
 }
@@ -1066,6 +1056,8 @@ func (c *cluster) getHostSticky(sessionId string) *topology.Node {
 }
 
 // getSpecificHost returns specific host by index from cluster.
+// Both replicaIndex/nodeIndex start from 1 and satisfy [0, maxReplicaIndex/maxNodeIndex], 0 means no specific host index.
+// If both are 0, getSpecificHost equals to getHost.
 //
 // Always returns non-nil.
 func (c *cluster) getSpecificHost(replicaIndex, nodeIndex int) *topology.Node {
