@@ -63,51 +63,51 @@ func getSessionTimeout(req *http.Request) int {
 	return 60
 }
 
-// getSpecificHostIndex retrieves specific host index, including replica and node index
-// index starts from 1, 0 means no specific host index
-// shard_index is alias for node_index, and override node_index if both are specified
-func getSpecificHostIndex(req *http.Request, c *cluster) (int, int, error) {
+// getSpecificHostNum retrieves specific host num, including replica and node num
+// num starts from 1, 0 means no specific host num
+// shard_num is alias for node_num, and override node_num if both are specified
+func getSpecificHostNum(req *http.Request, c *cluster) (int, int, error) {
 	params := req.URL.Query()
-	var replicaIndex, nodeIndex int
+	var replicaNum, nodeNum int
 	var err error
-	// replica index
-	replicaIndexStr := params.Get("replica_index")
-	if replicaIndexStr != "" {
-		replicaIndex, err = strconv.Atoi(replicaIndexStr)
+	// replica num
+	replicaNumStr := params.Get("replica_num")
+	if replicaNumStr != "" {
+		replicaNum, err = strconv.Atoi(replicaNumStr)
 		if err != nil {
-			return -1, -1, fmt.Errorf("invalid replica index %q", replicaIndexStr)
+			return -1, -1, fmt.Errorf("invalid replica num %q", replicaNumStr)
 		}
-		if replicaIndex < 0 || replicaIndex > c.maxReplicaIndex {
-			return -1, -1, fmt.Errorf("invalid replica index %q", replicaIndexStr)
+		if replicaNum < 0 || replicaNum > c.maxReplicaNum {
+			return -1, -1, fmt.Errorf("invalid replica num %q", replicaNumStr)
 		}
 	}
-	// node index (shard_index is alias for node_index)
-	nodeIndexStr := params.Get("node_index")
-	if nodeIndexStr != "" {
-		nodeIndex, err = strconv.Atoi(nodeIndexStr)
+	// node num (shard_num is alias for node_num)
+	nodeNumStr := params.Get("node_num")
+	if nodeNumStr != "" {
+		nodeNum, err = strconv.Atoi(nodeNumStr)
 		if err != nil {
-			return -1, -1, fmt.Errorf("invalid node index %q", nodeIndexStr)
+			return -1, -1, fmt.Errorf("invalid node num %q", nodeNumStr)
 		}
-		if nodeIndex < 0 || nodeIndex > c.maxNodeIndex {
-			return -1, -1, fmt.Errorf("invalid node index %q", nodeIndexStr)
+		if nodeNum < 0 || nodeNum > c.maxNodeNum {
+			return -1, -1, fmt.Errorf("invalid node num %q", nodeNumStr)
 		}
 	}
-	shardIndexStr := params.Get("shard_index")
-	if shardIndexStr != "" {
-		nodeIndex, err = strconv.Atoi(shardIndexStr)
+	shardNumStr := params.Get("shard_num")
+	if shardNumStr != "" {
+		nodeNum, err = strconv.Atoi(shardNumStr)
 		if err != nil {
-			return -1, -1, fmt.Errorf("invalid shard index %q", shardIndexStr)
+			return -1, -1, fmt.Errorf("invalid shard num %q", shardNumStr)
 		}
-		if nodeIndex < 0 || nodeIndex > c.maxNodeIndex {
-			return -1, -1, fmt.Errorf("invalid shard index %q", shardIndexStr)
+		if nodeNum < 0 || nodeNum > c.maxNodeNum {
+			return -1, -1, fmt.Errorf("invalid shard num %q", shardNumStr)
 		}
 	}
-	// validate if both replicaIndex and nodeIndex are specified
-	if replicaIndex > 0 && nodeIndex > 0 && nodeIndex > len(c.replicas[replicaIndex-1].hosts) {
-		return -1, -1, fmt.Errorf("invalid host index (%q, %q)", replicaIndexStr, nodeIndexStr)
+	// validate if both replicaNum and nodeNum are specified
+	if replicaNum > 0 && nodeNum > 0 && nodeNum > len(c.replicas[replicaNum-1].hosts) {
+		return -1, -1, fmt.Errorf("invalid host num (%q, %q)", replicaNumStr, nodeNumStr)
 	}
 
-	return replicaIndex, nodeIndex, nil
+	return replicaNum, nodeNum, nil
 }
 
 // getQuerySnippet returns query snippet.

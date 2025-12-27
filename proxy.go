@@ -239,8 +239,8 @@ func executeWithRetry(
 			// s.host.dec()
 			s.host.SetIsActive(false)
 			var nextHost *topology.Node
-			if s.replicaIndex > 0 || s.nodeIndex > 0 {
-				nextHost = s.cluster.getSpecificHost(s.replicaIndex, s.nodeIndex)
+			if s.replicaNum > 0 || s.nodeNum > 0 {
+				nextHost = s.cluster.getSpecificHost(s.replicaNum, s.nodeNum)
 			} else {
 				nextHost = s.cluster.getHost()
 			}
@@ -922,11 +922,11 @@ func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 		return nil, http.StatusForbidden, fmt.Errorf("cluster user %q is not allowed to access", cu.name)
 	}
 
-	replicaIndex, nodeIndex, err := getSpecificHostIndex(req, c)
+	replicaNum, nodeNum, err := getSpecificHostNum(req, c)
 	if err != nil {
 		return nil, http.StatusBadRequest, err
 	}
 
-	s := newScope(req, u, c, cu, sessionId, sessionTimeout, replicaIndex, nodeIndex)
+	s := newScope(req, u, c, cu, sessionId, sessionTimeout, replicaNum, nodeNum)
 	return s, 0, nil
 }

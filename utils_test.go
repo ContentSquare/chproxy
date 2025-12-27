@@ -376,7 +376,7 @@ func TestCalcMapHash(t *testing.T) {
 	}
 }
 
-func TestGetSpecificHostIndex(t *testing.T) {
+func TestGetSpecificHostNum(t *testing.T) {
 	// Create a test cluster with 2 replicas, each having 3 nodes
 	testCluster := &cluster{
 		name: "test_cluster",
@@ -390,8 +390,8 @@ func TestGetSpecificHostIndex(t *testing.T) {
 				hosts: []*topology.Node{{}, {}, {}},
 			},
 		},
-		maxReplicaIndex: 2,
-		maxNodeIndex:    3,
+		maxReplicaNum: 2,
+		maxNodeNum:    3,
 	}
 	// Set the cluster reference for each replica
 	for _, r := range testCluster.replicas {
@@ -401,8 +401,8 @@ func TestGetSpecificHostIndex(t *testing.T) {
 	testCases := []struct {
 		name          string
 		params        map[string]string
-		expectedRI    int
-		expectedNI    int
+		expectedRN    int
+		expectedNN    int
 		expectedError bool
 	}{
 		{
@@ -413,78 +413,78 @@ func TestGetSpecificHostIndex(t *testing.T) {
 			false,
 		},
 		{
-			"only replica_index",
-			map[string]string{"replica_index": "1"},
+			"only replica_num",
+			map[string]string{"replica_num": "1"},
 			1,
 			0,
 			false,
 		},
 		{
-			"only node_index",
-			map[string]string{"node_index": "2"},
+			"only node_num",
+			map[string]string{"node_num": "2"},
 			0,
 			2,
 			false,
 		},
 		{
-			"only shard_index",
-			map[string]string{"shard_index": "3"},
+			"only shard_num",
+			map[string]string{"shard_num": "3"},
 			0,
 			3,
 			false,
 		},
 		{
-			"replica_index and node_index",
-			map[string]string{"replica_index": "1", "node_index": "2"},
+			"replica_num and node_num",
+			map[string]string{"replica_num": "1", "node_num": "2"},
 			1,
 			2,
 			false,
 		},
 		{
-			"invalid replica_index",
-			map[string]string{"replica_index": "invalid"},
+			"invalid replica_num",
+			map[string]string{"replica_num": "invalid"},
 			0,
 			0,
 			true,
 		},
 		{
-			"invalid node_index",
-			map[string]string{"node_index": "-1"},
+			"invalid node_num",
+			map[string]string{"node_num": "-1"},
 			0,
 			0,
 			true,
 		},
 		{
-			"replica_index out of range",
-			map[string]string{"replica_index": "3"},
+			"replica_num out of range",
+			map[string]string{"replica_num": "3"},
 			0,
 			0,
 			true,
 		},
 		{
-			"node_index out of range",
-			map[string]string{"node_index": "4"},
+			"node_num out of range",
+			map[string]string{"node_num": "4"},
 			0,
 			0,
 			true,
 		},
 		{
-			"node_index out of range for specific replica",
-			map[string]string{"replica_index": "1", "node_index": "4"},
+			"node_num out of range for specific replica",
+			map[string]string{"replica_num": "1", "node_num": "4"},
 			0,
 			0,
 			true,
 		},
 		{
-			"replica_index is zero",
-			map[string]string{"replica_index": "0"},
+			"replica_num is zero",
+			map[string]string{"replica_num": "0"},
 			0,
 			0,
 			false,
 		},
 		{
-			"node_index is zero",
-			map[string]string{"node_index": "0"},
+			"node_num is zero",
+			map[string]string{"node_num": "0"},
 			0,
 			0,
 			false,
@@ -503,7 +503,7 @@ func TestGetSpecificHostIndex(t *testing.T) {
 			}
 			req.URL.RawQuery = params.Encode()
 
-			replicaIndex, nodeIndex, err := getSpecificHostIndex(req, testCluster)
+			replicaNum, nodeNum, err := getSpecificHostNum(req, testCluster)
 			if tc.expectedError {
 				if err == nil {
 					t.Fatalf("expected error but got none")
@@ -512,11 +512,11 @@ func TestGetSpecificHostIndex(t *testing.T) {
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
 				}
-				if replicaIndex != tc.expectedRI {
-					t.Fatalf("unexpected replicaIndex: got %d, expecting %d", replicaIndex, tc.expectedRI)
+				if replicaNum != tc.expectedRN {
+					t.Fatalf("unexpected replicaNum: got %d, expecting %d", replicaNum, tc.expectedRN)
 				}
-				if nodeIndex != tc.expectedNI {
-					t.Fatalf("unexpected nodeIndex: got %d, expecting %d", nodeIndex, tc.expectedNI)
+				if nodeNum != tc.expectedNN {
+					t.Fatalf("unexpected nodeNum: got %d, expecting %d", nodeNum, tc.expectedNN)
 				}
 			}
 		})

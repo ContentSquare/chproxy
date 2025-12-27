@@ -413,7 +413,7 @@ func TestGetHostSticky(t *testing.T) {
 func TestGetSpecificHost(t *testing.T) {
 	c := testGetCluster()
 
-	t.Run("SpecifyReplicaIndex", func(t *testing.T) {
+	t.Run("SpecifyReplicaNum", func(t *testing.T) {
 		h := c.getSpecificHost(1, 0)
 		if h.Host() != "127.0.0.11" && h.Host() != "127.0.0.22" {
 			t.Fatalf("Expected host from replica1, got: %s", h.Host())
@@ -430,7 +430,7 @@ func TestGetSpecificHost(t *testing.T) {
 		}
 	})
 
-	t.Run("SpecifyNodeIndex", func(t *testing.T) {
+	t.Run("SpecifyNodeNum", func(t *testing.T) {
 		h := c.getSpecificHost(0, 1)
 		if h.Host() != "127.0.0.11" && h.Host() != "127.0.0.33" && h.Host() != "127.0.0.55" {
 			t.Fatalf("Expected first node from any replica, got: %s", h.Host())
@@ -442,7 +442,7 @@ func TestGetSpecificHost(t *testing.T) {
 		}
 	})
 
-	t.Run("SpecifyReplicaIndexAndNodeIndex", func(t *testing.T) {
+	t.Run("SpecifyReplicaNumAndNodeNum", func(t *testing.T) {
 		h := c.getSpecificHost(1, 1)
 		if h.Host() != "127.0.0.11" {
 			t.Fatalf("Expected 127.0.0.11, got: %s", h.Host())
@@ -459,7 +459,7 @@ func TestGetSpecificHost(t *testing.T) {
 		}
 	})
 
-	t.Run("SpecifyBothIndicesZero", func(t *testing.T) {
+	t.Run("SpecifyBothNumsZero", func(t *testing.T) {
 		h := c.getSpecificHost(0, 0)
 		if h == nil {
 			t.Fatalf("getSpecificHost(0, 0) returned nil")
@@ -558,9 +558,9 @@ func testGetCluster() *cluster {
 	}
 	r3.name = "replica3"
 
-	c.maxReplicaIndex = len(c.replicas)
+	c.maxReplicaNum = len(c.replicas)
 	for _, r := range c.replicas {
-		c.maxNodeIndex = max(c.maxNodeIndex, len(r.hosts))
+		c.maxNodeNum = max(c.maxNodeNum, len(r.hosts))
 	}
 
 	return c
