@@ -710,6 +710,43 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 	return nil
 }
 
+// close performs cleanup of proxy resources during graceful shutdown
+func (rp *reverseProxy) close() error {
+	rp.configLock.Lock()
+	defer rp.configLock.Unlock()
+
+	rp.lock.RLock()
+	caches := rp.caches
+	rp.lock.RUnlock()
+
+	// Close all caches
+	for name, c := range caches {
+		if err := c.Close(); err != nil {
+			log.Errorf("error closing cache %q: %s", name, err)
+		}
+	}
+
+	// Signal heartbeat goroutines to stop
+	if rp.reloadSignal != nil {
+		select {
+		case <-rp.reloadSignal:
+			// Channel already closed, nothing to do
+		default:
+			close(rp.reloadSignal)
+		}
+	}
+
+	// Wait for heartbeat goroutines to exit
+	rp.reloadWG.Wait()
+
+	// Close idle connections in the transport
+	if transport, ok := rp.rp.Transport.(*http.Transport); ok {
+		transport.CloseIdleConnections()
+	}
+
+	return nil
+}
+
 func initTempCaches(caches map[string]*cache.AsyncCache, transactionsTimeout config.Duration, cfg []config.Cache) error {
 	for _, cc := range cfg {
 		if _, ok := caches[cc.Name]; ok {

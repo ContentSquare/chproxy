@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
@@ -1082,6 +1083,156 @@ func startHTTP() (*http.Server, chan struct{}) {
 		close(done)
 	}()
 	return s, done
+}
+
+func TestGracefulShutdownWaitsForRequest(t *testing.T) {
+	if os.Getenv("CHPROXY_TEST_GRACEFUL_SHUTDOWN") == "1" {
+		activeConnections.Store(0)
+		ln, err := net.Listen("tcp4", "127.0.0.1:0")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "cannot listen: %s\n", err)
+			os.Exit(2)
+		}
+
+		started := make(chan struct{})
+		unblock := make(chan struct{})
+		s := newServer(ln, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			close(started)
+			<-unblock
+			w.WriteHeader(http.StatusOK)
+		}), config.TimeoutCfg{})
+		go s.Serve(ln)
+
+		reqDone := make(chan struct{})
+		go func() {
+			resp, err := http.Get("http://" + ln.Addr().String())
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(2)
+			}
+			io.Copy(io.Discard, resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				fmt.Fprintf(os.Stderr, "unexpected response status: %d\n", resp.StatusCode)
+				os.Exit(2)
+			}
+			close(reqDone)
+		}()
+
+		select {
+		case <-started:
+		case <-time.After(500 * time.Millisecond):
+			fmt.Fprintln(os.Stderr, "handler did not start in time")
+			os.Exit(2)
+		}
+
+		if activeConnections.Load() == 0 {
+			fmt.Fprintln(os.Stderr, "active connections not tracked")
+			os.Exit(2)
+		}
+
+		shutdownStart := time.Now()
+		go func() {
+			time.Sleep(200 * time.Millisecond)
+			close(unblock)
+		}()
+
+		gracefulShutdownTimeout = 2 * time.Second
+		if err := gracefulShutdown(s, nil, nil); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
+
+		shutdownDuration := time.Since(shutdownStart)
+		if shutdownDuration < 200*time.Millisecond || shutdownDuration > 3*time.Second {
+			fmt.Fprintf(os.Stderr, "shutdown took %v, expected ~200ms\n", shutdownDuration)
+			os.Exit(2)
+		}
+
+		select {
+		case <-reqDone:
+		case <-time.After(1 * time.Second):
+			fmt.Fprintln(os.Stderr, "request did not complete")
+			os.Exit(2)
+		}
+
+		if activeConnections.Load() != 0 {
+			fmt.Fprintf(os.Stderr, "active connections not cleaned up: %d\n", activeConnections.Load())
+			os.Exit(2)
+		}
+
+		return
+	}
+
+	cmd := exec.Command(os.Args[0], "-test.run", "TestGracefulShutdownWaitsForRequest")
+	cmd.Env = append(os.Environ(), "CHPROXY_TEST_GRACEFUL_SHUTDOWN=1")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("graceful shutdown child failed: %v\n%s", err, output)
+	}
+}
+
+func TestGracefulShutdownTimesOut(t *testing.T) {
+	if os.Getenv("CHPROXY_TEST_GRACEFUL_TIMEOUT") == "1" {
+		activeConnections.Store(0)
+		ln, err := net.Listen("tcp4", "127.0.0.1:0")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "cannot listen: %s\n", err)
+			os.Exit(2)
+		}
+
+		started := make(chan struct{})
+		s := newServer(ln, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			close(started)
+			time.Sleep(5 * time.Second)
+			w.WriteHeader(http.StatusOK)
+		}), config.TimeoutCfg{})
+		go s.Serve(ln)
+
+		go func() {
+			resp, err := http.Get("http://" + ln.Addr().String())
+			if err != nil {
+				return
+			}
+			io.Copy(io.Discard, resp.Body)
+			resp.Body.Close()
+		}()
+
+		select {
+		case <-started:
+		case <-time.After(500 * time.Millisecond):
+			fmt.Fprintln(os.Stderr, "handler did not start in time")
+			os.Exit(2)
+		}
+
+		shutdownStart := time.Now()
+		gracefulShutdownTimeout = 500 * time.Millisecond
+		err = gracefulShutdown(s, nil, nil)
+
+		shutdownDuration := time.Since(shutdownStart)
+		if shutdownDuration < 500*time.Millisecond || shutdownDuration > 3*time.Second {
+			fmt.Fprintf(os.Stderr, "shutdown took %v, expected ~500ms\n", shutdownDuration)
+			os.Exit(2)
+		}
+
+		if err == nil {
+			fmt.Fprintln(os.Stderr, "expected timeout error, got nil")
+			os.Exit(2)
+		}
+		if !strings.Contains(err.Error(), "timeout") {
+			fmt.Fprintf(os.Stderr, "expected timeout error, got: %v\n", err)
+			os.Exit(2)
+		}
+
+		return
+	}
+
+	cmd := exec.Command(os.Args[0], "-test.run", "TestGracefulShutdownTimesOut")
+	cmd.Env = append(os.Environ(), "CHPROXY_TEST_GRACEFUL_TIMEOUT=1")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("graceful shutdown timeout child failed: %v\n%s", err, output)
+	}
 }
 
 // TODO randomise port for each instance of the mock
