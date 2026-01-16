@@ -107,6 +107,8 @@ Where `<remaining_seconds>` is the number of seconds until the cached entry expi
 - Redis native TTL mechanism is used
 - Entries automatically expire in Redis after the configured TTL
 - For large payloads with low TTL (<15s), temporary files may be used to prevent data loss during streaming
+  - This threshold is defined as `minTTLForRedisStreamingReader = 15 * time.Second` in the source code
+  - Below this threshold, data is cached in temporary files to ensure complete delivery even if the Redis entry expires during transfer
 
 ## Transaction Registry TTL
 
@@ -148,7 +150,12 @@ To verify your TTL configuration is valid:
 ./chproxy -config=config.yml
 ```
 
-If `expire` is missing or invalid, chproxy will fail to start with an error message.
+If `expire` is missing or zero, chproxy will fail when trying to initialize the cache with an error message like:
+```
+FATAL: error while applying config: `expire` must be positive
+```
+
+Note: The `expire` field is technically optional in the YAML syntax (it has `omitempty` tag), but validation occurs when cache instances are created, ensuring it must be set to a positive value for the cache to function.
 
 ## Related Configuration Files
 

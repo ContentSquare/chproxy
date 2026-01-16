@@ -74,7 +74,7 @@ caches:
     file_system:
       dir: "/tmp/chproxy-cache/static"
       max_size: 20Gb
-    expire: 168h             # Expires after 7 days (168 hours)
+    expire: 7d               # Expires after 7 days
     max_payload_size: 500Mb
     shared_with_all_users: true
 
