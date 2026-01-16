@@ -8,6 +8,15 @@ It is an open-source community project and not an official ClickHouse project.
 
 Full documentation is available on [the official website](https://www.chproxy.org/).
 
+## Key Features
+
+- **Query Caching**: Cache query responses with configurable TTL (Time To Live)
+  - See [CACHING_TTL.md](./CACHING_TTL.md) for detailed information about caching TTL configuration
+- **Load Balancing**: Distribute queries across multiple ClickHouse nodes
+- **Security**: User authentication, network restrictions, and HTTPS support
+- **Rate Limiting**: Control query execution and request rates per user
+- **High Availability**: Automatic failover and health checks
+
 ## Contributing
 
 See our [contributing guide](./CONTRIBUTING.md)
