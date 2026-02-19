@@ -1,0 +1,40 @@
+log_debug: false
+hack_me_please: true
+
+server:
+  http:
+    listen_addr: "0.0.0.0:9001"
+
+users:
+  - name: "default"
+    password: "password"
+    to_cluster: "default"
+    to_user: "admin"
+    max_concurrent_queries: 1000
+    max_execution_time: 10m
+    cache: "default_cache"
+
+clusters:
+  - name: "default"
+    nodes: ["172.23.0.11:8123", "172.23.0.12:8123", "172.23.0.13:8123"]
+    users:
+      - name: "admin"
+        password: "123"
+
+caches:
+  - name: "default_cache"
+    mode: "redis"
+    redis:
+      addresses: # only sentinel addresses here
+        - 172.23.0.54:26379
+        - 172.23.0.55:26379
+      username: redisuser
+      password: RedisPassword
+      sentinel_user: ""
+      sentinel_password: "SentinelPassword"
+      master_name: "mymaster"
+      pool_size: 10
+      db_index: 0
+    expire: 60s
+    max_payload_size: 1024000
+    shared_with_all_users: false

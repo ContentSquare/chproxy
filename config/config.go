@@ -121,6 +121,9 @@ func withoutSensitiveInfo(config *Config) *Config {
 		if len(c.Caches[i].Redis.Password) > 0 {
 			c.Caches[i].Redis.Password = pswPlaceHolder
 		}
+		if len(c.Caches[i].Redis.SentinelPassword) > 0 {
+			c.Caches[i].Redis.SentinelPassword = pswPlaceHolder
+		}
 	}
 	return c
 }
@@ -966,12 +969,15 @@ type RedisCacheConfig struct {
 	TLS       `yaml:",inline"`
 	EnableTLS bool `yaml:"enable_tls,omitempty"`
 
-	Username  string                 `yaml:"username,omitempty"`
-	Password  string                 `yaml:"password,omitempty"`
-	Addresses []string               `yaml:"addresses"`
-	DBIndex   int                    `yaml:"db_index,omitempty"`
-	PoolSize  int                    `yaml:"pool_size,omitempty"`
-	XXX       map[string]interface{} `yaml:",inline"`
+	Username         string                 `yaml:"username,omitempty"`
+	Password         string                 `yaml:"password,omitempty"`
+	Addresses        []string               `yaml:"addresses"`
+	DBIndex          int                    `yaml:"db_index,omitempty"`
+	PoolSize         int                    `yaml:"pool_size,omitempty"`
+	SentinelUsername string                 `yaml:"sentinel_username,omitempty"`
+	SentinelPassword string                 `yaml:"sentinel_password,omitempty"`
+	MasterName       string                 `yaml:"master_name,omitempty"`
+	XXX              map[string]interface{} `yaml:",inline"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.

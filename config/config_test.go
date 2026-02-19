@@ -50,10 +50,11 @@ var fullConfig = Config{
 			MaxPayloadSize:     ByteSize(100 << 30),
 			SharedWithAllUsers: true,
 			Redis: RedisCacheConfig{
-				Username:  "chproxy",
-				Password:  "password",
-				Addresses: []string{"127.0.0.1:" + redisPort},
-				PoolSize:  10,
+				Username:         "chproxy",
+				Password:         "password",
+				SentinelPassword: "password",
+				Addresses:        []string{"127.0.0.1:" + redisPort},
+				PoolSize:         10,
 			},
 		},
 	},
@@ -560,6 +561,10 @@ func TestExamples(t *testing.T) {
 			"combined",
 			"examples/combined.yml",
 		},
+		{
+			"redis-sentinel",
+			"examples/redis-sentinel.yml",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -758,6 +763,7 @@ func TestRemovalSensitiveData(t *testing.T) {
 	conf.Clusters[1].HeartBeat.Password = "XXX"
 	conf.Clusters[2].ClusterUsers[0].Password = "XXX"
 	conf.Caches[2].Redis.Password = "XXX"
+	conf.Caches[2].Redis.SentinelPassword = "XXX"
 
 	if !cmp.Equal(conf, confSafe, cmpopts.IgnoreUnexported(Config{})) {
 		t.Fatalf("confCopy should have sensitive data replaced with XXX values,\n the diff is: %s",
@@ -926,6 +932,7 @@ caches:
     addresses:
     - 127.0.0.1:%s
     pool_size: 10
+    sentinel_password: XXX
   max_payload_size: 107374182400
   shared_with_all_users: true
 param_groups:
