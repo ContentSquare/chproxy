@@ -219,6 +219,7 @@ var fullConfig = Config{
 	ConnectionPool: ConnectionPool{
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 2,
+		IdleConnTimeout:     Duration(9 * time.Second),
 	},
 
 	Users: []User{
@@ -946,6 +947,7 @@ param_groups:
 connection_pool:
   max_idle_conns: 100
   max_idle_conns_per_host: 2
+  idle_conn_timeout: 9s
 `, redisPort)
 	tested := fullConfig.String()
 	if tested != expected {
