@@ -78,7 +78,7 @@ func newReverseProxy(cfgCp *config.ConnectionPool) *reverseProxy {
 		},
 		reloadSignal:        make(chan struct{}),
 		reloadWG:            sync.WaitGroup{},
-		maxIdleConns:        cfgCp.MaxIdleConnsPerHost,
+		maxIdleConns:        cfgCp.MaxIdleConns,
 		maxIdleConnsPerHost: cfgCp.MaxIdleConnsPerHost,
 	}
 }
