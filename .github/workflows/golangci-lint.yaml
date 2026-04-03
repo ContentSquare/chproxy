@@ -14,13 +14,13 @@ jobs:
     name: lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: ContentSquare/actions-checkout@approved-v4
 
-      - uses: actions/setup-go@v5
+      - uses: ContentSquare/actions-setup-go@approved-v5
         with:
           go-version-file: go.mod
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: contentsquare/golangci-golangci-lint-action@approved-v6
         with:
           version: v1.64.2
