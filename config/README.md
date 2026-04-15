@@ -40,6 +40,8 @@ max_error_reason_size: <byte_size>
 connection_pool:
   max_idle_conns: 100
   max_idle_conns_per_host: 2
+  # Connection idle timeout must be < Clickhouse `keep_alive_timeout`.
+  idle_conn_timeout: 9
 
 server:
   <server_config> [optional]

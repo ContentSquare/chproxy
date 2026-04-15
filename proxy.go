@@ -62,7 +62,7 @@ func newReverseProxy(cfgCp *config.ConnectionPool) *reverseProxy {
 		ForceAttemptHTTP2:     true,
 		MaxIdleConns:          cfgCp.MaxIdleConns,
 		MaxIdleConnsPerHost:   cfgCp.MaxIdleConnsPerHost,
-		IdleConnTimeout:       90 * time.Second,
+		IdleConnTimeout:       time.Duration(cfgCp.IdleConnTimeout),
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 	}

@@ -42,6 +42,7 @@ var (
 	defaultConnectionPool = ConnectionPool{
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 2,
+		IdleConnTimeout:     Duration(9 * time.Second),
 	}
 
 	defaultExecutionTime = Duration(120 * time.Second)
@@ -1061,6 +1062,10 @@ type ConnectionPool struct {
 
 	// Maximum number of idle connections between chproxy and particuler ClickHouse instance
 	MaxIdleConnsPerHost int `yaml:"max_idle_conns_per_host,omitempty"`
+
+	// Time that an idle connection is kept in the pool before being discarded.
+	// Should be set below the ClickHouse server's keep_alive_timeout.
+	IdleConnTimeout Duration `yaml:"idle_conn_timeout,omitempty"`
 
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
