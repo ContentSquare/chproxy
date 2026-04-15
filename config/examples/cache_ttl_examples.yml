@@ -1,0 +1,141 @@
+# Chproxy Cache TTL Configuration Examples
+# This file demonstrates various TTL (Time To Live) configurations for different use cases
+
+# Security note: Set hack_me_please to true for testing only
+hack_me_please: true
+
+server:
+  http:
+    listen_addr: ":9090"
+
+# Example 1: Multiple caches with different TTL values
+caches:
+  # Real-time cache - for dashboards and live metrics
+  - name: "realtime"
+    mode: "file_system"
+    file_system:
+      dir: "/tmp/chproxy-cache/realtime"
+      max_size: 1Gb
+    expire: 10s              # Expires after 10 seconds
+    max_payload_size: 10Mb
+
+  # Short-term cache - for frequently updated analytics
+  - name: "shortterm"
+    mode: "file_system"
+    file_system:
+      dir: "/tmp/chproxy-cache/shortterm"
+      max_size: 5Gb
+    expire: 5m               # Expires after 5 minutes
+    max_payload_size: 50Mb
+
+  # Medium-term cache - for hourly reports
+  - name: "hourly"
+    mode: "file_system"
+    file_system:
+      dir: "/tmp/chproxy-cache/hourly"
+      max_size: 10Gb
+    expire: 1h               # Expires after 1 hour
+    max_payload_size: 100Mb
+
+  # Long-term cache - for daily/historical reports
+  - name: "daily"
+    mode: "file_system"
+    file_system:
+      dir: "/tmp/chproxy-cache/daily"
+      max_size: 50Gb
+    expire: 24h              # Expires after 24 hours (1 day)
+    max_payload_size: 1Gb
+    shared_with_all_users: true
+
+  # Redis cache example - for distributed caching
+  - name: "redis_cache"
+    mode: "redis"
+    redis:
+      addresses:
+        - "localhost:6379"
+      password: "your_redis_password"
+      pool_size: 10
+    expire: 30s              # Expires after 30 seconds
+    max_payload_size: 100Mb
+    shared_with_all_users: true
+
+  # Very short TTL - for high-frequency updates
+  - name: "flash"
+    mode: "redis"
+    redis:
+      addresses:
+        - "localhost:6379"
+    expire: 5s               # Expires after 5 seconds
+    max_payload_size: 5Mb
+
+  # Extended cache - for rarely changing data
+  - name: "static"
+    mode: "file_system"
+    file_system:
+      dir: "/tmp/chproxy-cache/static"
+      max_size: 20Gb
+    expire: 7d               # Expires after 7 days
+    max_payload_size: 500Mb
+    shared_with_all_users: true
+
+clusters:
+  - name: "main_cluster"
+    nodes: ["localhost:8123"]
+    users:
+      - name: "default"
+        password: ""
+
+# Example user configurations using different cache TTLs
+users:
+  # Dashboard user - needs fresh data
+  - name: "dashboard_user"
+    password: "dash123"
+    to_cluster: "main_cluster"
+    to_user: "default"
+    cache: "realtime"          # Uses 10s TTL
+    max_execution_time: 30s
+
+  # Analytics user - moderate refresh rate
+  - name: "analytics_user"
+    password: "analytics123"
+    to_cluster: "main_cluster"
+    to_user: "default"
+    cache: "shortterm"         # Uses 5m TTL
+    max_execution_time: 2m
+
+  # Report user - longer cache
+  - name: "report_user"
+    password: "report123"
+    to_cluster: "main_cluster"
+    to_user: "default"
+    cache: "hourly"            # Uses 1h TTL
+    max_execution_time: 10m
+
+  # Historical data user - very long cache
+  - name: "history_user"
+    password: "history123"
+    to_cluster: "main_cluster"
+    to_user: "default"
+    cache: "daily"             # Uses 24h TTL
+    max_execution_time: 30m
+
+  # Redis cache user - distributed caching
+  - name: "distributed_user"
+    password: "redis123"
+    to_cluster: "main_cluster"
+    to_user: "default"
+    cache: "redis_cache"       # Uses 30s TTL with Redis
+    max_execution_time: 1m
+
+# TTL Duration Format Notes:
+# - s  = seconds  (e.g., 30s = 30 seconds)
+# - m  = minutes  (e.g., 5m = 5 minutes)
+# - h  = hours    (e.g., 1h = 1 hour)
+# - d  = days     (e.g., 7d = 7 days)
+# - w  = weeks    (e.g., 2w = 2 weeks)
+#
+# You can also use milliseconds (ms), microseconds (µs/us), or nanoseconds (ns)
+# Examples:
+# - 500ms = 500 milliseconds
+# - 100µs = 100 microseconds
+# - 1000ns = 1000 nanoseconds
