@@ -410,6 +410,78 @@ func TestGetHostSticky(t *testing.T) {
 	}
 }
 
+func TestGetSpecificHost(t *testing.T) {
+	c := testGetCluster()
+
+	t.Run("SpecifyReplicaNum", func(t *testing.T) {
+		h := c.getSpecificHost(1, 0)
+		if h.Host() != "127.0.0.11" && h.Host() != "127.0.0.22" {
+			t.Fatalf("Expected host from replica1, got: %s", h.Host())
+		}
+
+		h = c.getSpecificHost(2, 0)
+		if h.Host() != "127.0.0.33" && h.Host() != "127.0.0.44" {
+			t.Fatalf("Expected host from replica2, got: %s", h.Host())
+		}
+
+		h = c.getSpecificHost(3, 0)
+		if h.Host() != "127.0.0.55" && h.Host() != "127.0.0.66" {
+			t.Fatalf("Expected host from replica3, got: %s", h.Host())
+		}
+	})
+
+	t.Run("SpecifyNodeNum", func(t *testing.T) {
+		h := c.getSpecificHost(0, 1)
+		if h.Host() != "127.0.0.11" && h.Host() != "127.0.0.33" && h.Host() != "127.0.0.55" {
+			t.Fatalf("Expected first node from any replica, got: %s", h.Host())
+		}
+
+		h = c.getSpecificHost(0, 2)
+		if h.Host() != "127.0.0.22" && h.Host() != "127.0.0.44" && h.Host() != "127.0.0.66" {
+			t.Fatalf("Expected second node from any replica, got: %s", h.Host())
+		}
+	})
+
+	t.Run("SpecifyReplicaNumAndNodeNum", func(t *testing.T) {
+		h := c.getSpecificHost(1, 1)
+		if h.Host() != "127.0.0.11" {
+			t.Fatalf("Expected 127.0.0.11, got: %s", h.Host())
+		}
+
+		h = c.getSpecificHost(1, 2)
+		if h.Host() != "127.0.0.22" {
+			t.Fatalf("Expected 127.0.0.22, got: %s", h.Host())
+		}
+
+		h = c.getSpecificHost(2, 1)
+		if h.Host() != "127.0.0.33" {
+			t.Fatalf("Expected 127.0.0.33, got: %s", h.Host())
+		}
+	})
+
+	t.Run("SpecifyBothNumsZero", func(t *testing.T) {
+		h := c.getSpecificHost(0, 0)
+		if h == nil {
+			t.Fatalf("getSpecificHost(0, 0) returned nil")
+		}
+		found := false
+		for _, r := range c.replicas {
+			for _, node := range r.hosts {
+				if h.Host() == node.Host() {
+					found = true
+					break
+				}
+			}
+			if found {
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("getSpecificHost(0, 0) returned unknown host: %s", h.Host())
+		}
+	})
+}
+
 func TestIncQueued(t *testing.T) {
 	u := testGetUser()
 	cu := testGetClusterUser()
@@ -485,6 +557,12 @@ func testGetCluster() *cluster {
 		topology.NewNode(&url.URL{Host: "127.0.0.66"}, nil, "", r3.name, topology.WithDefaultActiveState(true)),
 	}
 	r3.name = "replica3"
+
+	c.maxReplicaNum = len(c.replicas)
+	for _, r := range c.replicas {
+		c.maxNodeNum = max(c.maxNodeNum, len(r.hosts))
+	}
+
 	return c
 }
 

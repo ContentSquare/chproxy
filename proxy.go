@@ -238,7 +238,12 @@ func executeWithRetry(
 			// comment s.host.dec() line to avoid double increment; issue #322
 			// s.host.dec()
 			s.host.SetIsActive(false)
-			nextHost := s.cluster.getHost()
+			var nextHost *topology.Node
+			if s.replicaNum > 0 || s.nodeNum > 0 {
+				nextHost = s.cluster.getSpecificHost(s.replicaNum, s.nodeNum)
+			} else {
+				nextHost = s.cluster.getHost()
+			}
 			// The query could be retried if it has no stickiness to a certain server
 			if numRetry < maxRetry && nextHost.IsActive() && s.sessionId == "" {
 				// the query execution has been failed
@@ -917,6 +922,11 @@ func (rp *reverseProxy) getScope(req *http.Request) (*scope, int, error) {
 		return nil, http.StatusForbidden, fmt.Errorf("cluster user %q is not allowed to access", cu.name)
 	}
 
-	s := newScope(req, u, c, cu, sessionId, sessionTimeout)
+	replicaNum, nodeNum, err := getSpecificHostNum(req, c)
+	if err != nil {
+		return nil, http.StatusBadRequest, err
+	}
+
+	s := newScope(req, u, c, cu, sessionId, sessionTimeout, replicaNum, nodeNum)
 	return s, 0, nil
 }
