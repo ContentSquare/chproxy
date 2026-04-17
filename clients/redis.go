@@ -10,11 +10,14 @@ import (
 
 func NewRedisClient(cfg config.RedisCacheConfig) (redis.UniversalClient, error) {
 	options := &redis.UniversalOptions{
-		Addrs:      cfg.Addresses,
-		Username:   cfg.Username,
-		Password:   cfg.Password,
-		PoolSize:   cfg.PoolSize,
-		MaxRetries: 7, // default value = 3, since MinRetryBackoff = 8 msec & MinRetryBackoff = 512 msec
+		Addrs:            cfg.Addresses, // single for standalone | list for redis cluster | sentinel addresses
+		Username:         cfg.Username,
+		Password:         cfg.Password,
+		PoolSize:         cfg.PoolSize,
+		SentinelUsername: cfg.SentinelUsername, // for sentinel only, not required
+		SentinelPassword: cfg.SentinelPassword, // for sentinel only, not required
+		MasterName:       cfg.MasterName,       // for sentinel only, required
+		MaxRetries:       7,                    // default value = 3, since MinRetryBackoff = 8 msec & MinRetryBackoff = 512 msec
 		// the redis client will wait up to 1016 msec btw the 7 tries
 	}
 
