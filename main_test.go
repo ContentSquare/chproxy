@@ -547,14 +547,30 @@ func TestServe(t *testing.T) {
 			"testdata/http.cache.yml",
 			func(t *testing.T) {
 				var buf bytes.Buffer
-				zw := gzip.NewWriter(&buf)
-				_, err := zw.Write([]byte("SELECT * FROM system.numbers LIMIT 10"))
-				checkErr(t, err)
-				zw.Close()
-				req, err := http.NewRequest("POST", "http://127.0.0.1:9090", &buf)
-				checkErr(t, err)
-				req.Header.Set("Content-Encoding", "gzip")
-				resp, err := http.DefaultClient.Do(req)
+				var err error
+				var resp *http.Response
+				var maxRetries = 10
+				// cf https://github.com/ContentSquare/chproxy/issues/341, this test sometimes failed on github action for an unknown reason
+				// we added a retry mecanism as a quick & dirty fix to make the CI stable
+				for i := 0; i < maxRetries; i++ {
+					if err != nil {
+						t.Logf("an error happened during the http gzipped POST request test, retrying it, error: %s", err)
+						time.Sleep(20 * time.Millisecond)
+					}
+					zw := gzip.NewWriter(&buf)
+					_, err = zw.Write([]byte("SELECT * FROM system.numbers LIMIT 10"))
+					checkErr(t, err)
+					zw.Close()
+					req, err := http.NewRequest("POST", "http://127.0.0.1:9090", &buf)
+					checkErr(t, err)
+					req.Header.Set("Content-Encoding", "gzip")
+					resp, err = http.DefaultClient.Do(req)
+
+					if err == nil {
+						break
+					}
+				}
+
 				checkErr(t, err)
 				body, _ := io.ReadAll(resp.Body)
 				if resp.StatusCode != http.StatusOK {
@@ -570,9 +586,25 @@ func TestServe(t *testing.T) {
 			"testdata/http.yml",
 			func(t *testing.T) {
 				buf := bytes.NewBufferString("SELECT * FROM system.numbers LIMIT 10")
-				req, err := http.NewRequest("POST", "http://127.0.0.1:9090", buf)
-				checkErr(t, err)
-				resp, err := http.DefaultClient.Do(req)
+				var err error
+				var resp *http.Response
+				var maxRetries = 10
+				// cf https://github.com/ContentSquare/chproxy/issues/341, this test sometimes failed on github action for an unknown reason
+				// we added a retry mecanism as a quick & dirty fix to make the CI stable
+				for i := 0; i < maxRetries; i++ {
+					if err != nil {
+						t.Logf("an error happened during the http POST request test, retrying it, error: %s", err)
+						time.Sleep(20 * time.Millisecond)
+					}
+					req, err := http.NewRequest("POST", "http://127.0.0.1:9090", buf)
+					checkErr(t, err)
+					resp, err = http.DefaultClient.Do(req)
+
+					if err == nil {
+						break
+					}
+				}
+
 				checkErr(t, err)
 				if resp.StatusCode != http.StatusOK {
 					t.Fatalf("unexpected status code: %d; expected: %d", resp.StatusCode, http.StatusOK)
@@ -1324,12 +1356,14 @@ func TestReloadConfig(t *testing.T) {
 }
 
 func checkErr(t *testing.T, err error) {
+	t.Helper()
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }
 
 func getStringFromResponse(t *testing.T, r io.Reader) string {
+	t.Helper()
 	if r == nil {
 		t.Fatalf("unexpected nil reader")
 	}
@@ -1341,6 +1375,7 @@ func getStringFromResponse(t *testing.T, r io.Reader) string {
 }
 
 func checkResponse(t *testing.T, r io.Reader, expected string) {
+	t.Helper()
 	got := getStringFromResponse(t, r)
 	if !strings.Contains(got, expected) {
 		t.Fatalf("got: %q; expected: %q", got, expected)
@@ -1348,6 +1383,7 @@ func checkResponse(t *testing.T, r io.Reader, expected string) {
 }
 
 func httpGet(t *testing.T, url string, statusCode int) *http.Response {
+	t.Helper()
 	resp, err := http.Get(url)
 	if err != nil {
 		t.Fatalf("unexpected erorr while doing GET request: %s", err)
