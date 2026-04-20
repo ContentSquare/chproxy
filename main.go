@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"flag"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -271,6 +273,12 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 			respondWith(rw, err, http.StatusForbidden)
 			return
 		}
+
+		if r.URL.Query().Get(xRedirectQuery) == "1" {
+			redirect(proxy, rw, r)
+			return
+		}
+
 		proxy.ServeHTTP(rw, r)
 	default:
 		badRequest.Inc()
@@ -278,6 +286,39 @@ func serveHTTP(rw http.ResponseWriter, r *http.Request) {
 		rw.Header().Set("Connection", "close")
 		respondWith(rw, err, http.StatusBadRequest)
 	}
+}
+
+func redirect(proxy *reverseProxy, rw http.ResponseWriter, r *http.Request) {
+	name, password := getAuth(r)
+	found, _, c, _ := proxy.getUser(name, password)
+	if !found {
+		rw.Header().Set("Connection", "close")
+		err := fmt.Errorf("invalid username or password for user %q", name)
+		respondWith(rw, err, http.StatusUnauthorized)
+		return
+	}
+
+	targetURL := *r.URL
+	targetURL.Host = c.getReplica().getHost().Host()
+	targetURL.User = *&r.URL.User
+
+	query := targetURL.Query()
+	query.Del(xRedirectQuery)
+	targetURL.RawQuery = query.Encode()
+
+	if r.Body != nil && r.Body != http.NoBody {
+		bodyBytes, err := io.ReadAll(r.Body)
+		if err != nil {
+			respondWith(rw, fmt.Errorf("failed to read request body: %v", err), http.StatusInternalServerError)
+			return
+		}
+		r.Body.Close()
+		r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+		r.ContentLength = int64(len(bodyBytes))
+	}
+
+	rw.Header().Set("Location", targetURL.String())
+	rw.WriteHeader(http.StatusPermanentRedirect)
 }
 
 func loadConfig() (*config.Config, error) {

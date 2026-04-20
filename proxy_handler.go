@@ -12,6 +12,8 @@ const (
 	xForwardedForHeader = "X-Forwarded-For"
 	xRealIPHeader       = "X-Real-Ip"
 	forwardedHeader     = "Forwarded"
+
+	xRedirectQuery = "X-Redirect" //Query
 )
 
 type ProxyHandler struct {
