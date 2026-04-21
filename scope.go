@@ -396,6 +396,8 @@ func (s *scope) decorateRequest(req *http.Request) (*http.Request, url.Values) {
 	if req.RequestURI == pingEndpoint {
 		req.URL.Scheme = s.host.Scheme()
 		req.URL.Host = s.host.Host()
+		// Set the Host header to match the target URL host
+		req.Host = req.URL.Host
 		return req, req.URL.Query()
 	}
 
@@ -445,6 +447,9 @@ func (s *scope) decorateRequest(req *http.Request) (*http.Request, url.Values) {
 	// Send request to the chosen host from cluster.
 	req.URL.Scheme = s.host.Scheme()
 	req.URL.Host = s.host.Host()
+
+	// Set the Host header to match the target URL host
+	req.Host = req.URL.Host
 
 	// Extend ua with additional info, so it may be queried
 	// via system.query_log.http_user_agent.

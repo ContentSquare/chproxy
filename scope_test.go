@@ -523,3 +523,46 @@ func testGetScope(c *cluster, u *user, cu *clusterUser, sessionId string) *scope
 	}
 	return s
 }
+
+func TestDecorateRequestHostHeader(t *testing.T) {
+	testCases := []struct {
+		name       string
+		requestURI string
+		targetHost string
+	}{
+		{
+			name:       "ping endpoint",
+			requestURI: "/ping",
+			targetHost: "127.0.0.2:8123",
+		},
+		{
+			name:       "regular query",
+			requestURI: "/?query=SELECT%201",
+			targetHost: "127.0.0.3:9000",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			req, err := http.NewRequest("GET", "http://127.0.0.1"+tc.requestURI, nil)
+			if err != nil {
+				t.Fatalf("unexpected error while creating request: %s", err)
+			}
+			s := &scope{
+				id:          newScopeID(),
+				clusterUser: &clusterUser{name: "default"},
+				user:        &user{},
+				host:        topology.NewNode(&url.URL{Host: tc.targetHost}, nil, "", ""),
+			}
+
+			req, _ = s.decorateRequest(req)
+
+			if req.Host != tc.targetHost {
+				t.Fatalf("expected Host header %q; got %q", tc.targetHost, req.Host)
+			}
+			if req.URL.Host != tc.targetHost {
+				t.Fatalf("expected URL.Host %q; got %q", tc.targetHost, req.URL.Host)
+			}
+		})
+	}
+}
