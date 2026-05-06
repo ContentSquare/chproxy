@@ -39,6 +39,8 @@ server:
   http:
     listen_addr: ":9090"
     allowed_networks: ["127.0.0.0/24"]
+  # 优雅关闭时等待活动连接完成的最长时间。
+  graceful_shutdown_timeout: 25s
 
 users:
   - name: "default"

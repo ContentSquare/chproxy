@@ -263,6 +263,11 @@ type Server struct {
 	// Optional Proxy configuration
 	Proxy Proxy `yaml:"proxy,omitempty"`
 
+	// Graceful shutdown timeout
+	// Maximum time to wait for active connections to complete during shutdown.
+	// Default is 25s
+	GracefulShutdownTimeout Duration `yaml:"graceful_shutdown_timeout,omitempty"`
+
 	// Catches all undefined fields
 	XXX map[string]interface{} `yaml:",inline"`
 }

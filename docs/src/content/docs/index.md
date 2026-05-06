@@ -32,6 +32,8 @@ server:
   http:
     listen_addr: ":9090"
     allowed_networks: ["127.0.0.0/24"]
+  # Maximum time to wait for active connections to complete during shutdown.
+  graceful_shutdown_timeout: 25s
 
 users:
   - name: "default"

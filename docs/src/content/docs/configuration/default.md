@@ -190,6 +190,10 @@ server:
     enable: true
     header: CF-Connecting-IP
 
+  # Maximum time to wait for active connections to complete during shutdown.
+  # Default is 25s.
+  graceful_shutdown_timeout: 25s
+
 # Configs for input users.
 users:
     # Name and password are used to authorize access via BasicAuth or
