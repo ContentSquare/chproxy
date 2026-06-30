@@ -33,6 +33,13 @@ caches:
 
     max_payload_size: 100Gb
 
+    # Optional prefix for temporary files created while streaming a response
+    # into the cache. Useful for distinguishing chproxy temp files from other
+    # processes when inspecting the OS temp directory.
+    #
+    # Defaults to "chproxyTmp".
+    tmp_file_prefix: chproxyTmp
+
     # Expiration time for cached responses.
     expire: 1h
 

@@ -31,6 +31,7 @@ var fullConfig = Config{
 			GraceTime:          Duration(20 * time.Second),
 			MaxPayloadSize:     ByteSize(100 << 30),
 			SharedWithAllUsers: false,
+			TmpFilePrefix:      "chproxyTmp",
 		},
 		{
 			Name: "shortterm",
@@ -981,5 +982,23 @@ func TestConfigReplaceEnvVars(t *testing.T) {
 				t.Fatalf("got password %v; expected to have: %v", got, tc.expectedPassword)
 			}
 		})
+	}
+}
+
+func TestCacheTmpFilePrefixParsed(t *testing.T) {
+	const input = `
+name: testcache
+mode: file_system
+tmp_file_prefix: chproxyResponseCache_
+file_system:
+  dir: /tmp
+  max_size: 100Mb
+`
+	var c Cache
+	if err := yaml.Unmarshal([]byte(input), &c); err != nil {
+		t.Fatalf("unexpected parse error: %s", err)
+	}
+	if c.TmpFilePrefix != "chproxyResponseCache_" {
+		t.Fatalf("expected TmpFilePrefix %q, got %q", "chproxyResponseCache_", c.TmpFilePrefix)
 	}
 }

@@ -418,7 +418,7 @@ func (rp *reverseProxy) serveFromCache(s *scope, srw *statResponseWriter, req *h
 
 	// The response wasn't found in the cache.
 	// Request it from clickhouse.
-	tmpFileRespWriter, err := cache.NewTmpFileResponseWriter(srw, os.TempDir())
+	tmpFileRespWriter, err := cache.NewTmpFileResponseWriter(srw, os.TempDir(), userCache.TmpFilePrefix)
 	if err != nil {
 		err = fmt.Errorf("%s: %w; query: %q", s, err, q)
 		respondWith(srw, err, http.StatusInternalServerError)

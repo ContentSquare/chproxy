@@ -63,6 +63,22 @@ User Y will get the cached response from user X's query.
 Since 1.20.0, the cache is specific for each user by default since it's better in terms of security.
 It's possible to use the previous behavior by setting the following property of the cache in the config file `shared_with_all_users = true` 
 
+#### Temporary file prefix
+
+While streaming a ClickHouse response into the cache, chproxy writes it to a temporary file in the OS temp directory. The filename starts with a configurable prefix, which defaults to `chproxyTmp`.
+
+Setting a custom prefix is useful when you need to distinguish chproxy temp files from those of other processes, for example in monitoring or cleanup scripts:
+
+```yaml
+caches:
+  - name: my-cache
+    mode: file_system
+    tmp_file_prefix: chproxyResponseCache_
+    file_system:
+      dir: /path/to/cache
+      max_size: 100Mb
+```
+
 #### Detecting Cache Hits
 
 `Chproxy` will respond with an `X-Cache` header with a value of `HIT` if it returned a response from either the local or the distributed cache. Otherwise `X-Cache` will be set to `MISS`. 
