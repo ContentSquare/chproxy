@@ -5,6 +5,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -60,7 +62,7 @@ func TestFileCreation(t *testing.T) {
 	files, _ := os.ReadDir(testTmpWriterDir)
 	nbFileBefore := len(files)
 
-	tmpFileRespWriter, err := NewTmpFileResponseWriter(srw, testTmpWriterDir)
+	tmpFileRespWriter, err := NewTmpFileResponseWriter(srw, testTmpWriterDir, DefaultTmpFilePrefix)
 	defer tmpFileRespWriter.Close()
 	if err != nil {
 		t.Fatalf("could not initate TmpFileResponseWriter error:%s", err)
@@ -80,7 +82,7 @@ func TestFileRemoval(t *testing.T) {
 	files, _ := os.ReadDir(testTmpWriterDir)
 	nbFileBefore := len(files)
 
-	tmpFileRespWriter, err := NewTmpFileResponseWriter(srw, testTmpWriterDir)
+	tmpFileRespWriter, err := NewTmpFileResponseWriter(srw, testTmpWriterDir, DefaultTmpFilePrefix)
 	if err != nil {
 		t.Fatalf("could not initate TmpFileResponseWriter error:%s", err)
 		return
@@ -98,7 +100,7 @@ func TestFileRemoval(t *testing.T) {
 func TestWriteThenReadHeader(t *testing.T) {
 	srw := newFakeResponse()
 
-	tmpFileRespWriter, err := NewTmpFileResponseWriter(srw, testTmpWriterDir)
+	tmpFileRespWriter, err := NewTmpFileResponseWriter(srw, testTmpWriterDir, DefaultTmpFilePrefix)
 	defer tmpFileRespWriter.Close()
 	if err != nil {
 		t.Fatalf("could not initate TmpFileResponseWriter error:%s", err)
@@ -129,7 +131,7 @@ func TestWriteThenReadHeader(t *testing.T) {
 func TestWriteThenReadContent(t *testing.T) {
 	srw := newFakeResponse()
 
-	tmpFileRespWriter, err := NewTmpFileResponseWriter(srw, testTmpWriterDir)
+	tmpFileRespWriter, err := NewTmpFileResponseWriter(srw, testTmpWriterDir, DefaultTmpFilePrefix)
 	defer tmpFileRespWriter.Close()
 	if err != nil {
 		t.Fatalf("could not initate TmpFileResponseWriter error:%s", err)
@@ -167,7 +169,7 @@ func TestWriteThenReadStatusCode(t *testing.T) {
 	srw := newFakeResponse()
 	expectStatusCode1 := http.StatusOK
 	expectStatusCode2 := 444
-	tmpFileRespWriter, err := NewTmpFileResponseWriter(srw, testTmpWriterDir)
+	tmpFileRespWriter, err := NewTmpFileResponseWriter(srw, testTmpWriterDir, DefaultTmpFilePrefix)
 	defer tmpFileRespWriter.Close()
 	if err != nil {
 		t.Fatalf("could not initate TmpFileResponseWriter error:%s", err)
@@ -187,4 +189,20 @@ func TestWriteThenReadStatusCode(t *testing.T) {
 
 	}
 
+}
+
+func TestTmpFilePrefixIsUsed(t *testing.T) {
+	const customPrefix = "myCustomPrefix"
+	srw := newFakeResponse()
+
+	w, err := NewTmpFileResponseWriter(srw, testTmpWriterDir, customPrefix)
+	if err != nil {
+		t.Fatalf("could not create TmpFileResponseWriter: %s", err)
+	}
+	defer w.Close()
+
+	name := filepath.Base(w.tmpFile.Name())
+	if !strings.HasPrefix(name, customPrefix) {
+		t.Fatalf("expected tmp file name to start with %q, got %q", customPrefix, name)
+	}
 }

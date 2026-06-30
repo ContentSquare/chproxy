@@ -944,6 +944,10 @@ type Cache struct {
 
 	// Whether a query cached by a user could be used by another user
 	SharedWithAllUsers bool `yaml:"shared_with_all_users,omitempty"`
+
+	// Prefix for temporary files created during response caching.
+	// Defaults to "chproxyTmp" if not set.
+	TmpFilePrefix string `yaml:"tmp_file_prefix,omitempty"`
 }
 
 func (c *Cache) setDefaults() {

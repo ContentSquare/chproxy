@@ -25,13 +25,18 @@ type TmpFileResponseWriter struct {
 	bw      *bufio.Writer // buffered writer for the temporary file
 }
 
-func NewTmpFileResponseWriter(rw http.ResponseWriter, dir string) (*TmpFileResponseWriter, error) {
+const DefaultTmpFilePrefix = "chproxyTmp"
+
+func NewTmpFileResponseWriter(rw http.ResponseWriter, dir, prefix string) (*TmpFileResponseWriter, error) {
 	_, ok := rw.(http.CloseNotifier)
 	if !ok {
 		return nil, fmt.Errorf("the response writer does not implement http.CloseNotifier")
 	}
+	if prefix == "" {
+		prefix = DefaultTmpFilePrefix
+	}
 
-	f, err := os.CreateTemp(dir, "tmp")
+	f, err := os.CreateTemp(dir, prefix)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create temporary file in %q: %w", dir, err)
 	}

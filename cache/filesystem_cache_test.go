@@ -194,7 +194,7 @@ func TestCacheClean(t *testing.T) {
 			Query: []byte(fmt.Sprintf("SELECT %d cache clean", i)),
 		}
 		trw := &testResponseWriter{}
-		crw, err := NewTmpFileResponseWriter(trw, testTmpWriterDir)
+		crw, err := NewTmpFileResponseWriter(trw, testTmpWriterDir, DefaultTmpFilePrefix)
 		if err != nil {
 			t.Fatalf("create tmp cache: %s", err)
 		}

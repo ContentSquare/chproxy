@@ -22,6 +22,7 @@ type AsyncCache struct {
 
 	MaxPayloadSize     config.ByteSize
 	SharedWithAllUsers bool
+	TmpFilePrefix      string
 }
 
 func (c *AsyncCache) Close() error {
@@ -114,5 +115,6 @@ func NewAsyncCache(cfg config.Cache, maxExecutionTime time.Duration) (*AsyncCach
 		graceTime:           graceTime,
 		MaxPayloadSize:      maxPayloadSize,
 		SharedWithAllUsers:  cfg.SharedWithAllUsers,
+		TmpFilePrefix:       cfg.TmpFilePrefix,
 	}, nil
 }
