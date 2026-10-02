@@ -52,6 +52,11 @@ type scope struct {
 	// is true when KillQuery has been called
 	canceled bool
 
+	// is true when proxyRequest ended with context.Canceled. In that path only listenToCloseNotify
+	// cancels the context, so it means that the client closed the connection; timeouts end with
+	// context.DeadlineExceeded.
+	clientClosed bool
+
 	labels prometheus.Labels
 
 	requestPacketSize int

@@ -325,6 +325,7 @@ func (rp *reverseProxy) proxyRequest(s *scope, rw ResponseWriterWithCode, srw *s
 		return
 	case errors.Is(err, context.Canceled):
 		canceledRequest.With(s.labels).Inc()
+		s.clientClosed = true
 
 		q := getQuerySnippet(req)
 		log.Debugf("%s: remote client closed the connection in %s; query: %q", s, time.Since(startTime), q)
@@ -586,8 +587,10 @@ func (rp *reverseProxy) completeTransaction(s *scope, statusCode int, userCache 
 	q []byte,
 	failReason string,
 ) {
-	// complete successful transactions or those with empty fail reason
-	if statusCode < 300 || failReason == "" {
+	// complete successful transactions or those with empty fail reason.
+	// A query cancelled because its client closed the connection did not fail:
+	// complete it too, so the concurrent queries that await it run the query themselves.
+	if statusCode < 300 || failReason == "" || s.clientClosed {
 		if err := userCache.Complete(key); err != nil {
 			log.Errorf("%s: %s; query: %q", s, err, q)
 		}

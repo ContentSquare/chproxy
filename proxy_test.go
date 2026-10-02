@@ -871,6 +871,118 @@ func TestReverseProxy_ServeHTTP1(t *testing.T) {
 	})
 }
 
+// closeNotifierOnSignal reports that the client closed the connection when closed receives a value.
+type closeNotifierOnSignal struct {
+	http.ResponseWriter
+	closed chan bool
+}
+
+func (c *closeNotifierOnSignal) CloseNotify() <-chan bool { return c.closed }
+
+func waitFor(t *testing.T, what string, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for !cond() {
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for %s", what)
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
+func TestReverseProxy_ClientCloseCompletesCacheTransaction(t *testing.T) {
+	// With a grace time, identical queries await the cache transaction of the first one.
+	cfg := *goodCfgWithCache
+	cfg.Caches = append([]config.Cache(nil), goodCfgWithCache.Caches...)
+	cfg.Caches[0].GraceTime = config.Duration(5 * time.Second)
+
+	newRequest := func(query string) *http.Request {
+		return httptest.NewRequest("POST", fmt.Sprintf("%s?query=%s", fakeServer.URL, query), bytes.NewBufferString("1s"))
+	}
+	assertQueryRan := func(t *testing.T, resp *http.Response) {
+		t.Helper()
+		b := bbToString(t, resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("unexpected status code: %d; expected: %d; response: %q", resp.StatusCode, http.StatusOK, b)
+		}
+		if strings.Contains(b, failedTransactionPrefix) {
+			t.Fatalf("the query got the error of a cancelled concurrent query: %q", b)
+		}
+	}
+
+	t.Run("query that awaits the cancelled one", func(t *testing.T) {
+		stopAllRequestsInFlight()
+		proxy, err := getProxy(&cfg)
+		if err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
+		query := fmt.Sprintf("SELECT_client_close_await_%d", time.Now().UnixNano())
+
+		// A: a slow cacheable query whose client closes the connection on demand.
+		closeA := make(chan bool, 1)
+		doneA := make(chan struct{})
+		go func() {
+			defer close(doneA)
+			proxy.ServeHTTP(&closeNotifierOnSignal{ResponseWriter: httptest.NewRecorder(), closed: closeA}, newRequest(query))
+		}()
+		waitFor(t, "the first query to run on the server", func() bool {
+			return atomic.LoadInt64(&nbRequestsInflight) == 1
+		})
+
+		// B: the same query awaits the cache transaction of A.
+		respB := make(chan *http.Response, 1)
+		go func() { respB <- makeCustomRequest(proxy, newRequest(query)) }()
+		// Longer than one poll of AwaitForConcurrentTransaction (100 ms). B must still wait,
+		// and must not have reached the server: it awaits the transaction of A.
+		time.Sleep(150 * time.Millisecond)
+		select {
+		case resp := <-respB:
+			t.Fatalf("the second query did not await the first one; status code: %d", resp.StatusCode)
+		default:
+		}
+		if n := atomic.LoadInt64(&nbRequestsInflight); n != 1 {
+			t.Fatalf("expected only the first query on the server, got %d queries", n)
+		}
+
+		// The client of A goes away while B awaits.
+		closeA <- true
+		<-doneA
+
+		select {
+		case resp := <-respB:
+			assertQueryRan(t, resp)
+		case <-time.After(5 * time.Second):
+			t.Fatalf("the second query did not end")
+		}
+	})
+
+	t.Run("same query after the cancelled one", func(t *testing.T) {
+		stopAllRequestsInFlight()
+		proxy, err := getProxy(&cfg)
+		if err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
+		query := fmt.Sprintf("SELECT_client_close_after_%d", time.Now().UnixNano())
+
+		closeA := make(chan bool, 1)
+		doneA := make(chan struct{})
+		go func() {
+			defer close(doneA)
+			proxy.ServeHTTP(&closeNotifierOnSignal{ResponseWriter: httptest.NewRecorder(), closed: closeA}, newRequest(query))
+		}()
+		waitFor(t, "the first query to run on the server", func() bool {
+			return atomic.LoadInt64(&nbRequestsInflight) == 1
+		})
+		closeA <- true
+		<-doneA
+
+		// The transaction state lives for a short time after the end of A: the same query sent
+		// at once must run, not get the error of the cancelled one.
+		assertQueryRan(t, makeCustomRequest(proxy, newRequest(query)))
+	})
+}
+
 func TestKillQuery(t *testing.T) {
 	testCases := []struct {
 		name string
