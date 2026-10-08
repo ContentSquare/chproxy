@@ -3,24 +3,25 @@ package clients
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/contentsquare/chproxy/config"
 	"github.com/redis/go-redis/v9"
 )
 
-func NewRedisClient(cfg config.RedisCacheConfig) (redis.UniversalClient, error) {
-	options := &redis.UniversalOptions{
-		Addrs:      cfg.Addresses,
-		Username:   cfg.Username,
-		Password:   cfg.Password,
-		PoolSize:   cfg.PoolSize,
-		MaxRetries: 7, // default value = 3, since MinRetryBackoff = 8 msec & MinRetryBackoff = 512 msec
-		// the redis client will wait up to 1016 msec btw the 7 tries
-	}
+const (
+	// default value = 3, since MinRetryBackoff = 8 msec & MinRetryBackoff = 512 msec
+	// the redis client will wait up to 1016 msec btw the 7 tries
+	defaultRedisMaxRetries = 7
 
-	if len(cfg.Addresses) == 1 {
-		options.DB = cfg.DBIndex
-	}
+	// go-redis keeps idle connections for 30 minutes by default, which is longer than
+	// the idle timeout of many firewalls/NATs (e.g. 10 minutes on GCP). Silently dropped
+	// connections then stall commands until they time out, so recycle them earlier.
+	defaultRedisConnMaxIdleTime = 5 * time.Minute
+)
+
+func NewRedisClient(cfg config.RedisCacheConfig) (redis.UniversalClient, error) {
+	options := redisOptions(cfg)
 
 	// maintain backwards compatibility in case of non-presence of enable_tls
 	if len(cfg.CertFile) != 0 || len(cfg.KeyFile) != 0 || cfg.EnableTLS {
@@ -40,4 +41,33 @@ func NewRedisClient(cfg config.RedisCacheConfig) (redis.UniversalClient, error) 
 	}
 
 	return r, nil
+}
+
+func redisOptions(cfg config.RedisCacheConfig) *redis.UniversalOptions {
+	options := &redis.UniversalOptions{
+		Addrs:           cfg.Addresses,
+		Username:        cfg.Username,
+		Password:        cfg.Password,
+		PoolSize:        cfg.PoolSize,
+		MaxRetries:      cfg.MaxRetries,
+		DialTimeout:     time.Duration(cfg.DialTimeout),
+		ReadTimeout:     time.Duration(cfg.ReadTimeout),
+		WriteTimeout:    time.Duration(cfg.WriteTimeout),
+		PoolTimeout:     time.Duration(cfg.PoolTimeout),
+		ConnMaxIdleTime: time.Duration(cfg.ConnMaxIdleTime),
+	}
+
+	if options.MaxRetries == 0 {
+		options.MaxRetries = defaultRedisMaxRetries
+	}
+
+	if options.ConnMaxIdleTime == 0 {
+		options.ConnMaxIdleTime = defaultRedisConnMaxIdleTime
+	}
+
+	if len(cfg.Addresses) == 1 {
+		options.DB = cfg.DBIndex
+	}
+
+	return options
 }

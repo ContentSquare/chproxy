@@ -50,10 +50,16 @@ var fullConfig = Config{
 			MaxPayloadSize:     ByteSize(100 << 30),
 			SharedWithAllUsers: true,
 			Redis: RedisCacheConfig{
-				Username:  "chproxy",
-				Password:  "password",
-				Addresses: []string{"127.0.0.1:" + redisPort},
-				PoolSize:  10,
+				Username:        "chproxy",
+				Password:        "password",
+				Addresses:       []string{"127.0.0.1:" + redisPort},
+				PoolSize:        10,
+				DialTimeout:     Duration(2 * time.Second),
+				ReadTimeout:     Duration(time.Second),
+				WriteTimeout:    Duration(time.Second),
+				PoolTimeout:     Duration(2 * time.Second),
+				ConnMaxIdleTime: Duration(4 * time.Minute),
+				MaxRetries:      2,
 			},
 		},
 	},
@@ -926,6 +932,12 @@ caches:
     addresses:
     - 127.0.0.1:%s
     pool_size: 10
+    dial_timeout: 2s
+    read_timeout: 1s
+    write_timeout: 1s
+    pool_timeout: 2s
+    conn_max_idle_time: 4m
+    max_retries: 2
   max_payload_size: 107374182400
   shared_with_all_users: true
 param_groups:

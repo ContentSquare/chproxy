@@ -122,6 +122,17 @@ redis:
   password: <string>
   pool_size: <int>
   db_index: <int> | default = 0 [optional] # This option is only applicable for non-clustered Redis instance.
+  # Timeouts of the redis client. When omitted, the go-redis defaults apply.
+  dial_timeout: <duration> | default = 5s [optional]
+  read_timeout: <duration> | default = 3s [optional]
+  write_timeout: <duration> | default = read_timeout [optional]
+  pool_timeout: <duration> | default = read_timeout + 1s [optional] # max time to wait for a free connection from the pool
+  # Max time a pooled connection may stay idle before being closed.
+  # Keep it below the idle timeout of any firewall/NAT between chproxy and redis
+  # (e.g. 10m on GCP), otherwise commands may stall on silently dropped connections.
+  conn_max_idle_time: <duration> | default = 5m [optional]
+  # Max number of retries of a failed command. -1 disables retries.
+  max_retries: <int> | default = 7 [optional]
 
 # Expiration time for cached responses.
 expire: <duration>

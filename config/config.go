@@ -966,12 +966,25 @@ type RedisCacheConfig struct {
 	TLS       `yaml:",inline"`
 	EnableTLS bool `yaml:"enable_tls,omitempty"`
 
-	Username  string                 `yaml:"username,omitempty"`
-	Password  string                 `yaml:"password,omitempty"`
-	Addresses []string               `yaml:"addresses"`
-	DBIndex   int                    `yaml:"db_index,omitempty"`
-	PoolSize  int                    `yaml:"pool_size,omitempty"`
-	XXX       map[string]interface{} `yaml:",inline"`
+	Username  string   `yaml:"username,omitempty"`
+	Password  string   `yaml:"password,omitempty"`
+	Addresses []string `yaml:"addresses"`
+	DBIndex   int      `yaml:"db_index,omitempty"`
+	PoolSize  int      `yaml:"pool_size,omitempty"`
+
+	// Timeouts of the redis client. Zero values fall back to the go-redis defaults.
+	DialTimeout  Duration `yaml:"dial_timeout,omitempty"`
+	ReadTimeout  Duration `yaml:"read_timeout,omitempty"`
+	WriteTimeout Duration `yaml:"write_timeout,omitempty"`
+	PoolTimeout  Duration `yaml:"pool_timeout,omitempty"`
+
+	// ConnMaxIdleTime is the max time a pooled connection may stay idle before being closed.
+	ConnMaxIdleTime Duration `yaml:"conn_max_idle_time,omitempty"`
+
+	// MaxRetries is the max number of retries of a failed command. -1 disables retries.
+	MaxRetries int `yaml:"max_retries,omitempty"`
+
+	XXX map[string]interface{} `yaml:",inline"`
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.

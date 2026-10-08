@@ -61,6 +61,19 @@ caches:
       username: chproxy
       password: password
       pool_size: 10
+      # Optional client timeouts. Zero values fall back to the defaults of the
+      # underlying go-redis client.
+      dial_timeout: 2s
+      read_timeout: 1s
+      write_timeout: 1s
+      pool_timeout: 2s
+      # Max idle time of a pooled connection before it's closed. Keep it below
+      # any idle timeout of firewalls/NATs between chproxy and redis.
+      # By default 5m.
+      conn_max_idle_time: 4m
+      # Max number of retries of a failed command. -1 disables retries.
+      # By default 7.
+      max_retries: 2
       addresses:
         - 127.0.0.1:16379
     max_payload_size: 107374182400
