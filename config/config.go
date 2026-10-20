@@ -80,6 +80,8 @@ type Config struct {
 
 	ConnectionPool ConnectionPool `yaml:"connection_pool,omitempty"`
 
+	TrafficCloning TrafficCloning `yaml:"traffic_cloning,omitempty"`
+
 	// Allow to proxy ping requests
 	AllowPing bool `yaml:"allow_ping,omitempty"`
 
@@ -533,6 +535,128 @@ func (c *Proxy) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	return checkOverflow(c.XXX, "proxy")
+}
+
+// TrafficCloning describes optional background cloning of accepted requests
+// to one or more ClickHouse clusters.
+type TrafficCloning struct {
+	// Enable allows enabling cloning without relying on targets being present.
+	Enable bool `yaml:"enable,omitempty"`
+
+	// TempDir is a directory for temporary request body captures.
+	// If omitted, the operating system default temporary directory is used.
+	TempDir string `yaml:"temp_dir,omitempty"`
+
+	// MaxConcurrentCaptures limits the number of request bodies being captured
+	// and replayed to clone targets at the same time.
+	// If omitted or zero, there is no limit.
+	MaxConcurrentCaptures int `yaml:"max_concurrent_captures,omitempty"`
+
+	// MaxConcurrentClones limits the total number of concurrent clone send
+	// goroutines across all targets. If omitted or zero, there is no limit.
+	MaxConcurrentClones int `yaml:"max_concurrent_clones,omitempty"`
+
+	// MaxCaptureSize limits a single captured request body size.
+	// If omitted or zero, there is no size limit.
+	MaxCaptureSize ByteSize `yaml:"max_capture_size,omitempty"`
+
+	// Targets contains clone destinations.
+	Targets []TrafficCloneTarget `yaml:"targets,omitempty"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (tc *TrafficCloning) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type plain TrafficCloning
+	if err := unmarshal((*plain)(tc)); err != nil {
+		return err
+	}
+
+	if tc.Enable && len(tc.Targets) == 0 {
+		return fmt.Errorf("`traffic_cloning.targets` must contain at least one target when traffic cloning is enabled")
+	}
+	if tc.MaxConcurrentCaptures < 0 {
+		return fmt.Errorf("`traffic_cloning.max_concurrent_captures` cannot be negative")
+	}
+	if tc.MaxConcurrentClones < 0 {
+		return fmt.Errorf("`traffic_cloning.max_concurrent_clones` cannot be negative")
+	}
+
+	return checkOverflow(tc.XXX, "traffic_cloning")
+}
+
+func (tc TrafficCloning) IsEnabled() bool {
+	return tc.Enable || len(tc.Targets) > 0
+}
+
+// TrafficCloneTarget describes a single clone destination.
+type TrafficCloneTarget struct {
+	// Name is used in logs and metric labels.
+	Name string `yaml:"name"`
+
+	// FromCluster limits cloning to requests routed to this source cluster.
+	// If omitted, requests from all clusters are eligible.
+	FromCluster string `yaml:"from_cluster,omitempty"`
+
+	// FromUser limits cloning to requests from this chproxy user.
+	// If omitted, requests from all users are eligible.
+	FromUser string `yaml:"from_user,omitempty"`
+
+	// FromClusterUser limits cloning to requests proxied as this source cluster_user.
+	// If omitted, requests from all source cluster users are eligible.
+	FromClusterUser string `yaml:"from_cluster_user,omitempty"`
+
+	// ToCluster is the cluster where cloned requests are sent.
+	ToCluster string `yaml:"to_cluster"`
+
+	// ToUser is the cluster_user from ToCluster used for cloned requests.
+	ToUser string `yaml:"to_user"`
+
+	// Percent controls the sampling rate for this target.
+	// Defaults to 100.
+	Percent float64 `yaml:"percent,omitempty"`
+
+	// Timeout limits clone request execution. Zero means no extra timeout.
+	Timeout Duration `yaml:"timeout,omitempty"`
+
+	// Deprecated: accepted for backwards compatibility with the streaming
+	// implementation. Request bodies are now captured to temporary files.
+	MaxQueuedChunks int `yaml:"max_queued_chunks,omitempty"`
+
+	// Catches all undefined fields and must be empty after parsing.
+	XXX map[string]interface{} `yaml:",inline"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (t *TrafficCloneTarget) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*t = TrafficCloneTarget{
+		Percent:         100,
+		MaxQueuedChunks: 16,
+	}
+	type plain TrafficCloneTarget
+	if err := unmarshal((*plain)(t)); err != nil {
+		return err
+	}
+
+	if len(t.Name) == 0 {
+		return fmt.Errorf("`traffic_cloning.target.name` cannot be empty")
+	}
+	if len(t.ToCluster) == 0 {
+		return fmt.Errorf("`traffic_cloning.target.to_cluster` cannot be empty for %q", t.Name)
+	}
+	if len(t.ToUser) == 0 {
+		return fmt.Errorf("`traffic_cloning.target.to_user` cannot be empty for %q", t.Name)
+	}
+	if t.Percent < 0 || t.Percent > 100 {
+		return fmt.Errorf("`traffic_cloning.target.percent` must be between 0 and 100 for %q", t.Name)
+	}
+	if t.MaxQueuedChunks <= 0 {
+		return fmt.Errorf("`traffic_cloning.target.max_queued_chunks` must be positive for %q", t.Name)
+	}
+
+	return checkOverflow(t.XXX, fmt.Sprintf("traffic_cloning.target %q", t.Name))
 }
 
 // Cluster describes CH cluster configuration

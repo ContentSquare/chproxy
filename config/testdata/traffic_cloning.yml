@@ -1,0 +1,36 @@
+server:
+  http:
+    listen_addr: ":8080"
+
+hack_me_please: true
+
+clusters:
+  - name: "cluster"
+    nodes: ["127.0.0.1:8123"]
+    users:
+      - name: "default"
+
+  - name: "preprod"
+    nodes: ["127.0.0.2:8123"]
+    users:
+      - name: "default"
+
+users:
+  - name: "default"
+    to_cluster: "cluster"
+    to_user: "default"
+
+traffic_cloning:
+  temp_dir: "/tmp/chproxy-traffic-clone"
+  max_concurrent_captures: 4
+  max_capture_size: 1GB
+  targets:
+    - name: "preprod"
+      from_cluster: "cluster"
+      from_user: "default"
+      from_cluster_user: "default"
+      to_cluster: "preprod"
+      to_user: "default"
+      percent: 25
+      timeout: 30s
+      max_queued_chunks: 32

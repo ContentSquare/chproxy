@@ -41,6 +41,9 @@ connection_pool:
   max_idle_conns: 100
   max_idle_conns_per_host: 2
 
+# Optional traffic cloning configuration
+traffic_cloning: <traffic_cloning_config> [optional]
+
 server:
   <server_config> [optional]
 
@@ -155,6 +158,53 @@ shared_with_all_users: <bool> | default = false [optional]
 params:
   - key: <string>
     value: <string>
+```
+
+### <traffic_cloning_config>
+```yml
+# Traffic cloning mirrors accepted requests to one or more additional ClickHouse clusters.
+# If this section is omitted, traffic cloning is disabled and chproxy behaves as before.
+#
+# Setting enable=true without targets is invalid.
+enable: <bool> | default = false [optional]
+
+# Directory for temporary request body captures.
+# If omitted, the operating system default temporary directory is used.
+# The directory is created automatically and must be writable by the chproxy process.
+temp_dir: <string> | optional
+
+# Maximum number of request bodies captured and replayed at the same time.
+# If omitted or zero, there is no limit. When the limit is reached, clone is skipped.
+max_concurrent_captures: <int> | default = 0 [optional]
+
+# Maximum single captured request body size.
+# If omitted or zero, there is no limit. Larger requests are not cloned.
+max_capture_size: <byte_size> | optional
+
+targets:
+  - name: <string>
+
+    # Optional source filters. If omitted, requests from all sources are eligible.
+    # All configured source filters must match for the request to be cloned.
+    from_cluster: <string> | optional
+    from_user: <string> | optional
+    from_cluster_user: <string> | optional
+
+    # Clone destination. The cluster must exist in `clusters`.
+    # The user must exist in the destination cluster users list.
+    to_cluster: <string>
+    to_user: <string>
+
+    # Percentage of matching requests to clone.
+    # Valid range: 0..100. Default: 100.
+    percent: <float> | default = 100 [optional]
+
+    # Optional timeout for the cloned request.
+    timeout: <duration> | optional
+
+    # Deprecated: accepted for backwards compatibility.
+    # Request bodies are captured to temporary files instead.
+    max_queued_chunks: <int> | default = 16 [optional]
 ```
 
 ### <server_config>

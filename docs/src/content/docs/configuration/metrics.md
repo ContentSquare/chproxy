@@ -33,9 +33,12 @@ Metrics are exposed in [Prometheus text format](https://prometheus.io/docs/instr
 | response_body_bytes_total | Counter | The amount of bytes written to response bodies | `user`, `cluster`, `cluster_user`, `replica`, `cluster_node` |
 | status_codes_total | Counter | Distribution by response status codes | `user`, `cluster`, `cluster_user`, `replica`, `cluster_node`, `code` |
 | timeout_request_total | Counter | The number of timed out requests | `user`, `cluster`, `cluster_user`, `replica`, `cluster_node` |
+| traffic_clone_duration_seconds | Summary | Traffic clone request duration | `user`, `cluster`, `cluster_user`, `target`, `target_cluster`, `target_cluster_user` |
+| traffic_clone_in_flight | Gauge | The number of traffic clone requests in flight | `user`, `cluster`, `cluster_user`, `target`, `target_cluster`, `target_cluster_user` |
+| traffic_clone_requests_total | Counter | The number of traffic clone requests by result | `user`, `cluster`, `cluster_user`, `target`, `target_cluster`, `target_cluster_user`, `result` |
+| traffic_clone_status_codes_total | Counter | Distribution by status codes returned by traffic clone requests | `user`, `cluster`, `cluster_user`, `target`, `target_cluster`, `target_cluster_user`, `code` |
 | user_queue_overflow_total | Counter | The number of overflows for per-user request queues | `user`, `cluster`, `cluster_user` |
 
 An example of [Grafana's](https://grafana.com) dashboard for `chproxy` metrics is available [here](https://github.com/ContentSquare/chproxy/blob/master/chproxy_overview.json).
 
 ![dashboard example](https://user-images.githubusercontent.com/2902918/31392734-b2fd4a18-ade2-11e7-84a9-4aaaac4c10d7.png)
-

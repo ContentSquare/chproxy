@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"net"
 	"os"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
@@ -196,6 +197,445 @@ func TestNewReverseProxy(t *testing.T) {
 	}
 	if _, ok := proxy.users[defaultUsername]; !ok {
 		t.Fatalf("expected user %q to be present in users", defaultUsername)
+	}
+}
+
+func TestTrafficCloningSendsMirroredRequest(t *testing.T) {
+	type capturedRequest struct {
+		query    string
+		user     string
+		password string
+		body     string
+	}
+
+	cloneRequests := make(chan capturedRequest, 1)
+	mainServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		fmt.Fprintln(w, okResponse)
+	}))
+	defer mainServer.Close()
+
+	cloneServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("query_id") == "" {
+			fmt.Fprintln(w, okResponse)
+			return
+		}
+
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("cannot read cloned request body: %s", err)
+			return
+		}
+		user, password, _ := r.BasicAuth()
+		cloneRequests <- capturedRequest{
+			query:    r.URL.Query().Get("query"),
+			user:     user,
+			password: password,
+			body:     string(body),
+		}
+		fmt.Fprintln(w, okResponse)
+	}))
+	defer cloneServer.Close()
+
+	cfg := &config.Config{
+		Clusters: []config.Cluster{
+			{
+				Name:   "main",
+				Scheme: "http",
+				Nodes:  []string{strings.TrimPrefix(mainServer.URL, "http://")},
+				ClusterUsers: []config.ClusterUser{
+					{
+						Name:     "web",
+						Password: "web-password",
+					},
+				},
+			},
+			{
+				Name:   "preprod",
+				Scheme: "http",
+				Nodes:  []string{strings.TrimPrefix(cloneServer.URL, "http://")},
+				ClusterUsers: []config.ClusterUser{
+					{
+						Name:     "mirror",
+						Password: "mirror-password",
+					},
+				},
+			},
+		},
+		Users: []config.User{
+			{
+				Name:      defaultUsername,
+				ToCluster: "main",
+				ToUser:    "web",
+			},
+		},
+		TrafficCloning: config.TrafficCloning{
+			Targets: []config.TrafficCloneTarget{
+				{
+					Name:            "preprod",
+					FromCluster:     "main",
+					FromUser:        defaultUsername,
+					FromClusterUser: "web",
+					ToCluster:       "preprod",
+					ToUser:          "mirror",
+					Percent:         100,
+					MaxQueuedChunks: 16,
+				},
+			},
+		},
+		MaxErrorReasonSize: config.ByteSize(100 << 20),
+	}
+
+	p, err := newConfiguredProxy(cfg)
+	if err != nil {
+		t.Fatalf("unexpected config error: %s", err)
+	}
+
+	body := strings.NewReader("FORMAT JSONEachRow\n{\"x\":1}\n")
+	req := httptest.NewRequest("POST", "http://proxy/?query=INSERT%20INTO%20events", body)
+	resp := makeCustomRequest(p, req)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected main response status: %d", resp.StatusCode)
+	}
+
+	select {
+	case got := <-cloneRequests:
+		if got.query != "INSERT INTO events" {
+			t.Fatalf("unexpected cloned query: %q", got.query)
+		}
+		if got.user != "mirror" || got.password != "mirror-password" {
+			t.Fatalf("unexpected cloned credentials: %q/%q", got.user, got.password)
+		}
+		if got.body != "FORMAT JSONEachRow\n{\"x\":1}\n" {
+			t.Fatalf("unexpected cloned body: %q", got.body)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for cloned request")
+	}
+}
+
+func TestTrafficCloningSendsLargeMirroredRequest(t *testing.T) {
+	const rows = 100000
+	row := "{\"id\":123456789,\"value\":\"traffic-clone-regression\"}\n"
+	largeBody := strings.Repeat(row, rows)
+
+	cloneRequests := make(chan int, 1)
+	mainServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		fmt.Fprintln(w, okResponse)
+	}))
+	defer mainServer.Close()
+
+	cloneServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("query_id") == "" {
+			fmt.Fprintln(w, okResponse)
+			return
+		}
+
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("cannot read cloned request body: %s", err)
+			return
+		}
+		cloneRequests <- len(body)
+		fmt.Fprintln(w, okResponse)
+	}))
+	defer cloneServer.Close()
+
+	cfg := &config.Config{
+		Clusters: []config.Cluster{
+			{
+				Name:   "main",
+				Scheme: "http",
+				Nodes:  []string{strings.TrimPrefix(mainServer.URL, "http://")},
+				ClusterUsers: []config.ClusterUser{
+					{
+						Name: "web",
+					},
+				},
+			},
+			{
+				Name:   "preprod",
+				Scheme: "http",
+				Nodes:  []string{strings.TrimPrefix(cloneServer.URL, "http://")},
+				ClusterUsers: []config.ClusterUser{
+					{
+						Name: "mirror",
+					},
+				},
+			},
+		},
+		Users: []config.User{
+			{
+				Name:      defaultUsername,
+				ToCluster: "main",
+				ToUser:    "web",
+			},
+		},
+		TrafficCloning: config.TrafficCloning{
+			Targets: []config.TrafficCloneTarget{
+				{
+					Name:        "preprod",
+					FromCluster: "main",
+					ToCluster:   "preprod",
+					ToUser:      "mirror",
+					Percent:     100,
+				},
+			},
+		},
+		MaxErrorReasonSize: config.ByteSize(100 << 20),
+	}
+
+	p, err := newConfiguredProxy(cfg)
+	if err != nil {
+		t.Fatalf("unexpected config error: %s", err)
+	}
+
+	req := httptest.NewRequest("POST", "http://proxy/?query=INSERT%20INTO%20events%20FORMAT%20JSONEachRow", strings.NewReader(largeBody))
+	resp := makeCustomRequest(p, req)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected main response status: %d", resp.StatusCode)
+	}
+
+	select {
+	case got := <-cloneRequests:
+		if got != len(largeBody) {
+			t.Fatalf("unexpected cloned body length: got %d; want %d", got, len(largeBody))
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for cloned large request")
+	}
+}
+
+func TestTrafficCloningSkipsRequestOverMaxCaptureSize(t *testing.T) {
+	largeBody := strings.Repeat("0123456789", 1024)
+
+	cloneRequests := make(chan struct{}, 1)
+	mainServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		fmt.Fprintln(w, okResponse)
+	}))
+	defer mainServer.Close()
+
+	cloneServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("query_id") != "" {
+			cloneRequests <- struct{}{}
+		}
+		fmt.Fprintln(w, okResponse)
+	}))
+	defer cloneServer.Close()
+
+	cfg := &config.Config{
+		Clusters: []config.Cluster{
+			{
+				Name:   "main",
+				Scheme: "http",
+				Nodes:  []string{strings.TrimPrefix(mainServer.URL, "http://")},
+				ClusterUsers: []config.ClusterUser{
+					{
+						Name: "web",
+					},
+				},
+			},
+			{
+				Name:   "preprod",
+				Scheme: "http",
+				Nodes:  []string{strings.TrimPrefix(cloneServer.URL, "http://")},
+				ClusterUsers: []config.ClusterUser{
+					{
+						Name: "mirror",
+					},
+				},
+			},
+		},
+		Users: []config.User{
+			{
+				Name:      defaultUsername,
+				ToCluster: "main",
+				ToUser:    "web",
+			},
+		},
+		TrafficCloning: config.TrafficCloning{
+			MaxCaptureSize: config.ByteSize(1024),
+			Targets: []config.TrafficCloneTarget{
+				{
+					Name:        "preprod",
+					FromCluster: "main",
+					ToCluster:   "preprod",
+					ToUser:      "mirror",
+					Percent:     100,
+				},
+			},
+		},
+		MaxErrorReasonSize: config.ByteSize(100 << 20),
+	}
+
+	p, err := newConfiguredProxy(cfg)
+	if err != nil {
+		t.Fatalf("unexpected config error: %s", err)
+	}
+
+	req := httptest.NewRequest("POST", "http://proxy/?query=INSERT%20INTO%20events", strings.NewReader(largeBody))
+	resp := makeCustomRequest(p, req)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected main response status: %d", resp.StatusCode)
+	}
+
+	select {
+	case <-cloneRequests:
+		t.Fatal("unexpected cloned request over max_capture_size")
+	case <-time.After(100 * time.Millisecond):
+	}
+}
+
+func TestTrafficCloningCreatesTempDir(t *testing.T) {
+	tempDir := filepath.Join(t.TempDir(), "traffic-clone")
+
+	mainServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		fmt.Fprintln(w, okResponse)
+	}))
+	defer mainServer.Close()
+
+	cloneServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		fmt.Fprintln(w, okResponse)
+	}))
+	defer cloneServer.Close()
+
+	cfg := &config.Config{
+		Clusters: []config.Cluster{
+			{
+				Name:   "main",
+				Scheme: "http",
+				Nodes:  []string{strings.TrimPrefix(mainServer.URL, "http://")},
+				ClusterUsers: []config.ClusterUser{
+					{
+						Name: "web",
+					},
+				},
+			},
+			{
+				Name:   "preprod",
+				Scheme: "http",
+				Nodes:  []string{strings.TrimPrefix(cloneServer.URL, "http://")},
+				ClusterUsers: []config.ClusterUser{
+					{
+						Name: "mirror",
+					},
+				},
+			},
+		},
+		Users: []config.User{
+			{
+				Name:      defaultUsername,
+				ToCluster: "main",
+				ToUser:    "web",
+			},
+		},
+		TrafficCloning: config.TrafficCloning{
+			TempDir: tempDir,
+			Targets: []config.TrafficCloneTarget{
+				{
+					Name:        "preprod",
+					FromCluster: "main",
+					ToCluster:   "preprod",
+					ToUser:      "mirror",
+					Percent:     100,
+				},
+			},
+		},
+		MaxErrorReasonSize: config.ByteSize(100 << 20),
+	}
+
+	if _, err := newConfiguredProxy(cfg); err != nil {
+		t.Fatalf("unexpected config error: %s", err)
+	}
+
+	stat, err := os.Stat(tempDir)
+	if err != nil {
+		t.Fatalf("expected traffic clone temp dir to be created: %s", err)
+	}
+	if !stat.IsDir() {
+		t.Fatalf("expected traffic clone temp path to be a directory")
+	}
+}
+
+func TestTrafficCloningSkipsNonMatchingSource(t *testing.T) {
+	cloneRequests := make(chan struct{}, 1)
+	mainServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		fmt.Fprintln(w, okResponse)
+	}))
+	defer mainServer.Close()
+
+	cloneServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("query_id") != "" {
+			cloneRequests <- struct{}{}
+		}
+		fmt.Fprintln(w, okResponse)
+	}))
+	defer cloneServer.Close()
+
+	cfg := &config.Config{
+		Clusters: []config.Cluster{
+			{
+				Name:   "main",
+				Scheme: "http",
+				Nodes:  []string{strings.TrimPrefix(mainServer.URL, "http://")},
+				ClusterUsers: []config.ClusterUser{
+					{
+						Name: "web",
+					},
+				},
+			},
+			{
+				Name:   "preprod",
+				Scheme: "http",
+				Nodes:  []string{strings.TrimPrefix(cloneServer.URL, "http://")},
+				ClusterUsers: []config.ClusterUser{
+					{
+						Name: "mirror",
+					},
+				},
+			},
+		},
+		Users: []config.User{
+			{
+				Name:      defaultUsername,
+				ToCluster: "main",
+				ToUser:    "web",
+			},
+		},
+		TrafficCloning: config.TrafficCloning{
+			Targets: []config.TrafficCloneTarget{
+				{
+					Name:        "preprod",
+					FromCluster: "another-main",
+					ToCluster:   "preprod",
+					ToUser:      "mirror",
+					Percent:     100,
+				},
+			},
+		},
+		MaxErrorReasonSize: config.ByteSize(100 << 20),
+	}
+
+	p, err := newConfiguredProxy(cfg)
+	if err != nil {
+		t.Fatalf("unexpected config error: %s", err)
+	}
+
+	req := httptest.NewRequest("GET", "http://proxy/?query=SELECT%201", nil)
+	resp := makeCustomRequest(p, req)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected main response status: %d", resp.StatusCode)
+	}
+
+	select {
+	case <-cloneRequests:
+		t.Fatal("unexpected cloned request for non-matching source")
+	case <-time.After(100 * time.Millisecond):
 	}
 }
 

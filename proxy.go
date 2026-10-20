@@ -43,6 +43,7 @@ type reverseProxy struct {
 	users               map[string]*user
 	clusters            map[string]*cluster
 	caches              map[string]*cache.AsyncCache
+	trafficCloner       *trafficCloner
 	hasWildcarded       bool
 	maxIdleConns        int
 	maxIdleConnsPerHost int
@@ -115,6 +116,8 @@ func (rp *reverseProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		ResponseWriter: rw,
 		bytesWritten:   responseBodyBytes.With(s.labels),
 	}
+
+	rp.getTrafficCloner().cloneRequest(s, req)
 
 	req, origParams := s.decorateRequest(req)
 
@@ -636,6 +639,11 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 		return err
 	}
 
+	trafficCloner, err := newTrafficCloner(cfg.TrafficCloning, clusters, rp.rp.Transport)
+	if err != nil {
+		return err
+	}
+
 	rp.maxErrorReasonSize = int64(cfg.MaxErrorReasonSize)
 
 	caches := make(map[string]*cache.AsyncCache, len(cfg.Caches))
@@ -702,6 +710,7 @@ func (rp *reverseProxy) applyConfig(cfg *config.Config) error {
 	rp.lock.Lock()
 	rp.clusters = clusters
 	rp.users = users
+	rp.trafficCloner = trafficCloner
 	// Swap is needed for deferred closing of old caches.
 	// See the code above where new caches are created.
 	caches, rp.caches = rp.caches, caches
@@ -816,6 +825,13 @@ func (rp *reverseProxy) refreshCacheMetrics() {
 		cacheSize.With(labels).Set(float64(stats.Size))
 		cacheItems.With(labels).Set(float64(stats.Items))
 	}
+}
+
+func (rp *reverseProxy) getTrafficCloner() *trafficCloner {
+	rp.lock.RLock()
+	defer rp.lock.RUnlock()
+
+	return rp.trafficCloner
 }
 
 // find user, cluster and clusterUser
