@@ -37,6 +37,10 @@ var (
 	configSuccessTime              prometheus.Gauge
 	badRequest                     prometheus.Counter
 	retryRequest                   *prometheus.CounterVec
+	trafficCloneRequests           *prometheus.CounterVec
+	trafficCloneStatusCodes        *prometheus.CounterVec
+	trafficCloneDuration           *prometheus.SummaryVec
+	trafficCloneInFlight           *prometheus.GaugeVec
 )
 
 func initMetrics(cfg *config.Config) {
@@ -308,6 +312,43 @@ func initMetrics(cfg *config.Config) {
 		},
 		[]string{"user", "cluster", "cluster_user", "replica", "cluster_node"},
 	)
+	trafficCloneRequests = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace:   namespace,
+			Name:        "traffic_clone_requests_total",
+			Help:        "Total number of traffic clone requests by result",
+			ConstLabels: constLabels,
+		},
+		[]string{"user", "cluster", "cluster_user", "target", "target_cluster", "target_cluster_user", "result"},
+	)
+	trafficCloneStatusCodes = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace:   namespace,
+			Name:        "traffic_clone_status_codes_total",
+			Help:        "Distribution by status codes returned for traffic clone requests",
+			ConstLabels: constLabels,
+		},
+		[]string{"user", "cluster", "cluster_user", "target", "target_cluster", "target_cluster_user", "code"},
+	)
+	trafficCloneDuration = prometheus.NewSummaryVec(
+		prometheus.SummaryOpts{
+			Namespace:   namespace,
+			Name:        "traffic_clone_duration_seconds",
+			Help:        "Traffic clone request duration",
+			ConstLabels: constLabels,
+			Objectives:  map[float64]float64{0.5: 1e-1, 0.9: 1e-2, 0.99: 1e-3, 0.999: 1e-4, 1: 1e-5},
+		},
+		[]string{"user", "cluster", "cluster_user", "target", "target_cluster", "target_cluster_user"},
+	)
+	trafficCloneInFlight = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace:   namespace,
+			Name:        "traffic_clone_in_flight",
+			Help:        "The number of traffic clone requests in flight",
+			ConstLabels: constLabels,
+		},
+		[]string{"user", "cluster", "cluster_user", "target", "target_cluster", "target_cluster_user"},
+	)
 }
 
 func registerMetrics(cfg *config.Config) {
@@ -321,5 +362,7 @@ func registerMetrics(cfg *config.Config) {
 		cacheHit, cacheMiss, cacheSize, cacheItems, cacheSkipped,
 		requestDuration, proxiedResponseDuration, cachedResponseDuration,
 		canceledRequest, timeoutRequest,
-		configSuccess, configSuccessTime, badRequest, retryRequest)
+		configSuccess, configSuccessTime, badRequest, retryRequest,
+		trafficCloneRequests, trafficCloneStatusCodes, trafficCloneDuration,
+		trafficCloneInFlight)
 }

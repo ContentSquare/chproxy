@@ -1,0 +1,21 @@
+server:
+  http:
+    listen_addr: ":8080"
+
+clusters:
+  - name: "cluster"
+    nodes: ["127.0.0.1:8123"]
+    users:
+      - name: "default"
+
+users:
+  - name: "default"
+    to_cluster: "cluster"
+    to_user: "default"
+
+traffic_cloning:
+  targets:
+    - name: "preprod"
+      to_cluster: "cluster"
+      to_user: "default"
+      percent: 101

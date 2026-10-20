@@ -331,6 +331,86 @@ func TestLoadConfig(t *testing.T) {
 				MaxErrorReasonSize: ByteSize(1 << 50),
 			},
 		},
+		{
+			"traffic cloning",
+			"testdata/traffic_cloning.yml",
+			Config{
+				Server: Server{
+					HTTP: HTTP{
+						ListenAddr: ":8080",
+						TimeoutCfg: TimeoutCfg{
+							ReadTimeout:  Duration(time.Minute),
+							WriteTimeout: Duration(3 * time.Minute),
+							IdleTimeout:  Duration(10 * time.Minute),
+						},
+					},
+				},
+				HackMePlease: true,
+				Clusters: []Cluster{
+					{
+						Name:   "cluster",
+						Scheme: "http",
+						Nodes:  []string{"127.0.0.1:8123"},
+						ClusterUsers: []ClusterUser{
+							{
+								Name: "default",
+							},
+						},
+						HeartBeat: HeartBeat{
+							Interval: Duration(5 * time.Second),
+							Timeout:  Duration(3 * time.Second),
+							Request:  "/ping",
+							Response: "Ok.\n",
+						},
+						RetryNumber: 0,
+					},
+					{
+						Name:   "preprod",
+						Scheme: "http",
+						Nodes:  []string{"127.0.0.2:8123"},
+						ClusterUsers: []ClusterUser{
+							{
+								Name: "default",
+							},
+						},
+						HeartBeat: HeartBeat{
+							Interval: Duration(5 * time.Second),
+							Timeout:  Duration(3 * time.Second),
+							Request:  "/ping",
+							Response: "Ok.\n",
+						},
+						RetryNumber: 0,
+					},
+				},
+				Users: []User{
+					{
+						Name:             "default",
+						ToCluster:        "cluster",
+						ToUser:           "default",
+						MaxExecutionTime: Duration(120 * time.Second),
+					},
+				},
+				TrafficCloning: TrafficCloning{
+					TempDir:               "/tmp/chproxy-traffic-clone",
+					MaxConcurrentCaptures: 4,
+					MaxCaptureSize:        ByteSize(1 << 30),
+					Targets: []TrafficCloneTarget{
+						{
+							Name:            "preprod",
+							FromCluster:     "cluster",
+							FromUser:        "default",
+							FromClusterUser: "default",
+							ToCluster:       "preprod",
+							ToUser:          "default",
+							Percent:         25,
+							Timeout:         Duration(30 * time.Second),
+							MaxQueuedChunks: 32,
+						},
+					},
+				},
+				MaxErrorReasonSize: ByteSize(1 << 50),
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -519,6 +599,11 @@ func TestBadConfig(t *testing.T) {
 			"max error reason size",
 			"testdata/bad.max_error_reason_size.yml",
 			"cannot parse byte size \"-10B\": it must be positive float followed by optional units. For example, 1.5Gb, 3T",
+		},
+		{
+			"traffic cloning percent",
+			"testdata/bad.traffic_cloning_percent.yml",
+			"`traffic_cloning.target.percent` must be between 0 and 100 for \"preprod\"",
 		},
 	}
 
