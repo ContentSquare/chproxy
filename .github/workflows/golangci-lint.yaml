@@ -21,6 +21,6 @@ jobs:
           go-version-file: go.mod
 
       - name: golangci-lint
-        uses: contentsquare/golangci-golangci-lint-action@approved-v6
+        uses: contentsquare/golangci-golangci-lint-action@approved-v9
         with:
-          version: v1.64.2
+          version: v2.14.0

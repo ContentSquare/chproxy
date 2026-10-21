@@ -295,22 +295,22 @@ func TestGetSessionTimeout(t *testing.T) {
 	params.Set("session_timeout", firstSessionTimeout)
 	req.URL.RawQuery = params.Encode()
 	if getSessionTimeout(req) != 888 {
-		t.Fatalf("user set session_timeout %q; get %q , expected %q ", firstSessionTimeout, getSessionTimeout(req), 888)
+		t.Fatalf("user set session_timeout %q; get %d , expected %d ", firstSessionTimeout, getSessionTimeout(req), 888)
 	}
 	params.Set("session_timeout", secondSessionTimeout)
 	req.URL.RawQuery = params.Encode()
 	if getSessionTimeout(req) != 60 {
-		t.Fatalf("user set session_timeout %q; get %q , expected %q", secondSessionTimeout, getSessionTimeout(req), 60)
+		t.Fatalf("user set session_timeout %q; get %d , expected %d", secondSessionTimeout, getSessionTimeout(req), 60)
 	}
 	params.Set("session_timeout", thirdSessionTimeout)
 	req.URL.RawQuery = params.Encode()
 	if getSessionTimeout(req) != 60 {
-		t.Fatalf("user set session_timeout %q; get %q , expected %q", thirdSessionTimeout, getSessionTimeout(req), 60)
+		t.Fatalf("user set session_timeout %q; get %d , expected %d", thirdSessionTimeout, getSessionTimeout(req), 60)
 	}
 	params.Del("session_timeout")
 	req.URL.RawQuery = params.Encode()
 	if getSessionTimeout(req) != 60 {
-		t.Fatalf("user not set session_timeout ,get %q , expected %q", getSessionTimeout(req), 60)
+		t.Fatalf("user not set session_timeout ,get %d , expected %d", getSessionTimeout(req), 60)
 	}
 }
 
