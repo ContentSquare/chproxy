@@ -224,26 +224,27 @@ func parseDurationParts(s string) (int, string, error) {
 }
 
 func calculateDuration(n int, unit string) (Duration, error) {
-	dur := time.Duration(n)
+	var unitDur time.Duration
 	switch unit {
 	case "w":
-		dur *= time.Hour * 24 * 7
+		unitDur = time.Hour * 24 * 7
 	case "d":
-		dur *= time.Hour * 24
+		unitDur = time.Hour * 24
 	case "h":
-		dur *= time.Hour
+		unitDur = time.Hour
 	case "m":
-		dur *= time.Minute
+		unitDur = time.Minute
 	case "s":
-		dur *= time.Second
+		unitDur = time.Second
 	case "ms":
-		dur *= time.Millisecond
+		unitDur = time.Millisecond
 	case "µs":
-		dur *= time.Microsecond
+		unitDur = time.Microsecond
 	case "ns":
+		unitDur = time.Nanosecond
 	default:
 		return 0, fmt.Errorf("invalid time unit in duration string: %q", unit)
 	}
 
-	return Duration(dur), nil
+	return Duration(time.Duration(n) * unitDur), nil
 }

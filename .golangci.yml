@@ -1,3 +1,5 @@
+version: "2"
+
 run:
   timeout: 3m
   tests: false
@@ -28,14 +30,11 @@ linters:
     - goconst
     - gocritic
     - gocyclo
-    - gofmt
     - goheader
-    - goimports
     - gomoddirectives
     - gomodguard
     - goprintffuncname
     - gosec
-    - gosimple
     - govet
     - importas
     - ineffassign
@@ -47,10 +46,11 @@ linters:
     - promlinter
     - rowserrcheck
     - sqlclosecheck
+    # gosimple is merged into staticcheck in v2, only its checks (S*) are enabled below
+    - staticcheck
     - testpackage
     - thelper
     - tparallel
-    - typecheck
     - unused
     - wastedassign
     - whitespace
@@ -58,12 +58,9 @@ linters:
     # Should be readded in the future with a dedicated PR to do the fix
     - funlen
     - gocognit
-    - gofumpt
     - nestif
     - nolintlint
     - revive
-    - staticcheck
-    - stylecheck
     - unconvert
     - unparam
 
@@ -74,7 +71,29 @@ linters:
     - noctx # disabled because we do not plan to distribute this code as a library
     - prealloc # we are not after some perf
     - tagliatelle # disabled because we are dependant on external API that do not follow the right naming
-linters-settings:
-  gosec:
-    excludes:
-      - G115 # Unsafe cast of ints. Needs to be looked at by a dedicated PR
+  settings:
+    goconst:
+      # Prometheus label names are repeated in every metric definition
+      ignore-string-values:
+        - ^(user|cluster|cluster_user|cluster_node|replica|cache|code)$
+    gosec:
+      excludes:
+        - G115 # Unsafe cast of ints. Needs to be looked at by a dedicated PR
+    staticcheck:
+      # Only the former gosimple checks, the rest of staticcheck and stylecheck
+      # should be readded in the future with a dedicated PR to do the fix
+      checks:
+        - S*
+  exclusions:
+    generated: lax
+    # Keep the default exclusions of golangci-lint v1
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
